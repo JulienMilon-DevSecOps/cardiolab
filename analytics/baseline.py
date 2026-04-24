@@ -75,6 +75,22 @@ class Baseline:
 
         values = [r.rmssd for r in data]
         return float(np.mean(values))
+    
+    def median_rmssd(self) -> Optional[float]:
+        """
+        FR :
+        Calcule le RMSSD median sur la fenêtre.
+
+        EN :
+        Computes median RMSSD over the window.
+        """
+        data = self._get_recent()
+
+        if not data:
+            return None
+
+        values = [r.rmssd for r in data]
+        return float(np.median(values))
 
     def mean_hr(self) -> Optional[float]:
         """
