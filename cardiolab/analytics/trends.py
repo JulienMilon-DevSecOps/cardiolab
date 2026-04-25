@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from analytics.baseline import Baseline
+from cardiolab.analytics.baseline import Baseline
 
 
 def trend_rmssd(baseline: Baseline) -> dict:

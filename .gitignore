@@ -2,4 +2,4 @@
 main_test.py
 .pytest_cache
 __pycache__
-datasets/raw/
+cardiolab/datasets/raw/

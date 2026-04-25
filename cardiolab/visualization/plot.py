@@ -6,10 +6,10 @@ import glob
 import numpy as np
 import matplotlib.pyplot as plt
 
-from signals.rr import RRSeries
-from protocols.resting import resting_hrv
-from analytics.baseline import Baseline
-from analytics.scoring import readiness_score_oura
+from cardiolab.signals.rr import RRSeries
+from cardiolab.protocols.resting import resting_hrv
+from cardiolab.analytics.baseline import Baseline
+from cardiolab.analytics.scoring import readiness_score_oura
 
 
 def plot_resting_evolution(path="datasets/resting/*.json"):

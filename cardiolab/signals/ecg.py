@@ -5,7 +5,7 @@ from typing import Optional
 
 import numpy as np
 
-from signals.rr import RRSeries
+from cardiolab.signals.rr import RRSeries
 
 
 @dataclass

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-from sensors_tools.polar import parse_rr_file
+from cardiolab.sensors_tools.polar import parse_rr_file
 
 
 RAW_DIR = Path("datasets/raw")

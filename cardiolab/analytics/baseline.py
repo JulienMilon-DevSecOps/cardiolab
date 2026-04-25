@@ -5,7 +5,7 @@ from typing import List, Optional
 
 import numpy as np
 
-from protocols.resting import RestingResult
+from cardiolab.protocols.resting import RestingResult
 
 
 @dataclass
