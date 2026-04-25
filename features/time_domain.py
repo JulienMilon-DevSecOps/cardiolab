@@ -10,7 +10,7 @@ from signals.rr import RRSeries
 # Fonction du domaine temporel, calculées directement sur les intervalles RR.
 # ======================
 
-def rmssd(self) -> float:
+def rmssd(rr) -> float:
     """
     RMSSD
     
@@ -70,11 +70,31 @@ def rmssd(self) -> float:
 
     Depends on the individual, age, fitness level, etc.
     """
-    diff = np.diff(self.intervals)
+    diff = np.diff(rr.intervals)
     return float(np.sqrt(np.mean(diff ** 2)))
 
+def ln_rmssd(rr) -> float:
+    """
+    FR :
+    Calcule le logarithme naturel du RMSSD.
 
-def sdnn(self) -> float:
+    Très utilisé car RMSSD est fortement asymétrique.
+
+    EN :
+    Computes natural logarithm of RMSSD.
+
+    Widely used because RMSSD is highly skewed.
+    """
+
+    value = rmssd(rr)
+
+    if value <= 0:
+        return 0.0
+
+    return float(np.log(value))
+
+
+def sdnn(rr) -> float:
     """
     SDNN
     
@@ -119,10 +139,10 @@ def sdnn(self) -> float:
     | 50 – 80   | normal         |
     | > 80      | high           |
     """
-    return float(np.std(self.intervals, ddof=1))
+    return float(np.std(rr.intervals, ddof=1))
 
 
-def pnn50(self) -> float:
+def pnn50(rr) -> float:
     """
     pNN50 (%)
     
@@ -169,5 +189,5 @@ def pnn50(self) -> float:
         However, this indicator is not very reliable and is sensitive to noise.
         """
     
-    diff = np.abs(np.diff(self.intervals))
+    diff = np.abs(np.diff(rr.intervals))
     return float(np.sum(diff > 50) / len(diff) * 100)
