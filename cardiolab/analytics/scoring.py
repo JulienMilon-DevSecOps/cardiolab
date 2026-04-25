@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from analytics.baseline import Baseline
-from protocols.resting import RestingResult
+from cardiolab.analytics.baseline import Baseline
+from cardiolab.protocols.resting import RestingResult
 
 
 def readiness_score_oura(current: RestingResult, baseline: Baseline) -> float:

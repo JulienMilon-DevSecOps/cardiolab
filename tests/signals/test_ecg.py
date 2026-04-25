@@ -11,7 +11,7 @@ These tests validate creation, data consistency, and conversion to RR.
 import numpy as np
 import pytest
 
-from signals.ecg import ECGSignal
+from cardiolab.signals.ecg import ECGSignal
 
 
 def generate_fake_ecg(fs=250, duration=10):

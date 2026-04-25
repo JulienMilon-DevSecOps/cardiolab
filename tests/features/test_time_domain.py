@@ -8,8 +8,8 @@ Unit tests for time-domain HRV metrics.
 
 import numpy as np
 
-from signals.rr import RRSeries
-from features.time_domain import rmssd, sdnn, pnn50
+from cardiolab.signals.rr import RRSeries
+from cardiolab.features.time_domain import rmssd, sdnn, pnn50
 
 
 def test_rmssd_known_values():

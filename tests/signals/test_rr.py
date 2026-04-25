@@ -11,7 +11,7 @@ These tests validate creation, conversions, and basic HRV metrics.
 import numpy as np
 import pytest
 
-from signals.rr import RRSeries
+from cardiolab.signals.rr import RRSeries
 
 
 def test_rrseries_creation():
