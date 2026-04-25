@@ -5,47 +5,79 @@ from typing import List, Optional
 
 import numpy as np
 
-from cardiolab.protocols.resting import RestingResult
+from cardiolab.protocols.resting import HRVFeatures
 
 
 @dataclass
 class Baseline:
     """
     FR :
-    Représente une baseline utilisateur basée sur un historique de mesures HRV.
-
-    Permet de :
-    - calculer une moyenne (baseline)
-    - suivre l’évolution
-    - comparer une nouvelle mesure
+    Gère l’historique des métriques HRV (features) et fournit des statistiques
+    (moyenne, médiane, rolling). Compatible avec des données venant :
+    - du pipeline RR/ECG
+    - d'une base de données
 
     EN :
-    Represents a user baseline based on HRV measurement history.
-
-    Allows to:
-    - compute baseline values
-    - track evolution
-    - compare new measurements
+    Manages HRV feature history and provides statistics (mean, median, rolling).
+    Compatible with data coming from:
+    - RR/ECG pipeline
+    - database
     """
 
-    history: List[RestingResult] = field(default_factory=list)
-    window: int = 7  # rolling window (jours)
+    history: List[HRVFeatures] = field(default_factory=list)
+    window: int = 7
 
     # ======================
-    # DATA
+    # FACTORIES
     # ======================
 
-    def add(self, result: RestingResult):
+    @classmethod
+    def from_features(cls, features_list: List[HRVFeatures]) -> "Baseline":
         """
         FR :
-        Ajoute une nouvelle mesure à l’historique.
+        Crée une baseline à partir de features déjà calculées.
 
         EN :
-        Adds a new measurement to the history.
+        Creates a baseline from precomputed features.
         """
-        self.history.append(result)
 
-    def _get_recent(self) -> List[RestingResult]:
+        return cls(history = sorted(features_list, key=lambda x: x.date or ""))
+
+
+    @classmethod
+    def from_resting_results(cls, results) -> "Baseline":
+        """
+        FR :
+        Crée une baseline à partir des résultats du protocole resting.
+
+        EN :
+        Creates a baseline from resting protocol results.
+        """
+
+        features = []
+
+        for r in results:
+            features.append(
+                HRVFeatures(
+                    date=str(r.duration),  # à adapter selon ton modèle
+                    rmssd=r.rmssd,
+                    ln_rmssd=float(np.log(r.rmssd)) if r.rmssd > 0 else 0.0,
+                    sdnn=r.sdnn,
+                    pnn50=r.pnn50,
+                    mean_hr=r.mean_hr,
+                    vlf=r.vlf,
+                    lf=r.lf,
+                    hf=r.hf,
+                    lf_hf=r.lf_hf,
+                    hf_pct=r.hf_pct,
+                    lf_nu=r.lf_nu,
+                    hf_nu=r.hf_nu,
+                )
+            )
+
+        return cls(history=features)
+
+    def _get_recent(self) -> List[HRVFeatures]:
         """
         FR :
         Retourne les dernières mesures selon la fenêtre définie.

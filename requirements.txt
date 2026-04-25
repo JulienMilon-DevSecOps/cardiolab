@@ -2,3 +2,4 @@ numpy
 scipy
 pytest
 matplotlip
+python-dotenv

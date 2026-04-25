@@ -67,4 +67,4 @@ def frequency_domain(rr, fs=4.0):
 
 def _band_power(freqs, psd, low, high):
     mask = (freqs >= low) & (freqs < high)
-    return float(np.trapz(psd[mask], freqs[mask]))
+    return float(np.trapezoid(psd[mask], freqs[mask]))

@@ -6,42 +6,43 @@ from typing import Optional
 import numpy as np
 
 from cardiolab.signals.rr import RRSeries
-from cardiolab.features.time_domain import rmssd, sdnn, pnn50
+from cardiolab.features.time_domain import rmssd, sdnn, pnn50, ln_rmssd
+from cardiolab.features.frequency_domain import frequency_domain
 
 
 @dataclass
-class RestingResult:
+class HRVFeatures:
     """
     FR :
-    Résultat du protocole HRV au repos.
+    Représente un ensemble de métriques HRV calculées pour une session donnée.
+    Ce modèle est conçu pour être stocké en base de données et utilisé pour
+    reconstruire une baseline sans recalculer les signaux bruts.
 
     EN :
-    Result of the resting HRV protocol.
+    Represents a set of HRV metrics computed for a given session.
+    This model is designed to be stored in a database and used to
+    reconstruct a baseline without recomputing raw signals.
     """
 
-    rmssd: float
-    sdnn: float
-    pnn50: float
-    mean_hr: float
-    duration: float
-    score: Optional[float] = None
+    date: Optional[str] = None
 
-    def to_dict(self) -> dict:
-        """
-        FR :
-        Convertit le résultat en dictionnaire.
+    rmssd: float = 0.0
+    ln_rmssd: float = 0.0
+    sdnn: float = 0.0
+    pnn50: float = 0.0
+    mean_hr: float = 0.0
 
-        EN :
-        Converts result to dictionary.
-        """
-        return {
-            "rmssd": self.rmssd,
-            "sdnn": self.sdnn,
-            "pnn50": self.pnn50,
-            "mean_hr": self.mean_hr,
-            "duration": self.duration,
-            "score": self.score,
-        }
+    vlf: float = 0.0
+    lf: float = 0.0
+    hf: float = 0.0
+
+    lf_hf: float = 0.0
+    hf_pct: float = 0.0
+    lf_nu: float = 0.0
+    hf_nu: float = 0.0
+
+    duration:float = 0.0
+    score : float = 0.0
 
 
 # ======================
@@ -52,7 +53,7 @@ def resting_hrv(
     rr: RRSeries,
     min_duration: float = 300.0,
     compute_score: bool = False,
-) -> RestingResult:
+) -> HRVFeatures:
     """
     FR :
     Calcule les métriques HRV dans un protocole de repos.
@@ -87,7 +88,7 @@ def resting_hrv(
 
     Returns
     -------
-    RestingResult
+    HRVFeatures
         Résultat du protocole
     """
 
@@ -107,9 +108,14 @@ def resting_hrv(
     # ======================
 
     rmssd_value = rmssd(rr)
+    ln_rmssd_value = ln_rmssd(rr)
     sdnn_value = sdnn(rr)
     pnn50_value = pnn50(rr)
     mean_hr_value = rr.mean_hr
+
+    frequency_indicators = frequency_domain(rr)
+
+    print(frequency_indicators)
 
     # ======================
     # SCORE (simple)
@@ -120,11 +126,18 @@ def resting_hrv(
     if compute_score:
         score = _compute_simple_score(rmssd_value, mean_hr_value)
 
-    return RestingResult(
+    return HRVFeatures(
         rmssd=rmssd_value,
         sdnn=sdnn_value,
         pnn50=pnn50_value,
         mean_hr=mean_hr_value,
+        vlf=frequency_indicators["VLF"] ,
+        lf=frequency_indicators["LF"],
+        hf=frequency_indicators["HF"] ,
+        lf_hf=frequency_indicators["LF_HF"] ,
+        hf_pct=frequency_indicators["HF_pct"] ,
+        lf_nu=frequency_indicators["LF_nu"] ,
+        hf_nu=frequency_indicators["HF_nu"] ,
         duration=duration,
         score=score,
     )
