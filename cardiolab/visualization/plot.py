@@ -12,7 +12,7 @@ from cardiolab.analytics.baseline import Baseline
 from cardiolab.analytics.scoring import readiness_score_oura
 
 
-def plot_resting_evolution(path="datasets/resting/*.json"):
+def plot_resting_evolution(path="cardiolab/datasets/resting/*.json"):
     """
     FR :
     Affiche l'évolution du RMSSD et du score dans le temps.
@@ -68,7 +68,7 @@ def plot_resting_evolution(path="datasets/resting/*.json"):
 
 
 
-def plot_resting_evolution_rolling(path="datasets/resting/*.json"):
+def plot_resting_evolution_rolling(path="cardiolab/datasets/resting/*.json"):
     """
     FR :
     Affiche l'évolution du RMSSD, du RMSSD lissé (rolling médian)

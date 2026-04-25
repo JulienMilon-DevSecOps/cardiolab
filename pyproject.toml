@@ -1,0 +1,10 @@
+[project]
+name = "cardiolab"
+version = "0.1.0"
+description = "HRV analysis toolkit"
+authors = [{name="Julien MILON}]
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib"
+]

@@ -7,11 +7,11 @@ from datetime import datetime
 from cardiolab.sensors_tools.polar import parse_rr_file
 
 
-RAW_DIR = Path("datasets/raw")
+RAW_DIR = Path("cardiolab/datasets/raw")
 
 
 
-def import_all(output_dir = "datasets/resting"):
+def import_all(output_dir = "cardiolab/datasets/resting"):
     """
     FR :
     Importe tous les fichiers RR (txt/csv) depuis datasets/raw
