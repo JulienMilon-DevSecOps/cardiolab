@@ -1,3 +1,5 @@
+""""Functions abount import data from files."""
+
 from __future__ import annotations
 
 import json
@@ -6,12 +8,12 @@ from pathlib import Path
 
 from cardiolab.sensors_tools.polar import parse_rr_file
 
-RAW_DIR = Path("cardiolab/datasets/raw")
-
+raw_dir = Path("cardiolab/datasets/raw")
 
 
 def import_all(output_dir = "cardiolab/datasets/resting"):
-    """
+    """Import all RR files (txt/csv) from datasets/raw.
+    
     FR :
     Importe tous les fichiers RR (txt/csv) depuis datasets/raw
     et les convertit en JSON dans datasets/resting.
@@ -20,12 +22,11 @@ def import_all(output_dir = "cardiolab/datasets/resting"):
     Imports all RR files (txt/csv) from datasets/raw
     and converts them into JSON in datasets/resting.
     """
+    output_dir = Path(output_dir)
 
-    OUTPUT_DIR = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-    files = list(RAW_DIR.glob("*"))
+    files = list(raw_dir.glob("*"))
 
     if not files:
         print("No files found in datasets/raw")
@@ -51,7 +52,7 @@ def import_all(output_dir = "cardiolab/datasets/resting"):
                 "duration": data["duration_sec"],
             }
 
-            out_path = OUTPUT_DIR / f"{date_str}.json"
+            out_path = output_dir / f"{date_str}.json"
 
             # ======================
             # DUPLICATION PROTECTION
@@ -75,14 +76,13 @@ def import_all(output_dir = "cardiolab/datasets/resting"):
 # ======================
 
 def _extract_date(filename: str) -> str:
-    """
+    """Attempt to extract a date from filename.
+    
     FR :
     Essaie d'extraire une date depuis le nom du fichier.
-
     EN :
     Attempts to extract a date from filename.
     """
-
     # ex: 2026-04-24.txt
     try:
         return filename.split(".")[0]

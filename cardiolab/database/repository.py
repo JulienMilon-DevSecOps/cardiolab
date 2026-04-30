@@ -1,5 +1,8 @@
+"""Load HRV features from database for a given user."""
+
 import psycopg2
-from cardiolab.models.features import HRVFeatures
+
+from cardiolab.protocols.resting import HRVFeatures
 
 
 def load_features(
@@ -10,14 +13,13 @@ def load_features(
     table_name: str,
     user_id: str,
 ) -> list[HRVFeatures]:
-    """
+    """Load HRV features from database for a given user.
+    
     FR :
     Charge les features HRV depuis la base pour un utilisateur donné.
-
     EN :
     Loads HRV features from database for a given user.
     """
-
     conn = psycopg2.connect(
         host=host, database=database, user=user, password=password
     )

@@ -1,3 +1,5 @@
+"""Statistics from RR Interval in frequency domain."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -5,10 +7,10 @@ from scipy.signal import welch
 
 
 def frequency_domain(rr, fs=4.0):
-    """
+    """Frequency-domain HRV analysis using Welch method.
+    
     FR :
     Analyse fréquentielle HRV via méthode de Welch.
-
     | Indicateur | Signification           |
     | ---------- | ----------------------- |
     | HF         | parasympathique         |
@@ -16,12 +18,9 @@ def frequency_domain(rr, fs=4.0):
     | LF/HF      | balance autonome        |
     | HF ↑       | récupération            |
     | LF/HF ↑    | stress                  |
-
-
     EN :
     Frequency-domain HRV analysis using Welch method.
     """
-
     rr_intervals = np.array(rr.intervals) / 1000.0  # sec
 
     # ======================
@@ -66,5 +65,6 @@ def frequency_domain(rr, fs=4.0):
 
 
 def _band_power(freqs, psd, low, high):
+    """Band power."""
     mask = (freqs >= low) & (freqs < high)
     return float(np.trapezoid(psd[mask], freqs[mask]))

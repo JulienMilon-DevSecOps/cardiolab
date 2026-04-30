@@ -1,3 +1,17 @@
+"""Manage HRV feature history and provides statistics (mean, median, rolling).
+
+FR :
+Gère l’historique des métriques HRV (features) et fournit des statistiques
+(moyenne, médiane, rolling). Compatible avec des données venant :
+    - du pipeline RR/ECG
+    - d'une base de données
+EN :
+Manages HRV feature history and provides statistics (mean, median, rolling).
+Compatible with data coming from:
+    - RR/ECG pipeline
+    - database
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -9,13 +23,13 @@ from cardiolab.protocols.resting import HRVFeatures
 
 @dataclass
 class Baseline:
-    """
+    """Manage HRV feature history and provides statistics (mean, median, rolling).
+    
     FR :
     Gère l’historique des métriques HRV (features) et fournit des statistiques
     (moyenne, médiane, rolling). Compatible avec des données venant :
     - du pipeline RR/ECG
     - d'une base de données
-
     EN :
     Manages HRV feature history and provides statistics (mean, median, rolling).
     Compatible with data coming from:
@@ -32,27 +46,25 @@ class Baseline:
 
     @classmethod
     def from_features(cls, features_list: list[HRVFeatures]) -> Baseline:
-        """
+        """Create a baseline from precomputed features.
+        
         FR :
         Crée une baseline à partir de features déjà calculées.
-
         EN :
         Creates a baseline from precomputed features.
         """
-
         return cls(history = sorted(features_list, key=lambda x: x.date or ""))
 
 
     @classmethod
     def from_resting_results(cls, results) -> Baseline:
-        """
+        """Create a baseline from resting protocol results.
+        
         FR :
         Crée une baseline à partir des résultats du protocole resting.
-
         EN :
         Creates a baseline from resting protocol results.
         """
-
         features = []
 
         for r in results:
@@ -77,10 +89,10 @@ class Baseline:
         return cls(history=features)
 
     def _get_recent(self) -> list[HRVFeatures]:
-        """
+        """Return recent measurements based on rolling window.
+        
         FR :
         Retourne les dernières mesures selon la fenêtre définie.
-
         EN :
         Returns recent measurements based on rolling window.
         """
@@ -92,10 +104,10 @@ class Baseline:
 
 
     def mean_rmssd(self) -> float | None:
-        """
+        """Compute mean RMSSD over the window.
+        
         FR :
         Calcule le RMSSD moyen sur la fenêtre.
-
         EN :
         Computes mean RMSSD over the window.
         """
@@ -108,10 +120,10 @@ class Baseline:
         return float(np.mean(values))
     
     def median_rmssd(self) -> float | None:
-        """
+        """Compute median RMSSD over the window.
+        
         FR :
         Calcule le RMSSD median sur la fenêtre.
-
         EN :
         Computes median RMSSD over the window.
         """
@@ -124,10 +136,10 @@ class Baseline:
         return float(np.median(values))
 
     def mean_hr(self) -> float | None:
-        """
+        """Compute mean heart rate.
+        
         FR :
         Calcule la fréquence cardiaque moyenne.
-
         EN :
         Computes mean heart rate.
         """
@@ -144,14 +156,13 @@ class Baseline:
     # ======================
 
     def rolling_rmssd(self, window: int = 7) -> list[float]:
-        """
+        """Compute rolling average of RMSSD over a given window.
+        
         FR :
         Calcule la moyenne glissante du RMSSD sur une fenêtre donnée.
-
         EN :
         Computes rolling average of RMSSD over a given window.
         """
-
         values = [r.rmssd for r in self.history]
 
         if len(values) < window:
@@ -164,14 +175,13 @@ class Baseline:
     
 
     def rolling_rmssd_median(self, window: int = 7) -> list[float]:
-        """
+        """Robust rolling average using median.
+        
         FR :
         Moyenne glissante robuste (médiane).
-
         EN :
         Robust rolling average using median.
         """
-
         values = [r.rmssd for r in self.history]
 
         if len(values) < window:

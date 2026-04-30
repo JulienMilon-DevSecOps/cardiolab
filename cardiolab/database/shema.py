@@ -1,3 +1,5 @@
+"""Creates an HRV table in PostgreSQL with flexible configuration."""
+
 import psycopg2
 
 
@@ -11,20 +13,29 @@ def create_hrv_table(
     exclude_fields: list[str] | None = None,
     extra_columns: dict[str, str] | None = None,
 ):
-    """
+    """Create an HRV table in PostgreSQL with flexible configuration.
+    
     FR :
     Crée une table HRV dans PostgreSQL avec configuration flexible :
     - choix des colonnes
     - exclusion de colonnes
     - ajout de colonnes personnalisées
-
     EN :
     Creates an HRV table in PostgreSQL with flexible configuration:
     - column selection
     - column exclusion
     - custom columns
-    """
 
+    Args :
+        host : host connexion database
+        database : database name
+        user : user to connect to the database
+        password : passaword to connexion
+        table_name : name of the table that you want, default hrv_features
+        include_fields : fields that you want to select from default fields (default none is all fields)
+        exclude_fields : fields that you want to remove from default fields
+        ectr_columns : extra columns in dict with name : type
+    """
     base_fields = {
         "user_id": "TEXT",
         "date": "DATE",

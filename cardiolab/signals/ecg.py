@@ -1,48 +1,42 @@
+"""ECG signal representation.
+    
+FR :
+    Représentation d'un signal ECG.
+EN :
+    ECG signal representation.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 import numpy as np
+from scipy.signal import find_peaks
 
 from cardiolab.signals.rr import RRSeries
 
 
 @dataclass
 class ECGSignal:
-    """
+    """ECG signal representation.
+    
     FR :
     Représentation d'un signal ECG.
-
-    Parameters
-    ----------
-    data : np.ndarray
-        Signal ECG brut
-    sampling_rate : Optional[float]
-        Fréquence d'échantillonnage (Hz)
-    timestamps : Optional[np.ndarray]
-        Temps associés (secondes)
-
-    Notes
-    -----
-    - Fournir au moins sampling_rate OU timestamps
-    - Si les deux sont fournis → validation de cohérence
-    
     EN :
     ECG signal representation.
 
-    Parameters
-    ----------
-    data: np.ndarray
-        Raw ECG signal
-    sampling_rate: Optional[float]
-        Sampling rate (Hz)
-    timestamps: Optional[np.ndarray]
-    A   ssociated times (seconds)
+    Args :
+        data: np.ndarray
+            Raw ECG signal / Signal ECG brut
+        sampling_rate: Optional[float]
+            Sampling rate (Hz) / Fréquence d'échantillonnage (Hz)
+        timestamps: Optional[np.ndarray]
+            Associated times (seconds) / Temps associés (secondes)
 
-    Notes
-    ----
-    - Provide at least sampling_rate OR timestamps
-    - If both are provided → consistency check
+    Notes :
+        - Provide at least sampling_rate OR timestamps / Fournir au moins sampling_rate OU timestamps
+        - If both are provided → consistency check / Si les deux sont fournis → validation de cohérence
+
     """
 
     data: np.ndarray
@@ -50,6 +44,7 @@ class ECGSignal:
     timestamps: np.ndarray | None = None
 
     def __post_init__(self):
+        """"Post init, create sampling_rate of timestamps if not in the input and if both are present check consistency."""
         self.data = np.asarray(self.data, dtype=float)
 
         if self.timestamps is not None:
@@ -83,14 +78,13 @@ class ECGSignal:
     # ======================
 
     def _infer_sampling_rate(self) -> float:
-        """
-        FR : 
-        Déduit la fréquence d'échantillonnage à partir des timestamps.
+        """Deduce the sampling frequency from the timestamps.
         
+        FR :
+        Déduit la fréquence d'échantillonnage à partir des timestamps.
         EN :
         Deduce the sampling frequency from the timestamps.
         """
-
         dt = np.diff(self.timestamps)
 
         # moyenne (robuste au bruit léger)
@@ -103,14 +97,13 @@ class ECGSignal:
         return float(fs)
 
     def _generate_timestamps(self) -> np.ndarray:
-        """
+        """Generate timestamps from sampling_rate.
+        
         FR :
         Génère timestamps à partir du sampling_rate.
-        
         EN:
         Generate timestamps from sampling_rate.
         """
-
         if self.sampling_rate <= 0:
             raise ValueError("sampling_rate must be > 0")
 
@@ -122,14 +115,13 @@ class ECGSignal:
     # ======================
 
     def _validate_consistency(self):
-        """
-        FR : 
-        Vérifie que sampling_rate et timestamps sont cohérents.
+        """Check that sampling_rate and timestamps are consistent.
         
+        FR :
+        Vérifie que sampling_rate et timestamps sont cohérents.
         EN :
         Check that sampling_rate and timestamps are consistent.
         """
-
         dt = np.diff(self.timestamps)
         mean_dt = np.mean(dt)
 
@@ -148,6 +140,7 @@ class ECGSignal:
 
     @property
     def duration(self) -> float:
+        """Return the duration of timestamps."""
         return self.timestamps[-1] - self.timestamps[0]
 
     # ======================
@@ -155,6 +148,7 @@ class ECGSignal:
     # ======================
 
     def bandpass_filter(self, low: float = 5.0, high: float = 15.0) -> np.ndarray:
+        """"Bandpass filter."""
         from scipy.signal import butter, filtfilt
 
         nyquist = 0.5 * self.sampling_rate
@@ -169,15 +163,13 @@ class ECGSignal:
     # ======================
 
     def detect_r_peaks(self) -> np.ndarray:
-        '''
+        """Detect peaks, R peaks after passing through a bandpass filter.
+        
         FR :
         Fonction permettant de detecter les pics, les pics R après avoir passer un filtre passe bande.
-        
         EN :
         Function allowing the detection of peaks, R peaks after passing through a bandpass filter.
-        '''
-        from scipy.signal import find_peaks
-
+        """
         filtered = self.bandpass_filter()
         squared = filtered ** 2
 
@@ -198,16 +190,15 @@ class ECGSignal:
     # ======================
 
     def to_rr(self, clean: bool = True) -> RRSeries:
-        '''
+        """Construct of the RRSeries from the raw ECG data.
+        
         FR :
         Construction de la RRSeries à partir des données de l'ECG Brute.
         RRSeries étant les intervalles de temps (en ms) entre les pics R consécutifs.
-
         EN :
         Construction of the RRSeries from the raw ECG data.
-RRSeries are the time intervals (in ms) between consecutive R peaks.
-        '''
-        
+        RRSeries are the time intervals (in ms) between consecutive R peaks.
+        """
         r_peaks = self.detect_r_peaks()
 
         if len(r_peaks) < 2:
@@ -227,6 +218,7 @@ RRSeries are the time intervals (in ms) between consecutive R peaks.
         return rr
 
     def __repr__(self):
+        """Print size, frequency and duration."""
         return (
             f"ECGSignal(len={len(self.data)}, "
             f"fs={self.sampling_rate:.2f}Hz, "

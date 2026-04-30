@@ -1,3 +1,5 @@
+"""DIfferents score from analyse RR Intervals."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -7,14 +9,13 @@ from cardiolab.protocols.resting import HRVFeatures
 
 
 def readiness_score_oura(current: HRVFeatures, baseline: Baseline) -> float:
-    """
+    """Oura-like readiness score.
+    
     FR :
     Score de récupération inspiré Oura.
-
     EN :
     Oura-like readiness score.
     """
-
     base_rmssd = baseline.median_rmssd()
     base_hr = baseline.mean_hr()
 
@@ -39,26 +40,23 @@ def readiness_score_multi(
     current: HRVFeatures,
     baseline: Baseline,
 ) -> float:
-    """
+    """Compute a multi-factor readiness score based on.
+    
     FR :
     Calcule un score de récupération multi-facteurs basé sur :
-    - RMSSD (principal)
-    - HR (charge physiologique)
-    - HF (parasympathique)
-    - tendance RMSSD (fatigue cumulée)
-
+        - RMSSD (principal)
+        - HR (charge physiologique)
+        - HF (parasympathique)
+        - tendance RMSSD (fatigue cumulée)
     Score entre 0 et 100.
-
     EN :
     Computes a multi-factor readiness score based on:
-    - RMSSD (primary)
-    - HR (physiological load)
-    - HF (parasympathetic activity)
-    - RMSSD trend (cumulative fatigue)
-
+        - RMSSD (primary)
+        - HR (physiological load)
+        - HF (parasympathetic activity)
+        - RMSSD trend (cumulative fatigue)
     Score between 0 and 100.
     """
-
     # ======================
     # BASELINE
     # ======================

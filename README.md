@@ -107,8 +107,6 @@ Modules actuellement implémentés :
 
 * [ ] HRV complet
 * [ ] protocoles physiologiques
-* [ ] API FastAPI
-* [ ] interface utilisateur
 
 ---
 

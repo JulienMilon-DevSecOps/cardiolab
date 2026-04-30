@@ -3,3 +3,4 @@ scipy
 pytest
 matplotlip
 python-dotenv
+psycopg2-binary

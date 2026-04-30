@@ -1,3 +1,5 @@
+"""Multiples method to detect anomalies in differents scores."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -11,14 +13,13 @@ def detect_rmssd_anomaly(
     baseline: Baseline,
     method: str = "zscore",
 ) -> dict:
-    """
+    """Detect RMSSD anomaly.
+    
     FR :
     Détecte une anomalie RMSSD.
-
     EN :
     Detects RMSSD anomaly.
     """
-
     if method == "simple":
         return _simple(current, baseline)
     elif method == "zscore":
@@ -30,11 +31,11 @@ def detect_rmssd_anomaly(
 
 
 def _simple(current, baseline):
-    """
+    """Calculate simple percentage-based method.
+    
     FR : méthode simple basée sur % de variation
     EN : simple percentage-based method
     """
-
     base = baseline.mean_rmssd()
     if base is None:
         return {"status": "no_baseline"}
@@ -45,11 +46,11 @@ def _simple(current, baseline):
 
 
 def _zscore(current, baseline):
-    """
+    """Return Z-score.
+    
     FR : méthode z-score
     EN : z-score method
     """
-
     values = [r.rmssd for r in baseline._get_recent()]
     if len(values) < 3:
         return {"status": "insufficient_data"}
@@ -70,11 +71,11 @@ def _zscore(current, baseline):
 
 
 def _rolling(current, baseline):
-    """
+    """Use Rolling baseline method.
+    
     FR : méthode basée sur moyenne glissante
     EN : rolling baseline method
     """
-
     rolling = baseline.rolling_rmssd_median()
     if not rolling:
         return {"status": "insufficient_data"}
@@ -91,14 +92,13 @@ def _rolling(current, baseline):
 
 
 def _interpret(delta):
-    """
+    """Return simple interpretation of variation.
+    
     FR :
     Interprétation simple des variations.
-
     EN :
     Simple interpretation of variation.
     """
-    
     if delta < -20:
         return "low_severe"
     elif delta < -10:

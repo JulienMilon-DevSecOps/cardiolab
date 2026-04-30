@@ -1,3 +1,5 @@
+"""Functions to parse data export files from polar sensors."""
+
 from __future__ import annotations
 
 import csv
@@ -8,18 +10,15 @@ from pathlib import Path
 # ======================
 
 def parse_rr_file(filepath: str | Path) -> dict:
-    """
+    """Detect format and calls appropriate parser.
+    
     FR :
     Parse automatiquement un fichier RR (CSV ou TXT).
-
     Détecte le format et appelle le bon parser.
-
     EN :
     Automatically parses an RR file (CSV or TXT).
-
     Detects format and calls appropriate parser.
     """
-
     filepath = Path(filepath)
 
     if not filepath.exists():
@@ -40,14 +39,13 @@ def parse_rr_file(filepath: str | Path) -> dict:
 # ======================
 
 def _parse_csv(filepath: Path) -> dict:
-    """
+    """Parse a CSV file with RR intervals.
+    
     FR :
     Parse un CSV Polar ou similaire avec une colonne RR.
-
     EN :
     Parses a CSV file with RR intervals.
     """
-
     rr_intervals: list[float] = []
 
     with open(filepath) as f:
@@ -79,20 +77,23 @@ def _parse_csv(filepath: Path) -> dict:
 # ======================
 
 def _parse_txt(filepath: Path) -> dict:
-    """
+    """Parse a TXT file with one column of RR intervals.
+    
     FR :
     Parse un fichier TXT contenant une colonne d'intervalles RR.
-
     Format attendu :
     800
     810
     790
     ...
-
     EN :
     Parses a TXT file with one column of RR intervals.
+    Format :
+    800
+    810
+    790
+    ...
     """
-
     rr_intervals: list[float] = []
 
     with open(filepath) as f:
@@ -121,14 +122,13 @@ def _parse_txt(filepath: Path) -> dict:
 # ======================
 
 def _build_output(filepath: Path, rr_intervals: list[float]) -> dict:
-    """
+    """Build a standardized output.
+    
     FR :
     Construit une sortie standardisée.
-
     EN :
     Builds a standardized output.
     """
-
     return {
         "source": filepath.name,
         "format": filepath.suffix.lower(),

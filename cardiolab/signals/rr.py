@@ -1,3 +1,11 @@
+"""Representation of a series of RR intervals (in milliseconds).
+    
+FR :
+    Représentation d'une série d'intervalles RR (en millisecondes).
+EN :
+    Representation of a series of RR intervals (in milliseconds).
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -7,37 +15,28 @@ import numpy as np
 
 @dataclass
 class RRSeries:
-    """
+    """Representation of a series of RR intervals (in milliseconds).
+    
     FR :
     Représentation d'une série d'intervalles RR (en millisecondes).
-
-    Attributes
-    ----------
-    intervals : np.ndarray
-        Intervalles RR en millisecondes.
-    timestamps : Optional[np.ndarray]
-        Temps associés à chaque intervalle (en secondes).
-    metadata : dict
-        Informations additionnelles (source, capteur, utilisateur, etc.)
-
     EN :
     Representation of a series of RR intervals (in milliseconds).
 
-    Attributes
-    ----------
-    intervals: np.ndarray
-        RR intervals in milliseconds.
-    timestamps: Optional[np.ndarray]
-        Time associated with each interval (in seconds).
-    metadata: dict
-        Additional information (source, sensor, user, etc.)
+    Args :
+        intervals: np.ndarray
+            RR intervals in milliseconds. / RR intervalles en millisecond.
+        timestamps: Optional[np.ndarray]
+            Time associated with each interval (in seconds). / Temps associés a chaque intervalle (en secondes)
+        metadata: dict
+            Additional information (source, sensor, user, etc.) / Information additionnelles (source, capteur, utilisateur, etc.)
     """
-
+    
     intervals: np.ndarray
     timestamps: np.ndarray | None = None
     metadata: dict = field(default_factory=dict)
 
     def __post_init__(self):
+        """Create timestamps if isn't in the input parameters."""
         self.intervals = np.asarray(self.intervals, dtype=float)
 
         if self.timestamps is not None:
@@ -64,10 +63,10 @@ class RRSeries:
 
     @property
     def duration(self) -> float:
-        """
+        """Duration in seconds.
+        
         FR :
         Durée totale en secondes
-        
         EN:
         Duration in seconds
         """
@@ -75,10 +74,10 @@ class RRSeries:
 
     @property
     def mean_rr(self) -> float:
-        """
-        FR : 
-        RR moyen (ms)
+        """RR mean (ms).
         
+        FR :
+        RR moyen (ms)
         EN :
         RR mean (ms)
         """
@@ -86,10 +85,10 @@ class RRSeries:
 
     @property
     def mean_hr(self) -> float:
-        """
+        """Mean Heart Rate (bpm).
+        
         FR :
         Fréquence cardiaque moyenne (bpm)
-        
         EN :
         Mean Heart Rate (bpm)
         """
@@ -97,10 +96,10 @@ class RRSeries:
 
     @property
     def min_hr(self) -> float:
-        """
+        """Minimum Heart Rate (bpm).
+        
         FR :
         Fréquence cardiaque minimale (bpm)
-        
         EN :
         Minimum Heart Rate (bpm)
         """
@@ -108,10 +107,10 @@ class RRSeries:
 
     @property
     def max_hr(self) -> float:
-        """
+        """Maximum Heart Rate (bpm).
+        
         FR :
         Fréquence cardiaque maximale (bpm)
-        
         EN :
         Maximum Heart Rate (bpm)
         """
@@ -122,10 +121,10 @@ class RRSeries:
     # ======================
 
     def to_hr(self) -> np.ndarray:
-        """
+        """Convert RR → HR (bpm).
+        
         FR :
         Convertit RR → HR (bpm)
-        
         EN :
         Convert RR → HR (bpm)
         """
@@ -134,10 +133,10 @@ class RRSeries:
 
     @classmethod
     def from_hr(cls, hr_values: np.ndarray) -> RRSeries:
-        """
+        """Create RR Series from HR serie (bpm).
+        
         FR :
         Crée RRSeries à partir d'une série HR (bpm)
-        
         EN : 
         Create RR Series from HR serie (bpm)
         """
@@ -159,7 +158,8 @@ class RRSeries:
         high: float = 2000,
         method: str = "threshold"
     ) -> RRSeries:
-        """
+        """Remove outliers.
+        
         FR :
         Supprime les intervalles aberrants.
 
@@ -183,8 +183,8 @@ class RRSeries:
             high threshold (ms)
         method: str
             "threshold" or "zscore"
-        """
 
+        """
         rr = self.intervals.copy()
 
         if method == "threshold":
@@ -208,7 +208,8 @@ class RRSeries:
     # ======================
 
     def interpolate(self, fs: float = 4.0) -> tuple[np.ndarray, np.ndarray]:
-        """
+        """Interpolation for frequency analysis.
+        
         FR:
         Interpolation pour analyse fréquentielle.
 
@@ -226,17 +227,16 @@ class RRSeries:
         Interpolation for frequency analysis.
 
         Parameters
-
-        -----------
+        ----------
         fs: float
             Target sampling frequency (Hz)
 
         Returns
-        ------
+        -------
         t_interp: np.ndarray
         rr_interp: np.ndarray
-        """
 
+        """
         if self.timestamps is None:
             t = np.cumsum(self.intervals) / 1000.0
         else:
@@ -252,14 +252,13 @@ class RRSeries:
     # ======================
 
     def segment(self, window_sec: float) -> list[RRSeries]:
-        """
+        """Divide the series into segments of fixed duration.
+        
         FR :
         Découpe la série en segments de durée fixe.
-
         EN :
         Divide the series into segments of fixed duration.
         """
-
         segments = []
         current = []
         total_time = 0
@@ -281,6 +280,7 @@ class RRSeries:
     # ======================
 
     def summary(self) -> dict:
+        """Return small dict summary with legth, duration, mean_rr and mean_hr."""
         return {
             "n": len(self.intervals),
             "duration_s": self.duration,
@@ -293,9 +293,11 @@ class RRSeries:
     # ======================
 
     def __len__(self):
+        """Return length of self.intervals."""
         return len(self.intervals)
 
     def __repr__(self):
+        """Print size and mean HR."""
         return (
             f"RRSeries(n={len(self)}, "
             f"mean_hr={self.mean_hr:.1f}, "

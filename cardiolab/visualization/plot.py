@@ -1,3 +1,9 @@
+"""Visualization module with multiple plots.
+
+- plot_resting_evolution
+- plot_resting_evolution_rolling
+"""
+
 from __future__ import annotations
 
 import glob
@@ -12,14 +18,13 @@ from cardiolab.signals.rr import RRSeries
 
 
 def plot_resting_evolution(path="cardiolab/datasets/resting/*.json"):
-    """
+    """Plot RMSSD and readiness score evolution over time.
+    
     FR :
     Affiche l'évolution du RMSSD et du score dans le temps.
-
     EN :
     Plots RMSSD and readiness score evolution over time.
     """
-
     files = sorted(glob.glob(path))
 
     dates = []
@@ -68,15 +73,14 @@ def plot_resting_evolution(path="cardiolab/datasets/resting/*.json"):
 
 
 def plot_resting_evolution_rolling(path="cardiolab/datasets/resting/*.json"):
-    """
+    """Plot RMSSD, rolling median RMSSD and readiness score over time.
+    
     FR :
     Affiche l'évolution du RMSSD, du RMSSD lissé (rolling médian)
     et du score.
-
     EN :
     Plots RMSSD, rolling median RMSSD and readiness score over time.
     """
-
     files = sorted(glob.glob(path))
 
     dates = []

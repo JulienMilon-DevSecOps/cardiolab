@@ -1,3 +1,5 @@
+"""Represent a set of HRV metrics computed for a given session and resting protocol and result."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,12 +13,12 @@ from cardiolab.signals.rr import RRSeries
 
 @dataclass
 class HRVFeatures:
-    """
+    """Represents a set of HRV metrics computed for a given session.
+    
     FR :
     Représente un ensemble de métriques HRV calculées pour une session donnée.
     Ce modèle est conçu pour être stocké en base de données et utilisé pour
     reconstruire une baseline sans recalculer les signaux bruts.
-
     EN :
     Represents a set of HRV metrics computed for a given session.
     This model is designed to be stored in a database and used to
@@ -53,44 +55,37 @@ def resting_hrv(
     min_duration: float = 300.0,
     compute_score: bool = False,
 ) -> HRVFeatures:
-    """
+    """Compute HRV metrics in a resting protocol.
+    
     FR :
     Calcule les métriques HRV dans un protocole de repos.
-
     Ce protocole est utilisé pour évaluer la récupération, la fatigue
     et l’état du système nerveux autonome.
-
     Conditions recommandées :
     - durée ≥ 5 minutes
     - position stable (couché ou assis)
     - respiration naturelle
-
     EN :
     Computes HRV metrics in a resting protocol.
-
     This protocol is used to assess recovery, fatigue,
     and autonomic nervous system state.
-
     Recommended conditions:
     - duration ≥ 5 minutes
     - stable position (lying or seated)
     - natural breathing
 
-    Parameters
-    ----------
-    rr : RRSeries
-        Série d'intervalles RR
-    min_duration : float
-        Durée minimale recommandée en secondes (default: 300s)
-    compute_score : bool
-        Si True, calcule un score simple
+    Args : 
+        rr : RRSeries
+            RR intarvall serie / Série d'intervalles RR
+        min_duration : float
+            Minimal duration recommanded in secondes (default: 300s) / Durée minimale recommandée en secondes (default: 300s)
+        compute_score : bool
+            If True, calculate a simple score / Si True, calcule un score simple
 
-    Returns
-    -------
-    HRVFeatures
-        Résultat du protocole
+    Return :
+        HRVFeatures
+            Résultat du protocole
     """
-
     # ======================
     # VALIDATION
     # ======================
@@ -148,20 +143,17 @@ def resting_hrv(
 # ======================
 
 def _compute_simple_score(rmssd_value: float, mean_hr: float) -> float:
-    """
+    """Compute a simple score based on RMSSD and heart rate.
+    
     FR :
     Calcule un score simple basé sur RMSSD et la fréquence cardiaque.
-
     ⚠️ Ce score est volontairement simplifié et sera amélioré
     avec l’ajout d’une baseline utilisateur.
-
     EN :
     Computes a simple score based on RMSSD and heart rate.
-
     ⚠️ This is a simplified score that will be improved
     with user baseline integration.
     """
-
     # normalisation simple
     rmssd_norm = np.tanh(rmssd_value / 50.0)
     hr_penalty = np.tanh((mean_hr - 60.0) / 30.0)

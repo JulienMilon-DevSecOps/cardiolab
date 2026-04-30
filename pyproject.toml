@@ -35,9 +35,9 @@ select = [
     "B",        # Bugs potentiels (flake8-bugbear)
     "UP",       # Modernisation syntaxe (pyupgrade)
     "SIM",      # Simplification possibles
-    #"D",        # Docstrings manquantes ou mal formatées
-    #"N",        # Convention de nommage
-    #"S",        # Problèmes de sécurité
+    "D",        # Docstrings manquantes ou mal formatées
+    "N",        # Convention de nommage
+    "S",        # Problèmes de sécurité
 ]
 
 # Règles à ignorer
@@ -50,5 +50,6 @@ fixable = [
     "E",
     "F",
     "I",
-    "UP"
+    "UP", 
+    "D",
 ]
