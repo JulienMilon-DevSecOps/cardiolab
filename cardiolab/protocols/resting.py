@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 
-from cardiolab.signals.rr import RRSeries
-from cardiolab.features.time_domain import rmssd, sdnn, pnn50, ln_rmssd
 from cardiolab.features.frequency_domain import frequency_domain
+from cardiolab.features.time_domain import ln_rmssd, pnn50, rmssd, sdnn
+from cardiolab.signals.rr import RRSeries
 
 
 @dataclass
@@ -24,7 +23,7 @@ class HRVFeatures:
     reconstruct a baseline without recomputing raw signals.
     """
 
-    date: Optional[str] = None
+    date: str | None = None
 
     rmssd: float = 0.0
     ln_rmssd: float = 0.0
@@ -128,6 +127,7 @@ def resting_hrv(
 
     return HRVFeatures(
         rmssd=rmssd_value,
+        ln_rmssd=ln_rmssd_value,
         sdnn=sdnn_value,
         pnn50=pnn50_value,
         mean_hr=mean_hr_value,

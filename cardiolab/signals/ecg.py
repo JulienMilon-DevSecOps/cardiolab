@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 
@@ -47,8 +46,8 @@ class ECGSignal:
     """
 
     data: np.ndarray
-    sampling_rate: Optional[float] = None
-    timestamps: Optional[np.ndarray] = None
+    sampling_rate: float | None = None
+    timestamps: np.ndarray | None = None
 
     def __post_init__(self):
         self.data = np.asarray(self.data, dtype=float)

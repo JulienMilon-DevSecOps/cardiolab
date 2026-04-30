@@ -47,7 +47,7 @@ def test_rrseries_creation_with_timestamp_error():
     Ensures RRSeries raise error if intervals and timestamps doesn't have the same size.
     """
     with pytest.raises(ValueError, match="timestamps and intervals must have same size"):
-        rr = RRSeries(intervals=[800, 810, 790], timestamps=[0.2, 0.4])
+        RRSeries(intervals=[800, 810, 790], timestamps=[0.2, 0.4])
 
 
 def test_rrseries_invalid_values():
@@ -137,7 +137,7 @@ def test_from_hr_basic_error():
     """
     hr = np.array([60.0])  # 60 bpm → 1000 ms
     with pytest.raises(ValueError, match="RRSeries must contain at least 2 intervals"):
-        rr = RRSeries.from_hr(hr)
+        RRSeries.from_hr(hr)
 
 
 def test_from_hr_multiple_values():

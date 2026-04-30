@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, Tuple
 
 import numpy as np
 
@@ -35,7 +34,7 @@ class RRSeries:
     """
 
     intervals: np.ndarray
-    timestamps: Optional[np.ndarray] = None
+    timestamps: np.ndarray | None = None
     metadata: dict = field(default_factory=dict)
 
     def __post_init__(self):
@@ -134,7 +133,7 @@ class RRSeries:
 
 
     @classmethod
-    def from_hr(cls, hr_values: np.ndarray) -> "RRSeries":
+    def from_hr(cls, hr_values: np.ndarray) -> RRSeries:
         """
         FR :
         Crée RRSeries à partir d'une série HR (bpm)
@@ -159,7 +158,7 @@ class RRSeries:
         low: float = 300,
         high: float = 2000,
         method: str = "threshold"
-    ) -> "RRSeries":
+    ) -> RRSeries:
         """
         FR :
         Supprime les intervalles aberrants.
@@ -208,7 +207,7 @@ class RRSeries:
     # INTERPOLATION
     # ======================
 
-    def interpolate(self, fs: float = 4.0) -> Tuple[np.ndarray, np.ndarray]:
+    def interpolate(self, fs: float = 4.0) -> tuple[np.ndarray, np.ndarray]:
         """
         FR:
         Interpolation pour analyse fréquentielle.

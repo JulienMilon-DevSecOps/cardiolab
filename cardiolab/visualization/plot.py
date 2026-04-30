@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-import json
 import glob
+import json
 
-import numpy as np
 import matplotlib.pyplot as plt
 
-from cardiolab.signals.rr import RRSeries
-from cardiolab.protocols.resting import resting_hrv
 from cardiolab.analytics.baseline import Baseline
 from cardiolab.analytics.scoring import readiness_score_oura
+from cardiolab.protocols.resting import resting_hrv
+from cardiolab.signals.rr import RRSeries
 
 
 def plot_resting_evolution(path="cardiolab/datasets/resting/*.json"):

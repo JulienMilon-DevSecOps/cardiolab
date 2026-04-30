@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 
-from cardiolab.signals.rr import RRSeries
-
 # ======================
 # Fonction du domaine temporel, calculées directement sur les intervalles RR.
 # ======================

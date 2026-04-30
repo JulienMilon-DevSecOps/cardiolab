@@ -2,9 +2,53 @@
 name = "cardiolab"
 version = "0.1.0"
 description = "HRV analysis toolkit"
-authors = [{name="Julien MILON}]
+authors = [{name="Julien MILON"}]
+requires-python = ">=3.12.3"
 dependencies = [
     "numpy",
     "scipy",
     "matplotlib"
+]
+
+[tool.ruff]
+# Version Python cible (pour les règles de modernisation)
+target-version = "py311"
+
+# Longueur de ligne (88 = défaut de Black)
+line-length = 88
+
+# Dossiers à ignorer
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+# Règle à activer
+select = [
+    "E",        # Erreur de style pycodestyle
+    "F",        # EErreurs Pyflakes (variables, import non utilisés, etc)
+    "I",        # Tri des imports (isort)
+    "B",        # Bugs potentiels (flake8-bugbear)
+    "UP",       # Modernisation syntaxe (pyupgrade)
+    "SIM",      # Simplification possibles
+    #"D",        # Docstrings manquantes ou mal formatées
+    #"N",        # Convention de nommage
+    #"S",        # Problèmes de sécurité
+]
+
+# Règles à ignorer
+ignore = [
+    "E501", # Ligne trop longue (géré par le formatter)
+]
+
+# Règles que --fix peux corriger automatiquement
+fixable = [
+    "E",
+    "F",
+    "I",
+    "UP"
 ]

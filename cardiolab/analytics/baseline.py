@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 import numpy as np
 
@@ -24,7 +23,7 @@ class Baseline:
     - database
     """
 
-    history: List[HRVFeatures] = field(default_factory=list)
+    history: list[HRVFeatures] = field(default_factory=list)
     window: int = 7
 
     # ======================
@@ -32,7 +31,7 @@ class Baseline:
     # ======================
 
     @classmethod
-    def from_features(cls, features_list: List[HRVFeatures]) -> "Baseline":
+    def from_features(cls, features_list: list[HRVFeatures]) -> Baseline:
         """
         FR :
         Crée une baseline à partir de features déjà calculées.
@@ -45,7 +44,7 @@ class Baseline:
 
 
     @classmethod
-    def from_resting_results(cls, results) -> "Baseline":
+    def from_resting_results(cls, results) -> Baseline:
         """
         FR :
         Crée une baseline à partir des résultats du protocole resting.
@@ -77,7 +76,7 @@ class Baseline:
 
         return cls(history=features)
 
-    def _get_recent(self) -> List[HRVFeatures]:
+    def _get_recent(self) -> list[HRVFeatures]:
         """
         FR :
         Retourne les dernières mesures selon la fenêtre définie.
@@ -92,7 +91,7 @@ class Baseline:
     # ======================
 
 
-    def mean_rmssd(self) -> Optional[float]:
+    def mean_rmssd(self) -> float | None:
         """
         FR :
         Calcule le RMSSD moyen sur la fenêtre.
@@ -108,7 +107,7 @@ class Baseline:
         values = [r.rmssd for r in data]
         return float(np.mean(values))
     
-    def median_rmssd(self) -> Optional[float]:
+    def median_rmssd(self) -> float | None:
         """
         FR :
         Calcule le RMSSD median sur la fenêtre.
@@ -124,7 +123,7 @@ class Baseline:
         values = [r.rmssd for r in data]
         return float(np.median(values))
 
-    def mean_hr(self) -> Optional[float]:
+    def mean_hr(self) -> float | None:
         """
         FR :
         Calcule la fréquence cardiaque moyenne.

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import List, Dict
-
 
 # ======================
 # PUBLIC API
@@ -50,9 +48,9 @@ def _parse_csv(filepath: Path) -> dict:
     Parses a CSV file with RR intervals.
     """
 
-    rr_intervals: List[float] = []
+    rr_intervals: list[float] = []
 
-    with open(filepath, "r") as f:
+    with open(filepath) as f:
         reader = csv.DictReader(f)
 
         # Détection colonne RR
@@ -95,9 +93,9 @@ def _parse_txt(filepath: Path) -> dict:
     Parses a TXT file with one column of RR intervals.
     """
 
-    rr_intervals: List[float] = []
+    rr_intervals: list[float] = []
 
-    with open(filepath, "r") as f:
+    with open(filepath) as f:
         for line in f:
             line = line.strip()
 
@@ -122,7 +120,7 @@ def _parse_txt(filepath: Path) -> dict:
 # COMMON OUTPUT
 # ======================
 
-def _build_output(filepath: Path, rr_intervals: List[float]) -> dict:
+def _build_output(filepath: Path, rr_intervals: list[float]) -> dict:
     """
     FR :
     Construit une sortie standardisée.

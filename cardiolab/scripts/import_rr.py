@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 from cardiolab.sensors_tools.polar import parse_rr_file
-
 
 RAW_DIR = Path("cardiolab/datasets/raw")
 
