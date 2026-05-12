@@ -5,11 +5,11 @@ from __future__ import annotations
 import numpy as np
 
 from cardiolab.analytics.baseline import Baseline
-from cardiolab.protocols.resting import RestingResult
+from cardiolab.protocols.resting import HRVFeatures
 
 
 def detect_rmssd_anomaly(
-    current: RestingResult,
+    current: HRVFeatures,
     baseline: Baseline,
     method: str = "zscore",
 ) -> dict:
