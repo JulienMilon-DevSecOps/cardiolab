@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from cardiolab.analytics.trends import _interpret_trend, trend_rmssd
 

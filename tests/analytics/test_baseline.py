@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from cardiolab.analytics.baseline import Baseline
 from cardiolab.protocols.resting import HRVFeatures

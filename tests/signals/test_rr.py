@@ -46,7 +46,7 @@ def test_rrseries_creation_with_timestamp_error():
     EN :
     Ensures RRSeries raise error if intervals and timestamps doesn't have the same size.
     """
-    with pytest.raises(ValueError, match="timestamps and intervals must have same size"):
+    with pytest.raises(ValueError, match="timestamps and intervals must have the same length"):
         RRSeries(intervals=[800, 810, 790], timestamps=[0.2, 0.4])
 
 
@@ -58,7 +58,7 @@ def test_rrseries_invalid_values():
     EN :
     Ensures an error is raised for invalid RR intervals.
     """
-    with pytest.raises(ValueError, match="RR intervals RR must be positive"):
+    with pytest.raises(ValueError, match="RR intervals must be positive"):
         RRSeries([800, -10, 790])
 
 def test_rrseries_one_value():

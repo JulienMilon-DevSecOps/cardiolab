@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from cardiolab.analytics.scoring import readiness_score_multi, readiness_score_oura
 

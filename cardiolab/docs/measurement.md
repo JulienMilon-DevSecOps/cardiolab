@@ -1,228 +1,103 @@
-# 🫀 Mesure des données cardiaques
+# Cardiac Data Measurement Guide
 
-## 🎯 Objectif
+## Overview
 
-**FR :**
-Cette section explique comment mesurer correctement les données cardiaques pour obtenir des analyses fiables dans cardioanalysis.
-
-**EN :**
-This section explains how to properly measure cardiac data to obtain reliable analysis in cardioanalysis.
+This guide explains how to correctly record cardiac data to obtain reliable
+HRV analyses in cardioanalysis. Data quality has a direct impact on the
+accuracy of every downstream metric and score.
 
 ---
 
-## 🧠 Pourquoi la qualité des données est essentielle
+## Why data quality matters
 
-**FR :**
-Les analyses de variabilité cardiaque (HRV) sont extrêmement sensibles au bruit et aux erreurs de mesure.
-Une mauvaise mesure peut conduire à des interprétations totalement erronées.
-
-**EN :**
-Heart rate variability (HRV) analysis is highly sensitive to noise and measurement errors.
-Poor data quality can lead to completely incorrect interpretations.
+HRV analysis is highly sensitive to noise and measurement artefacts.
+A poor-quality recording can produce completely misleading results, regardless
+of how sophisticated the analysis pipeline is.
 
 ---
 
-## 📊 Types de données cardiaques
+## Types of cardiac data
 
-### 1. Intervalles RR (recommandé)
+### 1. RR intervals (recommended)
 
-**FR :**
-Temps entre deux battements cardiaques successifs (en millisecondes).
+Time between two consecutive heartbeats, in milliseconds.
 
-✔️ donnée la plus précise pour HRV
-✔️ directement utilisée dans le projet
+* Most accurate input for HRV analysis.
+* Directly consumed by the cardiolab pipeline.
 
-**EN :**
-Time between two consecutive heartbeats (in milliseconds).
+### 2. Heart rate (HR)
 
-✔️ most accurate data for HRV
-✔️ directly used in the project
+Beats per minute averaged over a short window.
 
----
+* Easy to measure with most consumer devices.
+* Less precise for HRV: the averaging process discards beat-to-beat timing.
 
-### 2. Fréquence cardiaque (HR)
+### 3. ECG signal
 
-**FR :**
-Nombre de battements par minute (bpm).
+Raw electrical signal of the heart.
 
-✔️ facile à mesurer
-❌ moins précis pour HRV
-
-**EN :**
-Heart rate in beats per minute (bpm).
-
-✔️ easy to measure
-❌ less precise for HRV
+* Highest precision — R-peaks can be detected at sample-level accuracy.
+* Allows direct extraction of RR intervals.
 
 ---
 
-### 3. Signal ECG
+## Measurement devices
 
-**FR :**
-Signal électrique du cœur.
+### Chest straps (ECG-based) — recommended
 
-✔️ précision maximale
-✔️ permet extraction des RR
+Examples: Polar H10, Garmin HRM-Pro
 
-**EN :**
-Electrical signal of the heart.
+* Very high accuracy.
+* Ideal for HRV analysis.
+* Recommended for this project.
 
-✔️ highest precision
-✔️ allows RR extraction
+### Smartwatches (PPG-based)
 
----
+Examples: Apple Watch, Garmin, Fitbit
 
-## 📱 Outils de mesure
+* Convenient and accessible.
+* Less accurate, especially for HRV — optical pulse detection introduces noise.
 
-### 🥇 1. Ceintures cardiaques (ECG) — recommandé
+### Clinical ECG devices
 
-Exemples :
-
-* Polar H10
-* Garmin HRM
-
-**FR :**
-✔️ très haute précision
-✔️ idéal pour HRV
-✔️ recommandé pour ce projet
-
-**EN :**
-✔️ very high accuracy
-✔️ ideal for HRV
-✔️ recommended for this project
+* Maximum precision.
+* Not practical for daily tracking.
 
 ---
 
-### 🥈 2. Montres connectées (PPG)
-
-Exemples :
-
-* Apple Watch
-* Garmin
-* Fitbit
-
-**FR :**
-✔️ pratique
-✔️ accessible
-❌ moins précis (surtout HRV)
-
-**EN :**
-✔️ convenient
-✔️ accessible
-❌ less accurate (especially for HRV)
-
----
-
-### 🥉 3. Capteurs médicaux (ECG clinique)
-
-**FR :**
-✔️ précision maximale
-❌ peu pratique
-
-**EN :**
-✔️ maximum precision
-❌ not practical for daily use
-
----
-
-## ⚙️ Quelle donnée utiliser dans cardioanalysis ?
-
-**FR :**
-
-Ordre de priorité :
-
-1. RR intervals (idéal)
-2. ECG → converti en RR
-3. HR → converti en RR (moins fiable)
-
-**EN :**
+## Which data to use in cardioanalysis
 
 Priority order:
 
-1. RR intervals (ideal)
-2. ECG → converted to RR
-3. HR → converted to RR (less reliable)
+1. **RR intervals** — ideal, direct pipeline input.
+2. **ECG** → converted to RR via R-peak detection.
+3. **HR** → converted to RR (least reliable — use only as a fallback).
+
+Any conversion introduces a loss of precision.
 
 ---
 
-## 📏 Bonnes pratiques de mesure
+## Best practices
 
-### FR :
-
-* mesurer au repos
-* être immobile
-* utiliser toujours le même appareil
-* mesurer à la même heure (idéalement le matin)
-* éviter les perturbations (bruit, mouvement)
+* Measure at rest — never immediately after exercise.
+* Stay still throughout the recording.
+* Use the same device every session.
+* Record at the same time each day (ideally upon waking).
+* Avoid disturbances: noise, movement, bright light.
 
 ---
 
-### EN :
+## Common mistakes to avoid
 
-* measure at rest
-* stay still
-* use the same device
-* measure at the same time (ideally morning)
-* avoid disturbances (noise, movement)
-
----
-
-## 🚫 Erreurs fréquentes
-
-### FR :
-
-* mesurer après un effort
-* changer de capteur régulièrement
-* bouger pendant la mesure
-* comparer les données entre personnes
+* Measuring after physical or emotional stress.
+* Switching devices between sessions (breaks baseline continuity).
+* Moving during measurement.
+* Comparing your values directly with another person's values.
 
 ---
 
-### EN :
+## Summary
 
-* measuring after exercise
-* switching devices frequently
-* moving during measurement
-* comparing data between individuals
-
----
-
-## 🔄 Conversion des données
-
-**FR :**
-
-Le projet permet de convertir :
-
-* ECG → RR
-* HR → RR
-
-⚠️ Toute conversion introduit une perte de précision.
-
----
-
-**EN :**
-
-The project allows conversion:
-
-* ECG → RR
-* HR → RR
-
-⚠️ Any conversion introduces loss of precision.
-
----
-
-## 🧠 Résumé
-
-**FR :**
-
-* la qualité des données est essentielle
-* RR est la meilleure donnée
-* la régularité est plus importante que la précision absolue
-
----
-
-**EN :**
-
-* data quality is critical
-* RR is the best data type
-* consistency is more important than absolute precision
+* Data quality is critical — it cannot be compensated for in software.
+* RR intervals are the best input data.
+* Consistency across sessions matters more than absolute precision.

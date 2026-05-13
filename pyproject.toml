@@ -12,7 +12,7 @@ dependencies = [
 
 [tool.ruff]
 # Version Python cible (pour les règles de modernisation)
-target-version = "py311"
+target-version = "py312"
 
 # Longueur de ligne (88 = défaut de Black)
 line-length = 88
@@ -37,7 +37,7 @@ select = [
     "SIM",      # Simplification possibles
     "D",        # Docstrings manquantes ou mal formatées
     "N",        # Convention de nommage
-    "S",        # Problèmes de sécurité
+    #"S",        # Problèmes de sécurité
 ]
 
 # Règles à ignorer

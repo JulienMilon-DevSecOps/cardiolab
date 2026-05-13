@@ -1,10 +1,4 @@
-"""ECG signal representation.
-    
-FR :
-    Représentation d'un signal ECG.
-EN :
-    ECG signal representation.
-"""
+"""ECG signal representation and processing."""
 
 from __future__ import annotations
 
@@ -18,24 +12,26 @@ from cardiolab.signals.rr import RRSeries
 
 @dataclass
 class ECGSignal:
-    """ECG signal representation.
-    
-    FR :
-    Représentation d'un signal ECG.
-    EN :
-    ECG signal representation.
+    """A raw ECG signal with its associated temporal axis.
 
-    Args :
-        data: np.ndarray
-            Raw ECG signal / Signal ECG brut
-        sampling_rate: Optional[float]
-            Sampling rate (Hz) / Fréquence d'échantillonnage (Hz)
-        timestamps: Optional[np.ndarray]
-            Associated times (seconds) / Temps associés (secondes)
+    Stores a single-lead ECG recording and exposes methods for preprocessing,
+    R-peak detection, and conversion to RR intervals. Either ``sampling_rate``
+    or ``timestamps`` must be provided; if both are given, their consistency
+    is validated at construction time.
 
-    Notes :
-        - Provide at least sampling_rate OR timestamps / Fournir au moins sampling_rate OU timestamps
-        - If both are provided → consistency check / Si les deux sont fournis → validation de cohérence
+    Attributes:
+        data: Raw ECG voltage samples as a 1-D array.
+        sampling_rate: Acquisition frequency in Hz. Inferred from
+            ``timestamps`` when not supplied.
+        timestamps: Time of each sample in seconds. Generated from
+            ``sampling_rate`` when not supplied.
+
+    Raises:
+        ValueError: If neither ``sampling_rate`` nor ``timestamps`` is given.
+        ValueError: If ``timestamps`` is provided but its length differs from
+            ``data``.
+        ValueError: If both ``sampling_rate`` and ``timestamps`` are provided
+            but are inconsistent (relative tolerance 1 %).
 
     """
 
@@ -44,65 +40,64 @@ class ECGSignal:
     timestamps: np.ndarray | None = None
 
     def __post_init__(self):
-        """"Post init, create sampling_rate of timestamps if not in the input and if both are present check consistency."""
+        """Validate inputs and resolve the timestamps/sampling_rate pair."""
         self.data = np.asarray(self.data, dtype=float)
 
         if self.timestamps is not None:
             self.timestamps = np.asarray(self.timestamps, dtype=float)
             if len(self.timestamps) != len(self.data):
-                raise ValueError("timestamps et data doivent avoir la même longueur")
+                raise ValueError("timestamps and data must have the same length")
 
         if self.sampling_rate is None and self.timestamps is None:
-            raise ValueError("Fournir sampling_rate OU timestamps")
+            raise ValueError("Provide either sampling_rate or timestamps")
 
-        # ======================
-        # CAS 1 : timestamps → déduire sampling_rate
-        # ======================
+        # Case 1: timestamps provided → infer sampling_rate
         if self.sampling_rate is None:
             self.sampling_rate = self._infer_sampling_rate()
 
-        # ======================
-        # CAS 2 : sampling_rate → créer timestamps
-        # ======================
+        # Case 2: sampling_rate provided → generate timestamps
         elif self.timestamps is None:
             self.timestamps = self._generate_timestamps()
 
-        # ======================
-        # CAS 3 : les deux → vérifier cohérence
-        # ======================
+        # Case 3: both provided → validate consistency
         else:
             self._validate_consistency()
 
     # ======================
-    # INFÉRENCE
+    # INFERENCE
     # ======================
 
     def _infer_sampling_rate(self) -> float:
-        """Deduce the sampling frequency from the timestamps.
-        
-        FR :
-        Déduit la fréquence d'échantillonnage à partir des timestamps.
-        EN :
-        Deduce the sampling frequency from the timestamps.
+        """Estimate the sampling frequency from the timestamps.
+
+        Uses the mean inter-sample interval to handle minor jitter in the
+        time axis.
+
+        Returns:
+            Estimated sampling frequency in Hz.
+
+        Raises:
+            ValueError: If the mean inter-sample interval is zero or negative.
+
         """
         dt = np.diff(self.timestamps)
-
-        # moyenne (robuste au bruit léger)
         mean_dt = np.mean(dt)
 
         if mean_dt <= 0:
-            raise ValueError("timestamps invalid")
+            raise ValueError("Invalid timestamps: non-positive mean interval")
 
-        fs = 1.0 / mean_dt
-        return float(fs)
+        return float(1.0 / mean_dt)
 
     def _generate_timestamps(self) -> np.ndarray:
-        """Generate timestamps from sampling_rate.
-        
-        FR :
-        Génère timestamps à partir du sampling_rate.
-        EN:
-        Generate timestamps from sampling_rate.
+        """Build a uniform timestamp array from the sampling rate.
+
+        Returns:
+            Array of sample timestamps starting at 0.0 seconds, with step
+            ``1 / sampling_rate``.
+
+        Raises:
+            ValueError: If ``sampling_rate`` is zero or negative.
+
         """
         if self.sampling_rate <= 0:
             raise ValueError("sampling_rate must be > 0")
@@ -115,40 +110,58 @@ class ECGSignal:
     # ======================
 
     def _validate_consistency(self):
-        """Check that sampling_rate and timestamps are consistent.
-        
-        FR :
-        Vérifie que sampling_rate et timestamps sont cohérents.
-        EN :
-        Check that sampling_rate and timestamps are consistent.
+        """Verify that the provided sampling_rate matches the timestamps.
+
+        Compares the mean inter-sample interval derived from ``timestamps``
+        against the expected interval from ``sampling_rate``, using a 1 %
+        relative tolerance.
+
+        Raises:
+            ValueError: If the relative discrepancy exceeds 1 %.
+
         """
         dt = np.diff(self.timestamps)
         mean_dt = np.mean(dt)
-
         expected_dt = 1.0 / self.sampling_rate
 
-        # tolérance (important en pratique)
         if not np.isclose(mean_dt, expected_dt, rtol=1e-2):
             raise ValueError(
-                f"Inconsistence between timestamps / sampling_rate "
+                f"Inconsistency between timestamps and sampling_rate "
                 f"(dt={mean_dt:.6f} vs expected={expected_dt:.6f})"
             )
 
     # ======================
-    # PROPRIÉTÉS
+    # PROPERTIES
     # ======================
 
     @property
     def duration(self) -> float:
-        """Return the duration of timestamps."""
+        """Total recording duration in seconds.
+
+        Returns:
+            Difference between the last and first timestamps.
+
+        """
         return self.timestamps[-1] - self.timestamps[0]
 
     # ======================
-    # PRÉPROCESSING
+    # PREPROCESSING
     # ======================
 
     def bandpass_filter(self, low: float = 5.0, high: float = 15.0) -> np.ndarray:
-        """"Bandpass filter."""
+        """Apply a second-order Butterworth bandpass filter to the ECG signal.
+
+        The default pass-band (5–15 Hz) attenuates baseline wander and
+        high-frequency noise while preserving the QRS complex energy.
+
+        Args:
+            low: Lower cutoff frequency in Hz. Defaults to 5.0 Hz.
+            high: Upper cutoff frequency in Hz. Defaults to 15.0 Hz.
+
+        Returns:
+            Filtered ECG signal as a 1-D array, same shape as ``data``.
+
+        """
         from scipy.signal import butter, filtfilt
 
         nyquist = 0.5 * self.sampling_rate
@@ -163,12 +176,15 @@ class ECGSignal:
     # ======================
 
     def detect_r_peaks(self) -> np.ndarray:
-        """Detect peaks, R peaks after passing through a bandpass filter.
-        
-        FR :
-        Fonction permettant de detecter les pics, les pics R après avoir passer un filtre passe bande.
-        EN :
-        Function allowing the detection of peaks, R peaks after passing through a bandpass filter.
+        """Detect R-peak positions using a Pan-Tompkins-inspired approach.
+
+        The pipeline applies bandpass filtering, signal squaring, and moving
+        window integration before peak detection. A minimum inter-peak
+        distance of 300 ms is enforced to avoid double-detection.
+
+        Returns:
+            Array of sample indices corresponding to detected R-peaks.
+
         """
         filtered = self.bandpass_filter()
         squared = filtered ** 2
@@ -190,19 +206,27 @@ class ECGSignal:
     # ======================
 
     def to_rr(self, clean: bool = True) -> RRSeries:
-        """Construct of the RRSeries from the raw ECG data.
-        
-        FR :
-        Construction de la RRSeries à partir des données de l'ECG Brute.
-        RRSeries étant les intervalles de temps (en ms) entre les pics R consécutifs.
-        EN :
-        Construction of the RRSeries from the raw ECG data.
-        RRSeries are the time intervals (in ms) between consecutive R peaks.
+        """Convert the ECG signal to an RR interval series.
+
+        Detects R-peaks, computes inter-peak intervals in milliseconds, and
+        optionally removes physiologically implausible intervals.
+
+        Args:
+            clean: If ``True``, calls ``RRSeries.remove_outliers()`` on the
+                resulting series to eliminate artefacts. Defaults to ``True``.
+
+        Returns:
+            RRSeries derived from consecutive R-peak intervals, with
+            timestamps set to the midpoint between each pair of peaks.
+
+        Raises:
+            ValueError: If fewer than 2 R-peaks are detected.
+
         """
         r_peaks = self.detect_r_peaks()
 
         if len(r_peaks) < 2:
-            raise ValueError("Not enough R-peaks")
+            raise ValueError("Not enough R-peaks detected")
 
         rr_intervals = np.diff(self.timestamps[r_peaks]) * 1000.0
 
@@ -218,7 +242,7 @@ class ECGSignal:
         return rr
 
     def __repr__(self):
-        """Print size, frequency and duration."""
+        """Return a concise string representation."""
         return (
             f"ECGSignal(len={len(self.data)}, "
             f"fs={self.sampling_rate:.2f}Hz, "

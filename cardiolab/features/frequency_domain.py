@@ -1,4 +1,4 @@
-"""Statistics from RR Interval in frequency domain."""
+"""Frequency-domain HRV metrics computed via Welch's power spectral density."""
 
 from __future__ import annotations
 
@@ -6,25 +6,47 @@ import numpy as np
 from scipy.signal import welch
 
 
-def frequency_domain(rr, fs=4.0):
-    """Frequency-domain HRV analysis using Welch method.
-    
-    FR :
-    Analyse fréquentielle HRV via méthode de Welch.
-    | Indicateur | Signification           |
-    | ---------- | ----------------------- |
-    | HF         | parasympathique         |
-    | LF         | mix (sympa + parasympa) |
-    | LF/HF      | balance autonome        |
-    | HF ↑       | récupération            |
-    | LF/HF ↑    | stress                  |
-    EN :
-    Frequency-domain HRV analysis using Welch method.
+def frequency_domain(rr, fs: float = 4.0) -> dict:
+    """Compute frequency-domain HRV metrics using Welch's method.
+
+    The RR interval series is first linearly interpolated onto a uniform time
+    grid at ``fs`` Hz. The Power Spectral Density (PSD) is then estimated with
+    Welch's method and integrated over three physiological frequency bands:
+
+    * **VLF** (0.003 – 0.04 Hz): very-low-frequency power, linked to
+      thermoregulation and hormonal activity.
+    * **LF** (0.04 – 0.15 Hz): low-frequency power, reflecting a mix of
+      sympathetic and parasympathetic modulation.
+    * **HF** (0.15 – 0.40 Hz): high-frequency power, driven by respiratory
+      sinus arrhythmia and considered a marker of parasympathetic activity.
+
+    Args:
+        rr: An ``RRSeries`` instance. Must contain enough intervals to cover
+            at least one Welch segment (length ≥ 256 samples after interpolation
+            is recommended for reliable spectral estimates).
+        fs: Interpolation and analysis sampling frequency in Hz.
+            Defaults to 4.0 Hz (HRV standard minimum for HF band coverage).
+
+    Returns:
+        Dictionary with the following keys:
+
+        * ``"VLF"``        — absolute VLF power (ms²).
+        * ``"LF"``         — absolute LF power (ms²).
+        * ``"HF"``         — absolute HF power (ms²).
+        * ``"TP"``         — total power: VLF + LF + HF (ms²).
+        * ``"LF_HF"``      — LF/HF ratio (0.0 if HF is zero).
+        * ``"LF_nu"``      — LF in normalised units: LF / (LF + HF).
+        * ``"HF_nu"``      — HF in normalised units: HF / (LF + HF).
+        * ``"HF_pct"``     — HF as a fraction of total power.
+        * ``"LF_pct"``     — LF as a fraction of total power.
+        * ``"LF_HF_sum"``  — LF + HF combined power (ms²).
+        * ``"LF_HF_over_TP"`` — (LF + HF) / TP ratio.
+
     """
-    rr_intervals = np.array(rr.intervals) / 1000.0  # sec
+    rr_intervals = np.array(rr.intervals) / 1000.0  # convert ms → s
 
     # ======================
-    # interpolation
+    # Interpolation
     # ======================
 
     time = np.cumsum(rr_intervals)
@@ -34,13 +56,13 @@ def frequency_domain(rr, fs=4.0):
     interp_rr = np.interp(interp_time, time, rr_intervals)
 
     # ======================
-    # PSD
+    # PSD estimation
     # ======================
 
     freqs, psd = welch(interp_rr, fs=fs, nperseg=min(256, len(interp_rr)))
 
     # ======================
-    # bandes
+    # Band power integration
     # ======================
 
     vlf = _band_power(freqs, psd, 0.003, 0.04)
@@ -64,7 +86,19 @@ def frequency_domain(rr, fs=4.0):
     }
 
 
-def _band_power(freqs, psd, low, high):
-    """Band power."""
+def _band_power(freqs: np.ndarray, psd: np.ndarray, low: float, high: float) -> float:
+    """Integrate PSD over a frequency band using the trapezoidal rule.
+
+    Args:
+        freqs: Frequency axis returned by Welch's method (Hz).
+        psd: Power spectral density values corresponding to ``freqs``.
+        low: Lower bound of the integration band (Hz, inclusive).
+        high: Upper bound of the integration band (Hz, exclusive).
+
+    Returns:
+        Band power as the area under the PSD curve within [``low``, ``high``].
+        Returns 0.0 if the band contains no frequency bins.
+
+    """
     mask = (freqs >= low) & (freqs < high)
     return float(np.trapezoid(psd[mask], freqs[mask]))

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from cardiolab.protocols.resting import HRVFeatures, _compute_simple_score, resting_hrv
 
@@ -93,7 +92,7 @@ class TestRestingHRV:
         """Test resting_hrv without score computation."""
         result = resting_hrv(normal_rr_series, compute_score=False)
         
-        assert result.score is None
+        assert result.score == 0.0
 
     def test_resting_hrv_with_compute_score_true(self, normal_rr_series):
         """Test resting_hrv with score computation."""

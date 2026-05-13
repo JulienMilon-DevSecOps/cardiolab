@@ -1,4 +1,4 @@
-"""Functions to parse data export files from polar sensors."""
+"""Parsers for RR interval export files produced by Polar sensors."""
 
 from __future__ import annotations
 
@@ -10,14 +10,31 @@ from pathlib import Path
 # ======================
 
 def parse_rr_file(filepath: str | Path) -> dict:
-    """Detect format and calls appropriate parser.
-    
-    FR :
-    Parse automatiquement un fichier RR (CSV ou TXT).
-    Détecte le format et appelle le bon parser.
-    EN :
-    Automatically parses an RR file (CSV or TXT).
-    Detects format and calls appropriate parser.
+    """Parse an RR interval file exported by a Polar sensor.
+
+    Automatically selects the appropriate parser based on the file extension:
+
+    * ``.csv`` → column-based CSV (e.g. Polar Flow export).
+    * ``.txt`` or ``.rr`` → single-column plain-text format (e.g. Elite HRV).
+
+    Args:
+        filepath: Path to the RR data file. Can be a string or a
+            ``pathlib.Path`` object.
+
+    Returns:
+        Dictionary with the following keys:
+
+        * ``"source"`` — filename without directory.
+        * ``"format"`` — file extension (``".csv"``, ``".txt"``, …).
+        * ``"rr_intervals"`` — list of RR intervals in milliseconds.
+        * ``"count"`` — number of valid intervals read.
+        * ``"duration_sec"`` — total recording duration in seconds.
+
+    Raises:
+        FileNotFoundError: If the file does not exist at ``filepath``.
+        ValueError: If the file extension is not supported, or if no valid
+            RR intervals could be extracted.
+
     """
     filepath = Path(filepath)
 
@@ -39,19 +56,27 @@ def parse_rr_file(filepath: str | Path) -> dict:
 # ======================
 
 def _parse_csv(filepath: Path) -> dict:
-    """Parse a CSV file with RR intervals.
-    
-    FR :
-    Parse un CSV Polar ou similaire avec une colonne RR.
-    EN :
-    Parses a CSV file with RR intervals.
+    """Parse a CSV file containing a column of RR intervals.
+
+    Scans the header row for a column whose name contains ``"rr"``
+    (case-insensitive) and reads all numeric values from that column,
+    discarding non-positive entries and malformed rows.
+
+    Args:
+        filepath: Path to the CSV file.
+
+    Returns:
+        Standardised output dictionary (see ``parse_rr_file``).
+
+    Raises:
+        ValueError: If no column matching ``"rr"`` is found in the header.
+
     """
     rr_intervals: list[float] = []
 
     with open(filepath) as f:
         reader = csv.DictReader(f)
 
-        # Détection colonne RR
         rr_column = None
         for col in reader.fieldnames:
             if "rr" in col.lower():
@@ -73,26 +98,32 @@ def _parse_csv(filepath: Path) -> dict:
 
 
 # ======================
-# TXT PARSER (Elite HRV)
+# TXT PARSER
 # ======================
 
 def _parse_txt(filepath: Path) -> dict:
-    """Parse a TXT file with one column of RR intervals.
-    
-    FR :
-    Parse un fichier TXT contenant une colonne d'intervalles RR.
-    Format attendu :
-    800
-    810
-    790
-    ...
-    EN :
-    Parses a TXT file with one column of RR intervals.
-    Format :
-    800
-    810
-    790
-    ...
+    """Parse a plain-text file with one RR interval per line.
+
+    Expects a file where each non-empty line is a single numeric value
+    representing one RR interval in milliseconds. Header lines and
+    non-numeric rows are silently skipped.
+
+    Example format::
+
+        800
+        810
+        790
+        ...
+
+    Args:
+        filepath: Path to the TXT or RR file.
+
+    Returns:
+        Standardised output dictionary (see ``parse_rr_file``).
+
+    Raises:
+        ValueError: If no valid RR intervals are found in the file.
+
     """
     rr_intervals: list[float] = []
 
@@ -108,7 +139,6 @@ def _parse_txt(filepath: Path) -> dict:
                 if rr > 0:
                     rr_intervals.append(rr)
             except ValueError:
-                # ignore header ou lignes invalides
                 continue
 
     if not rr_intervals:
@@ -122,12 +152,17 @@ def _parse_txt(filepath: Path) -> dict:
 # ======================
 
 def _build_output(filepath: Path, rr_intervals: list[float]) -> dict:
-    """Build a standardized output.
-    
-    FR :
-    Construit une sortie standardisée.
-    EN :
-    Builds a standardized output.
+    """Assemble the standardised output dictionary.
+
+    Args:
+        filepath: Original file path, used to extract ``source`` and
+            ``format`` metadata.
+        rr_intervals: List of valid RR intervals in milliseconds.
+
+    Returns:
+        Dictionary with keys ``"source"``, ``"format"``, ``"rr_intervals"``,
+        ``"count"``, and ``"duration_sec"``.
+
     """
     return {
         "source": filepath.name,

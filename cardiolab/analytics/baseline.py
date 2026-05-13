@@ -1,16 +1,4 @@
-"""Manage HRV feature history and provides statistics (mean, median, rolling).
-
-FR :
-Gère l’historique des métriques HRV (features) et fournit des statistiques
-(moyenne, médiane, rolling). Compatible avec des données venant :
-    - du pipeline RR/ECG
-    - d'une base de données
-EN :
-Manages HRV feature history and provides statistics (mean, median, rolling).
-Compatible with data coming from:
-    - RR/ECG pipeline
-    - database
-"""
+"""HRV feature history management and baseline statistics."""
 
 from __future__ import annotations
 
@@ -23,18 +11,18 @@ from cardiolab.protocols.resting import HRVFeatures
 
 @dataclass
 class Baseline:
-    """Manage HRV feature history and provides statistics (mean, median, rolling).
-    
-    FR :
-    Gère l’historique des métriques HRV (features) et fournit des statistiques
-    (moyenne, médiane, rolling). Compatible avec des données venant :
-    - du pipeline RR/ECG
-    - d'une base de données
-    EN :
-    Manages HRV feature history and provides statistics (mean, median, rolling).
-    Compatible with data coming from:
-    - RR/ECG pipeline
-    - database
+    """Rolling history of HRV sessions used as a personal reference.
+
+    A baseline aggregates ``HRVFeatures`` records over time and exposes
+    statistical summaries (mean, median, rolling windows) that contextualise
+    each new measurement. It is compatible with both live pipeline data and
+    records loaded from a database.
+
+    Attributes:
+        history: Chronologically ordered list of ``HRVFeatures`` sessions.
+        window: Number of most-recent sessions considered for rolling
+            statistics. Defaults to 7 (one week of daily measurements).
+
     """
 
     history: list[HRVFeatures] = field(default_factory=list)
@@ -46,70 +34,62 @@ class Baseline:
 
     @classmethod
     def from_features(cls, features_list: list[HRVFeatures]) -> Baseline:
-        """Create a baseline from precomputed features.
-        
-        FR :
-        Crée une baseline à partir de features déjà calculées.
-        EN :
-        Creates a baseline from precomputed features.
-        """
-        return cls(history = sorted(features_list, key=lambda x: x.date or ""))
+        """Build a Baseline from an existing list of HRVFeatures.
 
+        The list is sorted chronologically by ``date`` before being stored.
+        Sessions without a date are sorted to the front.
+
+        Args:
+            features_list: List of ``HRVFeatures`` instances, in any order.
+
+        Returns:
+            A new ``Baseline`` with history sorted by ascending date.
+
+        """
+        return cls(history=sorted(features_list, key=lambda x: x.date or ""))
 
     @classmethod
     def from_resting_results(cls, results) -> Baseline:
-        """Create a baseline from resting protocol results.
-        
-        FR :
-        Crée une baseline à partir des résultats du protocole resting.
-        EN :
-        Creates a baseline from resting protocol results.
+        """Build a Baseline from a collection of resting protocol results.
+
+        Convenience factory that delegates to ``from_features`` when the
+        input is already a sequence of ``HRVFeatures`` objects.
+
+        Args:
+            results: Iterable of ``HRVFeatures`` instances produced by the
+                resting protocol or loaded from storage.
+
+        Returns:
+            A new ``Baseline`` with history sorted by ascending date.
+
         """
-        features = []
+        return cls.from_features(list(results))
 
-        for r in results:
-            features.append(
-                HRVFeatures(
-                    date=str(r.duration),  # à adapter selon ton modèle
-                    rmssd=r.rmssd,
-                    ln_rmssd=float(np.log(r.rmssd)) if r.rmssd > 0 else 0.0,
-                    sdnn=r.sdnn,
-                    pnn50=r.pnn50,
-                    mean_hr=r.mean_hr,
-                    vlf=r.vlf,
-                    lf=r.lf,
-                    hf=r.hf,
-                    lf_hf=r.lf_hf,
-                    hf_pct=r.hf_pct,
-                    lf_nu=r.lf_nu,
-                    hf_nu=r.hf_nu,
-                )
-            )
-
-        return cls(history=features)
+    # ======================
+    # INTERNAL
+    # ======================
 
     def _get_recent(self) -> list[HRVFeatures]:
-        """Return recent measurements based on rolling window.
-        
-        FR :
-        Retourne les dernières mesures selon la fenêtre définie.
-        EN :
-        Returns recent measurements based on rolling window.
+        """Return the most recent sessions within the rolling window.
+
+        Returns:
+            Slice of ``history`` containing the last ``window`` sessions.
+            Returns the full history if its length is less than ``window``.
+
         """
-        return self.history[-self.window :]
+        return self.history[-self.window:]
 
     # ======================
-    # BASELINE CALCUL
+    # BASELINE STATISTICS
     # ======================
-
 
     def mean_rmssd(self) -> float | None:
-        """Compute mean RMSSD over the window.
-        
-        FR :
-        Calcule le RMSSD moyen sur la fenêtre.
-        EN :
-        Computes mean RMSSD over the window.
+        """Compute the mean RMSSD over the rolling window.
+
+        Returns:
+            Mean RMSSD in milliseconds across the most recent ``window``
+            sessions, or ``None`` if the history is empty.
+
         """
         data = self._get_recent()
 
@@ -118,14 +98,17 @@ class Baseline:
 
         values = [r.rmssd for r in data]
         return float(np.mean(values))
-    
+
     def median_rmssd(self) -> float | None:
-        """Compute median RMSSD over the window.
-        
-        FR :
-        Calcule le RMSSD median sur la fenêtre.
-        EN :
-        Computes median RMSSD over the window.
+        """Compute the median RMSSD over the rolling window.
+
+        The median is more robust than the mean to occasional outlier sessions
+        (illness, travel, equipment issues).
+
+        Returns:
+            Median RMSSD in milliseconds across the most recent ``window``
+            sessions, or ``None`` if the history is empty.
+
         """
         data = self._get_recent()
 
@@ -136,12 +119,12 @@ class Baseline:
         return float(np.median(values))
 
     def mean_hr(self) -> float | None:
-        """Compute mean heart rate.
-        
-        FR :
-        Calcule la fréquence cardiaque moyenne.
-        EN :
-        Computes mean heart rate.
+        """Compute the mean heart rate over the rolling window.
+
+        Returns:
+            Mean heart rate in bpm across the most recent ``window``
+            sessions, or ``None`` if the history is empty.
+
         """
         data = self._get_recent()
 
@@ -150,44 +133,53 @@ class Baseline:
 
         values = [r.mean_hr for r in data]
         return float(np.mean(values))
-    
+
     # ======================
-    # ROLLING 7 days
+    # ROLLING STATISTICS
     # ======================
 
-    def rolling_rmssd(self, window: int = 7) -> list[float]:
-        """Compute rolling average of RMSSD over a given window.
-        
-        FR :
-        Calcule la moyenne glissante du RMSSD sur une fenêtre donnée.
-        EN :
-        Computes rolling average of RMSSD over a given window.
+    def rolling_rmssd(self) -> list[float]:
+        """Compute the rolling mean of RMSSD over the full history.
+
+        Applies a sliding window of size ``self.window`` across all sessions
+        in chronological order. The first value corresponds to the mean of
+        the first ``window`` sessions.
+
+        Returns:
+            List of rolling mean values, one per session starting from
+            position ``window - 1``. Returns an empty list when the history
+            contains fewer sessions than ``window``.
+
         """
         values = [r.rmssd for r in self.history]
 
-        if len(values) < window:
+        if len(values) < self.window:
             return []
 
         return [
-            float(np.mean(values[i - self.window + 1 : i + 1]))
+            float(np.mean(values[i - self.window + 1: i + 1]))
             for i in range(self.window - 1, len(values))
         ]
-    
 
-    def rolling_rmssd_median(self, window: int = 7) -> list[float]:
-        """Robust rolling average using median.
-        
-        FR :
-        Moyenne glissante robuste (médiane).
-        EN :
-        Robust rolling average using median.
+    def rolling_rmssd_median(self) -> list[float]:
+        """Compute the rolling median of RMSSD over the full history.
+
+        Applies a sliding median window of size ``self.window`` across all
+        sessions. More robust than ``rolling_rmssd`` when the history contains
+        occasional outlier sessions.
+
+        Returns:
+            List of rolling median values, one per session starting from
+            position ``window - 1``. Returns an empty list when the history
+            contains fewer sessions than ``window``.
+
         """
         values = [r.rmssd for r in self.history]
 
-        if len(values) < window:
+        if len(values) < self.window:
             return []
 
         return [
-            float(np.median(values[i - self.window + 1 : i + 1]))
+            float(np.median(values[i - self.window + 1: i + 1]))
             for i in range(self.window - 1, len(values))
         ]

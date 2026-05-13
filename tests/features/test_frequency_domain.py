@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from cardiolab.features.frequency_domain import _band_power, frequency_domain
 

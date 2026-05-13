@@ -69,7 +69,7 @@ def test_ecg_consistency_check():
     data, fs = generate_fake_ecg()
     timestamps = np.arange(len(data)) / (fs * 2)  # incohérent
 
-    with pytest.raises(ValueError, match=r"Inconsistence between timestamps / sampling_rate .*"):
+    with pytest.raises(ValueError, match=r"Inconsistency between timestamps and sampling_rate .*"):
         ECGSignal(data, sampling_rate=fs, timestamps=timestamps)
 
 

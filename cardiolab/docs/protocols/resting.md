@@ -1,204 +1,120 @@
-# 🫀 Protocole HRV au repos (Resting)
+# Resting HRV Protocol
 
-## 🎯 Objectif
+## Overview
 
-**FR :**
-Le protocole "resting" permet d’évaluer l’état de récupération, la fatigue et l’équilibre du système nerveux autonome à partir de la variabilité cardiaque (HRV).
-
-**EN :**
-The "resting" protocol evaluates recovery, fatigue, and autonomic nervous system balance using heart rate variability (HRV).
+The resting protocol evaluates recovery, fatigue, and autonomic nervous system
+balance using heart rate variability (HRV). It provides a stable, reproducible
+daily reference that feeds the personal baseline.
 
 ---
 
-## 🧠 Principe
+## Principle
 
-**FR :**
-Le protocole repose sur une mesure du rythme cardiaque dans un état de repos complet afin d’obtenir une référence stable et comparable dans le temps.
-
-**EN :**
-The protocol relies on measuring heart activity in a fully rested state to obtain stable and comparable data over time.
-
----
-
-## ⏱️ Fréquence de mesure recommandée
-
-### 🎯 Recommandation
-
-👉 1 mesure par jour (idéal)
-👉 minimum : 3–4 fois par semaine
-
-### Pourquoi ?
-
-* HRV varie beaucoup au jour le jour
-* une mesure isolée = peu fiable
-* tendance = clé
-
-### 📊 En pratique
-
-| Fréquence    | Qualité   |
-| ------------ | --------- |
-| 1x / semaine | ❌ inutile |
-| 3x / semaine | ⚠️ moyen  |
-| 1x / jour    | ✅ optimal |
+The protocol relies on measuring heart activity in a fully rested state to
+obtain a stable, consistent reference that can be compared across sessions.
+Results are only meaningful when the measurement conditions remain constant
+over time.
 
 ---
 
-## ⏱️ Moment idéal pour la mesure
+## Recommended measurement frequency
 
-**FR :**
+| Frequency    | Quality          |
+| ------------ | ---------------- |
+| 1× / week    | too sparse       |
+| 3× / week    | acceptable       |
+| 1× / day     | optimal          |
 
-* immédiatement **au réveil**
-* avant de :
-
-  * se lever
-  * parler
-  * regarder son téléphone
-
-**EN :**
-
-* immediately **after waking up**
-* before:
-
-  * getting out of bed
-  * talking
-  * checking your phone
+HRV varies significantly from day to day. A single isolated measurement is
+unreliable. The trend across multiple sessions is what drives actionable insights.
 
 ---
 
-## 🛌 Position
+## When to measure
 
-**FR :**
-Choisir une position et la garder constante :
+* Immediately **upon waking**, before getting out of bed.
+* Before talking, checking your phone, or drinking coffee.
 
-* couché (recommandé)
-* ou assis
-
-❗ Ne pas alterner entre les positions d’un jour à l’autre.
-
-**EN :**
-Choose a position and keep it consistent:
-
-* lying down (recommended)
-* or seated
-
-❗ Do not switch positions between days.
+Morning measurements capture the body's baseline autonomic state before any
+external stimuli alter it.
 
 ---
 
-## ⏳ Durée
+## Position
 
-**FR :**
+Choose one position and keep it consistent across all sessions:
 
-* minimum : 1 minute
-* recommandé : **5 minutes**
-* optimal : 5–10 minutes
+* **Lying down** (recommended) — minimises cardiovascular load.
+* Seated — acceptable if lying down is not practical.
 
-**EN :**
-
-* minimum: 1 minute
-* recommended: **5 minutes**
-* optimal: 5–10 minutes
+Do not alternate positions between sessions: posture significantly affects
+absolute HRV values and would invalidate baseline comparisons.
 
 ---
 
-## 🌬️ Respiration
+## Duration
 
-**FR :**
+| Duration     | Assessment     |
+| ------------ | -------------- |
+| 1 minute     | minimum        |
+| 5 minutes    | recommended    |
+| 5–10 minutes | optimal        |
 
-* respiration naturelle
-* ne pas forcer ou contrôler la respiration
-
-**EN :**
-
-* natural breathing
-* do not control breathing
-
----
-
-## 🚫 À éviter
-
-**FR :**
-
-* mouvement
-* stress
-* bruit
-* lumière forte
-* mesure après effort
-
-**EN :**
-
-* movement
-* stress
-* noise
-* bright light
-* measurement after exercise
+Recordings shorter than 5 minutes may produce unreliable frequency-domain
+estimates (LF/HF), because the low-frequency band (0.04–0.15 Hz) requires
+at least 25 seconds to be observed and ideally several full cycles.
 
 ---
 
-## 📊 Interprétation des résultats
+## Breathing
+
+* Breathe naturally — do not control or regulate breathing pace.
+* Controlled breathing (e.g. 6 breaths/min) shifts HF power and is
+  appropriate only for specific resonance-frequency protocols, not for a
+  standard resting baseline.
+
+---
+
+## What to avoid
+
+* Movement or postural changes during the recording.
+* Mental stress or stimulation immediately before measuring.
+* Loud noise or bright light.
+* Recording within 2 hours of exercise or a heavy meal.
+
+---
+
+## Interpreting results
 
 ### RMSSD
 
-**FR :**
+* ↑ increases → good recovery
+* ↓ decreases → fatigue or cumulative stress
 
-* augmente → récupération
-* diminue → fatigue ou stress
+### Heart rate
 
-**EN :**
+* Lower than usual → effective rest
+* Higher than usual → stress, illness, or incomplete recovery
 
-* increases → recovery
-* decreases → fatigue or stress
+### General rule
 
----
-
-### Fréquence cardiaque (HR)
-
-**FR :**
-
-* basse → repos efficace
-* élevée → stress / fatigue
-
-**EN :**
-
-* lower → good recovery
-* higher → stress / fatigue
+Absolute values matter less than their deviation from your personal baseline.
+A RMSSD of 40 ms may be excellent for one individual and below average for another.
 
 ---
 
-## 📈 Ce qui compte vraiment
+## Validity conditions
 
-**FR :**
-Ce n’est pas la valeur absolue qui est importante, mais son évolution dans le temps.
+A measurement is considered reliable when:
 
-**EN :**
-Absolute values matter less than trends over time.
-
----
-
-## ⚠️ Conditions de validité
-
-**FR :**
-Une mesure est fiable si :
-
-* conditions constantes
-* durée suffisante
-* capteur stable
-
-**EN :**
-A measurement is reliable if:
-
-* conditions are consistent
-* duration is sufficient
-* sensor is stable
+* Recording conditions are consistent with previous sessions.
+* Duration is at least 1 minute (5 minutes recommended).
+* The sensor had stable contact throughout (no motion artefacts).
 
 ---
 
-## 🧠 Résumé
+## Summary
 
-**FR :**
-Le protocole resting est une mesure simple mais puissante, à condition d’être réalisée avec rigueur et régularité.
-
-**EN :**
-The resting protocol is simple but powerful, if performed consistently and correctly.
-
-
+The resting protocol is simple but powerful. Its value accumulates over time:
+the more consistent sessions are recorded, the more accurate and personalised
+the baseline becomes.

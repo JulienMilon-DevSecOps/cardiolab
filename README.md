@@ -1,33 +1,33 @@
-# ❤️ cardiolab
+# cardiolab
 
-**cardiolab** est un moteur d’analyse physiologique dédié à l’étude du rythme cardiaque et de la variabilité cardiaque (HRV).
+**cardiolab** is a physiological analysis engine dedicated to heart rate and heart rate variability (HRV) analysis.
 
-Ce projet constitue le cœur scientifique du produit **cardioanalysis**.
-
----
-
-## 🎯 Objectif
-
-Transformer des signaux physiologiques bruts (ECG, PPG, HR) en :
-
-* métriques fiables (HR, HRV)
-* analyses physiologiques (fatigue, récupération)
-* scores interprétables
+This project is the scientific core of the **cardioanalysis** product.
 
 ---
 
-## 🧠 Pipeline global
+## Goal
+
+Transform raw physiological signals (ECG, PPG, HR) into:
+
+* reliable metrics (HR, HRV)
+* physiological insights (fatigue, recovery)
+* interpretable scores
+
+---
+
+## Pipeline
 
 ```
-Signal brut (ECG / PPG)
+Raw signal (ECG / PPG)
         ↓
-Préprocessing
+Preprocessing
         ↓
 RR intervals
         ↓
 Features (HRV)
         ↓
-Protocoles
+Protocols
         ↓
 Scoring
         ↓
@@ -36,80 +36,86 @@ Analytics
 
 ---
 
-## 🧱 Structure du projet
+## Project structure
 
 ```
 cardiolab/
 │
-├── signals/          → données brutes (ECG, PPG, RR)
-├── preprocessing/    → nettoyage des signaux
+├── signals/          → raw data (ECG, PPG, RR)
+├── preprocessing/    → signal cleaning
 ├── transformations/  → conversion (ECG → RR)
-├── features/         → calcul HRV
-├── protocols/        → tests physiologiques
+├── features/         → HRV computation
+├── protocols/        → physiological tests
 ├── scoring/          → scores (fatigue, readiness)
-├── analytics/        → analyse long terme
-├── models/           → objets métier
-└── validation/       → validation scientifique
+├── analytics/        → long-term analysis
+├── models/           → business objects
+└── validation/       → scientific validation
 ```
 
 ---
 
-## 🫀 Concepts clés
+## Key concepts
 
 ### RR intervals
 
-Les intervalles RR constituent la base de toutes les analyses.
+RR intervals are the time gaps between consecutive heartbeats (in milliseconds).
+They are the foundation of all HRV analyses in this project.
 
 ### HRV (Heart Rate Variability)
 
-Variabilité du rythme cardiaque utilisée pour évaluer :
+Heart rate variability is used to assess:
 
 * fatigue
 * stress
-* récupération
+* recovery
 
 ---
 
-## 🚧 État du projet
+## Status
 
-Projet en cours de développement.
+Work in progress.
 
-Modules actuellement implémentés :
+Currently implemented modules:
 
-* ECGSignal
-* RRSeries
-
----
-
-## 🔬 Philosophie
-
-* approche scientifique
-* modularité
-* reproductibilité
-* extensibilité
+* `ECGSignal` — raw ECG signal representation and R-peak detection
+* `RRSeries` — RR interval series with cleaning, interpolation and segmentation
+* `features/` — time-domain and frequency-domain HRV metrics
+* `protocols/` — resting HRV protocol
+* `analytics/` — baseline, scoring, anomaly detection, trend analysis
+* `database/` — PostgreSQL persistence layer
 
 ---
 
-## 📚 Références
+## Philosophy
 
-* Task Force HRV (1996)
-* Shaffer & Ginsberg (2017)
-
----
-
-## 👨‍💻 Projet associé
-
-**cardioanalysis** → plateforme web d’analyse cardiaque
+* scientific approach grounded in published standards
+* modularity — each layer is independently testable
+* reproducibility — deterministic pipelines
+* extensibility — easy to add new protocols or sensors
 
 ---
 
-## 🚀 Roadmap
+## References
 
-* [ ] HRV complet
-* [ ] protocoles physiologiques
+* Task Force of the European Society of Cardiology (1996). *Standards of measurement, physiological interpretation and clinical use of Heart Rate Variability.*
+* Shaffer, F. & Ginsberg, J.P. (2017). *An Overview of Heart Rate Variability Metrics and Norms.*
 
 ---
 
-## 📌 Note
+## Related project
 
-Ce package est en phase de conception et n’est pas encore distribué.
+**cardioanalysis** → web platform for cardiac analysis
+
+---
+
+## Roadmap
+
+* [ ] Full HRV implementation
+* [ ] Additional physiological protocols
+* [ ] PPG signal support
+
+---
+
+## Note
+
+This package is in the design phase and is not yet distributed.

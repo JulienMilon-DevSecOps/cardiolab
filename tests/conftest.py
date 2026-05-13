@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime
 
 import numpy as np
 import pytest
@@ -12,7 +11,6 @@ from cardiolab.analytics.baseline import Baseline
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.signals.ecg import ECGSignal
 from cardiolab.signals.rr import RRSeries
-
 
 # ======================
 # RRSeries FIXTURES
