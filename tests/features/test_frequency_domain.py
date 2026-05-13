@@ -233,7 +233,7 @@ class TestFrequencyDomainIntegration:
         result2 = frequency_domain(normal_rr_series)
         
         # Results should be identical
-        for key in result1.keys():
+        for key in result1:
             assert np.isclose(result1[key], result2[key], rtol=0.001)
 
     def test_frequency_domain_stress_vs_rest(self, normal_rr_series, elevated_hr_rr_series):

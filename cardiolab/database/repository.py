@@ -2,7 +2,7 @@
 
 import re
 
-import psycopg2
+from psycopg2 import sql, connect
 
 from cardiolab.protocols.resting import HRVFeatures
 
@@ -61,19 +61,19 @@ def load_features(
     """
     _validate_identifier(table_name)
 
-    conn = psycopg2.connect(
+    conn = connect(
         host=host, database=database, user=user, password=password
     )
 
     cur = conn.cursor()
 
-    query = f"""
-    SELECT date, rmssd, ln_rmssd, sdnn, pnn50, mean_hr,
-           vlf, lf, hf, lf_hf, hf_pct, lf_nu, hf_nu
-    FROM {table_name}
-    WHERE user_id = %s
-    ORDER BY date ASC;
-    """
+    query = sql.SQL("""
+        SELECT date, rmssd, ln_rmssd, sdnn, pnn50, mean_hr,
+               vlf, lf, hf, lf_hf, hf_pct, lf_nu, hf_nu
+        FROM {}
+        WHERE user_id = %s
+        ORDER BY date ASC;
+    """).format(sql.Identifier(table_name))
 
     cur.execute(query, (user_id,))
     rows = cur.fetchall()

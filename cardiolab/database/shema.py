@@ -2,7 +2,7 @@
 
 import re
 
-import psycopg2
+from psycopg2 import sql, connect
 
 
 def _validate_identifier(name: str) -> None:
@@ -99,14 +99,14 @@ def create_hrv_table(
 
     columns_sql = ",\n".join([f"{k} {v}" for k, v in fields.items()])
 
-    query = f"""
-    CREATE TABLE IF NOT EXISTS {table_name} (
-        id SERIAL PRIMARY KEY,
-        {columns_sql}
-    );
-    """
+    query = sql.SQL(
+        "CREATE TABLE IF NOT EXISTS {} (id SERIAL PRIMARY KEY, {});"
+    ).format(
+        sql.Identifier(table_name),
+        sql.SQL(columns_sql),
+    )
 
-    conn = psycopg2.connect(
+    conn = connect(
         host=host, database=database, user=user, password=password
     )
 

@@ -18,7 +18,7 @@ from cardiolab.signals.rr import RRSeries
 
 @pytest.fixture
 def normal_rr_series():
-    """Normal RRSeries - 5 min repos (300 intervals ~1 sec apart)."""
+    """Return a normal RRSeries of 300 intervals at ~70 bpm (resting state)."""
     # Simulating normal resting HR ~70 bpm = 857 ms interval
     intervals = np.random.normal(857, 20, 300).clip(min=300)
     return RRSeries(intervals=intervals)
@@ -70,7 +70,7 @@ def rr_series_with_timestamps():
 
 @pytest.fixture
 def normal_ecg_signal():
-    """Normal ECG signal - 5 min at 256 Hz."""
+    """Return a normal 5-minute ECG signal at 256 Hz with ~70 bpm heart rate."""
     fs = 256
     duration = 300  # 5 min in seconds
     t = np.linspace(0, duration, fs * duration)
@@ -122,7 +122,7 @@ def short_ecg_signal():
 
 @pytest.fixture
 def normal_hrv_features():
-    """Normal HRV features from resting protocol."""
+    """Return normal HRV features representing a healthy resting session."""
     return HRVFeatures(
         date="2026-05-12T10:00:00",
         rmssd=60.0,
@@ -355,7 +355,7 @@ def temp_empty_file(tmp_path):
 
 @pytest.fixture
 def hrv_features_generator():
-    """Generator function to create HRV features with custom parameters."""
+    """Return a factory function for creating HRVFeatures with custom parameters."""
     def _create(
         rmssd: float = 60.0,
         sdnn: float = 80.0,
@@ -389,7 +389,7 @@ def hrv_features_generator():
 
 @pytest.fixture
 def rr_series_generator():
-    """Generator function to create RRSeries with custom HR/variability."""
+    """Return a factory function for creating RRSeries with custom HR and variability."""
     def _create(
         mean_rr: float = 857,
         std_rr: float = 20,

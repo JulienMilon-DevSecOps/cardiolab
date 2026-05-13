@@ -173,15 +173,12 @@ class TestInterpretTrend:
 
     def test_interpret_trend_boundary_values(self):
         """Test interpretation at boundary (slope = 1)."""
-        # Exactly at boundary
-        trend_positive = _interpret_trend(1.0)
-        trend_negative = _interpret_trend(-1.0)
-        trend_just_positive = _interpret_trend(1.1)
-        trend_just_negative = _interpret_trend(-1.1)
-        
-        # Just above/below boundary should change interpretation
-        assert trend_just_positive == "increasing"
-        assert trend_just_negative == "decreasing"
+        # Exactly at boundary: slope = ±1 is not strictly > or < so still "stable"
+        assert _interpret_trend(1.0) == "stable"
+        assert _interpret_trend(-1.0) == "stable"
+        # Just beyond boundary should flip interpretation
+        assert _interpret_trend(1.1) == "increasing"
+        assert _interpret_trend(-1.1) == "decreasing"
 
     def test_interpret_trend_large_slope(self):
         """Test interpretation with large slope."""

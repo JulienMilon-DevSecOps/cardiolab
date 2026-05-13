@@ -37,13 +37,17 @@ select = [
     "SIM",      # Simplification possibles
     "D",        # Docstrings manquantes ou mal formatées
     "N",        # Convention de nommage
-    #"S",        # Problèmes de sécurité
+    "S",        # Problèmes de sécurité
 ]
 
 # Règles à ignorer
 ignore = [
     "E501", # Ligne trop longue (géré par le formatter)
 ]
+
+# Règles ignorées par fichier
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]  # assert is pytest's standard assertion mechanism
 
 # Règles que --fix peux corriger automatiquement
 fixable = [

@@ -287,7 +287,7 @@ class TestRestingProtocolIntegration:
         assert clean_ecg_signal is not None
         assert noisy_ecg_signal is not None
 
-    def test_resting_protocol_various_HR_levels(self, rr_series_generator):
+    def test_resting_protocol_various_hr_levels(self, rr_series_generator):
         """Test resting protocol with various HR levels."""
         # Low HR (athletic)
         low_hr_rr = rr_series_generator(mean_rr=1200, length=300)  # ~50 bpm

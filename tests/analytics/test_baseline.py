@@ -161,7 +161,7 @@ class TestBaselineStatistics:
         recent2 = baseline_7days._get_recent()
         
         assert len(recent1) == len(recent2)
-        assert all(r1.rmssd == r2.rmssd for r1, r2 in zip(recent1, recent2))
+        assert all(r1.rmssd == r2.rmssd for r1, r2 in zip(recent1, recent2, strict=False))
 
     def test_mean_rmssd(self, baseline_7days):
         """Test mean_rmssd calculation."""
