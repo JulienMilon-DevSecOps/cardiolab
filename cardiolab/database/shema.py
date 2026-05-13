@@ -2,7 +2,7 @@
 
 import re
 
-from psycopg2 import sql, connect
+from psycopg2 import connect, sql
 
 
 def _validate_identifier(name: str) -> None:
