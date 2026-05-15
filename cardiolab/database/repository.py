@@ -34,7 +34,6 @@ from psycopg2 import connect, sql
 from cardiolab.protocols.orthostatic import OrthostaticResult
 from cardiolab.protocols.resting import HRVFeatures
 
-
 # ======================
 # VALIDATION
 # ======================
@@ -340,6 +339,7 @@ class HRVRepository:
         ortho_table_name: str = "hrv_orthostatic",
         port: int = 5432,
     ) -> None:
+        """Store connection parameters and validate table names."""
         _validate_identifier(table_name)
         _validate_identifier(ortho_table_name)
         self._dsn = {

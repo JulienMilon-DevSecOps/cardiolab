@@ -14,7 +14,7 @@ Integration tests (full DB round-trip) are in a separate class, marked with
 from __future__ import annotations
 
 import os
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -23,15 +23,14 @@ from cardiolab.database.repository import (
     _HRV_COLUMNS,
     _ORTHO_COLUMNS,
     _ORTHO_DATA_COLUMNS,
+    HRVRepository,
+    OrthostaticRecord,
     _build_ortho_row,
     _features_from_row,
     _hrv_fields,
     _validate_identifier,
-    HRVRepository,
-    OrthostaticRecord,
 )
 from cardiolab.protocols.resting import HRVFeatures
-
 
 # ======================
 # FIXTURES & HELPERS
@@ -261,7 +260,7 @@ class TestFeaturesFromRow:
         return tuple(float(i) for i in range(n))
 
     def test_maps_rmssd_at_offset(self):
-        """rmssd must be read from row[offset]."""
+        """Rmssd must be read from row[offset]."""
         row = self._make_row()
         f = _features_from_row(row, offset=3)
         assert f.rmssd == 3.0
@@ -514,7 +513,7 @@ class TestHRVRepositoryFromEnv:
         assert repo._dsn["host"] == "myhost"
         assert repo._dsn["database"] == "mydb"
         assert repo._dsn["user"] == "myuser"
-        assert repo._dsn["password"] == "mypass"
+        assert repo._dsn["password"] == "mypass"  # noqa: S105
 
     def test_from_env_default_port(self):
         """DB_PORT defaults to 5432 when absent."""
@@ -544,9 +543,8 @@ class TestHRVRepositoryFromEnv:
 
     def test_from_env_missing_variable_raises(self):
         """A missing required variable must raise KeyError."""
-        with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(KeyError):
-                HRVRepository.from_env()
+        with patch.dict(os.environ, {}, clear=True), pytest.raises(KeyError):
+            HRVRepository.from_env()
 
 
 # ======================
@@ -576,9 +574,8 @@ class TestHRVRepositoryContextManager:
         mock_conn = MagicMock()
         mock_connect.return_value = mock_conn
 
-        with pytest.raises(ValueError):
-            with HRVRepository("h", "db", "u", "p"):
-                raise ValueError("test error")
+        with pytest.raises(ValueError), HRVRepository("h", "db", "u", "p"):
+            raise ValueError("test error")
 
         mock_conn.rollback.assert_called_once()
         mock_conn.commit.assert_not_called()
@@ -605,7 +602,7 @@ class TestSaveFeatures:
     """Tests for the resting-protocol upsert."""
 
     def test_executemany_called_once(self, sample_features):
-        """executemany must be called exactly once per save_features call."""
+        """Executemany must be called exactly once per save_features call."""
         repo = HRVRepository("h", "db", "u", "p")
         cur = _mock_repo_conn(repo)
 
@@ -685,7 +682,7 @@ class TestLoadFeatures:
         assert isinstance(result[0], HRVFeatures)
 
     def test_maps_rmssd_correctly(self):
-        """rmssd in the result must match the value in the DB row."""
+        """Rmssd in the result must match the value in the DB row."""
         repo = HRVRepository("h", "db", "u", "p")
         cur = _mock_repo_conn(repo)
         cur.fetchall.return_value = [self._make_resting_row()]
@@ -695,7 +692,7 @@ class TestLoadFeatures:
         assert result[0].rmssd == 60.0
 
     def test_maps_date_correctly(self):
-        """date in the result must be a string equal to the stored value."""
+        """Date in the result must be a string equal to the stored value."""
         repo = HRVRepository("h", "db", "u", "p")
         cur = _mock_repo_conn(repo)
         cur.fetchall.return_value = [self._make_resting_row()]

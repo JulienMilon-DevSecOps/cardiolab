@@ -20,7 +20,6 @@ from cardiolab.protocols.orthostatic import (
 )
 from cardiolab.signals.rr import RRSeries
 
-
 # ======================
 # FIXTURES
 # ======================
@@ -62,7 +61,7 @@ def _make_orthostatic_rr(
 
 @pytest.fixture
 def orthostatic_rr():
-    """Standard orthostatic recording: 5-min supine + transition + 5-min standing."""
+    """Build a standard orthostatic recording: 5-min supine + transition + 5-min standing."""
     return _make_orthostatic_rr()
 
 
@@ -407,7 +406,7 @@ class TestOrthostaticHRV:
         assert result.lf_hf_ratio_change > 0
 
     def test_interpretation_is_string(self, orthostatic_rr):
-        """interpretation must be a non-empty string."""
+        """Interpretation must be a non-empty string."""
         result = orthostatic_hrv(orthostatic_rr, min_phase_duration=60.0)
         assert isinstance(result.interpretation, str)
         assert len(result.interpretation) > 0
