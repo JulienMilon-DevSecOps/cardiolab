@@ -66,6 +66,7 @@ class HRVFeatures:
 # MAIN PROTOCOL
 # ======================
 
+
 def resting_hrv(
     rr: RRSeries,
     min_duration: float = 300.0,
@@ -148,6 +149,7 @@ def resting_hrv(
 # ======================
 # SIMPLE SCORE
 # ======================
+
 
 def _compute_simple_score(rmssd_value: float, mean_hr: float) -> float:
     """Compute a normalised readiness score from RMSSD and heart rate.

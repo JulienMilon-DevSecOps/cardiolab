@@ -77,7 +77,7 @@ class Baseline:
             Returns the full history if its length is less than ``window``.
 
         """
-        return self.history[-self.window:]
+        return self.history[-self.window :]
 
     # ======================
     # BASELINE STATISTICS
@@ -157,7 +157,7 @@ class Baseline:
             return []
 
         return [
-            float(np.mean(values[i - self.window + 1: i + 1]))
+            float(np.mean(values[i - self.window + 1 : i + 1]))
             for i in range(self.window - 1, len(values))
         ]
 
@@ -180,6 +180,6 @@ class Baseline:
             return []
 
         return [
-            float(np.median(values[i - self.window + 1: i + 1]))
+            float(np.median(values[i - self.window + 1 : i + 1]))
             for i in range(self.window - 1, len(values))
         ]

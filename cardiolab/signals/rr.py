@@ -313,7 +313,4 @@ class RRSeries:
 
     def __repr__(self):
         """Return a concise string representation."""
-        return (
-            f"RRSeries(n={len(self)}, "
-            f"mean_hr={self.mean_hr:.1f}, "
-        )
+        return f"RRSeries(n={len(self)}, mean_hr={self.mean_hr:.1f}, "

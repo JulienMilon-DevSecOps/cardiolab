@@ -269,25 +269,61 @@ def _build_ortho_row(
     stf = p.standing.features
 
     return (
-        user_id, date,
+        user_id,
+        date,
         # supine HRV (12)
-        sf.rmssd, sf.ln_rmssd, sf.sdnn, sf.pnn50, sf.mean_hr,
-        sf.vlf, sf.lf, sf.hf, sf.lf_hf, sf.hf_pct, sf.lf_nu, sf.hf_nu,
+        sf.rmssd,
+        sf.ln_rmssd,
+        sf.sdnn,
+        sf.pnn50,
+        sf.mean_hr,
+        sf.vlf,
+        sf.lf,
+        sf.hf,
+        sf.lf_hf,
+        sf.hf_pct,
+        sf.lf_nu,
+        sf.hf_nu,
         # supine_duration_sec (1)
         p.supine.duration_sec,
         # transition timing (5)
-        p.transition.start_sec, p.transition.end_sec, p.transition.duration_sec,
-        p.transition.delta_hr, p.transition.peak_hr,
+        p.transition.start_sec,
+        p.transition.end_sec,
+        p.transition.duration_sec,
+        p.transition.delta_hr,
+        p.transition.peak_hr,
         # transition HRV (12)
-        tf.rmssd, tf.ln_rmssd, tf.sdnn, tf.pnn50, tf.mean_hr,
-        tf.vlf, tf.lf, tf.hf, tf.lf_hf, tf.hf_pct, tf.lf_nu, tf.hf_nu,
+        tf.rmssd,
+        tf.ln_rmssd,
+        tf.sdnn,
+        tf.pnn50,
+        tf.mean_hr,
+        tf.vlf,
+        tf.lf,
+        tf.hf,
+        tf.lf_hf,
+        tf.hf_pct,
+        tf.lf_nu,
+        tf.hf_nu,
         # standing HRV (12)
-        stf.rmssd, stf.ln_rmssd, stf.sdnn, stf.pnn50, stf.mean_hr,
-        stf.vlf, stf.lf, stf.hf, stf.lf_hf, stf.hf_pct, stf.lf_nu, stf.hf_nu,
+        stf.rmssd,
+        stf.ln_rmssd,
+        stf.sdnn,
+        stf.pnn50,
+        stf.mean_hr,
+        stf.vlf,
+        stf.lf,
+        stf.hf,
+        stf.lf_hf,
+        stf.hf_pct,
+        stf.lf_nu,
+        stf.hf_nu,
         # standing_duration_sec (1)
         p.standing.duration_sec,
         # derived (4)
-        result.hr_response, result.lf_hf_ratio_change, result.hf_response_pct,
+        result.hr_response,
+        result.lf_hf_ratio_change,
+        result.hf_response_pct,
         result.interpretation,
     )
 
@@ -453,9 +489,7 @@ class HRVRepository:
         if include_fields:
             mandatory = {"user_id", "date"}
             fields = {
-                k: v
-                for k, v in fields.items()
-                if k in include_fields or k in mandatory
+                k: v for k, v in fields.items() if k in include_fields or k in mandatory
             }
         if exclude_fields:
             for f in exclude_fields:
@@ -510,7 +544,9 @@ class HRVRepository:
 
         all_cols = ["user_id", "date"] + _DATA_COLUMNS
         col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
-        placeholders = sql.SQL(", ").join(sql.Placeholder() for _ in range(len(all_cols)))
+        placeholders = sql.SQL(", ").join(
+            sql.Placeholder() for _ in range(len(all_cols))
+        )
         update_set = sql.SQL(", ").join(
             sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
             for c in _DATA_COLUMNS
@@ -528,10 +564,22 @@ class HRVRepository:
 
         rows = [
             (
-                user_id, f.date,
-                f.rmssd, f.ln_rmssd, f.sdnn, f.pnn50, f.mean_hr,
-                f.vlf, f.lf, f.hf, f.lf_hf, f.hf_pct, f.lf_nu, f.hf_nu,
-                f.duration, f.score,
+                user_id,
+                f.date,
+                f.rmssd,
+                f.ln_rmssd,
+                f.sdnn,
+                f.pnn50,
+                f.mean_hr,
+                f.vlf,
+                f.lf,
+                f.hf,
+                f.lf_hf,
+                f.hf_pct,
+                f.lf_nu,
+                f.hf_nu,
+                f.duration,
+                f.score,
             )
             for f in features
         ]
@@ -575,10 +623,20 @@ class HRVRepository:
         return [
             HRVFeatures(
                 date=str(row[0]),
-                rmssd=row[1], ln_rmssd=row[2], sdnn=row[3], pnn50=row[4],
-                mean_hr=row[5], vlf=row[6], lf=row[7], hf=row[8],
-                lf_hf=row[9], hf_pct=row[10], lf_nu=row[11], hf_nu=row[12],
-                duration=row[13], score=row[14],
+                rmssd=row[1],
+                ln_rmssd=row[2],
+                sdnn=row[3],
+                pnn50=row[4],
+                mean_hr=row[5],
+                vlf=row[6],
+                lf=row[7],
+                hf=row[8],
+                lf_hf=row[9],
+                hf_pct=row[10],
+                lf_nu=row[11],
+                hf_nu=row[12],
+                duration=row[13],
+                score=row[14],
             )
             for row in rows
         ]
@@ -610,9 +668,7 @@ class HRVRepository:
             psycopg2.Error: If the SQL statement is rejected.
 
         """
-        columns_sql = ",\n    ".join(
-            f"{k} {v}" for k, v in _ORTHO_COLUMNS.items()
-        )
+        columns_sql = ",\n    ".join(f"{k} {v}" for k, v in _ORTHO_COLUMNS.items())
 
         query = sql.SQL(
             "CREATE TABLE IF NOT EXISTS {table} (\n"
@@ -703,10 +759,7 @@ class HRVRepository:
         )
 
         query = sql.SQL(
-            "SELECT {cols}\n"
-            "FROM {table}\n"
-            "WHERE user_id = %s\n"
-            "ORDER BY date ASC;"
+            "SELECT {cols}\nFROM {table}\nWHERE user_id = %s\nORDER BY date ASC;"
         ).format(
             cols=select_cols,
             table=sql.Identifier(self.ortho_table_name),
@@ -727,14 +780,18 @@ class HRVRepository:
             records.append(
                 OrthostaticRecord(
                     date=date,
-                    supine=_features_from_row(row, offset=1, date=date, duration=row[13]),
+                    supine=_features_from_row(
+                        row, offset=1, date=date, duration=row[13]
+                    ),
                     transition_start_sec=row[14],
                     transition_end_sec=row[15],
                     transition_duration_sec=row[16],
                     transition_delta_hr=row[17],
                     transition_peak_hr=row[18],
                     transition_features=_features_from_row(row, offset=19, date=date),
-                    standing=_features_from_row(row, offset=31, date=date, duration=row[43]),
+                    standing=_features_from_row(
+                        row, offset=31, date=date, duration=row[43]
+                    ),
                     hr_response=row[44],
                     lf_hf_ratio_change=row[45],
                     hf_response_pct=row[46],

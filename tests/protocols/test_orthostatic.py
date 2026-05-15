@@ -189,7 +189,7 @@ class TestFindSustainedOnset:
         """A sustained rise after a brief spike should still be detected."""
         hr = np.full(300, 65.0)
         hr[50:53] = 90.0  # short spike — ignored
-        hr[150:] = 88.0   # sustained rise — detected
+        hr[150:] = 88.0  # sustained rise — detected
         idx = _find_sustained_onset(hr, threshold=75.0, min_beats=5)
         assert idx == 150
 
@@ -213,7 +213,12 @@ class TestFindStabilization:
         hr = np.full(300, 85.0)
         cumtime = np.cumsum(np.full(300, 0.7))
         idx = _find_stabilization(
-            hr, cumtime, start_idx=0, window_sec=20.0, std_threshold=5.0, min_duration_sec=0.0
+            hr,
+            cumtime,
+            start_idx=0,
+            window_sec=20.0,
+            std_threshold=5.0,
+            min_duration_sec=0.0,
         )
         assert idx == 0
 
@@ -222,7 +227,12 @@ class TestFindStabilization:
         hr = np.full(300, 85.0)
         cumtime = np.cumsum(np.full(300, 0.7))  # 0.7s per beat
         idx = _find_stabilization(
-            hr, cumtime, start_idx=0, window_sec=20.0, std_threshold=5.0, min_duration_sec=15.0
+            hr,
+            cumtime,
+            start_idx=0,
+            window_sec=20.0,
+            std_threshold=5.0,
+            min_duration_sec=15.0,
         )
         assert cumtime[idx] >= 15.0
 
@@ -230,21 +240,29 @@ class TestFindStabilization:
         """Should return an index after the initial rise period."""
         rng = np.random.default_rng(7)
         n = 400
-        hr = np.concatenate([
-            np.linspace(65, 90, 50),            # rising phase
-            rng.normal(88, 1.5, 350),           # stable standing
-        ])
+        hr = np.concatenate(
+            [
+                np.linspace(65, 90, 50),  # rising phase
+                rng.normal(88, 1.5, 350),  # stable standing
+            ]
+        )
         cumtime = np.cumsum(np.full(n, 0.7))
-        idx = _find_stabilization(hr, cumtime, start_idx=0, window_sec=20.0, std_threshold=5.0)
+        idx = _find_stabilization(
+            hr, cumtime, start_idx=0, window_sec=20.0, std_threshold=5.0
+        )
         assert idx >= 0
         assert idx < n
 
     def test_fallback_midpoint(self):
         """When stabilisation is never reached, midpoint fallback is returned."""
         rng = np.random.default_rng(3)
-        hr = rng.normal(80, 10, 200)  # always noisy — never stable with strict threshold
+        hr = rng.normal(
+            80, 10, 200
+        )  # always noisy — never stable with strict threshold
         cumtime = np.cumsum(np.full(200, 0.7))
-        idx = _find_stabilization(hr, cumtime, start_idx=0, window_sec=20.0, std_threshold=0.1)
+        idx = _find_stabilization(
+            hr, cumtime, start_idx=0, window_sec=20.0, std_threshold=0.1
+        )
         assert 0 <= idx < 200
 
 
@@ -340,7 +358,9 @@ class TestDetectPhases:
         """duration_sec should equal end_sec - start_sec for each segment."""
         result = detect_phases(orthostatic_rr)
         for seg in (result.supine, result.standing):
-            assert seg.duration_sec == pytest.approx(seg.end_sec - seg.start_sec, abs=0.1)
+            assert seg.duration_sec == pytest.approx(
+                seg.end_sec - seg.start_sec, abs=0.1
+            )
         t = result.transition
         assert t.duration_sec == pytest.approx(t.end_sec - t.start_sec, abs=0.1)
 
@@ -362,7 +382,9 @@ class TestDetectPhases:
 
     def test_custom_hr_threshold(self):
         """A higher threshold should require a larger HR rise."""
-        rr = _make_orthostatic_rr(supine_bpm=65.0, standing_bpm=72.0)  # small rise ~7 bpm
+        rr = _make_orthostatic_rr(
+            supine_bpm=65.0, standing_bpm=72.0
+        )  # small rise ~7 bpm
         with pytest.raises(ValueError):
             detect_phases(rr, hr_threshold=15.0)
 
@@ -487,7 +509,9 @@ class TestOrthostaticIntegration:
         result = orthostatic_hrv(rr, min_phase_duration=60.0)
         assert result.hr_response > 0
         assert result.interpretation in {
-            "elevated_response", "normal", "excessive_vagal_withdrawal"
+            "elevated_response",
+            "normal",
+            "excessive_vagal_withdrawal",
         }
 
     def test_full_protocol_normal_delta(self):
@@ -501,7 +525,10 @@ class TestOrthostaticIntegration:
         rr = _make_orthostatic_rr(supine_bpm=65.0, standing_bpm=85.0, std_rr=30.0)
         result = orthostatic_hrv(rr, min_phase_duration=60.0)
         # Standing has lower HRV due to sympathetic dominance
-        assert result.phases.supine.features.rmssd >= result.phases.standing.features.rmssd * 0.5
+        assert (
+            result.phases.supine.features.rmssd
+            >= result.phases.standing.features.rmssd * 0.5
+        )
 
     def test_transition_duration_reasonable(self):
         """The detected transition should last between 5 s and 120 s."""

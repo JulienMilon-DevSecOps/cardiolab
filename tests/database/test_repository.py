@@ -42,10 +42,20 @@ def sample_features():
     """Minimal HRVFeatures instance for save/load tests."""
     return HRVFeatures(
         date="2026-05-15",
-        rmssd=60.0, ln_rmssd=4.09, sdnn=80.0, pnn50=25.0, mean_hr=70.0,
-        vlf=500.0, lf=1500.0, hf=2000.0,
-        lf_hf=0.75, hf_pct=0.4, lf_nu=0.4, hf_nu=0.6,
-        duration=300.0, score=72.5,
+        rmssd=60.0,
+        ln_rmssd=4.09,
+        sdnn=80.0,
+        pnn50=25.0,
+        mean_hr=70.0,
+        vlf=500.0,
+        lf=1500.0,
+        hf=2000.0,
+        lf_hf=0.75,
+        hf_pct=0.4,
+        lf_nu=0.4,
+        hf_nu=0.6,
+        duration=300.0,
+        score=72.5,
     )
 
 
@@ -122,27 +132,33 @@ def _mock_repo_conn(repo: HRVRepository):
 class TestValidateIdentifier:
     """Tests for the SQL injection guard."""
 
-    @pytest.mark.parametrize("name", [
-        "hrv_features",
-        "hrv_orthostatic",
-        "_private",
-        "table1",
-        "MyTable",
-        "a",
-    ])
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "hrv_features",
+            "hrv_orthostatic",
+            "_private",
+            "table1",
+            "MyTable",
+            "a",
+        ],
+    )
     def test_valid_identifiers_do_not_raise(self, name):
         """Valid SQL identifiers must not raise."""
         _validate_identifier(name)  # no exception
 
-    @pytest.mark.parametrize("name", [
-        "1table",          # starts with digit
-        "table name",      # space
-        "table; DROP",     # injection attempt
-        "table-name",      # hyphen
-        "",                # empty
-        "tàble",           # non-ASCII
-        "table.name",      # dot
-    ])
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "1table",  # starts with digit
+            "table name",  # space
+            "table; DROP",  # injection attempt
+            "table-name",  # hyphen
+            "",  # empty
+            "tàble",  # non-ASCII
+            "table.name",  # dot
+        ],
+    )
     def test_invalid_identifiers_raise_value_error(self, name):
         """Invalid identifiers must raise ValueError."""
         with pytest.raises(ValueError, match="Invalid SQL identifier"):
@@ -175,8 +191,18 @@ class TestHrvFields:
     def test_expected_metric_names(self):
         """The 12 expected metric names must be present (prefix stripped)."""
         expected_suffixes = {
-            "rmssd", "ln_rmssd", "sdnn", "pnn50", "mean_hr",
-            "vlf", "lf", "hf", "lf_hf", "hf_pct", "lf_nu", "hf_nu",
+            "rmssd",
+            "ln_rmssd",
+            "sdnn",
+            "pnn50",
+            "mean_hr",
+            "vlf",
+            "lf",
+            "hf",
+            "lf_hf",
+            "hf_pct",
+            "lf_nu",
+            "hf_nu",
         }
         fields = _hrv_fields("supine")
         actual_suffixes = {k.removeprefix("supine_") for k in fields}
@@ -275,18 +301,18 @@ class TestFeaturesFromRow:
         """All 12 fields must be read in the same order as _hrv_fields()."""
         row = tuple(range(20))
         f = _features_from_row(row, offset=0)
-        assert f.rmssd    == row[0]
+        assert f.rmssd == row[0]
         assert f.ln_rmssd == row[1]
-        assert f.sdnn     == row[2]
-        assert f.pnn50    == row[3]
-        assert f.mean_hr  == row[4]
-        assert f.vlf      == row[5]
-        assert f.lf       == row[6]
-        assert f.hf       == row[7]
-        assert f.lf_hf    == row[8]
-        assert f.hf_pct   == row[9]
-        assert f.lf_nu    == row[10]
-        assert f.hf_nu    == row[11]
+        assert f.sdnn == row[2]
+        assert f.pnn50 == row[3]
+        assert f.mean_hr == row[4]
+        assert f.vlf == row[5]
+        assert f.lf == row[6]
+        assert f.hf == row[7]
+        assert f.lf_hf == row[8]
+        assert f.hf_pct == row[9]
+        assert f.lf_nu == row[10]
+        assert f.hf_nu == row[11]
 
     def test_date_attached(self):
         """The date parameter must be forwarded to HRVFeatures.date."""
@@ -395,10 +421,14 @@ class TestOrthostaticRecord:
             supine=sample_features,
             standing=sample_features,
             transition_features=sample_features,
-            transition_start_sec=0.0, transition_end_sec=0.0,
-            transition_duration_sec=0.0, transition_delta_hr=0.0,
-            transition_peak_hr=0.0, hr_response=0.0,
-            lf_hf_ratio_change=0.0, hf_response_pct=0.0,
+            transition_start_sec=0.0,
+            transition_end_sec=0.0,
+            transition_duration_sec=0.0,
+            transition_delta_hr=0.0,
+            transition_peak_hr=0.0,
+            hr_response=0.0,
+            lf_hf_ratio_change=0.0,
+            hf_response_pct=0.0,
             interpretation="normal",
         )
         assert isinstance(rec.supine, HRVFeatures)
@@ -408,12 +438,17 @@ class TestOrthostaticRecord:
         """All HRVFeatures fields must be accessible on record.supine."""
         rec = OrthostaticRecord(
             date="2026-05-15",
-            supine=sample_features, standing=sample_features,
+            supine=sample_features,
+            standing=sample_features,
             transition_features=sample_features,
-            transition_start_sec=0.0, transition_end_sec=0.0,
-            transition_duration_sec=0.0, transition_delta_hr=0.0,
-            transition_peak_hr=0.0, hr_response=0.0,
-            lf_hf_ratio_change=0.0, hf_response_pct=0.0,
+            transition_start_sec=0.0,
+            transition_end_sec=0.0,
+            transition_duration_sec=0.0,
+            transition_delta_hr=0.0,
+            transition_peak_hr=0.0,
+            hr_response=0.0,
+            lf_hf_ratio_change=0.0,
+            hf_response_pct=0.0,
             interpretation="normal",
         )
         assert rec.supine.sdnn == 80.0
@@ -518,8 +553,10 @@ class TestHRVRepositoryFromEnv:
     def test_from_env_default_port(self):
         """DB_PORT defaults to 5432 when absent."""
         env = {
-            "DB_HOST": "h", "DB_NAME": "db",
-            "DB_USER": "u", "DB_PASSWORD": "p",
+            "DB_HOST": "h",
+            "DB_NAME": "db",
+            "DB_USER": "u",
+            "DB_PASSWORD": "p",
         }
         with patch.dict(os.environ, env, clear=False):
             # Remove DB_PORT if set
@@ -532,8 +569,10 @@ class TestHRVRepositoryFromEnv:
     def test_from_env_custom_port(self):
         """DB_PORT must be parsed as an integer."""
         env = {
-            "DB_HOST": "h", "DB_NAME": "db",
-            "DB_USER": "u", "DB_PASSWORD": "p",
+            "DB_HOST": "h",
+            "DB_NAME": "db",
+            "DB_USER": "u",
+            "DB_PASSWORD": "p",
             "DB_PORT": "5433",
         }
         with patch.dict(os.environ, env, clear=False):
@@ -663,11 +702,21 @@ class TestLoadFeatures:
     def _make_resting_row(self) -> tuple:
         """Build a fake DB row with 15 values (date + 14 metrics)."""
         return (
-            "2026-05-15",           # date
-            60.0, 4.09, 80.0, 25.0, 70.0,  # rmssd…mean_hr
-            500.0, 1500.0, 2000.0,          # vlf, lf, hf
-            0.75, 0.4, 0.4, 0.6,            # lf_hf, hf_pct, lf_nu, hf_nu
-            300.0, 72.5,                    # duration, score
+            "2026-05-15",  # date
+            60.0,
+            4.09,
+            80.0,
+            25.0,
+            70.0,  # rmssd…mean_hr
+            500.0,
+            1500.0,
+            2000.0,  # vlf, lf, hf
+            0.75,
+            0.4,
+            0.4,
+            0.6,  # lf_hf, hf_pct, lf_nu, hf_nu
+            300.0,
+            72.5,  # duration, score
         )
 
     def test_returns_list_of_hrv_features(self):
@@ -789,16 +838,36 @@ class TestLoadOrthostatic:
         [43]     standing_duration_sec
         [44..47] derived metrics (4)
         """
-        hrv_block = (60.0, 4.09, 80.0, 25.0, 70.0, 500.0, 1500.0, 2000.0, 0.75, 0.4, 0.4, 0.6)
+        hrv_block = (
+            60.0,
+            4.09,
+            80.0,
+            25.0,
+            70.0,
+            500.0,
+            1500.0,
+            2000.0,
+            0.75,
+            0.4,
+            0.4,
+            0.6,
+        )
         return (
-            "2026-05-15",       # [0] date
-            *hrv_block,         # [1..12] supine HRV
-            305.0,              # [13] supine_duration_sec
-            305.0, 342.0, 37.0, 20.0, 90.0,  # [14..18] transition timing
-            *hrv_block,         # [19..30] transition HRV
-            *hrv_block,         # [31..42] standing HRV
-            310.0,              # [43] standing_duration_sec
-            20.0, 1.5, -40.0, "normal",  # [44..47] derived
+            "2026-05-15",  # [0] date
+            *hrv_block,  # [1..12] supine HRV
+            305.0,  # [13] supine_duration_sec
+            305.0,
+            342.0,
+            37.0,
+            20.0,
+            90.0,  # [14..18] transition timing
+            *hrv_block,  # [19..30] transition HRV
+            *hrv_block,  # [31..42] standing HRV
+            310.0,  # [43] standing_duration_sec
+            20.0,
+            1.5,
+            -40.0,
+            "normal",  # [44..47] derived
         )
 
     def test_returns_list_of_orthostatic_records(self):
@@ -883,7 +952,9 @@ class TestLoadOrthostatic:
 
 
 @pytest.mark.integration
-@pytest.mark.skip(reason="Requires a running PostgreSQL instance — set up DB_* env vars and remove this skip to run.")
+@pytest.mark.skip(
+    reason="Requires a running PostgreSQL instance — set up DB_* env vars and remove this skip to run."
+)
 class TestHRVRepositoryIntegration:
     """Full round-trip tests against a real PostgreSQL database.
 
@@ -897,10 +968,20 @@ class TestHRVRepositoryIntegration:
         """save_features followed by load_features must return identical data."""
         features = HRVFeatures(
             date="2099-01-01",
-            rmssd=55.0, ln_rmssd=4.0, sdnn=75.0, pnn50=20.0, mean_hr=65.0,
-            vlf=400.0, lf=1200.0, hf=1800.0,
-            lf_hf=0.67, hf_pct=0.45, lf_nu=0.38, hf_nu=0.62,
-            duration=301.0, score=68.0,
+            rmssd=55.0,
+            ln_rmssd=4.0,
+            sdnn=75.0,
+            pnn50=20.0,
+            mean_hr=65.0,
+            vlf=400.0,
+            lf=1200.0,
+            hf=1800.0,
+            lf_hf=0.67,
+            hf_pct=0.45,
+            lf_nu=0.38,
+            hf_nu=0.62,
+            duration=301.0,
+            score=68.0,
         )
 
         with HRVRepository.from_env(table_name="test_hrv") as repo:

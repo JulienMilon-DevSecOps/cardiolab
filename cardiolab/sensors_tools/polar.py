@@ -9,6 +9,7 @@ from pathlib import Path
 # PUBLIC API
 # ======================
 
+
 def parse_rr_file(filepath: str | Path) -> dict:
     """Parse an RR interval file exported by a Polar sensor.
 
@@ -55,6 +56,7 @@ def parse_rr_file(filepath: str | Path) -> dict:
 # CSV PARSER
 # ======================
 
+
 def _parse_csv(filepath: Path) -> dict:
     """Parse a CSV file containing a column of RR intervals.
 
@@ -100,6 +102,7 @@ def _parse_csv(filepath: Path) -> dict:
 # ======================
 # TXT PARSER
 # ======================
+
 
 def _parse_txt(filepath: Path) -> dict:
     """Parse a plain-text file with one RR interval per line.
@@ -150,6 +153,7 @@ def _parse_txt(filepath: Path) -> dict:
 # ======================
 # COMMON OUTPUT
 # ======================
+
 
 def _build_output(filepath: Path, rr_intervals: list[float]) -> dict:
     """Assemble the standardised output dictionary.

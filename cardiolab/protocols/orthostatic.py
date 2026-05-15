@@ -226,7 +226,9 @@ def detect_phases(
     supine_baseline_hr = float(np.mean(hr[baseline_indices]))
 
     transition_threshold = supine_baseline_hr + hr_threshold
-    transition_start_idx = _find_sustained_onset(rolling_hr, transition_threshold, min_beats=5)
+    transition_start_idx = _find_sustained_onset(
+        rolling_hr, transition_threshold, min_beats=5
+    )
 
     if transition_start_idx is None:
         raise ValueError(
@@ -244,7 +246,9 @@ def detect_phases(
         stabilization_std_threshold,
     )
 
-    supine_rr, supine_start, supine_end = _extract_segment(rr, cumtime, 0, transition_start_idx)
+    supine_rr, supine_start, supine_end = _extract_segment(
+        rr, cumtime, 0, transition_start_idx
+    )
     transition_rr, trans_start, trans_end = _extract_segment(
         rr, cumtime, transition_start_idx, transition_end_idx
     )
@@ -253,8 +257,14 @@ def detect_phases(
     )
 
     trans_hr_vals = hr[transition_start_idx:transition_end_idx]
-    delta_hr = float(np.max(trans_hr_vals) - supine_baseline_hr) if len(trans_hr_vals) > 0 else 0.0
-    peak_hr = float(np.max(trans_hr_vals)) if len(trans_hr_vals) > 0 else supine_baseline_hr
+    delta_hr = (
+        float(np.max(trans_hr_vals) - supine_baseline_hr)
+        if len(trans_hr_vals) > 0
+        else 0.0
+    )
+    peak_hr = (
+        float(np.max(trans_hr_vals)) if len(trans_hr_vals) > 0 else supine_baseline_hr
+    )
 
     return OrthostaticPhases(
         supine=PhaseSegment(

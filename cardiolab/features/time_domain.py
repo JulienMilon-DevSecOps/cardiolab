@@ -38,7 +38,7 @@ def rmssd(rr) -> float:
 
     """
     diff = np.diff(rr.intervals)
-    return float(np.sqrt(np.mean(diff ** 2)))
+    return float(np.sqrt(np.mean(diff**2)))
 
 
 def ln_rmssd(rr) -> float:

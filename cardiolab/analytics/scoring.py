@@ -108,7 +108,9 @@ def readiness_score_multi(
     # HF SCORE
     # ======================
 
-    hf_ratio = current.hf / (current.lf + current.hf) if (current.lf + current.hf) > 0 else 0
+    hf_ratio = (
+        current.hf / (current.lf + current.hf) if (current.lf + current.hf) > 0 else 0
+    )
     hf_score = 50 + 50 * (hf_ratio - 0.5)
 
     # ======================
@@ -127,11 +129,6 @@ def readiness_score_multi(
     # WEIGHTED SCORE
     # ======================
 
-    score = (
-        0.4 * rmssd_score +
-        0.2 * hr_score +
-        0.2 * hf_score +
-        0.2 * trend_score
-    )
+    score = 0.4 * rmssd_score + 0.2 * hr_score + 0.2 * hf_score + 0.2 * trend_score
 
     return float(np.clip(score, 0, 100))

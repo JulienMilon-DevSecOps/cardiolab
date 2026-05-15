@@ -16,7 +16,7 @@ from cardiolab.signals.ecg import ECGSignal
 
 def generate_fake_ecg(fs=250, duration=10):
     """Generate a simple synthetic ECG signal for testing.
-    
+
     FR :
     Génère un signal ECG synthétique simple pour les tests.
     EN :
@@ -29,7 +29,7 @@ def generate_fake_ecg(fs=250, duration=10):
 
 def test_ecg_creation_with_sampling_rate():
     """Ensure ECG can be created with a sampling rate.
-    
+
     FR :
     Vérifie la création d’un ECG avec sampling_rate.
     EN :
@@ -44,7 +44,7 @@ def test_ecg_creation_with_sampling_rate():
 
 def test_ecg_creation_with_timestamps():
     """Ensure ECG can be created with timestamps.
-    
+
     FR :
     Vérifie la création d’un ECG avec timestamps.
     EN :
@@ -60,7 +60,7 @@ def test_ecg_creation_with_timestamps():
 
 def test_ecg_consistency_check():
     """Ensure inconsistency between timestamps and sampling rate raises an error.
-    
+
     FR :
     Vérifie qu'une incohérence timestamps / sampling_rate lève une erreur.
     EN :
@@ -69,13 +69,15 @@ def test_ecg_consistency_check():
     data, fs = generate_fake_ecg()
     timestamps = np.arange(len(data)) / (fs * 2)  # incohérent
 
-    with pytest.raises(ValueError, match=r"Inconsistency between timestamps and sampling_rate .*"):
+    with pytest.raises(
+        ValueError, match=r"Inconsistency between timestamps and sampling_rate .*"
+    ):
         ECGSignal(data, sampling_rate=fs, timestamps=timestamps)
 
 
 def test_r_peak_detection():
     """Ensure R-peaks are detected.
-    
+
     FR :
     Vérifie que des R-peaks sont détectés.
     EN :
@@ -90,7 +92,7 @@ def test_r_peak_detection():
 
 def test_ecg_to_rr():
     """Ensure ECG → RRSeries conversion works.
-    
+
     FR :
     Vérifie la conversion ECG → RRSeries.
     EN :

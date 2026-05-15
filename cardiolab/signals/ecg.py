@@ -187,13 +187,11 @@ class ECGSignal:
 
         """
         filtered = self.bandpass_filter()
-        squared = filtered ** 2
+        squared = filtered**2
 
         window_size = int(0.150 * self.sampling_rate)
         integrated = np.convolve(
-            squared,
-            np.ones(window_size) / window_size,
-            mode="same"
+            squared, np.ones(window_size) / window_size, mode="same"
         )
 
         distance = int(0.3 * self.sampling_rate)
@@ -231,8 +229,8 @@ class ECGSignal:
         rr_intervals = np.diff(self.timestamps[r_peaks]) * 1000.0
 
         rr_timestamps = (
-            (self.timestamps[r_peaks[:-1]] + self.timestamps[r_peaks[1:]]) / 2
-        )
+            self.timestamps[r_peaks[:-1]] + self.timestamps[r_peaks[1:]]
+        ) / 2
 
         rr = RRSeries(rr_intervals, rr_timestamps)
 

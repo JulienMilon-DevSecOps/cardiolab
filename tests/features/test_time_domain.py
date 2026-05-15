@@ -6,14 +6,13 @@ EN :
 Unit tests for time-domain HRV metrics.
 """
 
-
 from cardiolab.features.time_domain import pnn50, rmssd, sdnn
 from cardiolab.signals.rr import RRSeries
 
 
 def test_rmssd_known_values():
     """Ensures RMSSD is zero for a constant RR series.
-    
+
     FR :
     Vérifie que RMSSD est nul pour une série constante.
     EN :
@@ -25,7 +24,7 @@ def test_rmssd_known_values():
 
 def test_sdnn_known_values():
     """Ensures SDNN is zero for a constant RR series.
-    
+
     FR :
     Vérifie que SDNN est nul pour une série constante.
     EN :
@@ -37,7 +36,7 @@ def test_sdnn_known_values():
 
 def test_pnn50_zero():
     """Ensures pNN50 is zero for a constant RR series.
-    
+
     FR :
     Vérifie que pNN50 est nul pour une série constante.
     EN :
@@ -49,7 +48,7 @@ def test_pnn50_zero():
 
 def test_pnn50_positive():
     """Ensures pNN50 is positive when differences exceed threshold.
-    
+
     FR :
     Vérifie que pNN50 est positif lorsque les variations sont importantes.
     EN :
@@ -61,7 +60,7 @@ def test_pnn50_positive():
 
 def test_rmssd_positive():
     """Ensures RMSSD is positive for a variable RR series.
-    
+
     FR :
     Vérifie que RMSSD est positif pour une série variable.
     EN :
