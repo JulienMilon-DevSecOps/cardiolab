@@ -54,6 +54,22 @@ fixable = [
     "E",
     "F",
     "I",
-    "UP", 
+    "UP",
     "D",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = ["-ra", "--strict-markers", "--tb=short"]
+markers = [
+    "slow: tests longs (ex: simulation ECG réaliste)",
+    "integration: tests d'intégration (nécessite PostgreSQL)",
+    "unit: tests unitaires purs",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
 ]
