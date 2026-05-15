@@ -1,54 +1,54 @@
-## 🎯 Objectif
+## Goal
 
-**Décrire clairement ce que cette issue doit accomplir.**
+**Describe clearly what this issue should accomplish.**
 
-<!-- Quel problème cette issue résout-elle ? -->
-
----
-
-## 🧠 Contexte
-
-**Expliquer pourquoi cette issue est importante dans le projet.**
-
-<!-- Lien avec le pipeline, l’architecture ou la logique scientifique -->
+<!-- What problem does this issue solve? -->
 
 ---
 
-## 📦 Scope
+## Context
 
-**Lister précisément ce qui est inclus dans cette issue.**
+**Explain why this issue matters in the project.**
 
-<!-- Définir les éléments à implémenter pour éviter toute ambiguïté -->
+<!-- Link to pipeline, architecture, or scientific logic if relevant -->
+
+---
+
+## Scope
+
+**List precisely what is included in this issue.**
+
+<!-- Define deliverables to avoid ambiguity -->
 
 *
 
 ---
 
-## ❌ Hors scope
+## Out of scope
 
-**Lister explicitement ce qui n’est pas inclus dans cette issue.**
+**List explicitly what is NOT part of this issue.**
 
-<!-- Permet d’éviter le scope creep et de découper le travail -->
-
-*
-
----
-
-## 🛠️ Implémentation proposée
-
-**Décrire l’approche technique envisagée.**
-
-<!-- Classes, fonctions, modules ou stratégie globale -->
+<!-- Prevents scope creep and helps break work into smaller pieces -->
 
 *
 
 ---
 
-## 📊 Critères d’acceptation
+## Proposed implementation
 
-**Définir les conditions à remplir pour considérer l’issue comme terminée.**
+**Describe the planned technical approach.**
 
-<!-- Doivent être vérifiables et mesurables -->
+<!-- Classes, functions, modules, or overall strategy -->
+
+*
+
+---
+
+## Acceptance criteria
+
+**Define the conditions that must be met for this issue to be closed.**
+
+<!-- Must be verifiable and measurable -->
 
 * [ ]
 * [ ]
@@ -56,30 +56,30 @@
 
 ---
 
-## 🧪 Tests
+## Testing
 
-**Expliquer comment vérifier que l’implémentation fonctionne correctement.**
+**Explain how to verify that the implementation is correct.**
 
-<!-- Tests unitaires, cas simples, cas limites -->
-
-*
-
----
-
-## 📚 Références
-
-**Ajouter les sources utiles (scientifiques ou techniques).**
-
-<!-- Articles, standards, documentation -->
+<!-- Unit tests, happy path, edge cases -->
 
 *
 
 ---
 
-## 🧩 Liens
+## References
 
-**Lister les issues ou éléments liés.**
+**Add relevant sources (scientific or technical).**
 
-<!-- Dépendances ou continuité logique -->
+<!-- Papers, standards, documentation -->
+
+*
+
+---
+
+## Related issues
+
+**List related issues or dependencies.**
+
+<!-- Dependencies or logical continuity -->
 
 *

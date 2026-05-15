@@ -1,14 +1,14 @@
-## 🐛 Description du bug
+## Description
 
-**Décrire clairement le problème rencontré.**
+**Describe the bug clearly.**
 
-<!-- Quel comportement est incorrect ? -->
+<!-- What behaviour is incorrect? -->
 
 ---
 
-## 🔁 Étapes pour reproduire
+## Steps to reproduce
 
-**Décrire précisément comment reproduire le bug.**
+**Describe precisely how to reproduce the bug.**
 
 1.
 2.
@@ -16,67 +16,67 @@
 
 ---
 
-## ✅ Comportement attendu
+## Expected behaviour
 
-**Expliquer ce qui devrait se passer normalement.**
-
----
-
-## ❌ Comportement actuel
-
-**Décrire ce qui se passe réellement.**
+**Explain what should happen.**
 
 ---
 
-## 📊 Contexte technique
+## Actual behaviour
 
-**Donner les informations techniques utiles pour comprendre le bug.**
-
-* Version du code :
-* Module concerné :
-* Données utilisées :
-* Environnement :
+**Describe what actually happens.**
 
 ---
 
-## 📎 Données / Logs / Screenshots
+## Technical context
 
-**Ajouter tous les éléments permettant d’analyser le bug.**
+**Provide the technical information needed to understand the bug.**
 
----
-
-## 🧠 Analyse (optionnel)
-
-**Proposer une hypothèse sur l’origine du bug.**
-
----
-
-## 🛠️ Proposition de correction (optionnel)
-
-**Suggérer une solution si elle est identifiée.**
+* Code version:
+* Affected module:
+* Input data used:
+* Environment:
 
 ---
 
-## 📊 Critères de résolution
+## Logs / Data / Screenshots
 
-**Définir les conditions pour considérer le bug comme corrigé.**
-
-* [ ] Le bug n’est plus reproductible
-* [ ] Aucun effet de bord introduit
-* [ ] Tests ajoutés ou mis à jour
+**Attach any artefacts that help diagnose the bug.**
 
 ---
 
-## 🧪 Tests
+## Root cause hypothesis (optional)
 
-**Expliquer comment vérifier que le bug est corrigé.**
+**Suggest a possible explanation for the bug.**
+
+---
+
+## Proposed fix (optional)
+
+**Suggest a solution if one has been identified.**
+
+---
+
+## Acceptance criteria
+
+**Define the conditions under which the bug can be considered fixed.**
+
+* [ ] Bug is no longer reproducible
+* [ ] No regression introduced
+* [ ] Tests added or updated
+
+---
+
+## Testing
+
+**Explain how to verify that the fix works.**
 
 *
 
 ---
 
-## 🧩 Liens
+## Related issues
 
-**Lister les issues ou éléments liés.**
+**List any related issues or dependencies.**
 
 *

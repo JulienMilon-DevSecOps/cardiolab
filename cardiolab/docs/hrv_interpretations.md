@@ -1,160 +1,112 @@
-# 🫀 Interprétation des indicateurs HRV (Protocole Resting)
+# HRV Metric Interpretation Guide (Resting Protocol)
 
-## 🎯 Objectif
+## Overview
 
-**FR :**
-Fournir un guide pour interpréter les indicateurs issus du protocole HRV au repos.
-
-**EN :**
-Provide a guide to interpret HRV metrics from the resting protocol.
+All HRV values must be interpreted **relative to the individual's personal baseline**.
+A single measurement in isolation has limited clinical or practical value.
+Trends over multiple sessions are what matter.
 
 ---
 
-## 🧠 Principe fondamental
+## Time-domain metrics
 
-**FR :**
-Les valeurs doivent être interprétées **par rapport à une baseline individuelle**.
+### RMSSD
 
-**EN :**
-Values must be interpreted **relative to an individual baseline**.
+Root Mean Square of Successive Differences — the primary HRV metric.
 
----
+* ↑ RMSSD → recovery, relaxation, strong vagal tone
+* ↓ RMSSD → fatigue, stress, high training load
 
-# 📊 1. Indicateurs temporels
+### ln(RMSSD)
 
-## RMSSD
+Natural logarithm of RMSSD. More normally distributed, better suited for
+statistical comparisons and baseline tracking.
 
-**FR :**
+### SDNN
 
-* ↑ RMSSD → récupération, relaxation
-* ↓ RMSSD → fatigue, stress
+Standard deviation of NN intervals — measures overall HRV.
+Sensitive to recording duration; values are not comparable across different window lengths.
 
-**EN :**
+### pNN50
 
-* ↑ RMSSD → recovery
-* ↓ RMSSD → fatigue
-
----
-
-## ln(RMSSD)
-
-**FR :**
-
-* version normalisée du RMSSD
-* plus stable pour comparaison
+Percentage of consecutive interval pairs differing by more than 50 ms.
+Reflects parasympathetic activity. Sensitive to noise; use alongside RMSSD.
 
 ---
 
-## SDNN
+## Frequency-domain metrics
 
-**FR :**
+### HF (0.15 – 0.4 Hz)
 
-* variabilité globale
-* sensible au bruit
+High-frequency band — driven by respiratory sinus arrhythmia.
+Primary marker of parasympathetic (vagal) activity.
 
----
+| HF power | Interpretation |
+| -------- | -------------- |
+| high     | recovery       |
+| low      | fatigue        |
 
-## pNN50
+### LF (0.04 – 0.15 Hz)
 
-**FR :**
+Low-frequency band — reflects a mix of sympathetic and parasympathetic modulation.
 
-* activité parasympathique
-* complément du RMSSD
+### LF/HF ratio
 
----
+Autonomic balance indicator. **Controversial**: its interpretation as a
+sympatho-vagal balance marker is debated in the literature.
 
-# 📊 2. Indicateurs fréquentiels
+| LF/HF | Interpretation        |
+| ----- | --------------------- |
+| < 1   | recovery / relaxation |
+| 1 – 2 | normal                |
+| > 2   | potential stress      |
 
-## HF (0.15–0.4 Hz)
+### HF %
 
-**FR :**
+HF power as a percentage of total spectral power.
 
-* système parasympathique
-* respiration
-
-| HF     | Interprétation |
+| HF %   | Interpretation |
 | ------ | -------------- |
-| élevé  | récupération   |
-| faible | fatigue        |
-
----
-
-## LF (0.04–0.15 Hz)
-
-**FR :**
-
-* mix sympathique / parasympathique
-
----
-
-## LF/HF
-
-**FR :**
-
-* équilibre autonome (⚠️ controversé)
-
-| LF/HF | Interprétation   |
-| ----- | ---------------- |
-| < 1   | récupération     |
-| 1–2   | normal           |
-| > 2   | stress potentiel |
-
----
-
-## HF %
-
-**FR :**
-
-| HF %   | Interprétation |
-| ------ | -------------- |
-| > 50%  | très repos     |
+| > 50 % | deep rest      |
 | 30–50% | normal         |
-| < 30%  | stress         |
+| < 30 % | stress         |
+
+### LF_nu / HF_nu
+
+LF and HF power in normalised units: relative distribution of autonomic activity.
 
 ---
 
-## LF_nu / HF_nu
+## Heart rate (HR)
 
-**FR :**
-
-* distribution relative LF/HF
-
----
-
-# 📊 3. Fréquence cardiaque (HR)
-
-| HR     | Interprétation |
-| ------ | -------------- |
-| basse  | repos          |
-| élevée | stress         |
+| HR      | Interpretation  |
+| ------- | --------------- |
+| low     | rest, recovery  |
+| elevated | stress, fatigue |
 
 ---
 
-# ⚠️ 4. Règles importantes
+## Key rules
 
-## FR :
-
-* toujours comparer à ta baseline
-* regarder la tendance (pas une valeur)
-* éviter les conclusions sur une seule mesure
+* Always compare against your own baseline — not population norms.
+* Look at trends, not individual values.
+* Never draw conclusions from a single session.
 
 ---
 
-# 🧠 5. Lecture rapide (cheat sheet)
+## Quick reference
 
-| Situation    | RMSSD | HF | HR | Interprétation |
-| ------------ | ----- | -- | -- | -------------- |
-| récupération | ↑     | ↑  | ↓  | optimal        |
-| normal       | ~     | ~  | ~  | stable         |
-| fatigue      | ↓     | ↓  | ↑  | stress         |
+| Condition   | RMSSD | HF  | HR  | Interpretation  |
+| ----------- | ----- | --- | --- | --------------- |
+| Recovery    | ↑     | ↑   | ↓   | optimal state   |
+| Baseline    | ~     | ~   | ~   | stable          |
+| Fatigue     | ↓     | ↓   | ↑   | stress / overload |
 
 ---
 
-# 🎯 Résumé
+## Summary
 
-**FR :**
-
-* RMSSD = indicateur principal
-* HF = récupération
-* HR = stress
-* baseline = clé
+* **RMSSD** is the primary indicator.
+* **HF** reflects recovery quality.
+* **HR** is a stress / load marker.
+* **Baseline** is the reference — without it, metrics lack context.

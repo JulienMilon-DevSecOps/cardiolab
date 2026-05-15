@@ -1,62 +1,26 @@
-
+"""Time-domain HRV metrics computed directly on RR intervals."""
 
 from __future__ import annotations
 
 import numpy as np
 
-from cardiolab.signals.rr import RRSeries
-
-# ======================
-# Fonction du domaine temporel, calculées directement sur les intervalles RR.
-# ======================
 
 def rmssd(rr) -> float:
-    """
-    RMSSD
-    
-    FR :
-    RMSSD mesure la variabilité à court terme entre battements consécutifs.
-    RMSSD = sqrt(mean((RR[i+1] - RR[i])²))
-    
-    Interprétation physiologique
-        reflète principalement l'activité parasympathique (vagale)
-    
-    Lecture 
-        * RMSSD élevé → bonne récupération / relaxation
-        * RMSSD faible → stress / fatigue / charge élevée
-        
-    C’est LA métrique la plus utilisée en sport
+    """Compute the Root Mean Square of Successive Differences (RMSSD).
 
-    Valeurs typiques (adulte)
-    | RMSSD (ms) | Interprétation |
-    | ---------- | -------------- |
-    | < 20       | très faible    |
-    | 20 – 40    | faible         |
-    | 40 – 70    | normal         |
-    | 70 – 100   | bon            |
-    | > 100      | très élevé     |
+    RMSSD is the primary time-domain metric for short-term HRV. It measures
+    beat-to-beat variability and reflects parasympathetic (vagal) nervous
+    system activity.
 
-    * < 30 → fatigue, stress, surcharge
-    * > 70 → bonne récupération
-    * > 100 → très bon état parasympathique (souvent athlètes)
+    Formula: ``sqrt(mean((RR[i+1] - RR[i])²))``
 
-    Dépendant de la personne, âge, niveau sportif, ...
+    Clinical interpretation:
+        * High RMSSD → good recovery, relaxed state, strong vagal tone.
+        * Low RMSSD  → stress, fatigue, or high training load.
 
-    EN :
-    RMSSD measures short-term variability between consecutive heartbeats.
-    RMSSD = sqrt(mean((RR[i+1] - RR[i])²))
+    Typical resting values (adults):
 
-    Physiological Interpretation
-        Primarily reflects parasympathetic (vagal) activity.
-
-    Reading
-        * High RMSSD → good recovery/relaxation
-        * Low RMSSD → stress/fatigue/high workload
-
-    This is THE most widely used metric in sports.
-    
-    Typical Values (Adult)
-    | RMSSD (ms) | Interprétation |
+    | RMSSD (ms) | Interpretation |
     | ---------- | -------------- |
     | < 20       | very low       |
     | 20 – 40    | low            |
@@ -64,28 +28,35 @@ def rmssd(rr) -> float:
     | 70 – 100   | high           |
     | > 100      | very high      |
 
-    * < 30 → fatigue, stress, overload
-    * > 70 → good recovery
-    * > 100 → very good parasympathetic function (often found in athletes)
+    Values are highly individual and depend on age and fitness level.
 
-    Depends on the individual, age, fitness level, etc.
+    Args:
+        rr: An ``RRSeries`` instance containing the intervals to analyse.
+
+    Returns:
+        RMSSD value in milliseconds.
+
     """
     diff = np.diff(rr.intervals)
     return float(np.sqrt(np.mean(diff ** 2)))
 
+
 def ln_rmssd(rr) -> float:
+    """Compute the natural logarithm of RMSSD.
+
+    Raw RMSSD values are right-skewed, making statistical comparisons
+    unreliable. The log transformation produces a more normally distributed
+    metric that is better suited for tracking day-to-day changes and building
+    baselines.
+
+    Args:
+        rr: An ``RRSeries`` instance containing the intervals to analyse.
+
+    Returns:
+        Natural logarithm of RMSSD. Returns ``0.0`` if RMSSD is zero or
+        negative (degenerate case).
+
     """
-    FR :
-    Calcule le logarithme naturel du RMSSD.
-
-    Très utilisé car RMSSD est fortement asymétrique.
-
-    EN :
-    Computes natural logarithm of RMSSD.
-
-    Widely used because RMSSD is highly skewed.
-    """
-
     value = rmssd(rr)
 
     if value <= 0:
@@ -95,99 +66,59 @@ def ln_rmssd(rr) -> float:
 
 
 def sdnn(rr) -> float:
-    """
-    SDNN
-    
-    FR :
-    SDNN est l’écart-type des intervalles RR (ou NN) sur une période donnée.
+    """Compute the Standard Deviation of NN intervals (SDNN).
 
-    Interprétation physiologique :
-        * mesure la variabilité globale du rythme cardiaque
-        * reflète :
-            activité sympathique + parasympathique
+    SDNN captures overall heart rate variability over the recording window.
+    Unlike RMSSD, it reflects both sympathetic and parasympathetic contributions
+    and is therefore sensitive to the recording duration: values are not
+    directly comparable across different window lengths.
 
-    Lecture (valeurs variable suivant la durée d'analyse)
-        * SDNN élevé → bonne variabilité → système adaptable
-        * SDNN faible → fatigue / stress / faible adaptabilité
+    Typical resting values for short-term recordings (~5 min):
 
-    Valeurs typiques (cour terme ~5 min)
-    | SDNN (ms) | Interprétation |
-    | --------- | -------------- |
-    | < 20      | très faible    |
-    | 20 – 50   | faible         |
-    | 50 – 80   | normal         |
-    | > 80      | élevé          |
-
-    EN :
-    SDNN is the standard deviation of the RR (or NN) intervals over a given period.
-
-    Physiological interpretation:
-        * measures the overall variability of heart rate
-        * reflects:
-            sympathetic + parasympathetic activity
-
-    Reading (values vary depending on the duration of analysis)
-
-        * High SDNN → good variability → adaptable system
-        * Low SDNN → fatigue / stress / poor adaptability
-
-    Typical values (short term ~5 min)
     | SDNN (ms) | Interpretation |
     | --------- | -------------- |
     | < 20      | very low       |
     | 20 – 50   | low            |
     | 50 – 80   | normal         |
     | > 80      | high           |
+
+    Args:
+        rr: An ``RRSeries`` instance containing the intervals to analyse.
+
+    Returns:
+        SDNN value in milliseconds (computed with ddof=1).
+
     """
     return float(np.std(rr.intervals, ddof=1))
 
 
 def pnn50(rr) -> float:
+    """Compute the percentage of successive RR pairs differing by more than 50 ms.
+
+    pNN50 complements RMSSD as a measure of parasympathetic activity. It
+    counts the proportion of consecutive interval differences that exceed 50 ms,
+    expressed as a percentage of the total number of pairs.
+
+    Formula: ``(count of |RR[i+1] - RR[i]| > 50 ms) / (n - 1) × 100``
+
+    Typical resting values:
+
+    | pNN50 (%) | Interpretation |
+    | --------- | -------------- |
+    | < 5 %     | very low       |
+    | 5 – 15 %  | low            |
+    | 15 – 30 % | normal         |
+    | > 30 %    | high           |
+
+    Note: pNN50 is sensitive to noise and short recordings. RMSSD is generally
+    preferred for clinical or sports applications.
+
+    Args:
+        rr: An ``RRSeries`` instance containing the intervals to analyse.
+
+    Returns:
+        pNN50 as a percentage (float between 0 and 100).
+
     """
-    pNN50 (%)
-    
-    FR : 
-    pNN50 est le pourcentage de paires d’intervalles RR successifs qui diffèrent de plus de 50 ms.
-    pNN50 = (nombre de |RR[i+1] - RR[i]| > 50 ms) / total x 100
-
-    Interprétation physiologique
-        reflète principalement l'activité parasympathique
-    
-    Lecture
-        * pNN50 élevé → forte variabilité (relaxation)
-        * pNN50 faible → stress / fatigue
-            
-    Valeurs typique
-        | pNN50 (%) | Interprétation |
-        | --------- | -------------- |
-        | < 5%      | très faible    |
-        | 5 – 15%   | faible         |
-        | 15 – 30%  | normal         |
-        | > 30%     | élevé          |
-
-        Indicateur tout de même peux fiable, sensible au bruit.
-
-        EN :
-        pNN50 is the percentage of successive RR interval pairs that differ by more than 50 ms.
-        pNN50 = (number of |RR[i+1] - RR[i]| > 50 ms) / total x 100
-
-        Physiological interpretation
-            primarily reflects parasympathetic activity
-
-        Reading
-            * High pNN50 → high variability (relaxation)
-            * Low pNN50 → stress / fatigue
-
-        Typical values
-        | pNN50 (%) | Interprétation |
-        | --------- | -------------- |
-        | < 5%      | very low       |
-        | 5 – 15%   | low            |
-        | 15 – 30%  | normal         |
-        | > 30%     | high           |
-
-        However, this indicator is not very reliable and is sensitive to noise.
-        """
-    
     diff = np.abs(np.diff(rr.intervals))
     return float(np.sum(diff > 50) / len(diff) * 100)

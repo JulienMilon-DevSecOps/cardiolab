@@ -1,33 +1,39 @@
+"""Visualisation helpers for resting HRV session histories."""
+
 from __future__ import annotations
 
-import json
 import glob
+import json
 
-import numpy as np
 import matplotlib.pyplot as plt
 
-from cardiolab.signals.rr import RRSeries
-from cardiolab.protocols.resting import resting_hrv
 from cardiolab.analytics.baseline import Baseline
 from cardiolab.analytics.scoring import readiness_score_oura
+from cardiolab.protocols.resting import resting_hrv
+from cardiolab.signals.rr import RRSeries
 
 
-def plot_resting_evolution(path="cardiolab/datasets/resting/*.json"):
+def plot_resting_evolution(path: str = "cardiolab/datasets/resting/*.json") -> None:
+    """Plot RMSSD and readiness score over time from stored session files.
+
+    Loads all JSON session records matching ``path``, runs the resting HRV
+    protocol on each, computes the readiness score relative to all previous
+    sessions, and displays two separate figures:
+
+    1. RMSSD over time.
+    2. Readiness score over time.
+
+    Args:
+        path: Glob pattern pointing to the JSON session files.
+            Defaults to ``"cardiolab/datasets/resting/*.json"``.
+
     """
-    FR :
-    Affiche l'évolution du RMSSD et du score dans le temps.
-
-    EN :
-    Plots RMSSD and readiness score evolution over time.
-    """
-
     files = sorted(glob.glob(path))
 
     dates = []
     rmssd_values = []
     scores = []
-
-    baseline = Baseline()
+    past_features = []
 
     for file in files:
         with open(file) as f:
@@ -35,17 +41,18 @@ def plot_resting_evolution(path="cardiolab/datasets/resting/*.json"):
 
         rr = RRSeries(data["rr_intervals"])
         result = resting_hrv(rr)
+        result.date = data["date"]
 
-        baseline.add(result)
-
+        baseline = Baseline.from_features(past_features) if past_features else Baseline()
         score = readiness_score_oura(result, baseline)
 
+        past_features.append(result)
         dates.append(data["date"])
         rmssd_values.append(result.rmssd)
         scores.append(score)
 
     # ======================
-    # PLOT RMSSD
+    # RMSSD plot
     # ======================
 
     plt.figure()
@@ -55,7 +62,7 @@ def plot_resting_evolution(path="cardiolab/datasets/resting/*.json"):
     plt.tight_layout()
 
     # ======================
-    # PLOT SCORE
+    # Score plot
     # ======================
 
     plt.figure()
@@ -67,25 +74,27 @@ def plot_resting_evolution(path="cardiolab/datasets/resting/*.json"):
     plt.show()
 
 
+def plot_resting_evolution_rolling(
+    path: str = "cardiolab/datasets/resting/*.json",
+) -> None:
+    """Plot RMSSD, its rolling median, and readiness score from session files.
 
-def plot_resting_evolution_rolling(path="cardiolab/datasets/resting/*.json"):
+    Identical to ``plot_resting_evolution`` but adds a second line on the
+    RMSSD figure showing the rolling median, which smooths day-to-day
+    fluctuations and highlights longer-term trends.
+
+    Args:
+        path: Glob pattern pointing to the JSON session files.
+            Defaults to ``"cardiolab/datasets/resting/*.json"``.
+
     """
-    FR :
-    Affiche l'évolution du RMSSD, du RMSSD lissé (rolling médian)
-    et du score.
-
-    EN :
-    Plots RMSSD, rolling median RMSSD and readiness score over time.
-    """
-
     files = sorted(glob.glob(path))
 
     dates = []
     rmssd_values = []
     rolling_values = []
     scores = []
-
-    baseline = Baseline()
+    past_features = []
 
     for file in files:
         with open(file) as f:
@@ -93,11 +102,12 @@ def plot_resting_evolution_rolling(path="cardiolab/datasets/resting/*.json"):
 
         rr = RRSeries(data["rr_intervals"])
         result = resting_hrv(rr)
+        result.date = data["date"]
 
-        baseline.add(result)
-
+        baseline = Baseline.from_features(past_features) if past_features else Baseline()
         score = readiness_score_oura(result, baseline)
 
+        past_features.append(result)
         dates.append(data["date"])
         rmssd_values.append(result.rmssd)
         scores.append(score)
@@ -105,7 +115,7 @@ def plot_resting_evolution_rolling(path="cardiolab/datasets/resting/*.json"):
         rolling = baseline.rolling_rmssd_median()
         rolling_values.append(rolling[-1] if rolling else None)
 
-    # RMSSD + rolling
+    # RMSSD + rolling median
     plt.figure()
     plt.plot(dates, rmssd_values, label="RMSSD")
     plt.plot(dates, rolling_values, label="RMSSD (rolling median)")

@@ -1,50 +1,48 @@
+"""RR interval series representation and processing."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, Tuple
 
 import numpy as np
 
 
 @dataclass
 class RRSeries:
-    """
-    FR :
-    Représentation d'une série d'intervalles RR (en millisecondes).
+    """A time series of RR intervals measured in milliseconds.
 
-    Attributes
-    ----------
-    intervals : np.ndarray
-        Intervalles RR en millisecondes.
-    timestamps : Optional[np.ndarray]
-        Temps associés à chaque intervalle (en secondes).
-    metadata : dict
-        Informations additionnelles (source, capteur, utilisateur, etc.)
+    An RR interval is the time between two consecutive R-peaks in an ECG signal,
+    or equivalently the inter-beat interval from a heart rate monitor. This class
+    is the core data structure for all HRV computations in cardiolab.
 
-    EN :
-    Representation of a series of RR intervals (in milliseconds).
+    Attributes:
+        intervals: RR intervals in milliseconds. Must contain at least 2 values,
+            all strictly positive.
+        timestamps: Absolute timestamps (in seconds) associated with each interval.
+            If not provided, cumulative timestamps are derived on demand.
+        metadata: Free-form dictionary for contextual information such as the
+            recording device, subject ID, or session type.
 
-    Attributes
-    ----------
-    intervals: np.ndarray
-        RR intervals in milliseconds.
-    timestamps: Optional[np.ndarray]
-        Time associated with each interval (in seconds).
-    metadata: dict
-        Additional information (source, sensor, user, etc.)
+    Raises:
+        ValueError: If ``intervals`` contains fewer than 2 values or any
+            non-positive value.
+        ValueError: If ``timestamps`` is provided but does not match the length
+            of ``intervals``.
+
     """
 
     intervals: np.ndarray
-    timestamps: Optional[np.ndarray] = None
+    timestamps: np.ndarray | None = None
     metadata: dict = field(default_factory=dict)
 
     def __post_init__(self):
+        """Validate and normalise inputs after dataclass initialisation."""
         self.intervals = np.asarray(self.intervals, dtype=float)
 
         if self.timestamps is not None:
             self.timestamps = np.asarray(self.timestamps, dtype=float)
             if len(self.timestamps) != len(self.intervals):
-                raise ValueError("timestamps and intervals must have same size")
+                raise ValueError("timestamps and intervals must have the same length")
 
         self._validate()
 
@@ -57,64 +55,67 @@ class RRSeries:
             raise ValueError("RRSeries must contain at least 2 intervals")
 
         if np.any(self.intervals <= 0):
-            raise ValueError("RR intervals RR must be positive")
+            raise ValueError("RR intervals must be positive")
 
     # ======================
-    # PROPRIÉTÉS DE BASE
+    # BASIC PROPERTIES
     # ======================
 
     @property
     def duration(self) -> float:
-        """
-        FR :
-        Durée totale en secondes
-        
-        EN:
-        Duration in seconds
+        """Total recording duration in seconds.
+
+        Computed as the sum of all RR intervals converted from milliseconds.
+
+        Returns:
+            Total duration in seconds.
+
         """
         return np.sum(self.intervals) / 1000.0
 
     @property
     def mean_rr(self) -> float:
-        """
-        FR : 
-        RR moyen (ms)
-        
-        EN :
-        RR mean (ms)
+        """Mean RR interval in milliseconds.
+
+        Returns:
+            Arithmetic mean of all RR intervals (ms).
+
         """
         return float(np.mean(self.intervals))
 
     @property
     def mean_hr(self) -> float:
-        """
-        FR :
-        Fréquence cardiaque moyenne (bpm)
-        
-        EN :
-        Mean Heart Rate (bpm)
+        """Mean heart rate in beats per minute.
+
+        Derived from the mean RR interval: HR = 60000 / mean_rr.
+
+        Returns:
+            Mean heart rate (bpm).
+
         """
         return float(60000.0 / self.mean_rr)
 
     @property
     def min_hr(self) -> float:
-        """
-        FR :
-        Fréquence cardiaque minimale (bpm)
-        
-        EN :
-        Minimum Heart Rate (bpm)
+        """Minimum heart rate in beats per minute.
+
+        Corresponds to the longest RR interval in the series.
+
+        Returns:
+            Minimum heart rate (bpm).
+
         """
         return float(60000.0 / np.max(self.intervals))
 
     @property
     def max_hr(self) -> float:
-        """
-        FR :
-        Fréquence cardiaque maximale (bpm)
-        
-        EN :
-        Maximum Heart Rate (bpm)
+        """Maximum heart rate in beats per minute.
+
+        Corresponds to the shortest RR interval in the series.
+
+        Returns:
+            Maximum heart rate (bpm).
+
         """
         return float(60000.0 / np.min(self.intervals))
 
@@ -123,24 +124,35 @@ class RRSeries:
     # ======================
 
     def to_hr(self) -> np.ndarray:
-        """
-        FR :
-        Convertit RR → HR (bpm)
-        
-        EN :
-        Convert RR → HR (bpm)
+        """Convert the RR interval series to instantaneous heart rate values.
+
+        Each interval is converted using HR = 60000 / RR.
+
+        Returns:
+            Array of instantaneous heart rate values (bpm), same length as
+            ``intervals``.
+
         """
         return 60000.0 / self.intervals
 
-
     @classmethod
-    def from_hr(cls, hr_values: np.ndarray) -> "RRSeries":
-        """
-        FR :
-        Crée RRSeries à partir d'une série HR (bpm)
-        
-        EN : 
-        Create RR Series from HR serie (bpm)
+    def from_hr(cls, hr_values: np.ndarray) -> RRSeries:
+        """Create an RRSeries from a heart rate series.
+
+        Converts each HR value to an RR interval using RR = 60000 / HR.
+        This conversion is an approximation: it loses beat-to-beat timing
+        information and should be used only when raw RR data is unavailable.
+
+        Args:
+            hr_values: Array of heart rate values in beats per minute.
+                All values must be strictly positive.
+
+        Returns:
+            A new RRSeries derived from the provided HR values.
+
+        Raises:
+            ValueError: If any value in ``hr_values`` is zero or negative.
+
         """
         hr_values = np.asarray(hr_values, dtype=float)
 
@@ -151,41 +163,38 @@ class RRSeries:
         return cls(rr)
 
     # ======================
-    # NETTOYAGE
+    # CLEANING
     # ======================
 
     def remove_outliers(
         self,
         low: float = 300,
         high: float = 2000,
-        method: str = "threshold"
-    ) -> "RRSeries":
+        method: str = "threshold",
+    ) -> RRSeries:
+        """Return a new RRSeries with outlier intervals removed.
+
+        Two methods are supported:
+
+        * ``"threshold"``: removes any interval outside [``low``, ``high``].
+        * ``"zscore"``: removes any interval whose z-score exceeds 3.
+
+        Args:
+            low: Lower physiological bound in milliseconds. Intervals below
+                this value are considered artefacts. Defaults to 300 ms.
+            high: Upper physiological bound in milliseconds. Intervals above
+                this value are considered artefacts. Defaults to 2000 ms.
+            method: Outlier detection strategy, either ``"threshold"`` or
+                ``"zscore"``.
+
+        Returns:
+            A new RRSeries containing only the retained intervals. Timestamps
+            and metadata are preserved and filtered accordingly.
+
+        Raises:
+            ValueError: If ``method`` is not ``"threshold"`` or ``"zscore"``.
+
         """
-        FR :
-        Supprime les intervalles aberrants.
-
-        Parameters
-        ----------
-        low : float
-            seuil bas (ms)
-        high : float
-            seuil haut (ms)
-        method : str
-            "threshold" ou "zscore"
-
-        EN :
-        Removes outliers.
-
-        Parameters
-        ----------
-        low: float
-            low threshold (ms)
-        high: float
-            high threshold (ms)
-        method: str
-            "threshold" or "zscore"
-        """
-
         rr = self.intervals.copy()
 
         if method == "threshold":
@@ -199,7 +208,6 @@ class RRSeries:
             raise ValueError("Method unknown")
 
         cleaned_rr = rr[mask]
-
         timestamps = self.timestamps[mask] if self.timestamps is not None else None
 
         return RRSeries(cleaned_rr, timestamps, self.metadata)
@@ -208,36 +216,25 @@ class RRSeries:
     # INTERPOLATION
     # ======================
 
-    def interpolate(self, fs: float = 4.0) -> Tuple[np.ndarray, np.ndarray]:
+    def interpolate(self, fs: float = 4.0) -> tuple[np.ndarray, np.ndarray]:
+        """Resample the RR series onto a uniform time grid.
+
+        RR intervals are unevenly spaced in time. Frequency-domain analysis
+        (Welch PSD) requires a uniformly sampled signal. This method performs
+        linear interpolation to produce an evenly-spaced version.
+
+        Args:
+            fs: Target sampling frequency in Hz. The HRV standard recommends
+                at least 4 Hz to capture the HF band (0.15–0.4 Hz).
+                Defaults to 4.0 Hz.
+
+        Returns:
+            A tuple ``(t_interp, rr_interp)`` where:
+
+            * ``t_interp`` is the uniform time axis (seconds).
+            * ``rr_interp`` is the interpolated RR signal (ms).
+
         """
-        FR:
-        Interpolation pour analyse fréquentielle.
-
-        Parameters
-        ----------
-        fs : float
-            fréquence d'échantillonnage cible (Hz)
-
-        Returns
-        -------
-        t_interp : np.ndarray
-        rr_interp : np.ndarray
-
-        EN :
-        Interpolation for frequency analysis.
-
-        Parameters
-
-        -----------
-        fs: float
-            Target sampling frequency (Hz)
-
-        Returns
-        ------
-        t_interp: np.ndarray
-        rr_interp: np.ndarray
-        """
-
         if self.timestamps is None:
             t = np.cumsum(self.intervals) / 1000.0
         else:
@@ -253,14 +250,21 @@ class RRSeries:
     # ======================
 
     def segment(self, window_sec: float) -> list[RRSeries]:
-        """
-        FR :
-        Découpe la série en segments de durée fixe.
+        """Split the series into non-overlapping fixed-duration segments.
 
-        EN :
-        Divide the series into segments of fixed duration.
-        """
+        Segments are built by accumulating consecutive intervals until their
+        cumulative duration reaches ``window_sec``. The last incomplete segment
+        (if any) is discarded.
 
+        Args:
+            window_sec: Desired segment duration in seconds.
+
+        Returns:
+            List of RRSeries objects, each covering approximately
+            ``window_sec`` seconds. May be empty if the total duration is
+            shorter than one window.
+
+        """
         segments = []
         current = []
         total_time = 0
@@ -276,12 +280,22 @@ class RRSeries:
 
         return segments
 
-
     # ======================
-    # VISUALISATION DEBUG
+    # DEBUG
     # ======================
 
     def summary(self) -> dict:
+        """Return a brief summary of the series.
+
+        Returns:
+            Dictionary with the following keys:
+
+            * ``"n"``: number of intervals.
+            * ``"duration_s"``: total duration in seconds.
+            * ``"mean_rr"``: mean RR interval in milliseconds.
+            * ``"mean_hr"``: mean heart rate in bpm.
+
+        """
         return {
             "n": len(self.intervals),
             "duration_s": self.duration,
@@ -294,9 +308,11 @@ class RRSeries:
     # ======================
 
     def __len__(self):
+        """Return the number of RR intervals in the series."""
         return len(self.intervals)
 
     def __repr__(self):
+        """Return a concise string representation."""
         return (
             f"RRSeries(n={len(self)}, "
             f"mean_hr={self.mean_hr:.1f}, "

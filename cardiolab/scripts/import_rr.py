@@ -1,32 +1,43 @@
+"""Batch import pipeline: converts raw sensor files to JSON session records."""
+
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 from cardiolab.sensors_tools.polar import parse_rr_file
 
-
-RAW_DIR = Path("cardiolab/datasets/raw")
-
+raw_dir = Path("cardiolab/datasets/raw")
 
 
-def import_all(output_dir = "cardiolab/datasets/resting"):
+def import_all(output_dir: str = "cardiolab/datasets/resting") -> None:
+    """Convert all raw RR files in the raw directory to JSON session records.
+
+    Scans ``cardiolab/datasets/raw`` for any file supported by
+    ``parse_rr_file`` (``.txt``, ``.csv``), parses each one, and writes a
+    structured JSON record to ``output_dir``. Already-imported files are
+    skipped to avoid duplicates.
+
+    The output JSON contains:
+
+    * ``"date"`` — extracted from the filename, or today's date as fallback.
+    * ``"device"`` — hardcoded to ``"Polar H10"``.
+    * ``"position"`` — hardcoded to ``"supine"``.
+    * ``"source_file"`` — original filename.
+    * ``"rr_intervals"`` — list of RR intervals in milliseconds.
+    * ``"duration"`` — total recording duration in seconds.
+
+    Args:
+        output_dir: Destination directory for the JSON records. Created
+            automatically if it does not exist. Defaults to
+            ``"cardiolab/datasets/resting"``.
+
     """
-    FR :
-    Importe tous les fichiers RR (txt/csv) depuis datasets/raw
-    et les convertit en JSON dans datasets/resting.
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
 
-    EN :
-    Imports all RR files (txt/csv) from datasets/raw
-    and converts them into JSON in datasets/resting.
-    """
-
-    OUTPUT_DIR = Path(output_dir)
-
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-    files = list(RAW_DIR.glob("*"))
+    files = list(raw_dir.glob("*"))
 
     if not files:
         print("No files found in datasets/raw")
@@ -36,11 +47,6 @@ def import_all(output_dir = "cardiolab/datasets/resting"):
         try:
             data = parse_rr_file(file)
 
-            # ======================
-            # DATE
-            # ======================
-
-            # tente d'extraire depuis nom fichier sinon maintenant
             date_str = _extract_date(file.name)
 
             output = {
@@ -52,11 +58,7 @@ def import_all(output_dir = "cardiolab/datasets/resting"):
                 "duration": data["duration_sec"],
             }
 
-            out_path = OUTPUT_DIR / f"{date_str}.json"
-
-            # ======================
-            # DUPLICATION PROTECTION
-            # ======================
+            out_path = output_path / f"{date_str}.json"
 
             if out_path.exists():
                 print(f"Skipped (already exists): {out_path.name}")
@@ -76,15 +78,20 @@ def import_all(output_dir = "cardiolab/datasets/resting"):
 # ======================
 
 def _extract_date(filename: str) -> str:
-    """
-    FR :
-    Essaie d'extraire une date depuis le nom du fichier.
+    """Extract an ISO date string from a filename.
 
-    EN :
-    Attempts to extract a date from filename.
-    """
+    Assumes the date is the part of the filename before the first dot.
+    Falls back to today's date if parsing fails.
 
-    # ex: 2026-04-24.txt
+    Args:
+        filename: Bare filename (without directory), e.g.
+            ``"2026-04-24 07-52-36.txt"``.
+
+    Returns:
+        ISO date string in ``YYYY-MM-DD`` format, either extracted from the
+        filename or derived from the current date.
+
+    """
     try:
         return filename.split(".")[0]
     except Exception:
