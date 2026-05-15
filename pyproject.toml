@@ -42,7 +42,9 @@ select = [
 
 # Règles à ignorer
 ignore = [
-    "E501", # Ligne trop longue (géré par le formatter)
+    "E501",  # Ligne trop longue (géré par le formatter)
+    "D203",  # Incompatible avec D211 (no-blank-line-before-class) — on garde D211
+    "D213",  # Incompatible avec D212 (multi-line-summary-first-line) — on garde D212
 ]
 
 # Règles ignorées par fichier
