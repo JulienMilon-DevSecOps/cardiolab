@@ -75,7 +75,7 @@ Heart rate variability is used to assess:
 
 ### HRV indicators
 
-14 indicators computed for every protocol phase:
+15 indicators computed for every protocol phase (all band powers in ms²):
 
 | Domain | Metric | Description |
 |--------|--------|-------------|
@@ -84,15 +84,55 @@ Heart rate variability is used to assess:
 | Time | SDNN | Overall variability (ms) |
 | Time | pNN50 | % of pairs > 50 ms apart |
 | Time | Mean HR | Mean heart rate (bpm) |
-| Frequency | VLF | Very-low-frequency power |
-| Frequency | LF | Low-frequency power |
-| Frequency | HF | High-frequency power |
+| Frequency | VLF | Very-low-frequency band power (ms²) |
+| Frequency | LF | Low-frequency band power (ms²) |
+| Frequency | HF | High-frequency band power (ms²) |
 | Frequency | LF/HF | Autonomic balance ratio |
-| Frequency | HF% | HF as % of total power |
+| Frequency | HF% | HF as fraction of total power |
 | Frequency | LF_nu | LF in normalised units |
 | Frequency | HF_nu | HF in normalised units |
+| Composite | HF/FC | HF divided by mean HR (ms²/bpm) — HR-normalised vagal activity |
 | Meta | Duration | Phase duration (s) |
 | Meta | Score | Recovery score (0–100) |
+
+### Input validation
+
+`RRSeries` automatically emits a `PhysiologicalWarning` when any interval
+falls outside [300, 2000] ms (HR > 200 bpm or HR < 30 bpm), which almost
+always indicates artefacts. Use `remove_outliers()` to clean the signal, or
+pass `auto_clean=True` to any protocol function.
+
+```python
+from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
+import warnings
+
+with warnings.catch_warnings(record=True) as w:
+    warnings.simplefilter("always")
+    rr = RRSeries(raw_intervals)  # PhysiologicalWarning if outliers present
+
+rr_clean = rr.remove_outliers()  # or: resting_hrv(rr, auto_clean=True)
+```
+
+### Export
+
+All result dataclasses expose `to_dict()` — a plain Python dict, JSON-ready
+and pandas-compatible:
+
+```python
+result = resting_hrv(rr)
+result.date = "2026-05-17"
+
+# JSON
+import json
+print(json.dumps(result.to_dict(), indent=2))
+
+# DataFrame
+import pandas as pd
+df = pd.DataFrame([s.to_dict() for s in sessions])
+```
+
+`OrthostaticResult.to_dict()` is nested (`phases.supine / transition / standing`),
+each phase containing its `features` dict.
 
 ---
 
@@ -170,7 +210,7 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | `visualization/` | Implemented |
 | PPG signal support | Planned |
 
-**Test coverage:** 337 unit tests, 0 failures.
+**Test coverage:** 360+ unit tests, 0 failures.
 
 ---
 
@@ -203,5 +243,10 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] Orthostatic protocol with automatic phase detection
 * [x] Analytics pipeline (baseline, scoring, anomaly, trend)
 * [x] PostgreSQL persistence layer (resting + orthostatic)
+* [x] Physiological validation with `PhysiologicalWarning` on `RRSeries`
+* [x] `auto_clean` option in all protocols
+* [x] `to_dict()` export on all result dataclasses
+* [ ] SD1 / SD2 / DFA α1 non-linear features
+* [ ] Heart Rate Recovery (HRR) and cardiac drift protocols
+* [ ] Training load model (ATL / CTL / TSB)
 * [ ] PPG signal support
-* [ ] Additional physiological protocols

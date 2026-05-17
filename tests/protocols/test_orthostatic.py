@@ -559,3 +559,128 @@ class TestOrthostaticIntegration:
         assert isinstance(result.lf_hf_ratio_change, float)
         assert isinstance(result.hf_response_pct, float)
         assert isinstance(result.interpretation, str)
+
+
+# ======================
+# to_dict() — dataclasses
+# ======================
+
+
+class TestOrthostaticToDict:
+    """Tests for to_dict() on PhaseSegment, TransitionSegment, OrthostaticResult."""
+
+    def test_phase_segment_to_dict_returns_dict(self, orthostatic_rr):
+        """PhaseSegment.to_dict() must return a plain dict."""
+        result = orthostatic_hrv(orthostatic_rr, min_phase_duration=60.0)
+        d = result.phases.supine.to_dict()
+        assert isinstance(d, dict)
+
+    def test_phase_segment_to_dict_keys(self, orthostatic_rr):
+        """PhaseSegment.to_dict() must expose timing and nested features."""
+        result = orthostatic_hrv(orthostatic_rr, min_phase_duration=60.0)
+        d = result.phases.supine.to_dict()
+        assert set(d.keys()) == {"start_sec", "end_sec", "duration_sec", "features"}
+
+    def test_phase_segment_to_dict_excludes_rr(self, orthostatic_rr):
+        """PhaseSegment.to_dict() must not include the raw RR array."""
+        result = orthostatic_hrv(orthostatic_rr, min_phase_duration=60.0)
+        assert "rr" not in result.phases.supine.to_dict()
+
+    def test_phase_segment_features_is_dict(self, orthostatic_rr):
+        """PhaseSegment.to_dict()['features'] must be a plain dict."""
+        result = orthostatic_hrv(orthostatic_rr, min_phase_duration=60.0)
+        assert isinstance(result.phases.supine.to_dict()["features"], dict)
+
+    def test_transition_segment_to_dict_keys(self, orthostatic_rr):
+        """TransitionSegment.to_dict() must include delta_hr and peak_hr."""
+        result = orthostatic_hrv(orthostatic_rr, min_phase_duration=60.0)
+        d = result.phases.transition.to_dict()
+        assert "delta_hr" in d
+        assert "peak_hr" in d
+        assert "features" in d
+
+    def test_orthostatic_result_to_dict_returns_dict(self, orthostatic_rr):
+        """OrthostaticResult.to_dict() must return a plain dict."""
+        result = orthostatic_hrv(orthostatic_rr, min_phase_duration=60.0)
+        assert isinstance(result.to_dict(), dict)
+
+    def test_orthostatic_result_to_dict_top_level_keys(self, orthostatic_rr):
+        """OrthostaticResult.to_dict() must expose all top-level result fields."""
+        result = orthostatic_hrv(orthostatic_rr, min_phase_duration=60.0)
+        d = result.to_dict()
+        expected = {
+            "phases",
+            "hr_response",
+            "lf_hf_ratio_change",
+            "hf_response_pct",
+            "hf_hr_pct_change",
+            "interpretation",
+        }
+        assert set(d.keys()) == expected
+
+    def test_orthostatic_result_to_dict_phases_keys(self, orthostatic_rr):
+        """OrthostaticResult.to_dict()['phases'] must have supine/transition/standing."""
+        result = orthostatic_hrv(orthostatic_rr, min_phase_duration=60.0)
+        phases = result.to_dict()["phases"]
+        assert set(phases.keys()) == {"supine", "transition", "standing"}
+
+    def test_orthostatic_result_to_dict_is_json_serialisable(self, orthostatic_rr):
+        """OrthostaticResult.to_dict() output must be JSON-serialisable."""
+        import json
+        import math
+
+        result = orthostatic_hrv(orthostatic_rr, min_phase_duration=60.0)
+        d = result.to_dict()
+
+        def replace_nan(obj):
+            if isinstance(obj, float) and math.isnan(obj):
+                return None
+            if isinstance(obj, dict):
+                return {k: replace_nan(v) for k, v in obj.items()}
+            return obj
+
+        json.dumps(replace_nan(d))  # must not raise
+
+
+# ======================
+# auto_clean in orthostatic_hrv()
+# ======================
+
+
+class TestOrthostaticAutoClean:
+    """Tests for the auto_clean parameter in orthostatic_hrv()."""
+
+    def test_auto_clean_produces_same_result_as_manual_clean(self, orthostatic_rr):
+        """auto_clean=True must give the same result as pre-cleaning the series."""
+        import warnings
+
+        intervals = orthostatic_rr.intervals.copy()
+        intervals[5] = 150.0
+        intervals[200] = 2500.0
+
+        from cardiolab.signals.rr import RRSeries
+
+        dirty = RRSeries(intervals)
+        clean = dirty.remove_outliers()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result_auto = orthostatic_hrv(
+                dirty, min_phase_duration=60.0, auto_clean=True
+            )
+        result_manual = orthostatic_hrv(clean, min_phase_duration=60.0)
+
+        assert abs(result_auto.hr_response - result_manual.hr_response) < 1e-6
+
+    def test_auto_clean_true_returns_valid_result(self, orthostatic_rr):
+        """orthostatic_hrv() with auto_clean=True must return an OrthostaticResult."""
+        import warnings
+
+        from cardiolab.protocols.orthostatic import OrthostaticResult
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = orthostatic_hrv(
+                orthostatic_rr, min_phase_duration=60.0, auto_clean=True
+            )
+        assert isinstance(result, OrthostaticResult)

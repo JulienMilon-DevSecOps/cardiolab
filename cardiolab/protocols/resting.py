@@ -64,6 +64,33 @@ class HRVFeatures:
     duration: float = 0.0
     score: float = 0.0
 
+    def to_dict(self) -> dict:
+        """Return a plain-Python dict of all HRV features.
+
+        Returns:
+            Dictionary with one key per field. ``date`` may be ``None``.
+            All numeric values are native Python ``float``.
+
+        """
+        return {
+            "date": self.date,
+            "rmssd": self.rmssd,
+            "ln_rmssd": self.ln_rmssd,
+            "sdnn": self.sdnn,
+            "pnn50": self.pnn50,
+            "mean_hr": self.mean_hr,
+            "vlf": self.vlf,
+            "lf": self.lf,
+            "hf": self.hf,
+            "lf_hf": self.lf_hf,
+            "hf_pct": self.hf_pct,
+            "lf_nu": self.lf_nu,
+            "hf_nu": self.hf_nu,
+            "hf_hr": self.hf_hr,
+            "duration": self.duration,
+            "score": self.score,
+        }
+
 
 # ======================
 # MAIN PROTOCOL
@@ -74,6 +101,7 @@ def resting_hrv(
     rr: RRSeries,
     min_duration: float = 300.0,
     compute_score: bool = False,
+    auto_clean: bool = False,
 ) -> HRVFeatures:
     """Extract HRV features from a resting-state RR interval recording.
 
@@ -87,20 +115,24 @@ def resting_hrv(
         * Natural, uncontrolled breathing.
 
     Args:
-        rr: RR interval series to analyse. Should be clean (outliers removed)
-            before calling this function.
+        rr: RR interval series to analyse.
         min_duration: Minimum recommended recording duration in seconds.
-            A warning is silently skipped for now if the series is shorter;
-            results may be less reliable below this threshold. Defaults to
+            Results may be less reliable below this threshold. Defaults to
             300 s (5 minutes).
         compute_score: If ``True``, computes a simple normalised readiness
             score (0–1) based on RMSSD and mean HR. Defaults to ``False``.
+        auto_clean: If ``True``, removes physiological outliers (< 300 ms or
+            > 2000 ms) from ``rr`` before computing features using the default
+            ``threshold`` method. Defaults to ``False``.
 
     Returns:
         An ``HRVFeatures`` instance populated with all computed metrics.
         ``score`` is set to ``0.0`` when ``compute_score`` is ``False``.
 
     """
+    if auto_clean:
+        rr = rr.remove_outliers()
+
     # ======================
     # VALIDATION
     # ======================

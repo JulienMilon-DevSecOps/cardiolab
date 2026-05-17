@@ -11,7 +11,7 @@ These tests validate creation, conversions, and basic HRV metrics.
 import numpy as np
 import pytest
 
-from cardiolab.signals.rr import RRSeries
+from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
 
 
 def test_rrseries_creation():
@@ -204,3 +204,51 @@ def test_from_hr_shape():
     rr = RRSeries.from_hr(hr)
 
     assert len(rr) == len(hr)
+
+
+# ======================
+# PhysiologicalWarning
+# ======================
+
+
+class TestPhysiologicalWarning:
+    """Tests for physiological bounds validation in RRSeries."""
+
+    def test_no_warning_for_normal_intervals(self):
+        """No PhysiologicalWarning for intervals in [300, 2000] ms."""
+        with pytest.warns(PhysiologicalWarning) as rec:
+            RRSeries([150, 800, 810])  # 150 ms triggers a warning
+        assert len(rec) == 1
+
+    def test_clean_series_raises_no_warning(self):
+        """Intervals strictly inside physiological bounds raise no warning."""
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", PhysiologicalWarning)
+            RRSeries([800, 810, 820])  # all normal — must not raise
+
+    def test_warning_on_low_interval(self):
+        """An interval below 300 ms triggers PhysiologicalWarning."""
+        with pytest.warns(PhysiologicalWarning, match="below 300 ms"):
+            RRSeries([200, 800, 810])
+
+    def test_warning_on_high_interval(self):
+        """An interval above 2000 ms triggers PhysiologicalWarning."""
+        with pytest.warns(PhysiologicalWarning, match="above 2000 ms"):
+            RRSeries([800, 810, 2500])
+
+    def test_warning_count_reflects_outlier_count(self):
+        """Warning message includes the correct count of suspicious intervals."""
+        with pytest.warns(PhysiologicalWarning, match="2 interval"):
+            RRSeries([150, 100, 800, 810])
+
+    def test_both_bounds_warn_independently(self):
+        """Low and high outliers each produce a separate warning."""
+        with pytest.warns(PhysiologicalWarning) as rec:
+            RRSeries([200, 800, 2500])
+        assert len(rec) == 2
+
+    def test_physiological_warning_is_user_warning(self):
+        """PhysiologicalWarning must be a subclass of UserWarning."""
+        assert issubclass(PhysiologicalWarning, UserWarning)

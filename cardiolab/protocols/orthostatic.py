@@ -29,6 +29,22 @@ class PhaseSegment:
     duration_sec: float
     features: HRVFeatures
 
+    def to_dict(self) -> dict:
+        """Return a plain-Python dict for this phase segment.
+
+        The ``rr`` field is excluded (raw signal, too large for serialisation).
+
+        Returns:
+            Dictionary with timing fields and nested ``features`` dict.
+
+        """
+        return {
+            "start_sec": self.start_sec,
+            "end_sec": self.end_sec,
+            "duration_sec": self.duration_sec,
+            "features": self.features.to_dict(),
+        }
+
 
 @dataclass
 class TransitionSegment:
@@ -52,6 +68,24 @@ class TransitionSegment:
     delta_hr: float
     peak_hr: float
     features: HRVFeatures
+
+    def to_dict(self) -> dict:
+        """Return a plain-Python dict for this transition segment.
+
+        The ``rr`` field is excluded (raw signal, too large for serialisation).
+
+        Returns:
+            Dictionary with timing, HR dynamics, and nested ``features`` dict.
+
+        """
+        return {
+            "start_sec": self.start_sec,
+            "end_sec": self.end_sec,
+            "duration_sec": self.duration_sec,
+            "delta_hr": self.delta_hr,
+            "peak_hr": self.peak_hr,
+            "features": self.features.to_dict(),
+        }
 
 
 @dataclass
@@ -98,6 +132,27 @@ class OrthostaticResult:
     hf_hr_pct_change: float
     interpretation: str
 
+    def to_dict(self) -> dict:
+        """Return a plain-Python dict of the full orthostatic result.
+
+        Returns:
+            Nested dictionary with ``phases`` (supine / transition / standing)
+            and all derived clinical metrics.
+
+        """
+        return {
+            "phases": {
+                "supine": self.phases.supine.to_dict(),
+                "transition": self.phases.transition.to_dict(),
+                "standing": self.phases.standing.to_dict(),
+            },
+            "hr_response": self.hr_response,
+            "lf_hf_ratio_change": self.lf_hf_ratio_change,
+            "hf_response_pct": self.hf_response_pct,
+            "hf_hr_pct_change": self.hf_hr_pct_change,
+            "interpretation": self.interpretation,
+        }
+
 
 # ======================
 # MAIN PROTOCOL
@@ -109,6 +164,7 @@ def orthostatic_hrv(
     min_phase_duration: float = 240.0,
     hr_threshold: float = 10.0,
     window_sec: float = 30.0,
+    auto_clean: bool = False,
 ) -> OrthostaticResult:
     """Run the orthostatic HRV protocol on a continuous RR recording.
 
@@ -130,6 +186,9 @@ def orthostatic_hrv(
             triggers transition detection. Defaults to 10 bpm.
         window_sec: Duration of the rolling HR window used for smoothing.
             Defaults to 30 s.
+        auto_clean: If ``True``, removes physiological outliers (< 300 ms or
+            > 2000 ms) from ``rr`` before phase detection and feature
+            computation. Defaults to ``False``.
 
     Returns:
         An ``OrthostaticResult`` with segmented phases, HRV features for each
@@ -141,6 +200,9 @@ def orthostatic_hrv(
             ``min_phase_duration``.
 
     """
+    if auto_clean:
+        rr = rr.remove_outliers()
+
     phases = detect_phases(rr, hr_threshold=hr_threshold, window_sec=window_sec)
 
     if phases.supine.duration_sec < min_phase_duration:
