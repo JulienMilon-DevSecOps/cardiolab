@@ -16,6 +16,7 @@ from cardiolab.signals.rr import RRSeries
 # RRSeries FIXTURES
 # ======================
 
+
 @pytest.fixture
 def normal_rr_series():
     """Return a normal RRSeries of 300 intervals at ~70 bpm (resting state)."""
@@ -68,6 +69,7 @@ def rr_series_with_timestamps():
 # ECGSignal FIXTURES
 # ======================
 
+
 @pytest.fixture
 def normal_ecg_signal():
     """Return a normal 5-minute ECG signal at 256 Hz with ~70 bpm heart rate."""
@@ -76,9 +78,9 @@ def normal_ecg_signal():
     t = np.linspace(0, duration, fs * duration)
     # Simulate ECG with heart rate ~70 bpm
     signal = (
-        np.sin(2 * np.pi * (70 / 60) * t) +
-        0.1 * np.sin(2 * np.pi * 5 * t) +  # Some harmonic
-        0.01 * np.random.randn(len(t))  # Small noise
+        np.sin(2 * np.pi * (70 / 60) * t)
+        + 0.1 * np.sin(2 * np.pi * 5 * t)  # Some harmonic
+        + 0.01 * np.random.randn(len(t))  # Small noise
     )
     return ECGSignal(signal, sampling_rate=fs)
 
@@ -100,8 +102,7 @@ def noisy_ecg_signal():
     duration = 60
     t = np.linspace(0, duration, fs * duration)
     signal = (
-        np.sin(2 * np.pi * (70 / 60) * t) +
-        0.5 * np.random.randn(len(t))  # High noise
+        np.sin(2 * np.pi * (70 / 60) * t) + 0.5 * np.random.randn(len(t))  # High noise
     )
     return ECGSignal(signal, sampling_rate=fs)
 
@@ -120,6 +121,7 @@ def short_ecg_signal():
 # HRVFeatures FIXTURES
 # ======================
 
+
 @pytest.fixture
 def normal_hrv_features():
     """Return normal HRV features representing a healthy resting session."""
@@ -137,6 +139,7 @@ def normal_hrv_features():
         hf_pct=0.4,
         lf_nu=0.4,
         hf_nu=0.6,
+        hf_hr=2000.0 / 70.0,
         duration=300.0,
         score=75.0,
     )
@@ -159,6 +162,7 @@ def poor_hrv_features():
         hf_pct=0.2,
         lf_nu=0.67,
         hf_nu=0.33,
+        hf_hr=400.0 / 85.0,
         duration=300.0,
         score=35.0,
     )
@@ -181,6 +185,7 @@ def excellent_hrv_features():
         hf_pct=0.55,
         lf_nu=0.36,
         hf_nu=0.64,
+        hf_hr=3500.0 / 55.0,
         duration=300.0,
         score=92.0,
     )
@@ -190,6 +195,7 @@ def excellent_hrv_features():
 # Baseline FIXTURES
 # ======================
 
+
 @pytest.fixture
 def baseline_7days(normal_hrv_features, excellent_hrv_features, poor_hrv_features):
     """Baseline with 7 days of data (normal pattern)."""
@@ -197,7 +203,7 @@ def baseline_7days(normal_hrv_features, excellent_hrv_features, poor_hrv_feature
     # Generate 6 more days of similar data
     for i in range(1, 7):
         feature = HRVFeatures(
-            date=f"2026-05-{12-i:02d}T10:00:00",
+            date=f"2026-05-{12 - i:02d}T10:00:00",
             rmssd=60.0 + np.random.normal(0, 5),
             ln_rmssd=4.09,
             sdnn=80.0 + np.random.normal(0, 5),
@@ -214,7 +220,7 @@ def baseline_7days(normal_hrv_features, excellent_hrv_features, poor_hrv_feature
             score=75.0 + np.random.normal(0, 5),
         )
         features.append(feature)
-    
+
     return Baseline(history=features, window=7)
 
 
@@ -224,7 +230,7 @@ def baseline_30days():
     features = []
     for i in range(30):
         # Create 30 days with gradual variation
-        date = f"2026-04-{13 + (i%30):02d}T10:00:00"
+        date = f"2026-04-{13 + (i % 30):02d}T10:00:00"
         # Simulate gradual improvement (RMSSD increases)
         rmssd_value = 50.0 + i
         feature = HRVFeatures(
@@ -245,7 +251,7 @@ def baseline_30days():
             score=70.0 + i * 0.5,
         )
         features.append(feature)
-    
+
     return Baseline(history=features, window=7)
 
 
@@ -294,6 +300,7 @@ def baseline_insufficient_data():
 # ======================
 # File FIXTURES
 # ======================
+
 
 @pytest.fixture
 def temp_csv_polar_file(tmp_path):
@@ -353,19 +360,21 @@ def temp_empty_file(tmp_path):
 # Mock Data Generators
 # ======================
 
+
 @pytest.fixture
 def hrv_features_generator():
     """Return a factory function for creating HRVFeatures with custom parameters."""
+
     def _create(
         rmssd: float = 60.0,
         sdnn: float = 80.0,
         mean_hr: float = 70.0,
         date: str | None = None,
-        **kwargs
+        **kwargs,
     ) -> HRVFeatures:
         if date is None:
             date = datetime.now().isoformat()
-        
+
         ln_rmssd_val = np.log(rmssd) if rmssd > 0 else 0.0
         return HRVFeatures(
             date=date,
@@ -384,12 +393,14 @@ def hrv_features_generator():
             duration=kwargs.get("duration", 300.0),
             score=kwargs.get("score", 75.0),
         )
+
     return _create
 
 
 @pytest.fixture
 def rr_series_generator():
     """Return a factory function for creating RRSeries with custom HR and variability."""
+
     def _create(
         mean_rr: float = 857,
         std_rr: float = 20,
@@ -397,12 +408,13 @@ def rr_series_generator():
         with_outliers: bool = False,
     ) -> RRSeries:
         intervals = np.random.normal(mean_rr, std_rr, length).clip(min=300)
-        
+
         if with_outliers:
             # Add some outliers
             outlier_indices = np.random.choice(length, size=5, replace=False)
             for idx in outlier_indices:
                 intervals[idx] = np.random.choice([1500, 200])
-        
+
         return RRSeries(intervals=intervals)
+
     return _create

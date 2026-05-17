@@ -28,12 +28,12 @@ def frequency_domain(rr, fs: float = 4.0) -> dict:
             Defaults to 4.0 Hz (HRV standard minimum for HF band coverage).
 
     Returns:
-        Dictionary with the following keys:
+        Dictionary with the following keys (absolute powers in ms²):
 
-        * ``"VLF"``        — absolute VLF power (ms²).
-        * ``"LF"``         — absolute LF power (ms²).
-        * ``"HF"``         — absolute HF power (ms²).
-        * ``"TP"``         — total power: VLF + LF + HF (ms²).
+        * ``"VLF"``        — absolute VLF power (ms²). Typical resting range: 300–3 000 ms².
+        * ``"LF"``         — absolute LF power (ms²). Typical resting range: 200–2 000 ms².
+        * ``"HF"``         — absolute HF power (ms²). Typical resting range: 200–2 000 ms².
+        * ``"TP"``         — total power VLF + LF + HF (ms²).
         * ``"LF_HF"``      — LF/HF ratio (0.0 if HF is zero).
         * ``"LF_nu"``      — LF in normalised units: LF / (LF + HF).
         * ``"HF_nu"``      — HF in normalised units: HF / (LF + HF).
@@ -43,17 +43,18 @@ def frequency_domain(rr, fs: float = 4.0) -> dict:
         * ``"LF_HF_over_TP"`` — (LF + HF) / TP ratio.
 
     """
-    rr_intervals = np.array(rr.intervals) / 1000.0  # convert ms → s
+    rr_ms = np.array(
+        rr.intervals
+    )  # ms — kept in ms so PSD is in ms²/Hz → band power in ms²
+    time_s = np.cumsum(rr_ms) / 1000.0  # seconds — for a Hz-correct frequency axis
+    time_s = time_s - time_s[0]
 
     # ======================
     # Interpolation
     # ======================
 
-    time = np.cumsum(rr_intervals)
-    time = time - time[0]
-
-    interp_time = np.arange(0, time[-1], 1 / fs)
-    interp_rr = np.interp(interp_time, time, rr_intervals)
+    interp_time = np.arange(0, time_s[-1], 1 / fs)
+    interp_rr = np.interp(interp_time, time_s, rr_ms)  # ms values on a uniform s grid
 
     # ======================
     # PSD estimation

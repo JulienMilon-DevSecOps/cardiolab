@@ -49,6 +49,7 @@ USER_ID = str(uuid.UUID(_raw_user_id))
 # DISPLAY HELPERS
 # ---------------------------------------------------------------------------
 
+
 def _separator(title: str = "") -> None:
     if title:
         print(f"\n{'─' * 10} {title} {'─' * (44 - len(title))}")
@@ -78,6 +79,7 @@ def _display_session(label: str, f) -> None:
 # ANALYTICS PIPELINE
 # ---------------------------------------------------------------------------
 
+
 def analyze() -> None:
     """Load features from DB and run the full analytics pipeline."""
     print("=== cardiolab — load & analyze ===\n")
@@ -91,14 +93,13 @@ def analyze() -> None:
 
     if not features:
         raise SystemExit(
-            f"No sessions found for USER_ID={USER_ID}.\n"
-            "Run 02_feed_database.py first."
+            f"No sessions found for USER_ID={USER_ID}.\nRun 02_feed_database.py first."
         )
 
     _separator("SESSIONS CHARGÉES")
     print(f"\n  {len(features)} session(s) trouvée(s) pour cet utilisateur.\n")
     print(f"  {'Date':<25} {'RMSSD':>7} {'HR':>6} {'Score':>7}")
-    print(f"  {'-'*50}")
+    print(f"  {'-' * 50}")
     for f in features:
         print(f"  {str(f.date):<25} {f.rmssd:>7.1f} {f.mean_hr:>6.1f} {f.score:>7.1f}")
 
@@ -127,10 +128,14 @@ def analyze() -> None:
     print(f"    Score multi-factor: {score_multi:.1f} / 100")
 
     interpretation = (
-        "Très bien récupéré" if score_multi >= 80
-        else "Récupération normale" if score_multi >= 60
-        else "Fatigue modérée" if score_multi >= 40
-        else "Fatigué" if score_multi >= 20
+        "Très bien récupéré"
+        if score_multi >= 80
+        else "Récupération normale"
+        if score_multi >= 60
+        else "Fatigue modérée"
+        if score_multi >= 40
+        else "Fatigué"
+        if score_multi >= 20
         else "Surcharge — repos conseillé"
     )
     print(f"    Interprétation    : {interpretation}")

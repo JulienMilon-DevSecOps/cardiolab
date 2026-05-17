@@ -69,6 +69,7 @@ else:
 # JSON → HRVFeatures
 # ---------------------------------------------------------------------------
 
+
 def load_features_from_json(
     path: str = "cardiolab/datasets/resting/*.json",
 ) -> list[HRVFeatures]:
@@ -122,9 +123,12 @@ def load_features_from_json(
 # DISPLAY
 # ---------------------------------------------------------------------------
 
+
 def display_features(features: list[HRVFeatures]) -> None:
     """Print a compact summary of each session."""
-    print(f"\n{'Date':<25} {'RMSSD':>7} {'SDNN':>7} {'HR':>6} {'HF_nu':>7} {'LF/HF':>7}")
+    print(
+        f"\n{'Date':<25} {'RMSSD':>7} {'SDNN':>7} {'HR':>6} {'HF_nu':>7} {'LF/HF':>7}"
+    )
     print("-" * 65)
     for f in features:
         print(
@@ -141,6 +145,7 @@ def display_features(features: list[HRVFeatures]) -> None:
 # PIPELINE
 # ---------------------------------------------------------------------------
 
+
 def feed(path: str = "cardiolab/datasets/resting/*.json") -> None:
     """Full feed pipeline: compute features, persist to DB, print summary."""
     print("=== cardiolab — feed database ===\n")
@@ -155,7 +160,9 @@ def feed(path: str = "cardiolab/datasets/resting/*.json") -> None:
 
     with HRVRepository.from_env() as repo:
         repo.save_features(features, user_id=USER_ID)
-        print(f"Saved to table  : '{repo.table_name}' (upsert — duplicates are updated)")
+        print(
+            f"Saved to table  : '{repo.table_name}' (upsert — duplicates are updated)"
+        )
 
     display_features(features)
 

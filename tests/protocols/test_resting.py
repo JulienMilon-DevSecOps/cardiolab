@@ -17,20 +17,33 @@ class TestHRVFeatures:
         assert normal_hrv_features.mean_hr == 70.0
 
     def test_hrv_features_all_fields_present(self, normal_hrv_features):
-        """Test that all 14 fields are present."""
+        """Test that all 15 fields are present."""
         expected_fields = {
-            'date', 'rmssd', 'ln_rmssd', 'sdnn', 'pnn50', 'mean_hr',
-            'vlf', 'lf', 'hf', 'lf_hf', 'hf_pct', 'lf_nu', 'hf_nu',
-            'duration', 'score'
+            "date",
+            "rmssd",
+            "ln_rmssd",
+            "sdnn",
+            "pnn50",
+            "mean_hr",
+            "vlf",
+            "lf",
+            "hf",
+            "lf_hf",
+            "hf_pct",
+            "lf_nu",
+            "hf_nu",
+            "hf_hr",
+            "duration",
+            "score",
         }
-        
+
         actual_fields = set(vars(normal_hrv_features).keys())
         assert actual_fields == expected_fields
 
     def test_hrv_features_default_values(self):
         """Test HRVFeatures with default values."""
         features = HRVFeatures()
-        
+
         assert features.date is None
         assert features.rmssd == 0.0
         assert features.mean_hr == 0.0
@@ -39,16 +52,29 @@ class TestHRVFeatures:
     def test_hrv_features_with_date(self):
         """Test HRVFeatures with date."""
         features = HRVFeatures(date="2026-05-12T10:00:00", rmssd=60.0)
-        
+
         assert features.date == "2026-05-12T10:00:00"
 
     def test_hrv_features_numeric_validation(self, normal_hrv_features):
         """Test that all numeric fields are float/int."""
         numeric_fields = [
-            'rmssd', 'ln_rmssd', 'sdnn', 'pnn50', 'mean_hr',
-            'vlf', 'lf', 'hf', 'lf_hf', 'hf_pct', 'lf_nu', 'hf_nu', 'duration', 'score'
+            "rmssd",
+            "ln_rmssd",
+            "sdnn",
+            "pnn50",
+            "mean_hr",
+            "vlf",
+            "lf",
+            "hf",
+            "lf_hf",
+            "hf_pct",
+            "lf_nu",
+            "hf_nu",
+            "hf_hr",
+            "duration",
+            "score",
         ]
-        
+
         for field in numeric_fields:
             value = getattr(normal_hrv_features, field)
             assert isinstance(value, (int, float)), f"{field} is not numeric"
@@ -60,7 +86,7 @@ class TestRestingHRV:
     def test_resting_hrv_main_protocol(self, normal_rr_series):
         """Test resting_hrv main protocol execution."""
         result = resting_hrv(normal_rr_series)
-        
+
         assert isinstance(result, HRVFeatures)
         assert result.rmssd > 0
         assert result.sdnn > 0
@@ -69,13 +95,13 @@ class TestRestingHRV:
     def test_resting_hrv_all_metrics_computed(self, normal_rr_series):
         """Test that all HRV metrics are computed."""
         result = resting_hrv(normal_rr_series)
-        
+
         # Time-domain metrics
         assert result.rmssd > 0
         assert result.ln_rmssd > 0
         assert result.sdnn > 0
         assert result.pnn50 >= 0
-        
+
         # Frequency-domain metrics
         assert result.vlf >= 0
         assert result.lf >= 0
@@ -84,20 +110,20 @@ class TestRestingHRV:
         assert result.hf_pct >= 0
         assert result.lf_nu >= 0
         assert result.hf_nu >= 0
-        
+
         # Duration
         assert result.duration > 0
 
     def test_resting_hrv_with_compute_score_false(self, normal_rr_series):
         """Test resting_hrv without score computation."""
         result = resting_hrv(normal_rr_series, compute_score=False)
-        
+
         assert result.score == 0.0
 
     def test_resting_hrv_with_compute_score_true(self, normal_rr_series):
         """Test resting_hrv with score computation."""
         result = resting_hrv(normal_rr_series, compute_score=True)
-        
+
         # Score should be computed
         assert result.score is not None
         assert isinstance(result.score, (int, float))
@@ -106,7 +132,7 @@ class TestRestingHRV:
         """Test resting_hrv with short signal (< 300s)."""
         # Should not crash even if below min_duration
         result = resting_hrv(short_rr_series, min_duration=300.0)
-        
+
         assert isinstance(result, HRVFeatures)
         assert result.rmssd >= 0  # May be lower with short signal
 
@@ -114,19 +140,19 @@ class TestRestingHRV:
         """Test resting_hrv with custom minimum duration."""
         # Set lower min_duration for short signal
         result = resting_hrv(short_rr_series, min_duration=10.0)
-        
+
         assert isinstance(result, HRVFeatures)
 
     def test_resting_hrv_frequency_indicators_valid(self, normal_rr_series):
         """Test that frequency indicators are valid."""
         result = resting_hrv(normal_rr_series)
-        
+
         # All frequency values should be non-negative
         assert result.vlf >= 0
         assert result.lf >= 0
         assert result.hf >= 0
         assert result.lf_hf >= 0
-        
+
         # Normalized values should be 0-1
         assert 0 <= result.lf_nu <= 1
         assert 0 <= result.hf_nu <= 1
@@ -135,7 +161,7 @@ class TestRestingHRV:
     def test_resting_hrv_low_variability_signal(self, low_variability_rr_series):
         """Test resting_hrv with low variability (potential illness)."""
         result = resting_hrv(low_variability_rr_series)
-        
+
         assert isinstance(result, HRVFeatures)
         # Low variability should result in low RMSSD
         assert result.rmssd > 0  # Should still compute
@@ -143,7 +169,7 @@ class TestRestingHRV:
     def test_resting_hrv_high_hr_signal(self, elevated_hr_rr_series):
         """Test resting_hrv with elevated heart rate."""
         result = resting_hrv(elevated_hr_rr_series)
-        
+
         assert result.mean_hr > 0
         # Should reflect elevated HR
         assert result.mean_hr > 80  # Higher than normal resting
@@ -152,13 +178,17 @@ class TestRestingHRV:
         """Test that duration is correctly reflected."""
         # Use first feature's RR intervals as approximation
         result = resting_hrv(
-            type('obj', (object,), {
-                'intervals': np.array([800] * 300),
-                'duration': 300.0,
-                'mean_hr': 75.0
-            })()
+            type(
+                "obj",
+                (object,),
+                {
+                    "intervals": np.array([800] * 300),
+                    "duration": 300.0,
+                    "mean_hr": 75.0,
+                },
+            )()
         )
-        
+
         # Duration should match
         assert result.duration > 0
 
@@ -166,7 +196,7 @@ class TestRestingHRV:
         """Test that repeated calls give consistent results."""
         result1 = resting_hrv(normal_rr_series, compute_score=False)
         result2 = resting_hrv(normal_rr_series, compute_score=False)
-        
+
         # Results should be identical
         assert np.isclose(result1.rmssd, result2.rmssd)
         assert np.isclose(result1.sdnn, result2.sdnn)
@@ -175,7 +205,7 @@ class TestRestingHRV:
     def test_resting_hrv_with_outliers(self, rr_series_with_outliers):
         """Test resting_hrv robustness with outlier intervals."""
         result = resting_hrv(rr_series_with_outliers)
-        
+
         # Should still produce valid results
         assert isinstance(result, HRVFeatures)
         assert result.rmssd > 0
@@ -187,7 +217,7 @@ class TestComputeSimpleScore:
     def test_simple_score_valid_inputs(self):
         """Test simple score with valid inputs."""
         score = _compute_simple_score(60.0, 70.0)  # RMSSD=60, HR=70
-        
+
         assert isinstance(score, (int, float))
         # Score is not necessarily 0-100, just numeric
 
@@ -195,7 +225,7 @@ class TestComputeSimpleScore:
         """Test simple score with excellent recovery metrics."""
         # High RMSSD + low HR = excellent
         score = _compute_simple_score(100.0, 55.0)
-        
+
         # Good recovery should have higher score than poor
         score_poor = _compute_simple_score(25.0, 90.0)
         assert score > score_poor
@@ -204,13 +234,13 @@ class TestComputeSimpleScore:
         """Test simple score with poor recovery metrics."""
         # Low RMSSD + high HR = poor
         score = _compute_simple_score(25.0, 90.0)
-        
+
         assert score < 50  # Should be low score
 
     def test_simple_score_normal_recovery(self):
         """Test simple score with normal recovery."""
         score = _compute_simple_score(60.0, 70.0)
-        
+
         assert isinstance(score, (int, float))
         # Just check it's computed without error
 
@@ -218,7 +248,7 @@ class TestComputeSimpleScore:
         """Test that high HR lowers score."""
         score_normal_hr = _compute_simple_score(60.0, 60.0)
         score_high_hr = _compute_simple_score(60.0, 100.0)
-        
+
         # High HR should result in lower score
         assert score_normal_hr > score_high_hr
 
@@ -226,7 +256,7 @@ class TestComputeSimpleScore:
         """Test that high RMSSD increases score."""
         score_low_rmssd = _compute_simple_score(30.0, 70.0)
         score_high_rmssd = _compute_simple_score(100.0, 70.0)
-        
+
         # High RMSSD should result in higher score
         assert score_high_rmssd > score_low_rmssd
 
@@ -235,7 +265,7 @@ class TestComputeSimpleScore:
         # Very high RMSSD
         score_very_high = _compute_simple_score(150.0, 50.0)
         assert isinstance(score_very_high, (int, float))
-        
+
         # Very low RMSSD
         score_very_low = _compute_simple_score(10.0, 120.0)
         assert isinstance(score_very_low, (int, float))
@@ -243,7 +273,7 @@ class TestComputeSimpleScore:
     def test_simple_score_zero_rmssd(self):
         """Test simple score with zero RMSSD (edge case)."""
         score = _compute_simple_score(0.0, 70.0)
-        
+
         # Should handle gracefully
         assert isinstance(score, (int, float)) or score is None
 
@@ -255,10 +285,12 @@ class TestComputeSimpleScore:
             (50.0, 70.0),
             (100.0, 40.0),
         ]
-        
+
         for rmssd, hr in test_cases:
             score = _compute_simple_score(rmssd, hr)
-            assert isinstance(score, (int, float)), f"Score {score} not numeric for RMSSD={rmssd}, HR={hr}"
+            assert isinstance(score, (int, float)), (
+                f"Score {score} not numeric for RMSSD={rmssd}, HR={hr}"
+            )
 
 
 class TestRestingProtocolIntegration:
@@ -268,7 +300,7 @@ class TestRestingProtocolIntegration:
         """Test complete resting protocol workflow."""
         # Execute protocol
         result = resting_hrv(normal_rr_series, compute_score=True)
-        
+
         # Verify all components
         assert result.rmssd > 0
         assert result.sdnn > 0
@@ -279,11 +311,13 @@ class TestRestingProtocolIntegration:
         assert result.score is not None
         assert result.duration > 0
 
-    def test_resting_protocol_vs_signal_quality(self, clean_ecg_signal, noisy_ecg_signal):
+    def test_resting_protocol_vs_signal_quality(
+        self, clean_ecg_signal, noisy_ecg_signal
+    ):
         """Test resting protocol differences with clean vs noisy signals."""
         # Note: This test converts ECG to RR, then runs protocol
         # Simplified test showing both can be processed
-        
+
         assert clean_ecg_signal is not None
         assert noisy_ecg_signal is not None
 
@@ -292,19 +326,19 @@ class TestRestingProtocolIntegration:
         # Low HR (athletic)
         low_hr_rr = rr_series_generator(mean_rr=1200, length=300)  # ~50 bpm
         result_low = resting_hrv(low_hr_rr)
-        
+
         # Normal HR
         normal_hr_rr = rr_series_generator(mean_rr=857, length=300)  # ~70 bpm
         result_normal = resting_hrv(normal_hr_rr)
-        
+
         # High HR
         high_hr_rr = rr_series_generator(mean_rr=600, length=300)  # ~100 bpm
         result_high = resting_hrv(high_hr_rr)
-        
+
         # All should produce valid metrics
         assert result_low.mean_hr > 0
         assert result_normal.mean_hr > 0
         assert result_high.mean_hr > 0
-        
+
         # HR should correlate approximately
         assert result_low.mean_hr < result_high.mean_hr

@@ -35,6 +35,8 @@ class HRVFeatures:
         hf_pct: HF power as a fraction of total power.
         lf_nu: LF power in normalised units.
         hf_nu: HF power in normalised units.
+        hf_hr: HF power divided by mean heart rate (ms² / bpm).
+            Normalises HF for heart-rate dependency.
         duration: Effective recording duration in seconds.
         score: Optional readiness score (0–1). Defaults to 0.0 when not
             computed.
@@ -57,6 +59,7 @@ class HRVFeatures:
     hf_pct: float = 0.0
     lf_nu: float = 0.0
     hf_nu: float = 0.0
+    hf_hr: float = 0.0
 
     duration: float = 0.0
     score: float = 0.0
@@ -65,6 +68,7 @@ class HRVFeatures:
 # ======================
 # MAIN PROTOCOL
 # ======================
+
 
 def resting_hrv(
     rr: RRSeries,
@@ -118,6 +122,9 @@ def resting_hrv(
 
     frequency_indicators = frequency_domain(rr)
 
+    hf_value = frequency_indicators["HF"]
+    hf_hr_value = hf_value / mean_hr_value if mean_hr_value > 0 else 0.0
+
     # ======================
     # SCORE (simple)
     # ======================
@@ -135,11 +142,12 @@ def resting_hrv(
         mean_hr=mean_hr_value,
         vlf=frequency_indicators["VLF"],
         lf=frequency_indicators["LF"],
-        hf=frequency_indicators["HF"],
+        hf=hf_value,
         lf_hf=frequency_indicators["LF_HF"],
         hf_pct=frequency_indicators["HF_pct"],
         lf_nu=frequency_indicators["LF_nu"],
         hf_nu=frequency_indicators["HF_nu"],
+        hf_hr=hf_hr_value,
         duration=duration,
         score=score,
     )
@@ -148,6 +156,7 @@ def resting_hrv(
 # ======================
 # SIMPLE SCORE
 # ======================
+
 
 def _compute_simple_score(rmssd_value: float, mean_hr: float) -> float:
     """Compute a normalised readiness score from RMSSD and heart rate.

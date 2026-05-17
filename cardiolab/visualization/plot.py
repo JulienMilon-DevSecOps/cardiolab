@@ -43,7 +43,9 @@ def plot_resting_evolution(path: str = "cardiolab/datasets/resting/*.json") -> N
         result = resting_hrv(rr)
         result.date = data["date"]
 
-        baseline = Baseline.from_features(past_features) if past_features else Baseline()
+        baseline = (
+            Baseline.from_features(past_features) if past_features else Baseline()
+        )
         score = readiness_score_oura(result, baseline)
 
         past_features.append(result)
@@ -104,7 +106,9 @@ def plot_resting_evolution_rolling(
         result = resting_hrv(rr)
         result.date = data["date"]
 
-        baseline = Baseline.from_features(past_features) if past_features else Baseline()
+        baseline = (
+            Baseline.from_features(past_features) if past_features else Baseline()
+        )
         score = readiness_score_oura(result, baseline)
 
         past_features.append(result)

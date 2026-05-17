@@ -44,7 +44,9 @@ def detect_rmssd_anomaly(
     elif method == "rolling":
         return _rolling(current, baseline)
     else:
-        raise ValueError(f"Unknown method: {method!r}. Choose 'simple', 'zscore', or 'rolling'.")
+        raise ValueError(
+            f"Unknown method: {method!r}. Choose 'simple', 'zscore', or 'rolling'."
+        )
 
 
 def _simple(current: HRVFeatures, baseline: Baseline) -> dict:
