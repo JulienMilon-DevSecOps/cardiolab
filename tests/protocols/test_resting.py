@@ -359,9 +359,22 @@ class TestHRVFeaturesToDict:
     def test_to_dict_contains_all_keys(self, normal_hrv_features):
         """to_dict() must expose all 16 HRVFeatures fields."""
         expected_keys = {
-            "date", "rmssd", "ln_rmssd", "sdnn", "pnn50", "mean_hr",
-            "vlf", "lf", "hf", "lf_hf", "hf_pct", "lf_nu", "hf_nu",
-            "hf_hr", "duration", "score",
+            "date",
+            "rmssd",
+            "ln_rmssd",
+            "sdnn",
+            "pnn50",
+            "mean_hr",
+            "vlf",
+            "lf",
+            "hf",
+            "lf_hf",
+            "hf_pct",
+            "lf_nu",
+            "hf_nu",
+            "hf_hr",
+            "duration",
+            "score",
         }
         assert set(normal_hrv_features.to_dict().keys()) == expected_keys
 

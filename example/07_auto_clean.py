@@ -32,7 +32,7 @@ rng = np.random.default_rng(42)
 print("=== 1. Resting protocol ===")
 
 base_resting = rng.normal(857, 20, 400).clip(300, 1800)
-base_resting[30] = 180.0   # artefact low
+base_resting[30] = 180.0  # artefact low
 base_resting[200] = 2800.0  # artefact high
 
 dirty = RRSeries(base_resting)
@@ -50,11 +50,11 @@ print(f"With    auto_clean — RMSSD: {result_clean.rmssd:.2f} ms")
 # ======================
 print("\n=== 2. Orthostatic protocol ===")
 
-supine_rr = rng.normal(920, 15, 350).clip(300, 1800)   # ~65 bpm
-trans_rr = np.linspace(920, 705, 40)                     # transition
+supine_rr = rng.normal(920, 15, 350).clip(300, 1800)  # ~65 bpm
+trans_rr = np.linspace(920, 705, 40)  # transition
 standing_rr = rng.normal(705, 12, 350).clip(300, 1800)  # ~85 bpm
 full = np.concatenate([supine_rr, trans_rr, standing_rr])
-full[5] = 150.0    # artefact
+full[5] = 150.0  # artefact
 full[600] = 2500.0  # artefact
 
 dirty_ortho = RRSeries(full)

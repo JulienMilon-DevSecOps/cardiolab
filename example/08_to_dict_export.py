@@ -68,7 +68,9 @@ ortho_dict = _nan_to_none(ortho_result.to_dict())
 print(f"interpretation : {ortho_dict['interpretation']}")
 print(f"hr_response    : {ortho_dict['hr_response']:.1f} bpm")
 print(f"supine rmssd   : {ortho_dict['phases']['supine']['features']['rmssd']:.2f} ms")
-print(f"standing rmssd : {ortho_dict['phases']['standing']['features']['rmssd']:.2f} ms")
+print(
+    f"standing rmssd : {ortho_dict['phases']['standing']['features']['rmssd']:.2f} ms"
+)
 
 # ======================
 # 3. DataFrame from multiple sessions

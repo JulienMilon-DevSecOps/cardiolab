@@ -31,7 +31,7 @@ print(f"n={len(clean_rr)}, mean_hr={clean_rr.mean_hr:.1f} bpm — no warning rai
 # ======================
 print("=== 2. Dirty series (outliers present) ===")
 intervals = np.random.default_rng(1).normal(857, 20, 300).clip(300, 1800)
-intervals[42] = 150.0    # artefact: HR > 200 bpm
+intervals[42] = 150.0  # artefact: HR > 200 bpm
 intervals[200] = 2600.0  # artefact: HR < 23 bpm
 
 with warnings.catch_warnings(record=True) as caught:

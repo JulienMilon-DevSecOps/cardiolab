@@ -609,8 +609,12 @@ class TestOrthostaticToDict:
         result = orthostatic_hrv(orthostatic_rr, min_phase_duration=60.0)
         d = result.to_dict()
         expected = {
-            "phases", "hr_response", "lf_hf_ratio_change",
-            "hf_response_pct", "hf_hr_pct_change", "interpretation",
+            "phases",
+            "hr_response",
+            "lf_hf_ratio_change",
+            "hf_response_pct",
+            "hf_hr_pct_change",
+            "interpretation",
         }
         assert set(d.keys()) == expected
 
@@ -661,7 +665,9 @@ class TestOrthostaticAutoClean:
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            result_auto = orthostatic_hrv(dirty, min_phase_duration=60.0, auto_clean=True)
+            result_auto = orthostatic_hrv(
+                dirty, min_phase_duration=60.0, auto_clean=True
+            )
         result_manual = orthostatic_hrv(clean, min_phase_duration=60.0)
 
         assert abs(result_auto.hr_response - result_manual.hr_response) < 1e-6
@@ -674,5 +680,7 @@ class TestOrthostaticAutoClean:
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            result = orthostatic_hrv(orthostatic_rr, min_phase_duration=60.0, auto_clean=True)
+            result = orthostatic_hrv(
+                orthostatic_rr, min_phase_duration=60.0, auto_clean=True
+            )
         assert isinstance(result, OrthostaticResult)
