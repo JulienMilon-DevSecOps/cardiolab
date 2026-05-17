@@ -342,3 +342,101 @@ class TestRestingProtocolIntegration:
 
         # HR should correlate approximately
         assert result_low.mean_hr < result_high.mean_hr
+
+
+# ======================
+# HRVFeatures.to_dict()
+# ======================
+
+
+class TestHRVFeaturesToDict:
+    """Tests for HRVFeatures.to_dict()."""
+
+    def test_to_dict_returns_dict(self, normal_hrv_features):
+        """to_dict() must return a plain dict."""
+        assert isinstance(normal_hrv_features.to_dict(), dict)
+
+    def test_to_dict_contains_all_keys(self, normal_hrv_features):
+        """to_dict() must expose all 16 HRVFeatures fields."""
+        expected_keys = {
+            "date", "rmssd", "ln_rmssd", "sdnn", "pnn50", "mean_hr",
+            "vlf", "lf", "hf", "lf_hf", "hf_pct", "lf_nu", "hf_nu",
+            "hf_hr", "duration", "score",
+        }
+        assert set(normal_hrv_features.to_dict().keys()) == expected_keys
+
+    def test_to_dict_values_match_fields(self, normal_hrv_features):
+        """Values in the dict must match the dataclass fields exactly."""
+        d = normal_hrv_features.to_dict()
+        assert d["rmssd"] == normal_hrv_features.rmssd
+        assert d["mean_hr"] == normal_hrv_features.mean_hr
+        assert d["hf_hr"] == normal_hrv_features.hf_hr
+        assert d["date"] == normal_hrv_features.date
+
+    def test_to_dict_date_none_by_default(self):
+        """to_dict() on a default HRVFeatures must have date=None."""
+        assert HRVFeatures().to_dict()["date"] is None
+
+    def test_to_dict_values_are_python_types(self, normal_hrv_features):
+        """All numeric values must be native Python float or None (not np.float64)."""
+        d = normal_hrv_features.to_dict()
+        for key, val in d.items():
+            if key != "date":
+                assert isinstance(val, float), f"Field {key!r} is {type(val)}"
+
+
+# ======================
+# auto_clean in resting_hrv()
+# ======================
+
+
+class TestRestingHRVAutoClean:
+    """Tests for the auto_clean parameter in resting_hrv()."""
+
+    def test_auto_clean_false_does_not_alter_rr(self, normal_rr_series):
+        """auto_clean=False must not alter the input series (default behaviour)."""
+        import warnings
+
+        n_before = len(normal_rr_series)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            resting_hrv(normal_rr_series, min_duration=0.0)
+        assert len(normal_rr_series) == n_before
+
+    def test_auto_clean_removes_outliers_before_computation(self):
+        """auto_clean=True must produce the same result as cleaning manually."""
+        import warnings
+
+        rng = np.random.default_rng(0)
+        base = rng.normal(857, 20, 300).clip(300, 1200)
+        base[50] = 150.0
+        base[150] = 2500.0
+        from cardiolab.signals.rr import RRSeries
+
+        dirty = RRSeries(base)
+        clean = dirty.remove_outliers()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result_auto = resting_hrv(dirty, min_duration=0.0, auto_clean=True)
+        result_manual = resting_hrv(clean, min_duration=0.0)
+
+        assert abs(result_auto.rmssd - result_manual.rmssd) < 1e-6
+
+    def test_auto_clean_suppresses_warning(self):
+        """After auto_clean, PhysiologicalWarning must not propagate further."""
+        import warnings
+
+        from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
+
+        rng = np.random.default_rng(1)
+        base = rng.normal(857, 20, 300).clip(300, 1200)
+        base[10] = 150.0
+        dirty = RRSeries(base)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            resting_hrv(dirty, min_duration=0.0, auto_clean=True)
+
+        physio_warnings = [x for x in w if issubclass(x.category, PhysiologicalWarning)]
+        assert len(physio_warnings) == 0

@@ -2,9 +2,23 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
+
+_RR_LOW: float = 300.0
+_RR_HIGH: float = 2000.0
+
+
+class PhysiologicalWarning(UserWarning):
+    """Raised when RR intervals fall outside physiological bounds.
+
+    Intervals below 300 ms correspond to HR > 200 bpm; intervals above 2000 ms
+    to HR < 30 bpm. Both ranges are likely artefacts unless the subject has a
+    documented extreme cardiac condition. Consider calling
+    ``RRSeries.remove_outliers()`` before further analysis.
+    """
 
 
 @dataclass
@@ -50,12 +64,32 @@ class RRSeries:
     # VALIDATION
     # ======================
 
-    def _validate(self):
+    def _validate(self) -> None:
         if len(self.intervals) < 2:
             raise ValueError("RRSeries must contain at least 2 intervals")
 
         if np.any(self.intervals <= 0):
             raise ValueError("RR intervals must be positive")
+
+        n_low = int(np.sum(self.intervals < _RR_LOW))
+        n_high = int(np.sum(self.intervals > _RR_HIGH))
+
+        if n_low > 0:
+            warnings.warn(
+                f"{n_low} interval(s) below {_RR_LOW:.0f} ms "
+                f"(HR > {60000.0 / _RR_LOW:.0f} bpm) detected — possible artefacts. "
+                "Call remove_outliers() before analysis.",
+                PhysiologicalWarning,
+                stacklevel=3,
+            )
+        if n_high > 0:
+            warnings.warn(
+                f"{n_high} interval(s) above {_RR_HIGH:.0f} ms "
+                f"(HR < {60000.0 / _RR_HIGH:.0f} bpm) detected — possible artefacts. "
+                "Call remove_outliers() before analysis.",
+                PhysiologicalWarning,
+                stacklevel=3,
+            )
 
     # ======================
     # BASIC PROPERTIES
