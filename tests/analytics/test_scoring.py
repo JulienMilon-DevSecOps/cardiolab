@@ -521,11 +521,15 @@ class TestReadinessScoreComposite:
         score_nl = readiness_score_nonlinear(current, base)
 
         # All weight on multi
-        c_full_multi = readiness_score_composite(current, base, w_multi=1.0, w_nonlinear=0.0)
+        c_full_multi = readiness_score_composite(
+            current, base, w_multi=1.0, w_nonlinear=0.0
+        )
         assert c_full_multi == pytest.approx(score_m, abs=1e-6)
 
         # All weight on nonlinear
-        c_full_nl = readiness_score_composite(current, base, w_multi=0.0, w_nonlinear=1.0)
+        c_full_nl = readiness_score_composite(
+            current, base, w_multi=0.0, w_nonlinear=1.0
+        )
         assert c_full_nl == pytest.approx(score_nl, abs=1e-6)
 
     def test_neutral_when_both_neutral(self):
@@ -539,7 +543,9 @@ class TestReadinessScoreComposite:
         """w_multi + w_nonlinear == 0 must raise ValueError."""
         base = _make_baseline()
         with pytest.raises(ValueError, match="w_multi"):
-            readiness_score_composite(_make_features(), base, w_multi=0.0, w_nonlinear=0.0)
+            readiness_score_composite(
+                _make_features(), base, w_multi=0.0, w_nonlinear=0.0
+            )
 
     def test_composite_between_sub_scores(self):
         """Default composite must lie between the two sub-scores (up to floating precision)."""
@@ -602,9 +608,7 @@ class TestBaselineNonlinearMethods:
 
     def test_median_sd1_ignores_zeros(self):
         """median_sd1() must exclude sessions where SD1 = 0.0."""
-        features = [
-            HRVFeatures(date=f"2026-05-{i:02d}", sd1=0.0) for i in range(1, 4)
-        ]
+        features = [HRVFeatures(date=f"2026-05-{i:02d}", sd1=0.0) for i in range(1, 4)]
         base = Baseline(history=features)
         assert base.median_sd1() is None
 

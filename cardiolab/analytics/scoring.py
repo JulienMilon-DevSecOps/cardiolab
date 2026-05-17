@@ -36,7 +36,6 @@ import numpy as np
 from cardiolab.analytics.baseline import Baseline
 from cardiolab.protocols.resting import HRVFeatures
 
-
 # ======================
 # INTERNAL HELPERS
 # ======================
@@ -169,9 +168,7 @@ def readiness_score_multi(
         return 50.0
 
     # RMSSD (35 %) — deviation from personal baseline median
-    rmssd_score = 50.0 + 50.0 * np.tanh(
-        (current.rmssd / base_rmssd - 1.0) * 2.0
-    )
+    rmssd_score = 50.0 + 50.0 * np.tanh((current.rmssd / base_rmssd - 1.0) * 2.0)
 
     # HR (20 %) — elevated HR penalises the score
     hr_score = 50.0 - 50.0 * np.tanh((current.mean_hr - base_hr) / 10.0)
@@ -182,17 +179,10 @@ def readiness_score_multi(
     # Trend (20 %) — current RMSSD vs rolling median
     rolling = baseline.rolling_rmssd_median()
     trend_score = (
-        50.0 + 50.0 * np.tanh((current.rmssd - rolling[-1]) / 20.0)
-        if rolling
-        else 50.0
+        50.0 + 50.0 * np.tanh((current.rmssd - rolling[-1]) / 20.0) if rolling else 50.0
     )
 
-    score = (
-        0.35 * rmssd_score
-        + 0.20 * hr_score
-        + 0.25 * dfa
-        + 0.20 * trend_score
-    )
+    score = 0.35 * rmssd_score + 0.20 * hr_score + 0.25 * dfa + 0.20 * trend_score
 
     return float(np.clip(score, 0.0, 100.0))
 
