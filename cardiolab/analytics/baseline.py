@@ -134,6 +134,59 @@ class Baseline:
         values = [r.mean_hr for r in data]
         return float(np.mean(values))
 
+    def median_sd1(self) -> float | None:
+        """Compute the median SD1 (Poincaré short-term variability) over the window.
+
+        SD1 is mathematically equivalent to RMSSD / √2. Sessions where SD1
+        was not computed (stored as ``0.0``) are excluded from the median to
+        avoid biasing the baseline downward.
+
+        Returns:
+            Median SD1 in milliseconds across the most recent ``window``
+            sessions that have a non-zero SD1, or ``None`` if the history
+            is empty or all values are zero.
+
+        """
+        data = self._get_recent()
+
+        if not data:
+            return None
+
+        values = [r.sd1 for r in data if r.sd1 > 0.0]
+
+        if not values:
+            return None
+
+        return float(np.median(values))
+
+    def median_dfa_alpha1(self) -> float | None:
+        """Compute the median DFA α1 exponent over the rolling window.
+
+        Sessions where DFA α1 was not computed (stored as ``0.0`` or
+        ``nan``) are excluded from the median.
+
+        Returns:
+            Median DFA α1 across the most recent ``window`` sessions that
+            have a valid (non-zero, non-nan) value, or ``None`` if no valid
+            values exist.
+
+        """
+        data = self._get_recent()
+
+        if not data:
+            return None
+
+        values = [
+            r.dfa_alpha1
+            for r in data
+            if r.dfa_alpha1 > 0.0 and not np.isnan(r.dfa_alpha1)
+        ]
+
+        if not values:
+            return None
+
+        return float(np.median(values))
+
     # ======================
     # ROLLING STATISTICS
     # ======================
