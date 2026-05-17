@@ -25,7 +25,7 @@ Preprocessing
         ↓
 RR intervals
         ↓
-Features (HRV — time & frequency domain)
+Features (HRV — time · frequency · non-linear)
         ↓
 Protocols (resting · orthostatic)
         ↓
@@ -43,17 +43,20 @@ cardiolab/
 │
 ├── signals/          → raw data structures (ECG, RR series)
 ├── preprocessing/    → signal cleaning
-├── features/         → HRV computation (time-domain & frequency-domain)
+├── features/         → HRV computation (time, frequency & non-linear)
 ├── protocols/        → physiological tests (resting, orthostatic)
 ├── analytics/        → baseline, scoring, anomaly detection, trend analysis
 ├── sensors_tools/    → Polar sensor integration
 ├── database/         → PostgreSQL persistence layer
 ├── scripts/          → CLI import tools
 ├── datasets/         → sample recordings (resting/, orthostatic/)
+├── docs/             → protocol & feature documentation
+│   ├── protocols/    → resting.md, orthostatic.md
+│   └── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md
 └── visualization/    → signal and HRV plots
 
-example/              → step-by-step database usage scripts
-tests/                → full unit test suite (337 tests)
+example/              → step-by-step usage scripts
+tests/                → full unit test suite (388 tests)
 ```
 
 ---
@@ -75,7 +78,7 @@ Heart rate variability is used to assess:
 
 ### HRV indicators
 
-15 indicators computed for every protocol phase (all band powers in ms²):
+19 indicators computed for every protocol phase (all band powers in ms²):
 
 | Domain | Metric | Description |
 |--------|--------|-------------|
@@ -92,6 +95,10 @@ Heart rate variability is used to assess:
 | Frequency | LF_nu | LF in normalised units |
 | Frequency | HF_nu | HF in normalised units |
 | Composite | HF/FC | HF divided by mean HR (ms²/bpm) — HR-normalised vagal activity |
+| Non-linear | SD1 | Poincaré short-term variability = RMSSD / √2 (ms) |
+| Non-linear | SD2 | Poincaré long-term variability (ms) |
+| Non-linear | SD1/SD2 | Shape of the Poincaré ellipse — autonomic balance |
+| Non-linear | DFA α1 | Short-term fractal scaling exponent (scales 4–16 beats) |
 | Meta | Duration | Phase duration (s) |
 | Meta | Score | Recovery score (0–100) |
 
@@ -201,7 +208,7 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | Module | State |
 |--------|-------|
 | `signals/` — ECGSignal, RRSeries | Implemented |
-| `features/` — time & frequency domain | Implemented |
+| `features/` — time, frequency & non-linear domain | Implemented |
 | `protocols/resting` | Implemented |
 | `protocols/orthostatic` | Implemented |
 | `analytics/` — baseline, scoring, anomaly, trend | Implemented |
@@ -210,7 +217,7 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | `visualization/` | Implemented |
 | PPG signal support | Planned |
 
-**Test coverage:** 360+ unit tests, 0 failures.
+**Test coverage:** 388+ unit tests, 0 failures.
 
 ---
 
@@ -227,6 +234,8 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 
 * Task Force of the European Society of Cardiology (1996). *Standards of measurement, physiological interpretation and clinical use of Heart Rate Variability.*
 * Shaffer, F. & Ginsberg, J.P. (2017). *An Overview of Heart Rate Variability Metrics and Norms.*
+* Peng, C.K. et al. (1995). *Quantification of scaling exponents and crossover phenomena in nonstationary heartbeat time series.* Chaos.
+* Gronwald, T. & Hoos, O. (2020). *Correlation properties of heart rate variability during endurance exercise: A systematic review.* Ann. Noninvas. Electrocardiol.
 
 ---
 
@@ -246,7 +255,8 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] Physiological validation with `PhysiologicalWarning` on `RRSeries`
 * [x] `auto_clean` option in all protocols
 * [x] `to_dict()` export on all result dataclasses
-* [ ] SD1 / SD2 / DFA α1 non-linear features
+* [x] SD1 / SD2 / SD1:SD2 / DFA α1 non-linear features
+* [x] Feature documentation (`docs/features/`)
 * [ ] Heart Rate Recovery (HRR) and cardiac drift protocols
 * [ ] Training load model (ATL / CTL / TSB)
 * [ ] PPG signal support

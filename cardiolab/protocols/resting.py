@@ -7,6 +7,10 @@ from dataclasses import dataclass
 import numpy as np
 
 from cardiolab.features.frequency_domain import frequency_domain
+from cardiolab.features.nonlinear import dfa_alpha1 as _dfa_alpha1
+from cardiolab.features.nonlinear import sd1 as _sd1
+from cardiolab.features.nonlinear import sd2 as _sd2
+from cardiolab.features.nonlinear import sd_ratio as _sd_ratio
 from cardiolab.features.time_domain import ln_rmssd, pnn50, rmssd, sdnn
 from cardiolab.signals.rr import RRSeries
 
@@ -37,6 +41,15 @@ class HRVFeatures:
         hf_nu: HF power in normalised units.
         hf_hr: HF power divided by mean heart rate (ms² / bpm).
             Normalises HF for heart-rate dependency.
+        sd1: Poincaré SD1 — short-term beat-to-beat variability (ms).
+            Equivalent to RMSSD / √2.
+        sd2: Poincaré SD2 — long-term variability (ms).
+            Reflects overall autonomic regulation.
+        sd_ratio: SD1/SD2 ratio — shape of the Poincaré ellipse
+            (dimensionless). Normal resting range ≈ 0.25–0.55.
+        dfa_alpha1: DFA short-term scaling exponent (α1, scales 4–16 beats).
+            Normal resting range ≈ 0.75–1.25. Returns ``nan`` for very short
+            recordings.
         duration: Effective recording duration in seconds.
         score: Optional readiness score (0–1). Defaults to 0.0 when not
             computed.
@@ -60,6 +73,11 @@ class HRVFeatures:
     lf_nu: float = 0.0
     hf_nu: float = 0.0
     hf_hr: float = 0.0
+
+    sd1: float = 0.0
+    sd2: float = 0.0
+    sd_ratio: float = 0.0
+    dfa_alpha1: float = 0.0
 
     duration: float = 0.0
     score: float = 0.0
@@ -87,6 +105,10 @@ class HRVFeatures:
             "lf_nu": self.lf_nu,
             "hf_nu": self.hf_nu,
             "hf_hr": self.hf_hr,
+            "sd1": self.sd1,
+            "sd2": self.sd2,
+            "sd_ratio": self.sd_ratio,
+            "dfa_alpha1": self.dfa_alpha1,
             "duration": self.duration,
             "score": self.score,
         }
@@ -157,6 +179,11 @@ def resting_hrv(
     hf_value = frequency_indicators["HF"]
     hf_hr_value = hf_value / mean_hr_value if mean_hr_value > 0 else 0.0
 
+    sd1_value = _sd1(rr)
+    sd2_value = _sd2(rr)
+    sd_ratio_value = _sd_ratio(rr)
+    dfa_alpha1_value = _dfa_alpha1(rr)
+
     # ======================
     # SCORE (simple)
     # ======================
@@ -180,6 +207,10 @@ def resting_hrv(
         lf_nu=frequency_indicators["LF_nu"],
         hf_nu=frequency_indicators["HF_nu"],
         hf_hr=hf_hr_value,
+        sd1=sd1_value,
+        sd2=sd2_value,
+        sd_ratio=sd_ratio_value,
+        dfa_alpha1=dfa_alpha1_value,
         duration=duration,
         score=score,
     )

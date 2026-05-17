@@ -17,7 +17,7 @@ class TestHRVFeatures:
         assert normal_hrv_features.mean_hr == 70.0
 
     def test_hrv_features_all_fields_present(self, normal_hrv_features):
-        """Test that all 15 fields are present."""
+        """Test that all 20 fields are present."""
         expected_fields = {
             "date",
             "rmssd",
@@ -33,6 +33,10 @@ class TestHRVFeatures:
             "lf_nu",
             "hf_nu",
             "hf_hr",
+            "sd1",
+            "sd2",
+            "sd_ratio",
+            "dfa_alpha1",
             "duration",
             "score",
         }
@@ -71,6 +75,10 @@ class TestHRVFeatures:
             "lf_nu",
             "hf_nu",
             "hf_hr",
+            "sd1",
+            "sd2",
+            "sd_ratio",
+            "dfa_alpha1",
             "duration",
             "score",
         ]
@@ -110,6 +118,11 @@ class TestRestingHRV:
         assert result.hf_pct >= 0
         assert result.lf_nu >= 0
         assert result.hf_nu >= 0
+
+        # Non-linear metrics
+        assert result.sd1 > 0
+        assert result.sd2 > 0
+        assert result.sd_ratio > 0
 
         # Duration
         assert result.duration > 0
@@ -357,7 +370,7 @@ class TestHRVFeaturesToDict:
         assert isinstance(normal_hrv_features.to_dict(), dict)
 
     def test_to_dict_contains_all_keys(self, normal_hrv_features):
-        """to_dict() must expose all 16 HRVFeatures fields."""
+        """to_dict() must expose all 20 HRVFeatures fields."""
         expected_keys = {
             "date",
             "rmssd",
@@ -373,6 +386,10 @@ class TestHRVFeaturesToDict:
             "lf_nu",
             "hf_nu",
             "hf_hr",
+            "sd1",
+            "sd2",
+            "sd_ratio",
+            "dfa_alpha1",
             "duration",
             "score",
         }
