@@ -43,7 +43,9 @@ def frequency_domain(rr, fs: float = 4.0) -> dict:
         * ``"LF_HF_over_TP"`` — (LF + HF) / TP ratio.
 
     """
-    rr_ms = np.array(rr.intervals)  # ms — kept in ms so PSD is in ms²/Hz → band power in ms²
+    rr_ms = np.array(
+        rr.intervals
+    )  # ms — kept in ms so PSD is in ms²/Hz → band power in ms²
     time_s = np.cumsum(rr_ms) / 1000.0  # seconds — for a Hz-correct frequency axis
     time_s = time_s - time_s[0]
 
