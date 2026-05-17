@@ -75,7 +75,7 @@ def _mock_hrv_features() -> MagicMock:
     f.hf_pct = 0.4
     f.lf_nu = 0.4
     f.hf_nu = 0.6
-    f.hf_hr_pct = 2857.1
+    f.hf_hr = 2857.1
     return f
 
 
@@ -206,7 +206,7 @@ class TestHrvFields:
             "hf_pct",
             "lf_nu",
             "hf_nu",
-            "hf_hr_pct",
+            "hf_hr",
         }
         fields = _hrv_fields("supine")
         actual_suffixes = {k.removeprefix("supine_") for k in fields}
@@ -318,7 +318,7 @@ class TestFeaturesFromRow:
         assert f.hf_pct == row[9]
         assert f.lf_nu == row[10]
         assert f.hf_nu == row[11]
-        assert f.hf_hr_pct == row[12]
+        assert f.hf_hr == row[12]
 
     def test_date_attached(self):
         """The date parameter must be forwarded to HRVFeatures.date."""
