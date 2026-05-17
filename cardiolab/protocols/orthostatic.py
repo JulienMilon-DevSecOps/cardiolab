@@ -82,6 +82,11 @@ class OrthostaticResult:
             Values above 1 reflect sympathetic activation on standing.
         hf_response_pct: Relative HF power change from supine to standing (%).
             Normal: −30 % to −50 % (vagal withdrawal on standing).
+        hf_hr_pct_change: Relative change in the HF/FC ratio from supine to
+            standing, expressed as a percentage.
+            Formula: (HF/FC_supine − HF/FC_standing) / HF/FC_supine × 100.
+            Negative values indicate vagal withdrawal on standing.
+            A decline > 80 % reflects strong sympathetic activation.
         interpretation: Clinical classification of the orthostatic response.
 
     """
@@ -90,6 +95,7 @@ class OrthostaticResult:
     hr_response: float
     lf_hf_ratio_change: float
     hf_response_pct: float
+    hf_hr_pct_change: float
     interpretation: str
 
 
@@ -158,8 +164,14 @@ def orthostatic_hrv(
     )
 
     hf_response_pct = (
-        (standing_f.hf - supine_f.hf) / supine_f.hf * 100.0
+        (supine_f.hf - standing_f.hf) / supine_f.hf * 100.0
         if supine_f.hf > 0
+        else float("nan")
+    )
+
+    hf_hr_pct_change = (
+        (supine_f.hf_hr - standing_f.hf_hr) / supine_f.hf_hr * 100.0
+        if supine_f.hf_hr > 0
         else float("nan")
     )
 
@@ -170,6 +182,7 @@ def orthostatic_hrv(
         hr_response=hr_response,
         lf_hf_ratio_change=lf_hf_ratio_change,
         hf_response_pct=hf_response_pct,
+        hf_hr_pct_change=hf_hr_pct_change,
         interpretation=interpretation,
     )
 

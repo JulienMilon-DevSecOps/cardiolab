@@ -54,6 +54,7 @@ def sample_features():
         hf_pct=0.4,
         lf_nu=0.4,
         hf_nu=0.6,
+        hf_hr=2000.0 / 70.0,
         duration=300.0,
         score=72.5,
     )
@@ -74,6 +75,7 @@ def _mock_hrv_features() -> MagicMock:
     f.hf_pct = 0.4
     f.lf_nu = 0.4
     f.hf_nu = 0.6
+    f.hf_hr_pct = 2857.1
     return f
 
 
@@ -107,6 +109,7 @@ def _mock_ortho_result() -> MagicMock:
     result.hr_response = 20.0
     result.lf_hf_ratio_change = 1.5
     result.hf_response_pct = -40.0
+    result.hf_hr_pct_change = -65.0
     result.interpretation = "normal"
 
     return result
@@ -174,8 +177,8 @@ class TestHrvFields:
     """Tests for the per-phase column name generator."""
 
     def test_returns_twelve_columns(self):
-        """_hrv_fields must return exactly 12 columns."""
-        assert len(_hrv_fields("supine")) == 12  # noqa: PLR2004
+        """_hrv_fields must return exactly 13 columns."""
+        assert len(_hrv_fields("supine")) == 13  # noqa: PLR2004
 
     def test_all_values_are_float(self):
         """All SQL types must be FLOAT."""
@@ -203,6 +206,7 @@ class TestHrvFields:
             "hf_pct",
             "lf_nu",
             "hf_nu",
+            "hf_hr_pct",
         }
         fields = _hrv_fields("supine")
         actual_suffixes = {k.removeprefix("supine_") for k in fields}
@@ -250,13 +254,14 @@ class TestColumnRegistries:
     def test_ortho_data_columns_count(self):
         """_ORTHO_DATA_COLUMNS must have the expected count.
 
-        3 phases × 12 HRV metrics = 36
+        3 phases × 13 HRV metrics = 39
         + supine_duration_sec, standing_duration_sec = 2
         + transition timing (start, end, duration, delta_hr, peak_hr) = 5
-        + derived (hr_response, lf_hf_ratio_change, hf_response_pct, interpretation) = 4
-        Total = 47
+        + derived (hr_response, lf_hf_ratio_change, hf_response_pct,
+                   hf_hr_pct_change, interpretation) = 5
+        Total = 51
         """
-        assert len(_ORTHO_DATA_COLUMNS) == 47  # noqa: PLR2004
+        assert len(_ORTHO_DATA_COLUMNS) == 51  # noqa: PLR2004
 
     def test_ortho_data_columns_is_subset_of_ortho_columns(self):
         """Every column in _ORTHO_DATA_COLUMNS must exist in _ORTHO_COLUMNS."""
@@ -298,7 +303,7 @@ class TestFeaturesFromRow:
         assert f.hf_nu == 16.0  # 5 + 11
 
     def test_field_order_matches_hrv_fields_order(self):
-        """All 12 fields must be read in the same order as _hrv_fields()."""
+        """All 13 fields must be read in the same order as _hrv_fields()."""
         row = tuple(range(20))
         f = _features_from_row(row, offset=0)
         assert f.rmssd == row[0]
@@ -313,6 +318,7 @@ class TestFeaturesFromRow:
         assert f.hf_pct == row[9]
         assert f.lf_nu == row[10]
         assert f.hf_nu == row[11]
+        assert f.hf_hr_pct == row[12]
 
     def test_date_attached(self):
         """The date parameter must be forwarded to HRVFeatures.date."""
@@ -409,6 +415,7 @@ class TestOrthostaticRecord:
             hr_response=20.0,
             lf_hf_ratio_change=1.5,
             hf_response_pct=-40.0,
+            hf_hr_pct_change=-65.0,
             interpretation="normal",
         )
         assert rec.date == "2026-05-15"
@@ -429,6 +436,7 @@ class TestOrthostaticRecord:
             hr_response=0.0,
             lf_hf_ratio_change=0.0,
             hf_response_pct=0.0,
+            hf_hr_pct_change=0.0,
             interpretation="normal",
         )
         assert isinstance(rec.supine, HRVFeatures)
@@ -449,6 +457,7 @@ class TestOrthostaticRecord:
             hr_response=0.0,
             lf_hf_ratio_change=0.0,
             hf_response_pct=0.0,
+            hf_hr_pct_change=0.0,
             interpretation="normal",
         )
         assert rec.supine.sdnn == 80.0
@@ -700,7 +709,7 @@ class TestLoadFeatures:
     """Tests for resting-protocol row → HRVFeatures reconstruction."""
 
     def _make_resting_row(self) -> tuple:
-        """Build a fake DB row with 15 values (date + 14 metrics)."""
+        """Build a fake DB row with 16 values (date + 15 metrics)."""
         return (
             "2026-05-15",  # date
             60.0,
@@ -714,7 +723,8 @@ class TestLoadFeatures:
             0.75,
             0.4,
             0.4,
-            0.6,  # lf_hf, hf_pct, lf_nu, hf_nu
+            0.6,
+            2857.1,  # lf_hf, hf_pct, lf_nu, hf_nu, hf_hr_pct
             300.0,
             72.5,  # duration, score
         )
@@ -828,15 +838,15 @@ class TestLoadOrthostatic:
     def _make_ortho_row(self) -> tuple:
         """Build a fake DB row matching the load_orthostatic SELECT order.
 
-        Row layout (48 values):
+        Row layout (52 values):
         [0]      date
-        [1..12]  supine HRV (12)
-        [13]     supine_duration_sec
-        [14..18] transition timing (5)
-        [19..30] transition HRV (12)
-        [31..42] standing HRV (12)
-        [43]     standing_duration_sec
-        [44..47] derived metrics (4)
+        [1..13]  supine HRV (13)
+        [14]     supine_duration_sec
+        [15..19] transition timing (5)
+        [20..32] transition HRV (13)
+        [33..45] standing HRV (13)
+        [46]     standing_duration_sec
+        [47..51] derived metrics (5)
         """
         hrv_block = (
             60.0,
@@ -851,23 +861,25 @@ class TestLoadOrthostatic:
             0.4,
             0.4,
             0.6,
+            2857.1,  # hf_hr_pct
         )
         return (
             "2026-05-15",  # [0] date
-            *hrv_block,  # [1..12] supine HRV
-            305.0,  # [13] supine_duration_sec
+            *hrv_block,  # [1..13] supine HRV
+            305.0,  # [14] supine_duration_sec
             305.0,
             342.0,
             37.0,
             20.0,
-            90.0,  # [14..18] transition timing
-            *hrv_block,  # [19..30] transition HRV
-            *hrv_block,  # [31..42] standing HRV
-            310.0,  # [43] standing_duration_sec
+            90.0,  # [15..19] transition timing
+            *hrv_block,  # [20..32] transition HRV
+            *hrv_block,  # [33..45] standing HRV
+            310.0,  # [46] standing_duration_sec
             20.0,
             1.5,
             -40.0,
-            "normal",  # [44..47] derived
+            -65.0,
+            "normal",  # [47..51] derived
         )
 
     def test_returns_list_of_orthostatic_records(self):

@@ -17,7 +17,7 @@ class TestHRVFeatures:
         assert normal_hrv_features.mean_hr == 70.0
 
     def test_hrv_features_all_fields_present(self, normal_hrv_features):
-        """Test that all 14 fields are present."""
+        """Test that all 15 fields are present."""
         expected_fields = {
             "date",
             "rmssd",
@@ -32,6 +32,7 @@ class TestHRVFeatures:
             "hf_pct",
             "lf_nu",
             "hf_nu",
+            "hf_hr",
             "duration",
             "score",
         }
@@ -69,6 +70,7 @@ class TestHRVFeatures:
             "hf_pct",
             "lf_nu",
             "hf_nu",
+            "hf_hr",
             "duration",
             "score",
         ]

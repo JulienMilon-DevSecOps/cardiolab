@@ -139,6 +139,7 @@ def normal_hrv_features():
         hf_pct=0.4,
         lf_nu=0.4,
         hf_nu=0.6,
+        hf_hr=2000.0 / 70.0,
         duration=300.0,
         score=75.0,
     )
@@ -161,6 +162,7 @@ def poor_hrv_features():
         hf_pct=0.2,
         lf_nu=0.67,
         hf_nu=0.33,
+        hf_hr=400.0 / 85.0,
         duration=300.0,
         score=35.0,
     )
@@ -183,6 +185,7 @@ def excellent_hrv_features():
         hf_pct=0.55,
         lf_nu=0.36,
         hf_nu=0.64,
+        hf_hr=3500.0 / 55.0,
         duration=300.0,
         score=92.0,
     )

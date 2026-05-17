@@ -77,6 +77,7 @@ _HRV_COLUMNS: dict[str, str] = {
     "hf_pct": "FLOAT",
     "lf_nu": "FLOAT",
     "hf_nu": "FLOAT",
+    "hf_hr": "FLOAT",
     "duration": "FLOAT",
     "score": "FLOAT",
 }
@@ -117,6 +118,7 @@ def _hrv_fields(prefix: str) -> dict[str, str]:
         f"{prefix}_hf_pct": "FLOAT",
         f"{prefix}_lf_nu": "FLOAT",
         f"{prefix}_hf_nu": "FLOAT",
+        f"{prefix}_hf_hr": "FLOAT",
     }
 
 
@@ -142,6 +144,7 @@ _ORTHO_COLUMNS: dict[str, str] = {
     "hr_response": "FLOAT",
     "lf_hf_ratio_change": "FLOAT",
     "hf_response_pct": "FLOAT",
+    "hf_hr_pct_change": "FLOAT",
     "interpretation": "TEXT",
 }
 
@@ -180,6 +183,8 @@ class OrthostaticRecord:
         hr_response: HR increase from supine to standing mean (bpm).
         lf_hf_ratio_change: Standing LF/HF divided by supine LF/HF.
         hf_response_pct: Relative HF power change supine → standing (%).
+        hf_hr_pct_change: Relative change in the HF/FC ratio supine → standing (%).
+            Formula: (HF/FC_standing − HF/FC_supine) / HF/FC_supine × 100.
         interpretation: Clinical classification of the orthostatic response.
 
     """
@@ -196,6 +201,7 @@ class OrthostaticRecord:
     hr_response: float
     lf_hf_ratio_change: float
     hf_response_pct: float
+    hf_hr_pct_change: float
     interpretation: str
 
 
@@ -210,11 +216,11 @@ def _features_from_row(
     date: str | None = None,
     duration: float = 0.0,
 ) -> HRVFeatures:
-    """Reconstruct an ``HRVFeatures`` from 12 consecutive row values.
+    """Reconstruct an ``HRVFeatures`` from 13 consecutive row values.
 
-    Reads ``row[offset]`` through ``row[offset + 11]`` in the order produced
+    Reads ``row[offset]`` through ``row[offset + 12]`` in the order produced
     by ``_hrv_fields()``: rmssd, ln_rmssd, sdnn, pnn50, mean_hr, vlf, lf, hf,
-    lf_hf, hf_pct, lf_nu, hf_nu.
+    lf_hf, hf_pct, lf_nu, hf_nu, hf_hr.
 
     Args:
         row: Full database row as a tuple.
@@ -240,6 +246,7 @@ def _features_from_row(
         hf_pct=row[offset + 9],
         lf_nu=row[offset + 10],
         hf_nu=row[offset + 11],
+        hf_hr=row[offset + 12],
         duration=duration,
     )
 
@@ -271,7 +278,7 @@ def _build_ortho_row(
     return (
         user_id,
         date,
-        # supine HRV (12)
+        # supine HRV (13)
         sf.rmssd,
         sf.ln_rmssd,
         sf.sdnn,
@@ -284,6 +291,7 @@ def _build_ortho_row(
         sf.hf_pct,
         sf.lf_nu,
         sf.hf_nu,
+        sf.hf_hr,
         # supine_duration_sec (1)
         p.supine.duration_sec,
         # transition timing (5)
@@ -292,7 +300,7 @@ def _build_ortho_row(
         p.transition.duration_sec,
         p.transition.delta_hr,
         p.transition.peak_hr,
-        # transition HRV (12)
+        # transition HRV (13)
         tf.rmssd,
         tf.ln_rmssd,
         tf.sdnn,
@@ -305,7 +313,8 @@ def _build_ortho_row(
         tf.hf_pct,
         tf.lf_nu,
         tf.hf_nu,
-        # standing HRV (12)
+        tf.hf_hr,
+        # standing HRV (13)
         stf.rmssd,
         stf.ln_rmssd,
         stf.sdnn,
@@ -318,12 +327,14 @@ def _build_ortho_row(
         stf.hf_pct,
         stf.lf_nu,
         stf.hf_nu,
+        stf.hf_hr,
         # standing_duration_sec (1)
         p.standing.duration_sec,
-        # derived (4)
+        # derived (5)
         result.hr_response,
         result.lf_hf_ratio_change,
         result.hf_response_pct,
+        result.hf_hr_pct_change,
         result.interpretation,
     )
 
@@ -578,6 +589,7 @@ class HRVRepository:
                 f.hf_pct,
                 f.lf_nu,
                 f.hf_nu,
+                f.hf_hr,
                 f.duration,
                 f.score,
             )
@@ -609,7 +621,7 @@ class HRVRepository:
         """
         query = sql.SQL(
             "SELECT date, rmssd, ln_rmssd, sdnn, pnn50, mean_hr,\n"
-            "       vlf, lf, hf, lf_hf, hf_pct, lf_nu, hf_nu,\n"
+            "       vlf, lf, hf, lf_hf, hf_pct, lf_nu, hf_nu, hf_hr,\n"
             "       duration, score\n"
             "FROM {table}\n"
             "WHERE user_id = %s\n"
@@ -635,8 +647,9 @@ class HRVRepository:
                 hf_pct=row[10],
                 lf_nu=row[11],
                 hf_nu=row[12],
-                duration=row[13],
-                score=row[14],
+                hf_hr=row[13],
+                duration=row[14],
+                score=row[15],
             )
             for row in rows
         ]
@@ -651,15 +664,15 @@ class HRVRepository:
         and derived metrics. A ``UNIQUE(user_id, date)`` constraint supports
         safe upserts.
 
-        Column layout (49 total):
+        Column layout (52 total):
 
         * ``user_id``, ``date``
-        * ``supine_*`` — 12 HRV metrics + ``supine_duration_sec``
+        * ``supine_*`` — 13 HRV metrics + ``supine_duration_sec``
         * ``transition_start_sec``, ``transition_end_sec``,
           ``transition_duration_sec``, ``transition_delta_hr``,
           ``transition_peak_hr``
-        * ``transition_*`` — 12 HRV metrics (short window, ≈ 20–60 s)
-        * ``standing_*`` — 12 HRV metrics + ``standing_duration_sec``
+        * ``transition_*`` — 13 HRV metrics (short window, ≈ 20–60 s)
+        * ``standing_*`` — 13 HRV metrics + ``standing_duration_sec``
         * ``hr_response``, ``lf_hf_ratio_change``, ``hf_response_pct``,
           ``interpretation``
 
@@ -773,29 +786,30 @@ class HRVRepository:
         for row in rows:
             date = str(row[0])
             # Row layout mirrors _ORTHO_DATA_COLUMNS — offsets start at 1 (skip date).
-            # [1..12]  supine HRV        [13] supine_duration_sec
-            # [14..18] transition timing  [19..30] transition HRV
-            # [31..42] standing HRV      [43] standing_duration_sec
-            # [44..47] derived metrics
+            # [1..13]  supine HRV (13)    [14] supine_duration_sec
+            # [15..19] transition timing   [20..32] transition HRV (13)
+            # [33..45] standing HRV (13)  [46] standing_duration_sec
+            # [47..51] derived metrics (5)
             records.append(
                 OrthostaticRecord(
                     date=date,
                     supine=_features_from_row(
-                        row, offset=1, date=date, duration=row[13]
+                        row, offset=1, date=date, duration=row[14]
                     ),
-                    transition_start_sec=row[14],
-                    transition_end_sec=row[15],
-                    transition_duration_sec=row[16],
-                    transition_delta_hr=row[17],
-                    transition_peak_hr=row[18],
-                    transition_features=_features_from_row(row, offset=19, date=date),
+                    transition_start_sec=row[15],
+                    transition_end_sec=row[16],
+                    transition_duration_sec=row[17],
+                    transition_delta_hr=row[18],
+                    transition_peak_hr=row[19],
+                    transition_features=_features_from_row(row, offset=20, date=date),
                     standing=_features_from_row(
-                        row, offset=31, date=date, duration=row[43]
+                        row, offset=33, date=date, duration=row[46]
                     ),
-                    hr_response=row[44],
-                    lf_hf_ratio_change=row[45],
-                    hf_response_pct=row[46],
-                    interpretation=row[47],
+                    hr_response=row[47],
+                    lf_hf_ratio_change=row[48],
+                    hf_response_pct=row[49],
+                    hf_hr_pct_change=row[50],
+                    interpretation=row[51],
                 )
             )
 

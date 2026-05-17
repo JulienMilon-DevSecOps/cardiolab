@@ -422,6 +422,21 @@ class TestOrthostaticHRV:
         result = orthostatic_hrv(orthostatic_rr, min_phase_duration=60.0)
         assert isinstance(result.hf_response_pct, float)
 
+    def test_hf_hr_pct_change_is_float(self, orthostatic_rr):
+        """hf_hr_pct_change must be a float (may be NaN when supine HF/FC is zero)."""
+        result = orthostatic_hrv(orthostatic_rr, min_phase_duration=60.0)
+        assert isinstance(result.hf_hr_pct_change, float)
+
+    def test_hf_hr_pct_change_negative_on_standing(self, orthostatic_rr):
+        """HF/FC must decrease on standing (vagal withdrawal) for a synthetic signal."""
+        result = orthostatic_hrv(orthostatic_rr, min_phase_duration=60.0)
+        supine_hf_hr = result.phases.supine.features.hf_hr
+        standing_hf_hr = result.phases.standing.features.hf_hr
+        if supine_hf_hr > 0 and standing_hf_hr > 0:
+            assert result.hf_hr_pct_change == pytest.approx(
+                (supine_hf_hr - standing_hf_hr) / supine_hf_hr * 100.0, rel=1e-6
+            )
+
     def test_lf_hf_ratio_change_positive(self, orthostatic_rr):
         """lf_hf_ratio_change should be positive."""
         result = orthostatic_hrv(orthostatic_rr, min_phase_duration=60.0)
