@@ -78,6 +78,10 @@ _HRV_COLUMNS: dict[str, str] = {
     "lf_nu": "FLOAT",
     "hf_nu": "FLOAT",
     "hf_hr": "FLOAT",
+    "sd1": "FLOAT",
+    "sd2": "FLOAT",
+    "sd_ratio": "FLOAT",
+    "dfa_alpha1": "FLOAT",
     "duration": "FLOAT",
     "score": "FLOAT",
 }
@@ -93,9 +97,10 @@ _DATA_COLUMNS: list[str] = [c for c in _HRV_COLUMNS if c not in ("user_id", "dat
 def _hrv_fields(prefix: str) -> dict[str, str]:
     """Return the 12 HRV metric column definitions for a phase prefix.
 
-    Covers the time-domain (RMSSD, SDNN, pNN50, mean HR) and frequency-domain
-    (VLF, LF, HF, LF/HF, HF%, LF_nu, HF_nu) indicators from ``HRVFeatures``,
-    without the ``duration`` field (stored separately per phase).
+    Covers the time-domain (RMSSD, SDNN, pNN50, mean HR), frequency-domain
+    (VLF, LF, HF, LF/HF, HF%, LF_nu, HF_nu, HF/FC) and non-linear (SD1, SD2,
+    SD1/SD2, DFA α1) indicators from ``HRVFeatures``, without the ``duration``
+    field (stored separately per phase).
 
     Args:
         prefix: Column name prefix, e.g. ``"supine"``, ``"standing"`` or
@@ -119,6 +124,10 @@ def _hrv_fields(prefix: str) -> dict[str, str]:
         f"{prefix}_lf_nu": "FLOAT",
         f"{prefix}_hf_nu": "FLOAT",
         f"{prefix}_hf_hr": "FLOAT",
+        f"{prefix}_sd1": "FLOAT",
+        f"{prefix}_sd2": "FLOAT",
+        f"{prefix}_sd_ratio": "FLOAT",
+        f"{prefix}_dfa_alpha1": "FLOAT",
     }
 
 
@@ -216,11 +225,11 @@ def _features_from_row(
     date: str | None = None,
     duration: float = 0.0,
 ) -> HRVFeatures:
-    """Reconstruct an ``HRVFeatures`` from 13 consecutive row values.
+    """Reconstruct an ``HRVFeatures`` from 17 consecutive row values.
 
-    Reads ``row[offset]`` through ``row[offset + 12]`` in the order produced
+    Reads ``row[offset]`` through ``row[offset + 16]`` in the order produced
     by ``_hrv_fields()``: rmssd, ln_rmssd, sdnn, pnn50, mean_hr, vlf, lf, hf,
-    lf_hf, hf_pct, lf_nu, hf_nu, hf_hr.
+    lf_hf, hf_pct, lf_nu, hf_nu, hf_hr, sd1, sd2, sd_ratio, dfa_alpha1.
 
     Args:
         row: Full database row as a tuple.
@@ -247,6 +256,10 @@ def _features_from_row(
         lf_nu=row[offset + 10],
         hf_nu=row[offset + 11],
         hf_hr=row[offset + 12],
+        sd1=row[offset + 13],
+        sd2=row[offset + 14],
+        sd_ratio=row[offset + 15],
+        dfa_alpha1=row[offset + 16],
         duration=duration,
     )
 
@@ -278,7 +291,7 @@ def _build_ortho_row(
     return (
         user_id,
         date,
-        # supine HRV (13)
+        # supine HRV (17)
         sf.rmssd,
         sf.ln_rmssd,
         sf.sdnn,
@@ -292,6 +305,10 @@ def _build_ortho_row(
         sf.lf_nu,
         sf.hf_nu,
         sf.hf_hr,
+        sf.sd1,
+        sf.sd2,
+        sf.sd_ratio,
+        sf.dfa_alpha1,
         # supine_duration_sec (1)
         p.supine.duration_sec,
         # transition timing (5)
@@ -300,7 +317,7 @@ def _build_ortho_row(
         p.transition.duration_sec,
         p.transition.delta_hr,
         p.transition.peak_hr,
-        # transition HRV (13)
+        # transition HRV (17)
         tf.rmssd,
         tf.ln_rmssd,
         tf.sdnn,
@@ -314,7 +331,11 @@ def _build_ortho_row(
         tf.lf_nu,
         tf.hf_nu,
         tf.hf_hr,
-        # standing HRV (13)
+        tf.sd1,
+        tf.sd2,
+        tf.sd_ratio,
+        tf.dfa_alpha1,
+        # standing HRV (17)
         stf.rmssd,
         stf.ln_rmssd,
         stf.sdnn,
@@ -328,6 +349,10 @@ def _build_ortho_row(
         stf.lf_nu,
         stf.hf_nu,
         stf.hf_hr,
+        stf.sd1,
+        stf.sd2,
+        stf.sd_ratio,
+        stf.dfa_alpha1,
         # standing_duration_sec (1)
         p.standing.duration_sec,
         # derived (5)
@@ -590,6 +615,10 @@ class HRVRepository:
                 f.lf_nu,
                 f.hf_nu,
                 f.hf_hr,
+                f.sd1,
+                f.sd2,
+                f.sd_ratio,
+                f.dfa_alpha1,
                 f.duration,
                 f.score,
             )
@@ -622,6 +651,7 @@ class HRVRepository:
         query = sql.SQL(
             "SELECT date, rmssd, ln_rmssd, sdnn, pnn50, mean_hr,\n"
             "       vlf, lf, hf, lf_hf, hf_pct, lf_nu, hf_nu, hf_hr,\n"
+            "       sd1, sd2, sd_ratio, dfa_alpha1,\n"
             "       duration, score\n"
             "FROM {table}\n"
             "WHERE user_id = %s\n"
@@ -648,8 +678,12 @@ class HRVRepository:
                 lf_nu=row[11],
                 hf_nu=row[12],
                 hf_hr=row[13],
-                duration=row[14],
-                score=row[15],
+                sd1=row[14],
+                sd2=row[15],
+                sd_ratio=row[16],
+                dfa_alpha1=row[17],
+                duration=row[18],
+                score=row[19],
             )
             for row in rows
         ]
@@ -664,17 +698,17 @@ class HRVRepository:
         and derived metrics. A ``UNIQUE(user_id, date)`` constraint supports
         safe upserts.
 
-        Column layout (52 total):
+        Column layout (64 total):
 
         * ``user_id``, ``date``
-        * ``supine_*`` — 13 HRV metrics + ``supine_duration_sec``
+        * ``supine_*`` — 17 HRV metrics + ``supine_duration_sec``
         * ``transition_start_sec``, ``transition_end_sec``,
           ``transition_duration_sec``, ``transition_delta_hr``,
           ``transition_peak_hr``
-        * ``transition_*`` — 13 HRV metrics (short window, ≈ 20–60 s)
-        * ``standing_*`` — 13 HRV metrics + ``standing_duration_sec``
+        * ``transition_*`` — 17 HRV metrics (short window, ≈ 20–60 s)
+        * ``standing_*`` — 17 HRV metrics + ``standing_duration_sec``
         * ``hr_response``, ``lf_hf_ratio_change``, ``hf_response_pct``,
-          ``interpretation``
+          ``hf_hr_pct_change``, ``interpretation``
 
         Raises:
             RuntimeError: If called outside a ``with`` block.
@@ -786,30 +820,30 @@ class HRVRepository:
         for row in rows:
             date = str(row[0])
             # Row layout mirrors _ORTHO_DATA_COLUMNS — offsets start at 1 (skip date).
-            # [1..13]  supine HRV (13)    [14] supine_duration_sec
-            # [15..19] transition timing   [20..32] transition HRV (13)
-            # [33..45] standing HRV (13)  [46] standing_duration_sec
-            # [47..51] derived metrics (5)
+            # [1..17]  supine HRV (17)    [18] supine_duration_sec
+            # [19..23] transition timing   [24..40] transition HRV (17)
+            # [41..57] standing HRV (17)  [58] standing_duration_sec
+            # [59..63] derived metrics (5)
             records.append(
                 OrthostaticRecord(
                     date=date,
                     supine=_features_from_row(
-                        row, offset=1, date=date, duration=row[14]
+                        row, offset=1, date=date, duration=row[18]
                     ),
-                    transition_start_sec=row[15],
-                    transition_end_sec=row[16],
-                    transition_duration_sec=row[17],
-                    transition_delta_hr=row[18],
-                    transition_peak_hr=row[19],
-                    transition_features=_features_from_row(row, offset=20, date=date),
+                    transition_start_sec=row[19],
+                    transition_end_sec=row[20],
+                    transition_duration_sec=row[21],
+                    transition_delta_hr=row[22],
+                    transition_peak_hr=row[23],
+                    transition_features=_features_from_row(row, offset=24, date=date),
                     standing=_features_from_row(
-                        row, offset=33, date=date, duration=row[46]
+                        row, offset=41, date=date, duration=row[58]
                     ),
-                    hr_response=row[47],
-                    lf_hf_ratio_change=row[48],
-                    hf_response_pct=row[49],
-                    hf_hr_pct_change=row[50],
-                    interpretation=row[51],
+                    hr_response=row[59],
+                    lf_hf_ratio_change=row[60],
+                    hf_response_pct=row[61],
+                    hf_hr_pct_change=row[62],
+                    interpretation=row[63],
                 )
             )
 
