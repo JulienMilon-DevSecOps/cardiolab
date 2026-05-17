@@ -1,4 +1,6 @@
 numpy
 scipy
 pytest
-matplotlip
+matplotlib
+python-dotenv
+psycopg2-binary

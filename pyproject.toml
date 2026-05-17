@@ -1,0 +1,93 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cardiolab"
+version = "0.1.0"
+description = "HRV analysis toolkit — scientific core of the cardioanalysis platform"
+authors = [{name = "Julien MILON", email = "julienmilon.devsecops@gmail.com"}]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-benchmark",
+    "ruff",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["cardiolab"]
+
+[tool.ruff]
+# Version Python cible (pour les règles de modernisation)
+target-version = "py312"
+
+# Longueur de ligne (88 = défaut de Black)
+line-length = 88
+
+# Dossiers à ignorer
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+# Règle à activer
+select = [
+    "E",        # Erreur de style pycodestyle
+    "F",        # EErreurs Pyflakes (variables, import non utilisés, etc)
+    "I",        # Tri des imports (isort)
+    "B",        # Bugs potentiels (flake8-bugbear)
+    "UP",       # Modernisation syntaxe (pyupgrade)
+    "SIM",      # Simplification possibles
+    "D",        # Docstrings manquantes ou mal formatées
+    "N",        # Convention de nommage
+    "S",        # Problèmes de sécurité
+]
+
+# Règles à ignorer
+ignore = [
+    "E501",  # Ligne trop longue (géré par le formatter)
+    "D203",  # Incompatible avec D211 (no-blank-line-before-class) — on garde D211
+    "D213",  # Incompatible avec D212 (multi-line-summary-first-line) — on garde D212
+]
+
+# Règles ignorées par fichier
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]  # assert is pytest's standard assertion mechanism
+
+# Règles que --fix peux corriger automatiquement
+fixable = [
+    "E",
+    "F",
+    "I",
+    "UP",
+    "D",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = ["-ra", "--strict-markers", "--tb=short"]
+markers = [
+    "slow: tests longs (ex: simulation ECG réaliste)",
+    "integration: tests d'intégration (nécessite PostgreSQL)",
+    "unit: tests unitaires purs",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]

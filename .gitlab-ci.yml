@@ -1,0 +1,4 @@
+include:
+  - project: 'project-jmilon-devsecops/ci-cd/pipeline-python-centralisee'
+    ref: 0.1.0
+    file: 'pipelines/python-package-pipeline.yml'
