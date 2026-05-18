@@ -135,6 +135,11 @@ class OrthostaticResult:
     def to_dict(self) -> dict:
         """Return a plain-Python dict of the full orthostatic result.
 
+        The dictionary is nested: top-level keys are ``phases`` (which
+        contains sub-dicts for ``supine``, ``transition``, and ``standing``
+        with their timing fields and nested ``features`` dict) and the four
+        derived clinical metrics plus ``interpretation``.
+
         Returns:
             Nested dictionary with ``phases`` (supine / transition / standing)
             and all derived clinical metrics.
@@ -152,6 +157,73 @@ class OrthostaticResult:
             "hf_hr_pct_change": self.hf_hr_pct_change,
             "interpretation": self.interpretation,
         }
+
+    def to_flat_dict(self) -> dict:
+        """Return a wide-format flat dict of the full orthostatic result.
+
+        All phase HRV features are prefixed (``supine_``, ``transition_``,
+        ``standing_``). Phase timing fields and the derived clinical metrics
+        are appended at the same level. Intended for CSV/DataFrame export.
+
+        Returns:
+            Flat dictionary with one key per scalar value.
+
+        """
+        row: dict = {}
+
+        for prefix, phase in [
+            ("supine", self.phases.supine),
+            ("standing", self.phases.standing),
+        ]:
+            for key, val in phase.features.to_dict().items():
+                row[f"{prefix}_{key}"] = val
+            row[f"{prefix}_start_sec"] = phase.start_sec
+            row[f"{prefix}_end_sec"] = phase.end_sec
+            row[f"{prefix}_duration_sec"] = phase.duration_sec
+
+        trans = self.phases.transition
+        for key, val in trans.features.to_dict().items():
+            row[f"transition_{key}"] = val
+        row["transition_start_sec"] = trans.start_sec
+        row["transition_end_sec"] = trans.end_sec
+        row["transition_duration_sec"] = trans.duration_sec
+        row["transition_delta_hr"] = trans.delta_hr
+        row["transition_peak_hr"] = trans.peak_hr
+
+        row["hr_response"] = self.hr_response
+        row["lf_hf_ratio_change"] = self.lf_hf_ratio_change
+        row["hf_response_pct"] = self.hf_response_pct
+        row["hf_hr_pct_change"] = self.hf_hr_pct_change
+        row["interpretation"] = self.interpretation
+
+        return row
+
+    def to_dataframe(self):
+        """Return a one-row wide-format pandas DataFrame of the full result.
+
+        Each phase's HRV features are flattened with a prefix (``supine_``,
+        ``transition_``, ``standing_``). Phase timing and the derived clinical
+        metrics are added at top level. The result is a single row suitable
+        for building a time-series of orthostatic test records.
+
+        Returns:
+            A ``pandas.DataFrame`` with one row and one column per scalar
+            field.
+
+        Raises:
+            ImportError: If ``pandas`` is not installed. Install with
+                ``pip install cardiolab[analysis]``.
+
+        """
+        try:
+            import pandas as pd
+        except ImportError as exc:
+            raise ImportError(
+                "pandas is required for to_dataframe(). "
+                "Install it with: pip install cardiolab[analysis]"
+            ) from exc
+
+        return pd.DataFrame([self.to_flat_dict()])
 
 
 # ======================

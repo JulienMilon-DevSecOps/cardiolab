@@ -80,6 +80,39 @@ class Baseline:
         return self.history[-self.window :]
 
     # ======================
+    # EXPORT
+    # ======================
+
+    def to_dataframe(self):
+        """Return a pandas DataFrame of the full session history.
+
+        Each row corresponds to one ``HRVFeatures`` session in chronological
+        order (oldest first). Returns an empty ``DataFrame`` when the history
+        is empty.
+
+        Returns:
+            A ``pandas.DataFrame`` with one row per session and one column
+            per HRV feature field.
+
+        Raises:
+            ImportError: If ``pandas`` is not installed. Install with
+                ``pip install cardiolab[analysis]``.
+
+        """
+        try:
+            import pandas as pd
+        except ImportError as exc:
+            raise ImportError(
+                "pandas is required for to_dataframe(). "
+                "Install it with: pip install cardiolab[analysis]"
+            ) from exc
+
+        if not self.history:
+            return pd.DataFrame()
+
+        return pd.DataFrame([s.to_dict() for s in self.history])
+
+    # ======================
     # BASELINE STATISTICS
     # ======================
 

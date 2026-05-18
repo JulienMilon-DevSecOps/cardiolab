@@ -1,6 +1,16 @@
+# Core
 numpy
 scipy
-pytest
 matplotlib
+
+# Database
 python-dotenv
 psycopg2-binary
+
+# Dev
+pytest
+pytest-benchmark
+ruff
+
+# Analysis (optional — required for to_dataframe() and CSV/JSON exports)
+pandas>=2.0

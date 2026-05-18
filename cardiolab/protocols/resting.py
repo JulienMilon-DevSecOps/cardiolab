@@ -82,6 +82,30 @@ class HRVFeatures:
     duration: float = 0.0
     score: float = 0.0
 
+    def to_dataframe(self):
+        """Return a one-row pandas DataFrame of all HRV features.
+
+        Each field of the dataclass becomes one column. Useful for building
+        time-series analyses and exporting to tabular tools.
+
+        Returns:
+            A ``pandas.DataFrame`` with one row and one column per field.
+
+        Raises:
+            ImportError: If ``pandas`` is not installed. Install with
+                ``pip install cardiolab[analysis]``.
+
+        """
+        try:
+            import pandas as pd
+        except ImportError as exc:
+            raise ImportError(
+                "pandas is required for to_dataframe(). "
+                "Install it with: pip install cardiolab[analysis]"
+            ) from exc
+
+        return pd.DataFrame([self.to_dict()])
+
     def to_dict(self) -> dict:
         """Return a plain-Python dict of all HRV features.
 
