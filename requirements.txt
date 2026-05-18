@@ -14,3 +14,4 @@ ruff
 
 # Analysis (optional — required for to_dataframe() and CSV/JSON exports)
 pandas>=2.0
+jinja2>=3.0     # required by pandas .style (background_gradient, HTML tables)
