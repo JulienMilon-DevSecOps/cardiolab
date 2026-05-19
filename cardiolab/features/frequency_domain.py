@@ -153,8 +153,8 @@ def _ar_psd(
 
     safe_order = min(order, n // 2 - 1)
 
-    r_col = r[:safe_order]          # first column of symmetric Toeplitz matrix
-    r_rhs = r[1 : safe_order + 1]   # right-hand side: [R(1), …, R(p)]
+    r_col = r[:safe_order]  # first column of symmetric Toeplitz matrix
+    r_rhs = r[1 : safe_order + 1]  # right-hand side: [R(1), …, R(p)]
 
     a_coeffs = solve_toeplitz(r_col, r_rhs)
 

@@ -302,9 +302,9 @@ def sampen(rr, m: int = 2, r_coef: float = 0.2) -> float:
     if n < 2 * m + 2 or r == 0.0:
         return float("nan")
 
-    templates_m = sliding_window_view(x, m)       # shape: (N-m+1, m)
+    templates_m = sliding_window_view(x, m)  # shape: (N-m+1, m)
     templates_m1 = sliding_window_view(x, m + 1)  # shape: (N-m,   m+1)
-    n_m1 = len(templates_m1)                       # N-m (valid m+1 template starts)
+    n_m1 = len(templates_m1)  # N-m (valid m+1 template starts)
 
     b_count = 0  # m-length matches (self excluded)
     a_count = 0  # (m+1)-length matches (self excluded)

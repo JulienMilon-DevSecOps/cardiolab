@@ -280,7 +280,9 @@ def orthostatic_hrv(
     if auto_clean:
         rr = rr.remove_outliers()
 
-    phases = detect_phases(rr, hr_threshold=hr_threshold, window_sec=window_sec, method=method)
+    phases = detect_phases(
+        rr, hr_threshold=hr_threshold, window_sec=window_sec, method=method
+    )
 
     if phases.supine.duration_sec < min_phase_duration:
         raise ValueError(

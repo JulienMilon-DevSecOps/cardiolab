@@ -219,9 +219,17 @@ class TestARMethod:
         result = frequency_domain(normal_rr_series, method="ar")
 
         required_keys = {
-            "VLF", "LF", "HF", "TP",
-            "LF_HF", "LF_nu", "HF_nu", "HF_pct", "LF_pct",
-            "LF_HF_sum", "LF_HF_over_TP",
+            "VLF",
+            "LF",
+            "HF",
+            "TP",
+            "LF_HF",
+            "LF_nu",
+            "HF_nu",
+            "HF_pct",
+            "LF_pct",
+            "LF_HF_sum",
+            "LF_HF_over_TP",
         }
         assert set(result.keys()) == required_keys
 
@@ -266,6 +274,7 @@ class TestARMethod:
     def test_ar_psd_output_shape(self, normal_rr_series):
         """_ar_psd must return a 129-point one-sided spectrum (256-pt FFT)."""
         import numpy as np
+
         rr_ms = np.array(normal_rr_series.intervals)
         time_s = np.cumsum(rr_ms) / 1000.0
         time_s -= time_s[0]
@@ -279,6 +288,7 @@ class TestARMethod:
     def test_ar_psd_non_negative(self, normal_rr_series):
         """AR PSD must be non-negative everywhere."""
         import numpy as np
+
         rr_ms = np.array(normal_rr_series.intervals)
         time_s = np.cumsum(rr_ms) / 1000.0
         time_s -= time_s[0]
