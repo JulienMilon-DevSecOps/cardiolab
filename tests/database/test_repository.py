@@ -393,7 +393,7 @@ class TestBuildOrthoRow:
         assert row[1] == "2026-05-15"
 
     def test_last_element_is_interpretation(self):
-        """interpretation must be second-to-last; spectral_method is last."""
+        """Interpretation must be second-to-last; spectral_method is last."""
         result = _mock_ortho_result()
         result.interpretation = "elevated_response"
         row = _build_ortho_row(result, user_id="uid", date="2026-05-15")
@@ -744,7 +744,7 @@ class TestLoadFeatures:
             4.09,
             80.0,
             25.0,
-            70.0,   # [1..5]  rmssd…mean_hr
+            70.0,  # [1..5]  rmssd…mean_hr
             500.0,
             1500.0,
             2000.0,  # [6..8]  vlf, lf, hf
@@ -756,12 +756,12 @@ class TestLoadFeatures:
             42.43,
             104.88,
             0.405,
-            1.05,    # [14..17] sd1, sd2, sd_ratio, dfa_alpha1
-            1.5,     # [18]  apen
-            1.3,     # [19]  sampen
-            300.0,   # [20]  duration
-            72.5,    # [21]  score
-            "welch", # [22]  method
+            1.05,  # [14..17] sd1, sd2, sd_ratio, dfa_alpha1
+            1.5,  # [18]  apen
+            1.3,  # [19]  sampen
+            300.0,  # [20]  duration
+            72.5,  # [21]  score
+            "welch",  # [22]  method
         )
 
     def test_returns_list_of_hrv_features(self):
@@ -901,28 +901,28 @@ class TestLoadOrthostatic:
             42.43,
             104.88,
             0.405,
-            1.05,   # dfa_alpha1
-            1.5,    # apen
-            1.3,    # sampen
+            1.05,  # dfa_alpha1
+            1.5,  # apen
+            1.3,  # sampen
         )
         return (
             "2026-05-15",  # [0]     date
-            *hrv_block,    # [1..19] supine HRV
-            305.0,         # [20]    supine_duration_sec
+            *hrv_block,  # [1..19] supine HRV
+            305.0,  # [20]    supine_duration_sec
             305.0,
             342.0,
             37.0,
             20.0,
-            90.0,          # [21..25] transition timing
-            *hrv_block,    # [26..44] transition HRV
-            *hrv_block,    # [45..63] standing HRV
-            310.0,         # [64]     standing_duration_sec
+            90.0,  # [21..25] transition timing
+            *hrv_block,  # [26..44] transition HRV
+            *hrv_block,  # [45..63] standing HRV
+            310.0,  # [64]     standing_duration_sec
             20.0,
             1.5,
             -40.0,
             -65.0,
-            "normal",      # [65..69] derived
-            "welch",       # [70]     spectral_method
+            "normal",  # [65..69] derived
+            "welch",  # [70]     spectral_method
         )
 
     def test_returns_list_of_orthostatic_records(self):
