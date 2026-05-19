@@ -7,7 +7,9 @@ from dataclasses import dataclass
 import numpy as np
 
 from cardiolab.features.frequency_domain import frequency_domain
+from cardiolab.features.nonlinear import apen as _apen
 from cardiolab.features.nonlinear import dfa_alpha1 as _dfa_alpha1
+from cardiolab.features.nonlinear import sampen as _sampen
 from cardiolab.features.nonlinear import sd1 as _sd1
 from cardiolab.features.nonlinear import sd2 as _sd2
 from cardiolab.features.nonlinear import sd_ratio as _sd_ratio
@@ -20,9 +22,9 @@ class HRVFeatures:
     """Snapshot of HRV metrics computed for a single recording session.
 
     This dataclass is the central output of the resting protocol. It holds all
-    time-domain and frequency-domain indicators alongside session metadata, and
-    is designed to be persisted in a database and later used to reconstruct a
-    ``Baseline`` without reprocessing raw signals.
+    time-domain, frequency-domain, and non-linear indicators alongside session
+    metadata, and is designed to be persisted in a database and later used to
+    reconstruct a ``Baseline`` without reprocessing raw signals.
 
     Attributes:
         date: ISO-format date string identifying the recording session.
@@ -50,9 +52,19 @@ class HRVFeatures:
         dfa_alpha1: DFA short-term scaling exponent (α1, scales 4–16 beats).
             Normal resting range ≈ 0.75–1.25. Returns ``nan`` for very short
             recordings.
+        apen: Approximate Entropy (dimensionless). Quantifies signal
+            regularity/complexity. Returns ``nan`` for short or constant
+            series. Standard parameters: m=2, r=0.2·std(RR).
+        sampen: Sample Entropy (dimensionless). Improved version of ApEn,
+            less sensitive to recording length. Returns ``nan`` for short or
+            constant series. Standard parameters: m=2, r=0.2·std(RR).
         duration: Effective recording duration in seconds.
         score: Optional readiness score (0–1). Defaults to 0.0 when not
             computed.
+        method: Spectral estimation method used for frequency-domain metrics.
+            ``"welch"`` (default) or ``"ar"``. Stored for traceability —
+            LF/HF values computed with different methods are not directly
+            comparable across sessions.
 
     """
 
@@ -79,8 +91,12 @@ class HRVFeatures:
     sd_ratio: float = 0.0
     dfa_alpha1: float = 0.0
 
+    apen: float = 0.0
+    sampen: float = 0.0
+
     duration: float = 0.0
     score: float = 0.0
+    method: str = "welch"
 
     def to_dataframe(self):
         """Return a one-row pandas DataFrame of all HRV features.
@@ -133,8 +149,11 @@ class HRVFeatures:
             "sd2": self.sd2,
             "sd_ratio": self.sd_ratio,
             "dfa_alpha1": self.dfa_alpha1,
+            "apen": self.apen,
+            "sampen": self.sampen,
             "duration": self.duration,
             "score": self.score,
+            "method": self.method,
         }
 
 
@@ -148,12 +167,14 @@ def resting_hrv(
     min_duration: float = 300.0,
     compute_score: bool = False,
     auto_clean: bool = False,
+    method: str = "welch",
 ) -> HRVFeatures:
     """Extract HRV features from a resting-state RR interval recording.
 
-    Computes all standard time-domain metrics (RMSSD, ln_RMSSD, SDNN, pNN50)
-    and frequency-domain metrics (VLF, LF, HF and derived ratios) from the
-    provided RR series. Optionally appends a simple readiness score.
+    Computes all standard time-domain metrics (RMSSD, ln_RMSSD, SDNN, pNN50),
+    frequency-domain metrics (VLF, LF, HF and derived ratios via the chosen
+    spectral method), and non-linear metrics (SD1/SD2, DFA α1, ApEn, SampEn)
+    from the provided RR series. Optionally appends a simple readiness score.
 
     Recommended recording conditions:
         * Duration ≥ 5 minutes for reliable frequency-domain estimates.
@@ -170,6 +191,11 @@ def resting_hrv(
         auto_clean: If ``True``, removes physiological outliers (< 300 ms or
             > 2000 ms) from ``rr`` before computing features using the default
             ``threshold`` method. Defaults to ``False``.
+        method: Spectral estimation method for frequency-domain features.
+            ``"welch"`` (default) is optimal for long recordings (≥ 5 min).
+            ``"ar"`` uses the autoregressive Yule-Walker method, which gives
+            better spectral resolution on short segments (< 2 min) and is
+            recommended for the orthostatic transition phase.
 
     Returns:
         An ``HRVFeatures`` instance populated with all computed metrics.
@@ -198,7 +224,7 @@ def resting_hrv(
     pnn50_value = pnn50(rr)
     mean_hr_value = rr.mean_hr
 
-    frequency_indicators = frequency_domain(rr)
+    frequency_indicators = frequency_domain(rr, method=method)
 
     hf_value = frequency_indicators["HF"]
     hf_hr_value = hf_value / mean_hr_value if mean_hr_value > 0 else 0.0
@@ -207,6 +233,8 @@ def resting_hrv(
     sd2_value = _sd2(rr)
     sd_ratio_value = _sd_ratio(rr)
     dfa_alpha1_value = _dfa_alpha1(rr)
+    apen_value = _apen(rr)
+    sampen_value = _sampen(rr)
 
     # ======================
     # SCORE (simple)
@@ -235,8 +263,11 @@ def resting_hrv(
         sd2=sd2_value,
         sd_ratio=sd_ratio_value,
         dfa_alpha1=dfa_alpha1_value,
+        apen=apen_value,
+        sampen=sampen_value,
         duration=duration,
         score=score,
+        method=method,
     )
 
 

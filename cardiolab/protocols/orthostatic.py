@@ -237,6 +237,7 @@ def orthostatic_hrv(
     hr_threshold: float = 10.0,
     window_sec: float = 30.0,
     auto_clean: bool = False,
+    method: str = "welch",
 ) -> OrthostaticResult:
     """Run the orthostatic HRV protocol on a continuous RR recording.
 
@@ -261,6 +262,10 @@ def orthostatic_hrv(
         auto_clean: If ``True``, removes physiological outliers (< 300 ms or
             > 2000 ms) from ``rr`` before phase detection and feature
             computation. Defaults to ``False``.
+        method: Spectral estimation method passed to ``resting_hrv()`` for
+            each phase. ``"welch"`` (default) suits long phases (≥ 5 min);
+            ``"ar"`` offers better resolution on the short transition window
+            (< 2 min) — consider ``"ar"`` when the transition is brief.
 
     Returns:
         An ``OrthostaticResult`` with segmented phases, HRV features for each
@@ -275,7 +280,9 @@ def orthostatic_hrv(
     if auto_clean:
         rr = rr.remove_outliers()
 
-    phases = detect_phases(rr, hr_threshold=hr_threshold, window_sec=window_sec)
+    phases = detect_phases(
+        rr, hr_threshold=hr_threshold, window_sec=window_sec, method=method
+    )
 
     if phases.supine.duration_sec < min_phase_duration:
         raise ValueError(
@@ -332,6 +339,7 @@ def detect_phases(
     window_sec: float = 30.0,
     stabilization_window_sec: float = 20.0,
     stabilization_std_threshold: float = 5.0,
+    method: str = "welch",
 ) -> OrthostaticPhases:
     """Detect supine, transition, and standing phases in a continuous RR series.
 
@@ -351,6 +359,8 @@ def detect_phases(
         stabilization_std_threshold: Maximum beat-to-beat HR standard
             deviation (bpm) within the stabilisation window for the transition
             to be declared complete. Defaults to 5 bpm.
+        method: Spectral estimation method forwarded to ``resting_hrv()`` for
+            each phase. Defaults to ``"welch"``.
 
     Returns:
         An ``OrthostaticPhases`` with the three segments and their HRV features.
@@ -419,7 +429,7 @@ def detect_phases(
             start_sec=supine_start,
             end_sec=supine_end,
             duration_sec=supine_end - supine_start,
-            features=resting_hrv(supine_rr),
+            features=resting_hrv(supine_rr, method=method),
         ),
         transition=TransitionSegment(
             rr=transition_rr,
@@ -428,14 +438,14 @@ def detect_phases(
             duration_sec=trans_end - trans_start,
             delta_hr=delta_hr,
             peak_hr=peak_hr,
-            features=resting_hrv(transition_rr),
+            features=resting_hrv(transition_rr, method=method),
         ),
         standing=PhaseSegment(
             rr=standing_rr,
             start_sec=standing_start,
             end_sec=standing_end,
             duration_sec=standing_end - standing_start,
-            features=resting_hrv(standing_rr),
+            features=resting_hrv(standing_rr, method=method),
         ),
     )
 
