@@ -27,7 +27,7 @@ from cardiolab.signals.rr import RRSeries  # noqa: E402
 # SHARED HELPERS
 # ======================
 
-_HRV_FIELD_COUNT = 22  # matches HRVFeatures field count (date + 19 metrics + duration + score)
+_HRV_FIELD_COUNT = 23  # matches HRVFeatures field count (date + 19 metrics + duration + score + method)
 
 
 def _make_features(**kw) -> HRVFeatures:
@@ -232,12 +232,13 @@ class TestOrthostaticResultToDict:
         assert "peak_hr" in trans
 
     def test_all_numeric_values_are_float_or_none(self, ortho_result):
-        """All leaf numeric values must be float (NaN allowed)."""
+        """Numeric feature values must be float; 'method' is str."""
         d = ortho_result.to_dict()
         sup_feats = d["phases"]["supine"]["features"]
         for key, val in sup_feats.items():
-            if key != "date":
-                assert isinstance(val, float), f"{key} is not float: {type(val)}"
+            if key in ("date", "method"):
+                continue
+            assert isinstance(val, float), f"{key} is not float: {type(val)}"
 
 
 # ======================

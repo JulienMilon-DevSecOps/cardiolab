@@ -94,6 +94,7 @@ _HRV_COLUMNS: dict[str, str] = {
     "sampen": "FLOAT",
     "duration": "FLOAT",
     "score": "FLOAT",
+    "method": "TEXT",
 }
 
 _DATA_COLUMNS: list[str] = [c for c in _HRV_COLUMNS if c not in ("user_id", "date")]
@@ -168,6 +169,10 @@ _ORTHO_COLUMNS: dict[str, str] = {
     "hf_response_pct": "FLOAT",
     "hf_hr_pct_change": "FLOAT",
     "interpretation": "TEXT",
+    # ── Methodological metadata ───────────────────────────────────────────
+    # Single column for all phases: all three calls to resting_hrv() use the
+    # same spectral method, so storing it once avoids redundancy.
+    "spectral_method": "TEXT",
 }
 
 _ORTHO_DATA_COLUMNS: list[str] = [
@@ -391,6 +396,8 @@ def _build_ortho_row(
         result.hf_response_pct,
         result.hf_hr_pct_change,
         result.interpretation,
+        # spectral_method (1) — same for all phases
+        sf.method,
     )
 
 
@@ -653,6 +660,7 @@ class HRVRepository:
                 f.sampen,
                 f.duration,
                 f.score,
+                f.method,
             )
             for f in features
         ]
@@ -684,7 +692,7 @@ class HRVRepository:
             "SELECT date, rmssd, ln_rmssd, sdnn, pnn50, mean_hr,\n"
             "       vlf, lf, hf, lf_hf, hf_pct, lf_nu, hf_nu, hf_hr,\n"
             "       sd1, sd2, sd_ratio, dfa_alpha1, apen, sampen,\n"
-            "       duration, score\n"
+            "       duration, score, method\n"
             "FROM {table}\n"
             "WHERE user_id = %s\n"
             "ORDER BY date ASC;"
@@ -718,6 +726,7 @@ class HRVRepository:
                 sampen=row[19],
                 duration=row[20],
                 score=row[21],
+                method=row[22] or "welch",
             )
             for row in rows
         ]
@@ -829,6 +838,7 @@ class HRVRepository:
         * ``[26..44]`` — transition HRV (19)
         * ``[45..63]`` — standing HRV (19)  ``[64]`` standing_duration_sec
         * ``[65..69]`` — derived metrics (5)
+        * ``[70]``     — spectral_method (TEXT)
 
         Args:
             user_id: Identifier of the user whose sessions are retrieved.
@@ -864,22 +874,25 @@ class HRVRepository:
             # [1..19]  supine HRV (19)    [20] supine_duration_sec
             # [21..25] transition timing   [26..44] transition HRV (19)
             # [45..63] standing HRV (19)  [64] standing_duration_sec
-            # [65..69] derived metrics (5)
+            # [65..69] derived metrics (5)  [70] spectral_method
+            spectral_method: str = row[70] or "welch"
+            supine = _features_from_row(row, offset=1, date=date, duration=row[20])
+            supine.method = spectral_method
+            transition = _features_from_row(row, offset=26, date=date)
+            transition.method = spectral_method
+            standing = _features_from_row(row, offset=45, date=date, duration=row[64])
+            standing.method = spectral_method
             records.append(
                 OrthostaticRecord(
                     date=date,
-                    supine=_features_from_row(
-                        row, offset=1, date=date, duration=row[20]
-                    ),
+                    supine=supine,
                     transition_start_sec=row[21],
                     transition_end_sec=row[22],
                     transition_duration_sec=row[23],
                     transition_delta_hr=row[24],
                     transition_peak_hr=row[25],
-                    transition_features=_features_from_row(row, offset=26, date=date),
-                    standing=_features_from_row(
-                        row, offset=45, date=date, duration=row[64]
-                    ),
+                    transition_features=transition,
+                    standing=standing,
                     hr_response=row[65],
                     lf_hf_ratio_change=row[66],
                     hf_response_pct=row[67],

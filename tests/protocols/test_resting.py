@@ -17,7 +17,7 @@ class TestHRVFeatures:
         assert normal_hrv_features.mean_hr == 70.0
 
     def test_hrv_features_all_fields_present(self, normal_hrv_features):
-        """Test that all 22 fields are present."""
+        """Test that all 23 fields are present."""
         expected_fields = {
             "date",
             "rmssd",
@@ -41,6 +41,7 @@ class TestHRVFeatures:
             "sampen",
             "duration",
             "score",
+            "method",
         }
 
         actual_fields = set(vars(normal_hrv_features).keys())
@@ -372,7 +373,7 @@ class TestHRVFeaturesToDict:
         assert isinstance(normal_hrv_features.to_dict(), dict)
 
     def test_to_dict_contains_all_keys(self, normal_hrv_features):
-        """to_dict() must expose all 22 HRVFeatures fields."""
+        """to_dict() must expose all 23 HRVFeatures fields."""
         expected_keys = {
             "date",
             "rmssd",
@@ -396,6 +397,7 @@ class TestHRVFeaturesToDict:
             "sampen",
             "duration",
             "score",
+            "method",
         }
         assert set(normal_hrv_features.to_dict().keys()) == expected_keys
 
@@ -412,10 +414,14 @@ class TestHRVFeaturesToDict:
         assert HRVFeatures().to_dict()["date"] is None
 
     def test_to_dict_values_are_python_types(self, normal_hrv_features):
-        """All numeric values must be native Python float or None (not np.float64)."""
+        """Numeric fields must be native Python float; 'method' must be str."""
         d = normal_hrv_features.to_dict()
         for key, val in d.items():
-            if key != "date":
+            if key == "date":
+                continue
+            if key == "method":
+                assert isinstance(val, str), f"Field {key!r} is {type(val)}"
+            else:
                 assert isinstance(val, float), f"Field {key!r} is {type(val)}"
 
 

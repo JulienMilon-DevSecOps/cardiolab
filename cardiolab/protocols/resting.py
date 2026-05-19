@@ -61,6 +61,10 @@ class HRVFeatures:
         duration: Effective recording duration in seconds.
         score: Optional readiness score (0–1). Defaults to 0.0 when not
             computed.
+        method: Spectral estimation method used for frequency-domain metrics.
+            ``"welch"`` (default) or ``"ar"``. Stored for traceability —
+            LF/HF values computed with different methods are not directly
+            comparable across sessions.
 
     """
 
@@ -92,6 +96,7 @@ class HRVFeatures:
 
     duration: float = 0.0
     score: float = 0.0
+    method: str = "welch"
 
     def to_dataframe(self):
         """Return a one-row pandas DataFrame of all HRV features.
@@ -148,6 +153,7 @@ class HRVFeatures:
             "sampen": self.sampen,
             "duration": self.duration,
             "score": self.score,
+            "method": self.method,
         }
 
 
@@ -261,6 +267,7 @@ def resting_hrv(
         sampen=sampen_value,
         duration=duration,
         score=score,
+        method=method,
     )
 
 
