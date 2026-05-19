@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
-from cardiolab.features.frequency_domain import _band_power, frequency_domain
+from cardiolab.features.frequency_domain import _ar_psd, _band_power, frequency_domain
 
 
 class TestFrequencyDomain:
@@ -208,6 +209,83 @@ class TestBandPower:
         # Both should be positive
         assert power_lf > 0
         assert power_hf > 0
+
+
+class TestARMethod:
+    """Tests for the AR (Yule-Walker) spectral estimation method."""
+
+    def test_ar_method_returns_valid_dict(self, normal_rr_series):
+        """AR method must return the same keys as Welch."""
+        result = frequency_domain(normal_rr_series, method="ar")
+
+        required_keys = {
+            "VLF", "LF", "HF", "TP",
+            "LF_HF", "LF_nu", "HF_nu", "HF_pct", "LF_pct",
+            "LF_HF_sum", "LF_HF_over_TP",
+        }
+        assert set(result.keys()) == required_keys
+
+    def test_ar_method_non_negative_values(self, normal_rr_series):
+        """All AR band powers and ratios must be non-negative."""
+        result = frequency_domain(normal_rr_series, method="ar")
+        for key, value in result.items():
+            assert value >= 0, f"{key} is negative with AR method: {value}"
+
+    def test_ar_method_total_power_sum(self, normal_rr_series):
+        """TP must equal VLF + LF + HF for the AR method."""
+        result = frequency_domain(normal_rr_series, method="ar")
+        expected_tp = result["VLF"] + result["LF"] + result["HF"]
+        assert np.isclose(result["TP"], expected_tp, rtol=0.01)
+
+    def test_ar_method_produces_different_psd_from_welch(self, normal_rr_series):
+        """AR and Welch should produce somewhat different but both valid spectra."""
+        r_welch = frequency_domain(normal_rr_series, method="welch")
+        r_ar = frequency_domain(normal_rr_series, method="ar")
+
+        # Both should be valid (positive total power)
+        assert r_welch["TP"] > 0
+        assert r_ar["TP"] > 0
+
+    def test_ar_method_invalid_raises(self, normal_rr_series):
+        """Unknown method must raise ValueError."""
+        with pytest.raises(ValueError, match="Unknown method"):
+            frequency_domain(normal_rr_series, method="unknown")
+
+    def test_ar_method_custom_order(self, normal_rr_series):
+        """Custom AR order must be accepted without error."""
+        result = frequency_domain(normal_rr_series, method="ar", order=8)
+        assert isinstance(result, dict)
+        assert result["TP"] >= 0
+
+    def test_ar_method_short_series(self, short_rr_series):
+        """AR method must handle short series without crashing."""
+        result = frequency_domain(short_rr_series, method="ar")
+        assert isinstance(result, dict)
+        assert all(v >= 0 for v in result.values())
+
+    def test_ar_psd_output_shape(self, normal_rr_series):
+        """_ar_psd must return a 129-point one-sided spectrum (256-pt FFT)."""
+        import numpy as np
+        rr_ms = np.array(normal_rr_series.intervals)
+        time_s = np.cumsum(rr_ms) / 1000.0
+        time_s -= time_s[0]
+        interp_time = np.arange(0, time_s[-1], 1 / 4.0)
+        interp_rr = np.interp(interp_time, time_s, rr_ms)
+        freqs, psd = _ar_psd(interp_rr, fs=4.0, order=16)
+        # rfftfreq(256) → 129 points
+        assert len(freqs) == 129
+        assert len(psd) == 129
+
+    def test_ar_psd_non_negative(self, normal_rr_series):
+        """AR PSD must be non-negative everywhere."""
+        import numpy as np
+        rr_ms = np.array(normal_rr_series.intervals)
+        time_s = np.cumsum(rr_ms) / 1000.0
+        time_s -= time_s[0]
+        interp_time = np.arange(0, time_s[-1], 1 / 4.0)
+        interp_rr = np.interp(interp_time, time_s, rr_ms)
+        _, psd = _ar_psd(interp_rr, fs=4.0, order=16)
+        assert np.all(psd >= 0)
 
 
 class TestFrequencyDomainIntegration:

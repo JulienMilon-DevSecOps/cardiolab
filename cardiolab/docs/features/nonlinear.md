@@ -6,9 +6,10 @@ properties and correlation patterns that linear methods miss, and are
 particularly valuable for detecting early signs of overtraining, fatigue, and
 cardiovascular disease.
 
-cardiolab computes two families of non-linear metrics:
+cardiolab computes three families of non-linear metrics:
 - **Poincaré plot analysis** (SD1, SD2, SD1/SD2) — geometric, intuitive.
 - **Detrended Fluctuation Analysis** (DFA α1) — fractal correlation structure.
+- **Entropy measures** (ApEn, SampEn) — signal regularity and complexity.
 
 ---
 
@@ -223,17 +224,174 @@ DFA α1 requires:
 
 ---
 
+## Entropy Measures
+
+Entropy metrics quantify the **regularity and complexity** of the RR series by
+measuring how predictable the sequence is. A more complex signal (less
+predictable, more varied patterns) yields a higher entropy value.
+
+These metrics are clinically meaningful in several contexts:
+
+- **Cardiac disease monitoring**: entropy decreases significantly in heart
+  failure, atrial fibrillation, and autonomic neuropathy — the heart loses
+  its adaptive complexity.
+- **Fatigue and recovery tracking**: overtraining and illness reduce entropy,
+  reflecting a more rigid, less adaptive cardiac response.
+- **Age-related changes**: entropy declines with age, reflecting reduced
+  autonomic flexibility.
+
+---
+
+### ApEn — Approximate Entropy
+
+**Field**: `apen` | **Unit**: dimensionless
+
+#### Definition
+
+ApEn quantifies the **likelihood that patterns in the RR series recur** over
+longer sequences. It counts, for each template of length *m*, the fraction of
+all other templates within Chebyshev distance *r*, then compares the count for
+length *m* vs *m+1*.
+
+**Algorithm** (Pincus 1991):
+
+For standard clinical parameters *m* = 2, *r* = 0.2 · std(RR):
+
+1. Form all *N − m + 1* templates of length *m*.
+2. For each template *i*, count how many templates *j* (including *j = i*)
+   satisfy the Chebyshev criterion:
+   $$C_i^m = \frac{1}{N-m+1}\,|\{j : \max_{k=0}^{m-1} |RR_{i+k} - RR_{j+k}| \leq r\}|$$
+3. Compute:
+   $$\phi^m = \frac{1}{N-m+1} \sum_{i} \log C_i^m$$
+4. Repeat for *m + 1*.
+5. $$\text{ApEn}(m, r) = \phi^m - \phi^{m+1}$$
+
+**Complexity**: O(*N*²) — may be slow for N > 1 000 beats.
+
+#### Physiological background
+
+- **High ApEn** (complex): healthy cardiac regulation adapts flexibly to
+  demands. Normal resting values are in the range ≈ 1.0–1.5.
+- **Low ApEn** (regular): reduced flexibility — seen in heart failure, severe
+  fatigue, autonomic neuropathy, or very short recordings.
+- ApEn includes **self-comparison** (a template always matches itself), which
+  introduces a bias that increases with shorter recordings and fewer beats.
+  Use SampEn when recording length varies between sessions.
+
+#### Reference values (5-minute resting, N ≈ 300–500 beats)
+
+| ApEn | Interpretation |
+|------|----------------|
+| < 0.5 | Very regular — severe reduction in complexity |
+| 0.5 – 1.0 | Reduced complexity — fatigue, illness, cardiac disease |
+| 1.0 – 1.8 | Normal resting range |
+| > 1.8 | High complexity |
+
+> **Note**: ApEn values depend strongly on recording length *N*. Do not compare
+> sessions with different durations without normalisation.
+
+#### Notes
+
+- Returns `float('nan')` if N < 2m + 1 = 5 or std(RR) = 0.
+- Standard parameters m = 2, r = 0.2 · std(RR) are widely used in clinical
+  literature and are the defaults in cardiolab.
+
+#### Reference
+
+> Pincus, S. M. (1991). Approximate entropy as a measure of system complexity.
+> *Proceedings of the National Academy of Sciences*, **88**(6), 2297–2301.
+> https://doi.org/10.1073/pnas.88.6.2297
+
+---
+
+### SampEn — Sample Entropy
+
+**Field**: `sampen` | **Unit**: dimensionless
+
+#### Definition
+
+SampEn is an improved version of ApEn that **removes the self-comparison bias**
+by excluding the template from its own match count. It is less sensitive to
+recording length and produces more consistent estimates across sessions.
+
+**Algorithm** (Richman & Moorman 2000):
+
+For standard clinical parameters *m* = 2, *r* = 0.2 · std(RR):
+
+1. Count all pairs (*i*, *j*) with *i* ≠ *j* whose *m*-length templates are
+   within Chebyshev distance *r*: total count = **B**.
+2. Count all pairs (*i*, *j*) with *i* ≠ *j* whose (*m+1*)-length templates are
+   within *r*: total count = **A**.
+3. $$\text{SampEn}(m, r) = -\log\frac{A}{B}$$
+
+Self-matches are **excluded**, eliminating the length-dependent bias of ApEn.
+
+**Complexity**: O(*N*²) — may be slow for N > 1 000 beats.
+
+#### Physiological background
+
+- **High SampEn**: complex, adaptable cardiac regulation.
+- **Low SampEn**: regular, predictable sequence — cardiac disease, overtraining,
+  or severe fatigue.
+- SampEn is **preferred over ApEn** when comparing sessions of different lengths,
+  or when working with short recordings, because it is more robust to N.
+
+#### Reference values (5-minute resting, N ≈ 300–500 beats)
+
+| SampEn | Interpretation |
+|--------|----------------|
+| < 0.5 | Very regular — severely reduced HRV complexity |
+| 0.5 – 1.2 | Reduced complexity |
+| 1.2 – 2.0 | Normal resting range |
+| > 2.0 | High complexity |
+
+> **Note**: SampEn returns `float('nan')` when no *m*-length template pair
+> matches (B = 0) — this typically occurs with a very short recording or a very
+> small tolerance *r*.
+
+#### Notes
+
+- Returns `float('nan')` if N < 2m + 2 = 6, std(RR) = 0, or B = 0.
+- More robust to N than ApEn — preferred for cross-session comparison.
+
+#### Reference
+
+> Richman, J. S., & Moorman, J. R. (2000). Physiological time-series analysis
+> using approximate entropy and sample entropy.
+> *American Journal of Physiology — Heart and Circulatory Physiology*,
+> **278**(6), H2039–H2049.
+> https://doi.org/10.1152/ajpheart.2000.278.6.H2039
+
+---
+
+### ApEn vs SampEn: when to use each
+
+| | ApEn | SampEn |
+|--|------|--------|
+| Self-comparison | Included (bias) | Excluded (no bias) |
+| Sensitivity to N | High | Low |
+| Short recordings | Biased upward | More reliable |
+| Cross-session comparison | Requires equal N | Preferred |
+| Computational cost | Identical O(N²) | Identical O(N²) |
+
+**In practice**: use SampEn as the primary complexity metric for cross-session
+monitoring. Report ApEn alongside for completeness and comparison with older
+literature.
+
+---
+
 ## Comparing linear and non-linear metrics
 
-| Situation | RMSSD / SD1 | LF/HF | SD1/SD2 | DFA α1 |
-|-----------|-------------|-------|---------|---------|
-| Good recovery | High | Low | Normal | ≈ 1.0–1.2 |
-| Acute stress | Low | High | Low | ↓ or ↑ |
-| Overtraining | Low | Variable | Low | < 0.75 |
-| Endurance athlete (trained) | High | Low | Normal | ≈ 1.0–1.1 |
-| Vigorous exercise | ↓ | ↑ | Low | > 1.5 |
-| Illness | Low | Variable | Low | Variable |
+| Situation | RMSSD / SD1 | LF/HF | SD1/SD2 | DFA α1 | SampEn |
+|-----------|-------------|-------|---------|---------|--------|
+| Good recovery | High | Low | Normal | ≈ 1.0–1.2 | High |
+| Acute stress | Low | High | Low | ↓ or ↑ | ↓ |
+| Overtraining | Low | Variable | Low | < 0.75 | ↓ |
+| Endurance athlete (trained) | High | Low | Normal | ≈ 1.0–1.1 | High |
+| Vigorous exercise | ↓ | ↑ | Low | > 1.5 | Variable |
+| Illness | Low | Variable | Low | Variable | ↓ |
+| Cardiac disease | Low | Variable | Low | ≈ 0.5 | Low |
 
-Non-linear metrics add an **independent dimension** to HRV analysis: two
-athletes with the same RMSSD can have very different DFA α1 values, revealing
-different underlying regulatory dynamics.
+Non-linear metrics add **independent dimensions** to HRV analysis: two
+athletes with the same RMSSD can have very different DFA α1 or SampEn values,
+revealing different underlying regulatory dynamics.

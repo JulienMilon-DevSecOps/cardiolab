@@ -27,7 +27,7 @@ from cardiolab.signals.rr import RRSeries  # noqa: E402
 # SHARED HELPERS
 # ======================
 
-_HRV_FIELD_COUNT = 20  # matches HRVFeatures field count
+_HRV_FIELD_COUNT = 22  # matches HRVFeatures field count (date + 19 metrics + duration + score)
 
 
 def _make_features(**kw) -> HRVFeatures:

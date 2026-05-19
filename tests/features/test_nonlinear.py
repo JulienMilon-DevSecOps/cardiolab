@@ -1,4 +1,4 @@
-"""Unit tests for non-linear HRV metrics (Poincaré plot, DFA α1)."""
+"""Unit tests for non-linear HRV metrics (Poincaré plot, DFA α1, ApEn, SampEn)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import math
 import numpy as np
 import pytest
 
-from cardiolab.features.nonlinear import dfa_alpha1, sd1, sd2, sd_ratio
+from cardiolab.features.nonlinear import apen, dfa_alpha1, sampen, sd1, sd2, sd_ratio
 from cardiolab.signals.rr import RRSeries
 
 # ======================
@@ -197,3 +197,126 @@ class TestDFAAlpha1:
         v1 = dfa_alpha1(rr)
         v2 = dfa_alpha1(rr)
         assert v1 == v2
+
+
+# ======================
+# APEN
+# ======================
+
+
+class TestApEn:
+    """Tests for Approximate Entropy (ApEn)."""
+
+    def test_returns_float(self, normal_rr):
+        """apen() must return a float."""
+        assert isinstance(apen(normal_rr), float)
+
+    def test_non_negative(self, normal_rr):
+        """ApEn must be non-negative for a valid signal."""
+        val = apen(normal_rr)
+        assert not math.isnan(val)
+        assert val >= 0.0
+
+    def test_returns_nan_for_too_short_series(self):
+        """ApEn must return nan for very short series (N < 2m+1 = 5 for m=2)."""
+        too_short = RRSeries(np.array([857.0, 870.0, 845.0, 862.0]))  # N=4 < 5
+        val = apen(too_short)
+        assert math.isnan(val)
+
+    def test_constant_series_returns_nan(self):
+        """ApEn must return nan for a constant series (std=0)."""
+        rr = RRSeries(np.full(50, 857.0))
+        val = apen(rr)
+        assert math.isnan(val)
+
+    def test_higher_complexity_gives_higher_apen(self, low_var_rr, high_var_rr):
+        """Higher variability must produce higher ApEn."""
+        val_low = apen(low_var_rr)
+        val_high = apen(high_var_rr)
+        # Both must be valid (not nan)
+        assert not math.isnan(val_low)
+        assert not math.isnan(val_high)
+        assert val_high >= val_low
+
+    def test_reproducible(self, normal_rr):
+        """Repeated calls on the same series must give identical results."""
+        v1 = apen(normal_rr)
+        v2 = apen(normal_rr)
+        assert v1 == v2
+
+    def test_custom_parameters(self, normal_rr):
+        """Custom m and r_coef must be accepted without error."""
+        val = apen(normal_rr, m=1, r_coef=0.15)
+        assert isinstance(val, float)
+
+    def test_physiological_range(self, normal_rr):
+        """ApEn for a typical resting series should be in a plausible range."""
+        val = apen(normal_rr)
+        if not math.isnan(val):
+            assert 0.0 < val < 3.0
+
+
+# ======================
+# SAMPEN
+# ======================
+
+
+class TestSampEn:
+    """Tests for Sample Entropy (SampEn)."""
+
+    def test_returns_float(self, normal_rr):
+        """sampen() must return a float."""
+        assert isinstance(sampen(normal_rr), float)
+
+    def test_non_negative(self, normal_rr):
+        """SampEn must be non-negative for a valid signal."""
+        val = sampen(normal_rr)
+        assert not math.isnan(val)
+        assert val >= 0.0
+
+    def test_returns_nan_for_too_short_series(self, minimal_rr):
+        """SampEn must return nan for very short series (N < 2m+2)."""
+        val = sampen(minimal_rr)
+        assert math.isnan(val)
+
+    def test_constant_series_returns_nan(self):
+        """SampEn must return nan for a constant series (std=0)."""
+        rr = RRSeries(np.full(50, 857.0))
+        val = sampen(rr)
+        assert math.isnan(val)
+
+    def test_both_series_produce_valid_sampen(self, low_var_rr, high_var_rr):
+        """SampEn must return a valid (non-nan, positive) value for both series."""
+        val_low = sampen(low_var_rr)
+        val_high = sampen(high_var_rr)
+        # SampEn with r ∝ std(RR) is not guaranteed to order by variability
+        assert not math.isnan(val_low)
+        assert not math.isnan(val_high)
+        assert val_low > 0.0
+        assert val_high > 0.0
+
+    def test_reproducible(self, normal_rr):
+        """Repeated calls on the same series must give identical results."""
+        v1 = sampen(normal_rr)
+        v2 = sampen(normal_rr)
+        assert v1 == v2
+
+    def test_custom_parameters(self, normal_rr):
+        """Custom m and r_coef must be accepted without error."""
+        val = sampen(normal_rr, m=1, r_coef=0.15)
+        assert isinstance(val, float)
+
+    def test_physiological_range(self, normal_rr):
+        """SampEn for a typical resting series should be in a plausible range."""
+        val = sampen(normal_rr)
+        if not math.isnan(val):
+            assert 0.0 < val < 3.0
+
+    def test_sampen_vs_apen_same_signal(self, normal_rr):
+        """SampEn and ApEn must both be finite and positive on the same signal."""
+        v_apen = apen(normal_rr)
+        v_sampen = sampen(normal_rr)
+        assert not math.isnan(v_apen)
+        assert not math.isnan(v_sampen)
+        assert v_apen > 0.0
+        assert v_sampen > 0.0

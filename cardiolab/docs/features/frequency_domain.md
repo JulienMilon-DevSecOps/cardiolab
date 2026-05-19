@@ -4,20 +4,107 @@ Frequency-domain metrics decompose the variability of the RR series into
 distinct frequency bands using spectral analysis. Each band corresponds to a
 different physiological regulation loop.
 
-cardiolab uses **Welch's method** on a 4 Hz cubic-spline interpolation of the
-RR series to estimate the power spectral density (PSD).
+cardiolab supports two PSD estimation methods:
+
+- **Welch's method** (default): optimal for long recordings (≥ 5 min).
+- **Autoregressive (AR) model** (Yule-Walker): better spectral resolution on
+  short segments (< 2 min), recommended for the orthostatic transition phase.
 
 ---
 
 ## How frequency-domain analysis works
 
 1. **Interpolation**: the unevenly-spaced RR series is resampled to a uniform
-   time grid at 4 Hz using cubic spline interpolation.
-2. **PSD estimation**: Welch's method divides the signal into overlapping
-   windows, applies a Hann taper, computes the FFT per window, and averages the
-   squared magnitudes.
+   time grid at 4 Hz using linear interpolation.
+2. **PSD estimation**: one of two methods (see below) estimates the one-sided
+   power spectral density in ms²/Hz.
 3. **Band integration**: the power in each frequency band is obtained by
-   integrating (summing) the PSD over the band's frequency range.
+   integrating the PSD over the band's frequency range (trapezoidal rule).
+
+---
+
+## PSD Estimation Methods
+
+### Welch's Method (default: `method="welch"`)
+
+Welch's periodogram divides the interpolated signal into overlapping windows
+(default 256 samples), applies a Hann taper, computes the FFT per window, and
+averages the squared magnitudes.
+
+**When to use**:
+- Long resting recordings (≥ 5 min, ≥ 256 samples after interpolation).
+- When spectral leakage suppression is important.
+- Standard clinical HRV analysis (Task Force 1996 recommendation).
+
+**Limitation**: spectral resolution is limited by segment length. Short segments
+produce a coarse, noisy spectrum.
+
+### Autoregressive Method (`method="ar"`)
+
+The AR method fits a parametric model of order *p* (default *p* = 16) to the
+interpolated signal, then evaluates the theoretical PSD of the fitted model on
+a 256-point frequency grid.
+
+The model parameters are estimated by solving the **Yule-Walker equations**:
+
+$$\mathbf{R} \, \mathbf{a} = \mathbf{r}_{1:p}$$
+
+where **R** is the *p × p* Toeplitz autocorrelation matrix and **a** are the AR
+coefficients. The one-sided PSD is:
+
+$$P(f) = \frac{2\,\sigma^2}{f_s \, |A(f)|^2}, \quad
+A(f) = 1 - \sum_{k=1}^{p} a_k \, e^{-j2\pi f k / f_s}$$
+
+with σ² the residual noise variance.
+
+**When to use**:
+- **Short segments** (< 2 min) — the orthostatic *transition* window is
+  typically 20–60 s, where Welch's resolution degrades significantly.
+- When a smoother, higher-resolution spectrum is needed.
+- Set `method="ar"` on `orthostatic_hrv()` or `resting_hrv()`.
+
+**Limitation**: spectral quality depends on the AR order *p*. Too low an order
+under-smooths the spectrum; too high an order may fit noise. The default *p* = 16
+is the Task Force 1996 recommendation for HRV.
+
+#### API example
+
+```python
+from cardiolab.features.frequency_domain import frequency_domain
+
+# Welch (default)
+result = frequency_domain(rr)
+
+# AR, order 16 (Task Force default)
+result_ar = frequency_domain(rr, method="ar", order=16)
+
+# AR for a short segment
+result_ar = frequency_domain(short_rr, method="ar")
+```
+
+```python
+from cardiolab.protocols.resting import resting_hrv
+from cardiolab.protocols.orthostatic import orthostatic_hrv
+
+# Use AR for the whole resting session (short recording < 2 min)
+features = resting_hrv(rr, method="ar")
+
+# Use AR for all phases of the orthostatic protocol
+result = orthostatic_hrv(rr, method="ar")
+```
+
+### References
+
+> Task Force of ESC/NASPE (1996). Heart rate variability: Standards of
+> measurement, physiological interpretation and clinical use.
+> *Circulation*, **93**(5), 1043–1065.
+> https://doi.org/10.1161/01.CIR.93.5.1043
+
+> Marple, S. L. (1987). *Digital Spectral Analysis with Applications*.
+> Prentice-Hall.
+
+> Burg, J. P. (1975). *Maximum entropy spectral analysis* (Doctoral
+> dissertation). Stanford University.
 
 ---
 
@@ -170,12 +257,13 @@ HF/FC is particularly useful:
 
 ## Recording requirements for frequency-domain metrics
 
-| Metric | Minimum duration | Notes |
-|--------|-----------------|-------|
-| HF | 2 min | Reliable from short recordings |
-| LF | 4 min | Needs at least 2–3 full LF cycles (~25 s each) |
-| VLF | 5+ min | Very sensitive to recording length |
-| LF/HF | 5 min | Computed from LF and HF |
+| Metric | Minimum duration | Recommended method |
+|--------|-----------------|-------------------|
+| HF | 2 min | Welch or AR |
+| LF | 4 min | Welch or AR |
+| VLF | 5+ min | Welch only (very sensitive to N) |
+| LF/HF | 5 min | Welch or AR |
+| Transition HF/LF | 20–60 s | **AR** (Welch resolution insufficient) |
 
-For all metrics, **5 minutes is the recommended minimum**. Below 2 minutes,
-frequency-domain estimates should not be used for clinical decisions.
+For all metrics, **5 minutes is the recommended minimum** for Welch. The AR
+method is specifically recommended for segments shorter than 2 minutes.

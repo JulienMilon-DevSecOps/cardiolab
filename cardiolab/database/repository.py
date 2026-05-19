@@ -2,9 +2,9 @@
 
 Manages two protocol tables through a single class:
 
-* **Resting protocol** (``hrv_features``): one row per daily session, 16 HRV
+* **Resting protocol** (``hrv_features``): one row per daily session, 19 HRV
   indicators + metadata.
-* **Orthostatic protocol** (``hrv_orthostatic``): one row per test, all 12
+* **Orthostatic protocol** (``hrv_orthostatic``): one row per test, all 19
   HRV indicators stored three times (supine / transition / standing) with
   prefixed column names, plus transition timing and derived metrics.
 
@@ -20,6 +20,14 @@ Typical usage::
         repo.create_orthostatic_table()
         repo.save_orthostatic(result, user_id="alice", date="2026-05-15")
         records = repo.load_orthostatic(user_id="alice")
+
+Schema version note:
+    The addition of ``apen`` and ``sampen`` columns (v0.2) is a **breaking
+    schema change**. Existing tables must be dropped and recreated::
+
+        DROP TABLE hrv_features;
+        DROP TABLE hrv_orthostatic;
+        -- then call repo.create_table() / repo.create_orthostatic_table()
 
 """
 
@@ -82,6 +90,8 @@ _HRV_COLUMNS: dict[str, str] = {
     "sd2": "FLOAT",
     "sd_ratio": "FLOAT",
     "dfa_alpha1": "FLOAT",
+    "apen": "FLOAT",
+    "sampen": "FLOAT",
     "duration": "FLOAT",
     "score": "FLOAT",
 }
@@ -95,12 +105,13 @@ _DATA_COLUMNS: list[str] = [c for c in _HRV_COLUMNS if c not in ("user_id", "dat
 
 
 def _hrv_fields(prefix: str) -> dict[str, str]:
-    """Return the 12 HRV metric column definitions for a phase prefix.
+    """Return the 19 HRV metric column definitions for a phase prefix.
 
-    Covers the time-domain (RMSSD, SDNN, pNN50, mean HR), frequency-domain
-    (VLF, LF, HF, LF/HF, HF%, LF_nu, HF_nu, HF/FC) and non-linear (SD1, SD2,
-    SD1/SD2, DFA α1) indicators from ``HRVFeatures``, without the ``duration``
-    field (stored separately per phase).
+    Covers the time-domain (RMSSD, ln_RMSSD, SDNN, pNN50, mean HR),
+    frequency-domain (VLF, LF, HF, LF/HF, HF%, LF_nu, HF_nu, HF/FC) and
+    non-linear (SD1, SD2, SD1/SD2, DFA α1, ApEn, SampEn) indicators from
+    ``HRVFeatures``, without the ``duration`` field (stored separately per
+    phase).
 
     Args:
         prefix: Column name prefix, e.g. ``"supine"``, ``"standing"`` or
@@ -128,6 +139,8 @@ def _hrv_fields(prefix: str) -> dict[str, str]:
         f"{prefix}_sd2": "FLOAT",
         f"{prefix}_sd_ratio": "FLOAT",
         f"{prefix}_dfa_alpha1": "FLOAT",
+        f"{prefix}_apen": "FLOAT",
+        f"{prefix}_sampen": "FLOAT",
     }
 
 
@@ -225,11 +238,12 @@ def _features_from_row(
     date: str | None = None,
     duration: float = 0.0,
 ) -> HRVFeatures:
-    """Reconstruct an ``HRVFeatures`` from 17 consecutive row values.
+    """Reconstruct an ``HRVFeatures`` from 19 consecutive row values.
 
-    Reads ``row[offset]`` through ``row[offset + 16]`` in the order produced
+    Reads ``row[offset]`` through ``row[offset + 18]`` in the order produced
     by ``_hrv_fields()``: rmssd, ln_rmssd, sdnn, pnn50, mean_hr, vlf, lf, hf,
-    lf_hf, hf_pct, lf_nu, hf_nu, hf_hr, sd1, sd2, sd_ratio, dfa_alpha1.
+    lf_hf, hf_pct, lf_nu, hf_nu, hf_hr, sd1, sd2, sd_ratio, dfa_alpha1,
+    apen, sampen.
 
     Args:
         row: Full database row as a tuple.
@@ -260,6 +274,8 @@ def _features_from_row(
         sd2=row[offset + 14],
         sd_ratio=row[offset + 15],
         dfa_alpha1=row[offset + 16],
+        apen=row[offset + 17],
+        sampen=row[offset + 18],
         duration=duration,
     )
 
@@ -273,6 +289,14 @@ def _build_ortho_row(
 
     The tuple order matches ``["user_id", "date"] + _ORTHO_DATA_COLUMNS``
     exactly and must stay in sync with ``_ORTHO_COLUMNS``.
+
+    Column layout (70 data values after user_id + date):
+
+    * supine HRV (19) + supine_duration_sec (1)
+    * transition timing (5)
+    * transition HRV (19)
+    * standing HRV (19) + standing_duration_sec (1)
+    * derived metrics (5)
 
     Args:
         result: Protocol output from ``orthostatic_hrv()``.
@@ -291,7 +315,7 @@ def _build_ortho_row(
     return (
         user_id,
         date,
-        # supine HRV (17)
+        # supine HRV (19)
         sf.rmssd,
         sf.ln_rmssd,
         sf.sdnn,
@@ -309,6 +333,8 @@ def _build_ortho_row(
         sf.sd2,
         sf.sd_ratio,
         sf.dfa_alpha1,
+        sf.apen,
+        sf.sampen,
         # supine_duration_sec (1)
         p.supine.duration_sec,
         # transition timing (5)
@@ -317,7 +343,7 @@ def _build_ortho_row(
         p.transition.duration_sec,
         p.transition.delta_hr,
         p.transition.peak_hr,
-        # transition HRV (17)
+        # transition HRV (19)
         tf.rmssd,
         tf.ln_rmssd,
         tf.sdnn,
@@ -335,7 +361,9 @@ def _build_ortho_row(
         tf.sd2,
         tf.sd_ratio,
         tf.dfa_alpha1,
-        # standing HRV (17)
+        tf.apen,
+        tf.sampen,
+        # standing HRV (19)
         stf.rmssd,
         stf.ln_rmssd,
         stf.sdnn,
@@ -353,6 +381,8 @@ def _build_ortho_row(
         stf.sd2,
         stf.sd_ratio,
         stf.dfa_alpha1,
+        stf.apen,
+        stf.sampen,
         # standing_duration_sec (1)
         p.standing.duration_sec,
         # derived (5)
@@ -619,6 +649,8 @@ class HRVRepository:
                 f.sd2,
                 f.sd_ratio,
                 f.dfa_alpha1,
+                f.apen,
+                f.sampen,
                 f.duration,
                 f.score,
             )
@@ -651,7 +683,7 @@ class HRVRepository:
         query = sql.SQL(
             "SELECT date, rmssd, ln_rmssd, sdnn, pnn50, mean_hr,\n"
             "       vlf, lf, hf, lf_hf, hf_pct, lf_nu, hf_nu, hf_hr,\n"
-            "       sd1, sd2, sd_ratio, dfa_alpha1,\n"
+            "       sd1, sd2, sd_ratio, dfa_alpha1, apen, sampen,\n"
             "       duration, score\n"
             "FROM {table}\n"
             "WHERE user_id = %s\n"
@@ -682,8 +714,10 @@ class HRVRepository:
                 sd2=row[15],
                 sd_ratio=row[16],
                 dfa_alpha1=row[17],
-                duration=row[18],
-                score=row[19],
+                apen=row[18],
+                sampen=row[19],
+                duration=row[20],
+                score=row[21],
             )
             for row in rows
         ]
@@ -693,20 +727,19 @@ class HRVRepository:
     def create_orthostatic_table(self) -> None:
         """Create the orthostatic HRV table if it does not already exist.
 
-        The table stores all 12 HRV metrics for three phases (supine,
+        The table stores all 19 HRV metrics for three phases (supine,
         transition, standing) as prefixed columns, plus transition timing
         and derived metrics. A ``UNIQUE(user_id, date)`` constraint supports
         safe upserts.
 
-        Column layout (64 total):
+        Column layout (72 total data columns after user_id + date):
 
-        * ``user_id``, ``date``
-        * ``supine_*`` — 17 HRV metrics + ``supine_duration_sec``
+        * ``supine_*`` — 19 HRV metrics + ``supine_duration_sec``
         * ``transition_start_sec``, ``transition_end_sec``,
           ``transition_duration_sec``, ``transition_delta_hr``,
           ``transition_peak_hr``
-        * ``transition_*`` — 17 HRV metrics (short window, ≈ 20–60 s)
-        * ``standing_*`` — 17 HRV metrics + ``standing_duration_sec``
+        * ``transition_*`` — 19 HRV metrics (short window, ≈ 20–60 s)
+        * ``standing_*`` — 19 HRV metrics + ``standing_duration_sec``
         * ``hr_response``, ``lf_hf_ratio_change``, ``hf_response_pct``,
           ``hf_hr_pct_change``, ``interpretation``
 
@@ -789,6 +822,14 @@ class HRVRepository:
         column values so that ``record.supine.rmssd`` etc. work identically
         to the live protocol output.
 
+        Row index layout (date at [0], data columns from [1]):
+
+        * ``[1..19]``  — supine HRV (19)    ``[20]`` supine_duration_sec
+        * ``[21..25]`` — transition timing (5)
+        * ``[26..44]`` — transition HRV (19)
+        * ``[45..63]`` — standing HRV (19)  ``[64]`` standing_duration_sec
+        * ``[65..69]`` — derived metrics (5)
+
         Args:
             user_id: Identifier of the user whose sessions are retrieved.
 
@@ -820,30 +861,30 @@ class HRVRepository:
         for row in rows:
             date = str(row[0])
             # Row layout mirrors _ORTHO_DATA_COLUMNS — offsets start at 1 (skip date).
-            # [1..17]  supine HRV (17)    [18] supine_duration_sec
-            # [19..23] transition timing   [24..40] transition HRV (17)
-            # [41..57] standing HRV (17)  [58] standing_duration_sec
-            # [59..63] derived metrics (5)
+            # [1..19]  supine HRV (19)    [20] supine_duration_sec
+            # [21..25] transition timing   [26..44] transition HRV (19)
+            # [45..63] standing HRV (19)  [64] standing_duration_sec
+            # [65..69] derived metrics (5)
             records.append(
                 OrthostaticRecord(
                     date=date,
                     supine=_features_from_row(
-                        row, offset=1, date=date, duration=row[18]
+                        row, offset=1, date=date, duration=row[20]
                     ),
-                    transition_start_sec=row[19],
-                    transition_end_sec=row[20],
-                    transition_duration_sec=row[21],
-                    transition_delta_hr=row[22],
-                    transition_peak_hr=row[23],
-                    transition_features=_features_from_row(row, offset=24, date=date),
+                    transition_start_sec=row[21],
+                    transition_end_sec=row[22],
+                    transition_duration_sec=row[23],
+                    transition_delta_hr=row[24],
+                    transition_peak_hr=row[25],
+                    transition_features=_features_from_row(row, offset=26, date=date),
                     standing=_features_from_row(
-                        row, offset=41, date=date, duration=row[58]
+                        row, offset=45, date=date, duration=row[64]
                     ),
-                    hr_response=row[59],
-                    lf_hf_ratio_change=row[60],
-                    hf_response_pct=row[61],
-                    hf_hr_pct_change=row[62],
-                    interpretation=row[63],
+                    hr_response=row[65],
+                    lf_hf_ratio_change=row[66],
+                    hf_response_pct=row[67],
+                    hf_hr_pct_change=row[68],
+                    interpretation=row[69],
                 )
             )
 
