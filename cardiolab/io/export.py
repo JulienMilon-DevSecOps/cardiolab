@@ -14,6 +14,22 @@ orthostatic_to_csv
     Export an ``OrthostaticResult`` to a wide-format CSV file.
 orthostatic_to_json
     Export an ``OrthostaticResult`` to a nested JSON file.
+coherence_to_csv
+    Export one or more ``CoherenceResult`` sessions to a CSV file.
+coherence_to_json
+    Export one or more ``CoherenceResult`` sessions to a JSON file.
+hrr_to_csv
+    Export one or more ``HRRResult`` sessions to a CSV file.
+hrr_to_json
+    Export one or more ``HRRResult`` sessions to a JSON file.
+drift_to_csv
+    Export one or more ``DriftResult`` sessions to a CSV file.
+drift_to_json
+    Export one or more ``DriftResult`` sessions to a JSON file.
+vo2max_to_csv
+    Export one or more ``VO2maxResult`` sessions to a CSV file.
+vo2max_to_json
+    Export one or more ``VO2maxResult`` sessions to a JSON file.
 """
 
 from __future__ import annotations
@@ -25,8 +41,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from cardiolab.protocols.cardiac_coherence import CoherenceResult
+    from cardiolab.protocols.cardiac_drift import DriftResult
+    from cardiolab.protocols.hrr import HRRResult
     from cardiolab.protocols.orthostatic import OrthostaticResult
     from cardiolab.protocols.resting import HRVFeatures
+    from cardiolab.protocols.vo2max import VO2maxResult
 
 StrPath = str | Path
 
@@ -182,3 +202,199 @@ def orthostatic_to_csv(
 
     """
     _write_csv(path, [result.to_flat_dict()])
+
+
+# ======================
+# CARDIAC COHERENCE
+# ======================
+
+
+def _as_coherence_list(results) -> list:
+    from cardiolab.protocols.cardiac_coherence import CoherenceResult
+
+    if isinstance(results, CoherenceResult):
+        return [results]
+    return list(results)
+
+
+def coherence_to_csv(
+    results: CoherenceResult | list[CoherenceResult],
+    path: StrPath,
+) -> None:
+    """Export one or more ``CoherenceResult`` sessions to a CSV file.
+
+    Args:
+        results: A single ``CoherenceResult`` or an ordered list.
+        path: Destination file path. Created or overwritten.
+
+    Example::
+
+        from cardiolab.io import coherence_to_csv
+        coherence_to_csv(result, "coherence_2026-05-18.csv")
+
+    """
+    _write_csv(path, [r.to_dict() for r in _as_coherence_list(results)])
+
+
+def coherence_to_json(
+    results: CoherenceResult | list[CoherenceResult],
+    path: StrPath,
+    indent: int = 2,
+) -> None:
+    """Export one or more ``CoherenceResult`` sessions to a JSON file.
+
+    Args:
+        results: A single ``CoherenceResult`` or an ordered list.
+        path: Destination file path. Created or overwritten.
+        indent: JSON indentation level. Defaults to 2.
+
+    """
+    rows = [_sanitise_dict(r.to_dict()) for r in _as_coherence_list(results)]
+    Path(path).write_text(json.dumps(rows, indent=indent), encoding="utf-8")
+
+
+# ======================
+# HEART RATE RECOVERY
+# ======================
+
+
+def _as_hrr_list(results) -> list:
+    from cardiolab.protocols.hrr import HRRResult
+
+    if isinstance(results, HRRResult):
+        return [results]
+    return list(results)
+
+
+def hrr_to_csv(
+    results: HRRResult | list[HRRResult],
+    path: StrPath,
+) -> None:
+    """Export one or more ``HRRResult`` sessions to a CSV file.
+
+    Args:
+        results: A single ``HRRResult`` or an ordered list.
+        path: Destination file path. Created or overwritten.
+
+    Example::
+
+        from cardiolab.io import hrr_to_csv
+        hrr_to_csv(result, "hrr_2026-05-18.csv")
+
+    """
+    _write_csv(path, [r.to_dict() for r in _as_hrr_list(results)])
+
+
+def hrr_to_json(
+    results: HRRResult | list[HRRResult],
+    path: StrPath,
+    indent: int = 2,
+) -> None:
+    """Export one or more ``HRRResult`` sessions to a JSON file.
+
+    Args:
+        results: A single ``HRRResult`` or an ordered list.
+        path: Destination file path. Created or overwritten.
+        indent: JSON indentation level. Defaults to 2.
+
+    """
+    rows = [_sanitise_dict(r.to_dict()) for r in _as_hrr_list(results)]
+    Path(path).write_text(json.dumps(rows, indent=indent), encoding="utf-8")
+
+
+# ======================
+# CARDIAC DRIFT
+# ======================
+
+
+def _as_drift_list(results) -> list:
+    from cardiolab.protocols.cardiac_drift import DriftResult
+
+    if isinstance(results, DriftResult):
+        return [results]
+    return list(results)
+
+
+def drift_to_csv(
+    results: DriftResult | list[DriftResult],
+    path: StrPath,
+) -> None:
+    """Export one or more ``DriftResult`` sessions to a CSV file.
+
+    Args:
+        results: A single ``DriftResult`` or an ordered list.
+        path: Destination file path. Created or overwritten.
+
+    Example::
+
+        from cardiolab.io import drift_to_csv
+        drift_to_csv(result, "drift_2026-05-18.csv")
+
+    """
+    _write_csv(path, [r.to_dict() for r in _as_drift_list(results)])
+
+
+def drift_to_json(
+    results: DriftResult | list[DriftResult],
+    path: StrPath,
+    indent: int = 2,
+) -> None:
+    """Export one or more ``DriftResult`` sessions to a JSON file.
+
+    Args:
+        results: A single ``DriftResult`` or an ordered list.
+        path: Destination file path. Created or overwritten.
+        indent: JSON indentation level. Defaults to 2.
+
+    """
+    rows = [_sanitise_dict(r.to_dict()) for r in _as_drift_list(results)]
+    Path(path).write_text(json.dumps(rows, indent=indent), encoding="utf-8")
+
+
+# ======================
+# VO2MAX
+# ======================
+
+
+def _as_vo2max_list(results) -> list:
+    from cardiolab.protocols.vo2max import VO2maxResult
+
+    if isinstance(results, VO2maxResult):
+        return [results]
+    return list(results)
+
+
+def vo2max_to_csv(
+    results: VO2maxResult | list[VO2maxResult],
+    path: StrPath,
+) -> None:
+    """Export one or more ``VO2maxResult`` sessions to a CSV file.
+
+    Args:
+        results: A single ``VO2maxResult`` or an ordered list.
+        path: Destination file path. Created or overwritten.
+
+    Example::
+
+        from cardiolab.io import vo2max_to_csv
+        vo2max_to_csv(result, "vo2max_2026-05-18.csv")
+
+    """
+    _write_csv(path, [r.to_dict() for r in _as_vo2max_list(results)])
+
+
+def vo2max_to_json(
+    results: VO2maxResult | list[VO2maxResult],
+    path: StrPath,
+    indent: int = 2,
+) -> None:
+    """Export one or more ``VO2maxResult`` sessions to a JSON file.
+
+    Args:
+        results: A single ``VO2maxResult`` or an ordered list.
+        path: Destination file path. Created or overwritten.
+        indent: JSON indentation level. Defaults to 2.
+
+    """
+    rows = [_sanitise_dict(r.to_dict()) for r in _as_vo2max_list(results)]
+    Path(path).write_text(json.dumps(rows, indent=indent), encoding="utf-8")

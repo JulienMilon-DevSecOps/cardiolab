@@ -1,25 +1,39 @@
 """PostgreSQL repository for HRV feature storage and retrieval.
 
-Manages two protocol tables through a single class:
+Manages six protocol tables through a single class:
 
-* **Resting protocol** (``hrv_features``): one row per daily session, 19 HRV
-  indicators + metadata.
-* **Orthostatic protocol** (``hrv_orthostatic``): one row per test, all 19
-  HRV indicators stored three times (supine / transition / standing) with
-  prefixed column names, plus transition timing and derived metrics.
+* **Resting** (``hrv_features``): one row per session, 19 HRV indicators.
+* **Orthostatic** (``hrv_orthostatic``): one row per test, 19 HRV indicators
+  for three phases (supine / transition / standing).
+* **Cardiac coherence** (``hrv_coherence``): spectral coherence score from
+  paced-breathing sessions.
+* **Heart Rate Recovery** (``hrv_hrr``): HRR1 and HRR2 from post-exercise
+  recordings.
+* **Cardiac drift** (``hrv_drift``): progressive HR increase at constant load.
+* **VO2max estimation** (``hrv_vo2max``): RMSSD-based and HR-ratio VO2max
+  estimates.
 
 Typical usage::
 
     with HRVRepository.from_env() as repo:
-        # --- Resting ---
         repo.create_table()
         repo.save_features(features, user_id="alice")
         history = repo.load_features(user_id="alice")
 
-        # --- Orthostatic ---
         repo.create_orthostatic_table()
         repo.save_orthostatic(result, user_id="alice", date="2026-05-15")
-        records = repo.load_orthostatic(user_id="alice")
+
+        repo.create_coherence_table()
+        repo.save_coherence(coherence_result, user_id="alice", date="2026-05-15")
+
+        repo.create_hrr_table()
+        repo.save_hrr(hrr_result, user_id="alice", date="2026-05-15")
+
+        repo.create_drift_table()
+        repo.save_drift(drift_result, user_id="alice", date="2026-05-15")
+
+        repo.create_vo2max_table()
+        repo.save_vo2max(vo2max_result, user_id="alice", date="2026-05-15")
 
 Schema version note:
     The addition of ``apen`` and ``sampen`` columns (v0.2) is a **breaking
@@ -39,8 +53,12 @@ from dataclasses import dataclass
 
 from psycopg2 import connect, sql
 
+from cardiolab.protocols.cardiac_coherence import CoherenceResult
+from cardiolab.protocols.cardiac_drift import DriftResult
+from cardiolab.protocols.hrr import HRRResult
 from cardiolab.protocols.orthostatic import OrthostaticResult
 from cardiolab.protocols.resting import HRVFeatures
+from cardiolab.protocols.vo2max import VO2maxResult
 
 # ======================
 # VALIDATION
@@ -177,6 +195,95 @@ _ORTHO_COLUMNS: dict[str, str] = {
 
 _ORTHO_DATA_COLUMNS: list[str] = [
     c for c in _ORTHO_COLUMNS if c not in ("user_id", "date")
+]
+
+
+# ======================
+# COHERENCE — COLUMN REGISTRY
+# ======================
+
+_COHERENCE_COLUMNS: dict[str, str] = {
+    "user_id": "TEXT NOT NULL",
+    "date": "DATE NOT NULL",
+    "coherence_score": "FLOAT",
+    "resonance_freq": "FLOAT",
+    "peak_power": "FLOAT",
+    "total_power_resonance": "FLOAT",
+    "rmssd": "FLOAT",
+    "sdnn": "FLOAT",
+    "mean_hr": "FLOAT",
+    "duration": "FLOAT",
+}
+
+_COHERENCE_DATA_COLUMNS: list[str] = [
+    c for c in _COHERENCE_COLUMNS if c not in ("user_id", "date")
+]
+
+
+# ======================
+# HRR — COLUMN REGISTRY
+# ======================
+
+_HRR_COLUMNS: dict[str, str] = {
+    "user_id": "TEXT NOT NULL",
+    "date": "DATE NOT NULL",
+    "hr_peak": "FLOAT",
+    "hr_at_60s": "FLOAT",
+    "hr_at_120s": "FLOAT",
+    "hrr_60": "FLOAT",
+    "hrr_120": "FLOAT",
+    "hrr_60_category": "TEXT",
+    "hrr_120_category": "TEXT",
+    "duration": "FLOAT",
+}
+
+_HRR_DATA_COLUMNS: list[str] = [
+    c for c in _HRR_COLUMNS if c not in ("user_id", "date")
+]
+
+
+# ======================
+# DRIFT — COLUMN REGISTRY
+# ======================
+
+_DRIFT_COLUMNS: dict[str, str] = {
+    "user_id": "TEXT NOT NULL",
+    "date": "DATE NOT NULL",
+    "drift_rate": "FLOAT",
+    "drift_magnitude": "FLOAT",
+    "r_squared": "FLOAT",
+    "drift_detected": "BOOLEAN",
+    "initial_hr": "FLOAT",
+    "final_hr": "FLOAT",
+    "n_windows": "INTEGER",
+    "interpretation": "TEXT",
+    "duration": "FLOAT",
+}
+
+_DRIFT_DATA_COLUMNS: list[str] = [
+    c for c in _DRIFT_COLUMNS if c not in ("user_id", "date")
+]
+
+
+# ======================
+# VO2MAX — COLUMN REGISTRY
+# ======================
+
+_VO2MAX_COLUMNS: dict[str, str] = {
+    "user_id": "TEXT NOT NULL",
+    "date": "DATE NOT NULL",
+    "vo2max_uth": "FLOAT",
+    "vo2max_esco_flatt": "FLOAT",
+    "vo2max_ln_rmssd": "FLOAT",
+    "hr_rest": "FLOAT",
+    "hr_max": "FLOAT",
+    "rmssd_used": "FLOAT",
+    "ln_rmssd_used": "FLOAT",
+    "fitness_category": "TEXT",
+}
+
+_VO2MAX_DATA_COLUMNS: list[str] = [
+    c for c in _VO2MAX_COLUMNS if c not in ("user_id", "date")
 ]
 
 
@@ -446,11 +553,22 @@ class HRVRepository:
         password: str,
         table_name: str = "hrv_features",
         ortho_table_name: str = "hrv_orthostatic",
+        coherence_table_name: str = "hrv_coherence",
+        hrr_table_name: str = "hrv_hrr",
+        drift_table_name: str = "hrv_drift",
+        vo2max_table_name: str = "hrv_vo2max",
         port: int = 5432,
     ) -> None:
         """Store connection parameters and validate table names."""
-        _validate_identifier(table_name)
-        _validate_identifier(ortho_table_name)
+        for name in (
+            table_name,
+            ortho_table_name,
+            coherence_table_name,
+            hrr_table_name,
+            drift_table_name,
+            vo2max_table_name,
+        ):
+            _validate_identifier(name)
         self._dsn = {
             "host": host,
             "database": database,
@@ -460,6 +578,10 @@ class HRVRepository:
         }
         self.table_name = table_name
         self.ortho_table_name = ortho_table_name
+        self.coherence_table_name = coherence_table_name
+        self.hrr_table_name = hrr_table_name
+        self.drift_table_name = drift_table_name
+        self.vo2max_table_name = vo2max_table_name
         self._conn = None
 
     # ── Factory ──────────────────────────────────────────────────────────
@@ -469,6 +591,10 @@ class HRVRepository:
         cls,
         table_name: str = "hrv_features",
         ortho_table_name: str = "hrv_orthostatic",
+        coherence_table_name: str = "hrv_coherence",
+        hrr_table_name: str = "hrv_hrr",
+        drift_table_name: str = "hrv_drift",
+        vo2max_table_name: str = "hrv_vo2max",
     ) -> HRVRepository:
         """Build a repository from environment variables.
 
@@ -502,6 +628,10 @@ class HRVRepository:
             port=int(os.environ.get("DB_PORT", 5432)),
             table_name=table_name,
             ortho_table_name=ortho_table_name,
+            coherence_table_name=coherence_table_name,
+            hrr_table_name=hrr_table_name,
+            drift_table_name=drift_table_name,
+            vo2max_table_name=vo2max_table_name,
         )
 
     # ── Connection lifecycle ──────────────────────────────────────────────
@@ -902,3 +1032,454 @@ class HRVRepository:
             )
 
         return records
+
+    # ── Cardiac coherence — schema ────────────────────────────────────────
+
+    def create_coherence_table(self) -> None:
+        """Create the cardiac coherence session table if it does not exist.
+
+        Stores results from paced-breathing coherence sessions (5-5 protocol).
+        A ``UNIQUE(user_id, date)`` constraint supports safe upserts.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the SQL statement is rejected.
+
+        """
+        columns_sql = ",\n    ".join(f"{k} {v}" for k, v in _COHERENCE_COLUMNS.items())
+        query = sql.SQL(
+            "CREATE TABLE IF NOT EXISTS {table} (\n"
+            "    id SERIAL PRIMARY KEY,\n"
+            "    {columns},\n"
+            "    UNIQUE(user_id, date)\n"
+            ");"
+        ).format(
+            table=sql.Identifier(self.coherence_table_name),
+            columns=sql.SQL(columns_sql),
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query)
+
+    # ── Cardiac coherence — write ─────────────────────────────────────────
+
+    def save_coherence(
+        self,
+        result: CoherenceResult,
+        user_id: str,
+        date: str,
+    ) -> None:
+        """Insert or update one cardiac coherence session record.
+
+        Args:
+            result: Protocol output from ``cardiac_coherence()``.
+            user_id: User identifier.
+            date: ISO date string for the session.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the insert fails.
+
+        """
+        all_cols = ["user_id", "date"] + _COHERENCE_DATA_COLUMNS
+        col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
+        placeholders = sql.SQL(", ").join(sql.Placeholder() for _ in range(len(all_cols)))
+        update_set = sql.SQL(", ").join(
+            sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
+            for c in _COHERENCE_DATA_COLUMNS
+        )
+        query = sql.SQL(
+            "INSERT INTO {table} ({cols}) VALUES ({vals})\n"
+            "ON CONFLICT (user_id, date) DO UPDATE SET {update};"
+        ).format(
+            table=sql.Identifier(self.coherence_table_name),
+            cols=col_identifiers,
+            vals=placeholders,
+            update=update_set,
+        )
+        row = (
+            user_id, date,
+            result.coherence_score, result.resonance_freq, result.peak_power,
+            result.total_power_resonance, result.rmssd, result.sdnn,
+            result.mean_hr, result.duration,
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, row)
+
+    # ── Cardiac coherence — read ──────────────────────────────────────────
+
+    def load_coherence(self, user_id: str) -> list[CoherenceResult]:
+        """Load all cardiac coherence session records for a user.
+
+        Args:
+            user_id: Identifier of the user whose sessions are retrieved.
+
+        Returns:
+            List of ``CoherenceResult`` sorted by ascending date.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        select_cols = sql.SQL(", ").join(
+            sql.Identifier(c) for c in ["date"] + _COHERENCE_DATA_COLUMNS
+        )
+        query = sql.SQL(
+            "SELECT {cols}\nFROM {table}\nWHERE user_id = %s\nORDER BY date ASC;"
+        ).format(cols=select_cols, table=sql.Identifier(self.coherence_table_name))
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (user_id,))
+            rows = cur.fetchall()
+        return [
+            CoherenceResult(
+                date=str(row[0]),
+                coherence_score=row[1],
+                resonance_freq=row[2],
+                peak_power=row[3],
+                total_power_resonance=row[4],
+                rmssd=row[5],
+                sdnn=row[6],
+                mean_hr=row[7],
+                duration=row[8],
+            )
+            for row in rows
+        ]
+
+    # ── Heart Rate Recovery — schema ──────────────────────────────────────
+
+    def create_hrr_table(self) -> None:
+        """Create the Heart Rate Recovery session table if it does not exist.
+
+        Stores HRR1 and HRR2 values from post-exercise recordings.
+        A ``UNIQUE(user_id, date)`` constraint supports safe upserts.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the SQL statement is rejected.
+
+        """
+        columns_sql = ",\n    ".join(f"{k} {v}" for k, v in _HRR_COLUMNS.items())
+        query = sql.SQL(
+            "CREATE TABLE IF NOT EXISTS {table} (\n"
+            "    id SERIAL PRIMARY KEY,\n"
+            "    {columns},\n"
+            "    UNIQUE(user_id, date)\n"
+            ");"
+        ).format(
+            table=sql.Identifier(self.hrr_table_name),
+            columns=sql.SQL(columns_sql),
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query)
+
+    # ── Heart Rate Recovery — write ───────────────────────────────────────
+
+    def save_hrr(
+        self,
+        result: HRRResult,
+        user_id: str,
+        date: str,
+    ) -> None:
+        """Insert or update one Heart Rate Recovery session record.
+
+        Args:
+            result: Protocol output from ``heart_rate_recovery()``.
+            user_id: User identifier.
+            date: ISO date string for the session.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the insert fails.
+
+        """
+        all_cols = ["user_id", "date"] + _HRR_DATA_COLUMNS
+        col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
+        placeholders = sql.SQL(", ").join(sql.Placeholder() for _ in range(len(all_cols)))
+        update_set = sql.SQL(", ").join(
+            sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
+            for c in _HRR_DATA_COLUMNS
+        )
+        query = sql.SQL(
+            "INSERT INTO {table} ({cols}) VALUES ({vals})\n"
+            "ON CONFLICT (user_id, date) DO UPDATE SET {update};"
+        ).format(
+            table=sql.Identifier(self.hrr_table_name),
+            cols=col_identifiers,
+            vals=placeholders,
+            update=update_set,
+        )
+        row = (
+            user_id, date,
+            result.hr_peak, result.hr_at_60s, result.hr_at_120s,
+            result.hrr_60, result.hrr_120,
+            result.hrr_60_category, result.hrr_120_category,
+            result.duration,
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, row)
+
+    # ── Heart Rate Recovery — read ────────────────────────────────────────
+
+    def load_hrr(self, user_id: str) -> list[HRRResult]:
+        """Load all Heart Rate Recovery session records for a user.
+
+        Args:
+            user_id: Identifier of the user whose sessions are retrieved.
+
+        Returns:
+            List of ``HRRResult`` sorted by ascending date.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        select_cols = sql.SQL(", ").join(
+            sql.Identifier(c) for c in ["date"] + _HRR_DATA_COLUMNS
+        )
+        query = sql.SQL(
+            "SELECT {cols}\nFROM {table}\nWHERE user_id = %s\nORDER BY date ASC;"
+        ).format(cols=select_cols, table=sql.Identifier(self.hrr_table_name))
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (user_id,))
+            rows = cur.fetchall()
+        return [
+            HRRResult(
+                date=str(row[0]),
+                hr_peak=row[1],
+                hr_at_60s=row[2],
+                hr_at_120s=row[3] if row[3] is not None else float("nan"),
+                hrr_60=row[4],
+                hrr_120=row[5] if row[5] is not None else float("nan"),
+                hrr_60_category=row[6] or "",
+                hrr_120_category=row[7] or "",
+                duration=row[8],
+            )
+            for row in rows
+        ]
+
+    # ── Cardiac drift — schema ────────────────────────────────────────────
+
+    def create_drift_table(self) -> None:
+        """Create the cardiac drift session table if it does not exist.
+
+        Stores progressive HR drift analysis from constant-load exercise.
+        A ``UNIQUE(user_id, date)`` constraint supports safe upserts.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the SQL statement is rejected.
+
+        """
+        columns_sql = ",\n    ".join(f"{k} {v}" for k, v in _DRIFT_COLUMNS.items())
+        query = sql.SQL(
+            "CREATE TABLE IF NOT EXISTS {table} (\n"
+            "    id SERIAL PRIMARY KEY,\n"
+            "    {columns},\n"
+            "    UNIQUE(user_id, date)\n"
+            ");"
+        ).format(
+            table=sql.Identifier(self.drift_table_name),
+            columns=sql.SQL(columns_sql),
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query)
+
+    # ── Cardiac drift — write ─────────────────────────────────────────────
+
+    def save_drift(
+        self,
+        result: DriftResult,
+        user_id: str,
+        date: str,
+    ) -> None:
+        """Insert or update one cardiac drift session record.
+
+        Args:
+            result: Protocol output from ``cardiac_drift()``.
+            user_id: User identifier.
+            date: ISO date string for the session.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the insert fails.
+
+        """
+        all_cols = ["user_id", "date"] + _DRIFT_DATA_COLUMNS
+        col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
+        placeholders = sql.SQL(", ").join(sql.Placeholder() for _ in range(len(all_cols)))
+        update_set = sql.SQL(", ").join(
+            sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
+            for c in _DRIFT_DATA_COLUMNS
+        )
+        query = sql.SQL(
+            "INSERT INTO {table} ({cols}) VALUES ({vals})\n"
+            "ON CONFLICT (user_id, date) DO UPDATE SET {update};"
+        ).format(
+            table=sql.Identifier(self.drift_table_name),
+            cols=col_identifiers,
+            vals=placeholders,
+            update=update_set,
+        )
+        row = (
+            user_id, date,
+            result.drift_rate, result.drift_magnitude, result.r_squared,
+            result.drift_detected, result.initial_hr, result.final_hr,
+            result.n_windows, result.interpretation, result.duration,
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, row)
+
+    # ── Cardiac drift — read ──────────────────────────────────────────────
+
+    def load_drift(self, user_id: str) -> list[DriftResult]:
+        """Load all cardiac drift session records for a user.
+
+        Args:
+            user_id: Identifier of the user whose sessions are retrieved.
+
+        Returns:
+            List of ``DriftResult`` sorted by ascending date.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        select_cols = sql.SQL(", ").join(
+            sql.Identifier(c) for c in ["date"] + _DRIFT_DATA_COLUMNS
+        )
+        query = sql.SQL(
+            "SELECT {cols}\nFROM {table}\nWHERE user_id = %s\nORDER BY date ASC;"
+        ).format(cols=select_cols, table=sql.Identifier(self.drift_table_name))
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (user_id,))
+            rows = cur.fetchall()
+        return [
+            DriftResult(
+                date=str(row[0]),
+                drift_rate=row[1],
+                drift_magnitude=row[2],
+                r_squared=row[3],
+                drift_detected=bool(row[4]),
+                initial_hr=row[5],
+                final_hr=row[6],
+                n_windows=int(row[7]),
+                interpretation=row[8] or "no_drift",
+                duration=row[9],
+            )
+            for row in rows
+        ]
+
+    # ── VO2max — schema ───────────────────────────────────────────────────
+
+    def create_vo2max_table(self) -> None:
+        """Create the VO2max estimation session table if it does not exist.
+
+        Stores VO2max estimates from HRV-based models (Uth, Esco-Flatt,
+        ln-RMSSD). A ``UNIQUE(user_id, date)`` constraint supports safe upserts.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the SQL statement is rejected.
+
+        """
+        columns_sql = ",\n    ".join(f"{k} {v}" for k, v in _VO2MAX_COLUMNS.items())
+        query = sql.SQL(
+            "CREATE TABLE IF NOT EXISTS {table} (\n"
+            "    id SERIAL PRIMARY KEY,\n"
+            "    {columns},\n"
+            "    UNIQUE(user_id, date)\n"
+            ");"
+        ).format(
+            table=sql.Identifier(self.vo2max_table_name),
+            columns=sql.SQL(columns_sql),
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query)
+
+    # ── VO2max — write ────────────────────────────────────────────────────
+
+    def save_vo2max(
+        self,
+        result: VO2maxResult,
+        user_id: str,
+        date: str,
+    ) -> None:
+        """Insert or update one VO2max estimation session record.
+
+        Args:
+            result: Protocol output from ``vo2max_from_hrv()``.
+            user_id: User identifier.
+            date: ISO date string for the session.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the insert fails.
+
+        """
+        all_cols = ["user_id", "date"] + _VO2MAX_DATA_COLUMNS
+        col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
+        placeholders = sql.SQL(", ").join(sql.Placeholder() for _ in range(len(all_cols)))
+        update_set = sql.SQL(", ").join(
+            sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
+            for c in _VO2MAX_DATA_COLUMNS
+        )
+        query = sql.SQL(
+            "INSERT INTO {table} ({cols}) VALUES ({vals})\n"
+            "ON CONFLICT (user_id, date) DO UPDATE SET {update};"
+        ).format(
+            table=sql.Identifier(self.vo2max_table_name),
+            cols=col_identifiers,
+            vals=placeholders,
+            update=update_set,
+        )
+        row = (
+            user_id, date,
+            result.vo2max_uth, result.vo2max_esco_flatt, result.vo2max_ln_rmssd,
+            result.hr_rest, result.hr_max,
+            result.rmssd_used, result.ln_rmssd_used,
+            result.fitness_category,
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, row)
+
+    # ── VO2max — read ─────────────────────────────────────────────────────
+
+    def load_vo2max(self, user_id: str) -> list[VO2maxResult]:
+        """Load all VO2max estimation session records for a user.
+
+        Args:
+            user_id: Identifier of the user whose sessions are retrieved.
+
+        Returns:
+            List of ``VO2maxResult`` sorted by ascending date.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        select_cols = sql.SQL(", ").join(
+            sql.Identifier(c) for c in ["date"] + _VO2MAX_DATA_COLUMNS
+        )
+        query = sql.SQL(
+            "SELECT {cols}\nFROM {table}\nWHERE user_id = %s\nORDER BY date ASC;"
+        ).format(cols=select_cols, table=sql.Identifier(self.vo2max_table_name))
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (user_id,))
+            rows = cur.fetchall()
+        return [
+            VO2maxResult(
+                date=str(row[0]),
+                vo2max_uth=row[1] if row[1] is not None else float("nan"),
+                vo2max_esco_flatt=row[2],
+                vo2max_ln_rmssd=row[3],
+                hr_rest=row[4],
+                hr_max=row[5] if row[5] is not None else float("nan"),
+                rmssd_used=row[6],
+                ln_rmssd_used=row[7],
+                fitness_category=row[8] or "poor",
+            )
+            for row in rows
+        ]
