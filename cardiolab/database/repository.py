@@ -237,9 +237,7 @@ _HRR_COLUMNS: dict[str, str] = {
     "duration": "FLOAT",
 }
 
-_HRR_DATA_COLUMNS: list[str] = [
-    c for c in _HRR_COLUMNS if c not in ("user_id", "date")
-]
+_HRR_DATA_COLUMNS: list[str] = [c for c in _HRR_COLUMNS if c not in ("user_id", "date")]
 
 
 # ======================
@@ -612,6 +610,14 @@ class HRVRepository:
                 ``"hrv_features"``.
             ortho_table_name: Orthostatic HRV table name. Defaults to
                 ``"hrv_orthostatic"``.
+            coherence_table_name: Cardiac coherence table name. Defaults to
+                ``"hrv_coherence"``.
+            hrr_table_name: Heart Rate Recovery table name. Defaults to
+                ``"hrv_hrr"``.
+            drift_table_name: Cardiac drift table name. Defaults to
+                ``"hrv_drift"``.
+            vo2max_table_name: VO2max estimation table name. Defaults to
+                ``"hrv_vo2max"``.
 
         Returns:
             A configured ``HRVRepository`` instance (not yet connected).
@@ -1082,7 +1088,9 @@ class HRVRepository:
         """
         all_cols = ["user_id", "date"] + _COHERENCE_DATA_COLUMNS
         col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
-        placeholders = sql.SQL(", ").join(sql.Placeholder() for _ in range(len(all_cols)))
+        placeholders = sql.SQL(", ").join(
+            sql.Placeholder() for _ in range(len(all_cols))
+        )
         update_set = sql.SQL(", ").join(
             sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
             for c in _COHERENCE_DATA_COLUMNS
@@ -1097,10 +1105,16 @@ class HRVRepository:
             update=update_set,
         )
         row = (
-            user_id, date,
-            result.coherence_score, result.resonance_freq, result.peak_power,
-            result.total_power_resonance, result.rmssd, result.sdnn,
-            result.mean_hr, result.duration,
+            user_id,
+            date,
+            result.coherence_score,
+            result.resonance_freq,
+            result.peak_power,
+            result.total_power_resonance,
+            result.rmssd,
+            result.sdnn,
+            result.mean_hr,
+            result.duration,
         )
         with self._conn_or_raise().cursor() as cur:
             cur.execute(query, row)
@@ -1194,7 +1208,9 @@ class HRVRepository:
         """
         all_cols = ["user_id", "date"] + _HRR_DATA_COLUMNS
         col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
-        placeholders = sql.SQL(", ").join(sql.Placeholder() for _ in range(len(all_cols)))
+        placeholders = sql.SQL(", ").join(
+            sql.Placeholder() for _ in range(len(all_cols))
+        )
         update_set = sql.SQL(", ").join(
             sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
             for c in _HRR_DATA_COLUMNS
@@ -1209,10 +1225,15 @@ class HRVRepository:
             update=update_set,
         )
         row = (
-            user_id, date,
-            result.hr_peak, result.hr_at_60s, result.hr_at_120s,
-            result.hrr_60, result.hrr_120,
-            result.hrr_60_category, result.hrr_120_category,
+            user_id,
+            date,
+            result.hr_peak,
+            result.hr_at_60s,
+            result.hr_at_120s,
+            result.hrr_60,
+            result.hrr_120,
+            result.hrr_60_category,
+            result.hrr_120_category,
             result.duration,
         )
         with self._conn_or_raise().cursor() as cur:
@@ -1307,7 +1328,9 @@ class HRVRepository:
         """
         all_cols = ["user_id", "date"] + _DRIFT_DATA_COLUMNS
         col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
-        placeholders = sql.SQL(", ").join(sql.Placeholder() for _ in range(len(all_cols)))
+        placeholders = sql.SQL(", ").join(
+            sql.Placeholder() for _ in range(len(all_cols))
+        )
         update_set = sql.SQL(", ").join(
             sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
             for c in _DRIFT_DATA_COLUMNS
@@ -1322,10 +1345,17 @@ class HRVRepository:
             update=update_set,
         )
         row = (
-            user_id, date,
-            result.drift_rate, result.drift_magnitude, result.r_squared,
-            result.drift_detected, result.initial_hr, result.final_hr,
-            result.n_windows, result.interpretation, result.duration,
+            user_id,
+            date,
+            result.drift_rate,
+            result.drift_magnitude,
+            result.r_squared,
+            result.drift_detected,
+            result.initial_hr,
+            result.final_hr,
+            result.n_windows,
+            result.interpretation,
+            result.duration,
         )
         with self._conn_or_raise().cursor() as cur:
             cur.execute(query, row)
@@ -1420,7 +1450,9 @@ class HRVRepository:
         """
         all_cols = ["user_id", "date"] + _VO2MAX_DATA_COLUMNS
         col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
-        placeholders = sql.SQL(", ").join(sql.Placeholder() for _ in range(len(all_cols)))
+        placeholders = sql.SQL(", ").join(
+            sql.Placeholder() for _ in range(len(all_cols))
+        )
         update_set = sql.SQL(", ").join(
             sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
             for c in _VO2MAX_DATA_COLUMNS
@@ -1435,10 +1467,15 @@ class HRVRepository:
             update=update_set,
         )
         row = (
-            user_id, date,
-            result.vo2max_uth, result.vo2max_esco_flatt, result.vo2max_ln_rmssd,
-            result.hr_rest, result.hr_max,
-            result.rmssd_used, result.ln_rmssd_used,
+            user_id,
+            date,
+            result.vo2max_uth,
+            result.vo2max_esco_flatt,
+            result.vo2max_ln_rmssd,
+            result.hr_rest,
+            result.hr_max,
+            result.rmssd_used,
+            result.ln_rmssd_used,
             result.fitness_category,
         )
         with self._conn_or_raise().cursor() as cur:

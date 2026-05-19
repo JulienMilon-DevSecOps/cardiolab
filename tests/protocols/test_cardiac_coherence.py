@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import math
-
 import numpy as np
 import pytest
 
 from cardiolab.protocols.cardiac_coherence import CoherenceResult, cardiac_coherence
 from cardiolab.signals.rr import RRSeries
-
 
 # ======================
 # FIXTURES
@@ -21,7 +18,9 @@ def _make_rr(n: int = 150, mean_ms: float = 857, std_ms: float = 30) -> RRSeries
     return RRSeries(rng.normal(mean_ms, std_ms, n).clip(300, 1800))
 
 
-def _make_sinusoidal_rr(n: int = 240, f_breath: float = 0.1, fs_rr: float = 1.0) -> RRSeries:
+def _make_sinusoidal_rr(
+    n: int = 240, f_breath: float = 0.1, fs_rr: float = 1.0
+) -> RRSeries:
     """Simulate paced-breathing RR series with a dominant 0.1 Hz oscillation."""
     rng = np.random.default_rng(0)
     t = np.arange(n) / fs_rr
@@ -35,7 +34,10 @@ def _make_sinusoidal_rr(n: int = 240, f_breath: float = 0.1, fs_rr: float = 1.0)
 
 
 class TestCoherenceResult:
+    """Tests for the CoherenceResult dataclass."""
+
     def test_default_values(self):
+        """All fields initialise to their documented zero/None defaults."""
         r = CoherenceResult()
         assert r.date is None
         assert r.coherence_score == 0.0
@@ -48,15 +50,24 @@ class TestCoherenceResult:
         assert r.duration == 0.0
 
     def test_to_dict_keys(self):
+        """to_dict returns exactly the expected set of keys."""
         r = CoherenceResult(date="2026-05-19", coherence_score=75.0)
         d = r.to_dict()
         expected = {
-            "date", "coherence_score", "resonance_freq", "peak_power",
-            "total_power_resonance", "rmssd", "sdnn", "mean_hr", "duration",
+            "date",
+            "coherence_score",
+            "resonance_freq",
+            "peak_power",
+            "total_power_resonance",
+            "rmssd",
+            "sdnn",
+            "mean_hr",
+            "duration",
         }
         assert set(d.keys()) == expected
 
     def test_to_dict_values_match(self):
+        """to_dict values match the fields set at construction."""
         r = CoherenceResult(coherence_score=65.0, resonance_freq=0.1, mean_hr=70.0)
         d = r.to_dict()
         assert d["coherence_score"] == 65.0
@@ -70,38 +81,47 @@ class TestCoherenceResult:
 
 
 class TestCardiacCoherence:
+    """Tests for the cardiac_coherence() function."""
+
     def test_raises_on_too_few_intervals(self):
+        """Fewer than 30 RR intervals raises ValueError."""
         rr = RRSeries(np.array([850.0] * 10))
         with pytest.raises(ValueError, match="Too few"):
             cardiac_coherence(rr)
 
     def test_returns_coherence_result(self):
+        """Function returns a CoherenceResult instance."""
         rr = _make_rr(150)
         result = cardiac_coherence(rr)
         assert isinstance(result, CoherenceResult)
 
     def test_coherence_score_in_range(self):
+        """Coherence score lies in [0, 100]."""
         rr = _make_rr(150)
         result = cardiac_coherence(rr)
         assert 0.0 <= result.coherence_score <= 100.0
 
     def test_duration_positive(self):
+        """Duration is positive for a valid recording."""
         rr = _make_rr(150)
         result = cardiac_coherence(rr)
         assert result.duration > 0.0
 
     def test_mean_hr_positive(self):
+        """Mean HR is positive for a valid recording."""
         rr = _make_rr(150)
         result = cardiac_coherence(rr)
         assert result.mean_hr > 0.0
 
     def test_rmssd_sdnn_positive(self):
+        """RMSSD and SDNN are both positive for a variable RR series."""
         rr = _make_rr(150)
         result = cardiac_coherence(rr)
         assert result.rmssd > 0.0
         assert result.sdnn > 0.0
 
     def test_resonance_freq_in_band(self):
+        """Resonance frequency falls within the requested band when detected."""
         rr = _make_rr(200)
         result = cardiac_coherence(rr, resonance_low=0.04, resonance_high=0.26)
         if result.resonance_freq > 0.0:
@@ -118,16 +138,19 @@ class TestCardiacCoherence:
         assert result.resonance_freq > 0.0
 
     def test_peak_power_non_negative(self):
+        """Peak power is non-negative."""
         rr = _make_rr(150)
         result = cardiac_coherence(rr)
         assert result.peak_power >= 0.0
 
     def test_total_power_resonance_non_negative(self):
+        """Total power in the resonance band is non-negative."""
         rr = _make_rr(150)
         result = cardiac_coherence(rr)
         assert result.total_power_resonance >= 0.0
 
     def test_custom_resonance_band(self):
+        """Custom resonance band parameters are accepted without error."""
         rr = _make_rr(150)
         result = cardiac_coherence(rr, resonance_low=0.06, resonance_high=0.20)
         assert isinstance(result, CoherenceResult)
@@ -147,11 +170,13 @@ class TestCardiacCoherence:
         assert result.coherence_score == 0.0
 
     def test_29_intervals_raises(self):
+        """29 intervals raises ValueError."""
         rr = RRSeries(np.full(29, 857.0))
         with pytest.raises(ValueError):
             cardiac_coherence(rr)
 
     def test_to_dict_round_trip(self):
+        """All numeric values in to_dict are float or None."""
         rr = _make_rr(150)
         result = cardiac_coherence(rr)
         d = result.to_dict()
