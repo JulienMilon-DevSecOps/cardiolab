@@ -496,7 +496,12 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] RMSSD and readiness score evolution over time (`plot_resting_evolution`)
 * [x] RMSSD evolution with rolling-median overlay (`plot_resting_evolution_rolling`)
 * [x] Chart reading guide (`docs/visualization/reading_charts.md`)
-* [ ] Spectral analysis plot — Welch PSD with LF / HF / VLF colour bands
+* [x] Welch PSD with VLF/LF/HF coloured bands (`plot_psd_welch`)
+* [x] AR vs Welch PSD overlay (`plot_psd_comparison`)
+* [x] LF/HF balance grouped bars + ratio line (`plot_lf_hf_evolution`)
+* [x] HRV radar chart — 5 normalised metrics (`plot_hrv_radar`)
+* [x] Sessions × frequency bands heatmap (`plot_spectral_heatmap`)
+* [x] Spectral chart reading guide (`docs/visualization/reading_spectral_charts.md`)
 * [ ] Poincaré plot — SD1 / SD2 scatter with ellipse overlay
 * [ ] DFA α1 fluctuation plot — log-log scale with α1 regression line
 * [ ] Per-protocol evolution charts (cardiac coherence score, HRR, drift rate, VO2max)
