@@ -9,6 +9,25 @@ import numpy as np
 from cardiolab.protocols.resting import HRVFeatures, resting_hrv
 from cardiolab.signals.rr import RRSeries
 
+# ── Physiological reference thresholds ───────────────────────────────────────
+# Sources: Task Force ESC/NASPE 1996; Brignole et al. 2018 ESC syncope
+# guidelines; Sheldon et al. 2015 POTS consensus statement.
+
+_MIN_BEATS_FOR_STABILITY = 5
+"""Consecutive beats above a threshold required to declare sustained HR onset or stabilisation."""
+
+_MIN_INTERVALS_FOR_HRV = 2
+"""Minimum RR intervals required for any HRV computation on a segment."""
+
+_HR_POTS_THRESHOLD_BPM = 30
+"""HR rise (bpm) above which the response is classified as elevated (POTS criterion)."""
+
+_HR_IMPAIRED_THRESHOLD_BPM = 5
+"""HR rise (bpm) below which the response is classified as impaired autonomic response."""
+
+_HF_WITHDRAWAL_THRESHOLD_PCT = -60
+"""HF power drop (%) beyond which excessive vagal withdrawal is declared."""
+
 
 @dataclass
 class PhaseSegment:
@@ -384,7 +403,7 @@ def detect_phases(
 
     transition_threshold = supine_baseline_hr + hr_threshold
     transition_start_idx = _find_sustained_onset(
-        rolling_hr, transition_threshold, min_beats=5
+        rolling_hr, transition_threshold, min_beats=_MIN_BEATS_FOR_STABILITY
     )
 
     if transition_start_idx is None:
@@ -498,7 +517,7 @@ def _compute_rolling_mean_hr(
 def _find_sustained_onset(
     rolling_hr: np.ndarray,
     threshold: float,
-    min_beats: int = 5,
+    min_beats: int = _MIN_BEATS_FOR_STABILITY,
 ) -> int | None:
     """Return the index of the first sustained rise above ``threshold``.
 
@@ -572,7 +591,7 @@ def _find_stabilization(
         ahead_mask = (cumtime >= cumtime[i]) & (cumtime <= end_time)
         ahead_hr = hr[ahead_mask]
 
-        if len(ahead_hr) >= 5 and float(np.std(ahead_hr)) < std_threshold:  # noqa: PLR2004
+        if len(ahead_hr) >= _MIN_BEATS_FOR_STABILITY and float(np.std(ahead_hr)) < std_threshold:
             return i
 
     return start_idx + (n - start_idx) // 2
@@ -604,7 +623,7 @@ def _extract_segment(
     seg_intervals = rr.intervals[start_idx:end_idx]
     seg_timestamps = cumtime[start_idx:end_idx]
 
-    if len(seg_intervals) < 2:  # noqa: PLR2004
+    if len(seg_intervals) < _MIN_INTERVALS_FOR_HRV:
         raise ValueError(
             f"Segment [{start_idx}:{end_idx}] contains {len(seg_intervals)} "
             "interval(s); at least 2 are required for HRV computation."
@@ -639,10 +658,10 @@ def _interpret_response(hr_response: float, hf_response_pct: float) -> str:
         or ``"excessive_vagal_withdrawal"``.
 
     """
-    if hr_response > 30:  # noqa: PLR2004
+    if hr_response > _HR_POTS_THRESHOLD_BPM:
         return "elevated_response"
-    if hr_response < 5:  # noqa: PLR2004
+    if hr_response < _HR_IMPAIRED_THRESHOLD_BPM:
         return "impaired_response"
-    if not np.isnan(hf_response_pct) and hf_response_pct < -60:  # noqa: PLR2004
+    if not np.isnan(hf_response_pct) and hf_response_pct < _HF_WITHDRAWAL_THRESHOLD_PCT:
         return "excessive_vagal_withdrawal"
     return "normal"
