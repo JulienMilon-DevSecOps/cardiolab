@@ -32,6 +32,26 @@ _PROTOCOL_DIRS: dict[str, tuple[str, str, str]] = {
         "cardiolab/datasets/orthostatic",
         "orthostatic",
     ),
+    "cardiac_coherence": (
+        str(_BASE_RAW / "cardiac_coherence"),
+        "cardiolab/datasets/cardiac_coherence",
+        "supine",
+    ),
+    "hrr": (
+        str(_BASE_RAW / "hrr"),
+        "cardiolab/datasets/hrr",
+        "post_exercise",
+    ),
+    "cardiac_drift": (
+        str(_BASE_RAW / "cardiac_drift"),
+        "cardiolab/datasets/cardiac_drift",
+        "exercise",
+    ),
+    "vo2max": (
+        str(_BASE_RAW / "vo2max"),
+        "cardiolab/datasets/vo2max",
+        "supine",
+    ),
 }
 
 
