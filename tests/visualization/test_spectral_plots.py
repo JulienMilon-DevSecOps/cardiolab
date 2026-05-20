@@ -100,9 +100,15 @@ def features_nan_dfa() -> HRVFeatures:
 def features_list() -> list[HRVFeatures]:
     """Three HRVFeatures instances for multi-session tests."""
     return [
-        _make_features(rmssd=45.0, lf_nu=0.55, hf_nu=0.45, lf_hf=1.22, date="2026-05-18"),
-        _make_features(rmssd=60.0, lf_nu=0.42, hf_nu=0.58, lf_hf=0.72, date="2026-05-19"),
-        _make_features(rmssd=72.0, lf_nu=0.38, hf_nu=0.62, lf_hf=0.61, date="2026-05-20"),
+        _make_features(
+            rmssd=45.0, lf_nu=0.55, hf_nu=0.45, lf_hf=1.22, date="2026-05-18"
+        ),
+        _make_features(
+            rmssd=60.0, lf_nu=0.42, hf_nu=0.58, lf_hf=0.72, date="2026-05-19"
+        ),
+        _make_features(
+            rmssd=72.0, lf_nu=0.38, hf_nu=0.62, lf_hf=0.61, date="2026-05-20"
+        ),
     ]
 
 

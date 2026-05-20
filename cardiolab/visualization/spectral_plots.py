@@ -111,8 +111,8 @@ def _annotate_powers(ax: plt.Axes, powers: dict[str, float]) -> None:
     """Add a text box with band power values."""
     lines = [
         f"VLF: {powers.get('VLF', 0):.0f} ms²",
-        f"LF:  {powers.get('LF',  0):.0f} ms²",
-        f"HF:  {powers.get('HF',  0):.0f} ms²",
+        f"LF:  {powers.get('LF', 0):.0f} ms²",
+        f"HF:  {powers.get('HF', 0):.0f} ms²",
     ]
     ax.text(
         0.97,
@@ -510,15 +510,9 @@ def plot_hrv_radar(
     ax.fill(angles, [1.0] * len(angles), color=_GRAY, alpha=0.06)
 
     # Data polygon
-    ax.plot(
-        angles, norm_values_closed, color=_LF_COLOR, linewidth=2.0, zorder=4
-    )
-    ax.fill(
-        angles, norm_values_closed, color=_LF_COLOR, alpha=0.20
-    )
-    ax.scatter(
-        angles[:-1], norm_values, color=_LF_COLOR, s=50, zorder=5
-    )
+    ax.plot(angles, norm_values_closed, color=_LF_COLOR, linewidth=2.0, zorder=4)
+    ax.fill(angles, norm_values_closed, color=_LF_COLOR, alpha=0.20)
+    ax.scatter(angles[:-1], norm_values, color=_LF_COLOR, s=50, zorder=5)
 
     # Labels with raw values
     ax.set_thetagrids(

@@ -104,9 +104,7 @@ def frequency_domain(
     }
 
 
-def _interpolate(
-    rr, fs: float = 4.0
-) -> tuple[np.ndarray, np.ndarray]:
+def _interpolate(rr, fs: float = 4.0) -> tuple[np.ndarray, np.ndarray]:
     """Linearly interpolate an RRSeries onto a uniform time grid at ``fs`` Hz.
 
     Args:
@@ -124,9 +122,7 @@ def _interpolate(
     return t_interp, np.interp(t_interp, t, rr_ms)
 
 
-def _welch_psd(
-    signal: np.ndarray, fs: float = 4.0
-) -> tuple[np.ndarray, np.ndarray]:
+def _welch_psd(signal: np.ndarray, fs: float = 4.0) -> tuple[np.ndarray, np.ndarray]:
     """Return ``(freqs, psd)`` using Welch's method on a uniformly sampled signal.
 
     Args:
