@@ -1,4 +1,4 @@
-## Description
+## 📌 Description
 
 **Describe the bug clearly.**
 
@@ -6,7 +6,7 @@
 
 ---
 
-## Steps to reproduce
+## 🔁 Steps to reproduce
 
 **Describe precisely how to reproduce the bug.**
 
@@ -16,19 +16,19 @@
 
 ---
 
-## Expected behaviour
+## ❗ Expected behaviour
 
 **Explain what should happen.**
 
 ---
 
-## Actual behaviour
+## ❌ Actual behaviour
 
 **Describe what actually happens.**
 
 ---
 
-## Technical context
+## 🖥️ Technical context
 
 **Provide the technical information needed to understand the bug.**
 
@@ -39,7 +39,7 @@
 
 ---
 
-## Logs / Data / Screenshots
+## 📎 Logs / Data / Screenshots
 
 **Attach any artefacts that help diagnose the bug.**
 
@@ -57,7 +57,7 @@
 
 ---
 
-## Acceptance criteria
+## ✅ Acceptance criteria
 
 **Define the conditions under which the bug can be considered fixed.**
 
@@ -67,7 +67,7 @@
 
 ---
 
-## Testing
+## 🧪 Testing
 
 **Explain how to verify that the fix works.**
 
@@ -75,7 +75,7 @@
 
 ---
 
-## Related issues
+## 🧩 Related issues
 
 **List any related issues or dependencies.**
 

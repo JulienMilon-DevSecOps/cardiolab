@@ -11,7 +11,7 @@ This project is the scientific core of the **cardioanalysis** product.
 Transform raw physiological signals (ECG, PPG, HR) into:
 
 * reliable metrics (HR, HRV)
-* physiological insights (fatigue, recovery)
+* physiological insights (fatigue, recovery, fitness)
 * interpretable scores
 
 ---
@@ -25,9 +25,9 @@ Preprocessing
         ↓
 RR intervals
         ↓
-Features (HRV — time & frequency domain)
+Features (HRV — time · frequency · non-linear)
         ↓
-Protocols (resting · orthostatic)
+Protocols (resting · orthostatic · cardiac coherence · HRR · drift · VO2max)
         ↓
 Scoring & Analytics
         ↓
@@ -43,17 +43,28 @@ cardiolab/
 │
 ├── signals/          → raw data structures (ECG, RR series)
 ├── preprocessing/    → signal cleaning
-├── features/         → HRV computation (time-domain & frequency-domain)
-├── protocols/        → physiological tests (resting, orthostatic)
+├── features/         → HRV computation (time, frequency & non-linear)
+├── protocols/        → physiological tests
+│   ├── resting.py            → standard 5-min resting HRV
+│   ├── orthostatic.py        → supine → standing with automatic phase detection
+│   ├── cardiac_coherence.py  → paced-breathing resonance score
+│   ├── hrr.py                → Heart Rate Recovery post-exercise
+│   ├── cardiac_drift.py      → progressive HR increase at constant load
+│   └── vo2max.py             → VO2max estimation from HRV (Uth, Esco-Flatt)
 ├── analytics/        → baseline, scoring, anomaly detection, trend analysis
 ├── sensors_tools/    → Polar sensor integration
-├── database/         → PostgreSQL persistence layer
+├── database/         → PostgreSQL persistence layer (6 tables)
+├── io/               → CSV and JSON export for all protocols
 ├── scripts/          → CLI import tools
 ├── datasets/         → sample recordings (resting/, orthostatic/)
+├── docs/             → protocol & feature documentation
+│   ├── protocols/    → resting.md, orthostatic.md, cardiac_coherence.md,
+│   │                   hrr.md, cardiac_drift.md, vo2max.md
+│   └── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md
 └── visualization/    → signal and HRV plots
 
-example/              → step-by-step database usage scripts
-tests/                → full unit test suite (337 tests)
+example/              → step-by-step usage scripts
+tests/                → full unit test suite (584 tests)
 ```
 
 ---
@@ -72,10 +83,11 @@ Heart rate variability is used to assess:
 * fatigue
 * stress
 * recovery
+* aerobic fitness
 
 ### HRV indicators
 
-15 indicators computed for every protocol phase (all band powers in ms²):
+23 indicators computed across protocol phases (all band powers in ms²):
 
 | Domain | Metric | Description |
 |--------|--------|-------------|
@@ -91,9 +103,16 @@ Heart rate variability is used to assess:
 | Frequency | HF% | HF as fraction of total power |
 | Frequency | LF_nu | LF in normalised units |
 | Frequency | HF_nu | HF in normalised units |
+| Frequency | Méthode | Spectral estimation method (`welch` / `ar`) |
 | Composite | HF/FC | HF divided by mean HR (ms²/bpm) — HR-normalised vagal activity |
+| Non-linear | SD1 | Poincaré short-term variability = RMSSD / √2 (ms) |
+| Non-linear | SD2 | Poincaré long-term variability (ms) |
+| Non-linear | SD1/SD2 | Shape of the Poincaré ellipse — autonomic balance |
+| Non-linear | DFA α1 | Short-term fractal scaling exponent (scales 4–16 beats) |
+| Non-linear | ApEn | Approximate Entropy — signal regularity (Pincus 1991) |
+| Non-linear | SampEn | Sample Entropy — improved ApEn, length-independent (Richman & Moorman 2000) |
 | Meta | Duration | Phase duration (s) |
-| Meta | Score | Recovery score (0–100) |
+| Meta | Score | Recovery score (0–1) |
 
 ### Input validation
 
@@ -116,23 +135,18 @@ rr_clean = rr.remove_outliers()  # or: resting_hrv(rr, auto_clean=True)
 ### Export
 
 All result dataclasses expose `to_dict()` — a plain Python dict, JSON-ready
-and pandas-compatible:
+and pandas-compatible. Dedicated export functions cover all protocols:
 
 ```python
-result = resting_hrv(rr)
-result.date = "2026-05-17"
-
-# JSON
-import json
-print(json.dumps(result.to_dict(), indent=2))
-
-# DataFrame
-import pandas as pd
-df = pd.DataFrame([s.to_dict() for s in sessions])
+from cardiolab.io import (
+    features_to_csv, features_to_json,
+    orthostatic_to_csv, orthostatic_to_json,
+    coherence_to_csv, coherence_to_json,
+    hrr_to_csv, hrr_to_json,
+    drift_to_csv, drift_to_json,
+    vo2max_to_csv, vo2max_to_json,
+)
 ```
-
-`OrthostaticResult.to_dict()` is nested (`phases.supine / transition / standing`),
-each phase containing its `features` dict.
 
 ---
 
@@ -140,8 +154,13 @@ each phase containing its `features` dict.
 
 ### Resting HRV
 
-Standard 5-minute supine recording. Computes all 14 HRV indicators and a
-recovery score (Oura-inspired: RMSSD 70 % + HR 30 %).
+Standard 5-minute supine recording. Computes all 23 HRV indicators (time,
+frequency, non-linear) and an optional recovery score.
+
+```python
+from cardiolab.protocols import resting_hrv
+result = resting_hrv(rr, compute_score=True, method="welch")
+```
 
 ### Orthostatic HRV
 
@@ -163,6 +182,107 @@ Clinical interpretation:
 | `impaired_response` | HR rise < 5 bpm (possible autonomic dysfunction) |
 | `excessive_vagal_withdrawal` | HF drop > 60 % |
 
+```python
+from cardiolab.protocols import orthostatic_hrv
+result = orthostatic_hrv(rr)
+```
+
+### Cardiac coherence 5-5
+
+Paced-breathing session at 6 cycles/min (5 s inspiration / 5 s expiration).
+At 0.1 Hz the baroreflex resonates, producing maximal HRV power in the cardiac
+resonance band. The **coherence score** quantifies how well power concentrates
+at the dominant spectral peak (AR PSD method):
+
+```
+coherence_score = peak_window_power / total_resonance_power × 100
+```
+
+| Score (%) | Interpretation |
+|-----------|---------------|
+| ≥ 60 | Good cardiac coherence |
+| 40 – 60 | Moderate |
+| < 40 | Low — improve breathing cadence |
+
+```python
+from cardiolab.protocols import cardiac_coherence
+result = cardiac_coherence(rr)
+# result.coherence_score, result.resonance_freq, result.rmssd
+```
+
+See [`docs/protocols/cardiac_coherence.md`](cardiolab/docs/protocols/cardiac_coherence.md) for full protocol instructions.
+
+### Heart Rate Recovery (HRR)
+
+Measures the speed of vagal reactivation after maximal or submaximal exercise.
+The series must start at peak effort; HR drop at 60 s (HRR1) and 120 s (HRR2)
+are computed:
+
+| HRR1 (bpm) | Category | Risk |
+|------------|----------|------|
+| ≥ 25 | Excellent | Very low |
+| 20 – 24 | Good | Low |
+| 12 – 19 | Normal | Average |
+| < 12 | **Impaired** | Elevated — independent mortality predictor (Cole et al. 1999) |
+
+```python
+from cardiolab.protocols import heart_rate_recovery
+result = heart_rate_recovery(rr_post_exercise)
+# result.hrr_60, result.hrr_60_category, result.hrr_120
+```
+
+See [`docs/protocols/hrr.md`](cardiolab/docs/protocols/hrr.md) for full protocol instructions.
+
+### Cardiac drift
+
+Detects and quantifies the progressive HR increase during constant-load
+exercise. Linear regression of windowed mean HR over time yields the
+**drift rate** (bpm/min):
+
+| Rate (bpm/min) | Category |
+|----------------|---------|
+| < 0.5 | No drift |
+| 0.5 – 1.5 | Mild |
+| 1.5 – 3.0 | Moderate |
+| > 3.0 | Strong drift |
+
+```python
+from cardiolab.protocols import cardiac_drift
+result = cardiac_drift(rr_exercise, window_sec=60.0)
+# result.drift_rate, result.drift_magnitude, result.r_squared
+```
+
+See [`docs/protocols/cardiac_drift.md`](cardiolab/docs/protocols/cardiac_drift.md) for full protocol instructions.
+
+### VO2max estimation from HRV
+
+Estimates maximal oxygen uptake from a resting HRV recording using two
+complementary models:
+
+| Model | Formula | Precision |
+|-------|---------|-----------|
+| **Uth et al. (2004)** | `15.3 × (HRmax / HRrest)` | ±10–15 % |
+| **Esco & Flatt (2014)** | `18.37 + 0.054 × RMSSD` | ±7–12 % |
+| **ln-RMSSD** | `24.89 + 5.97 × ln(RMSSD)` | ±7–12 % |
+
+Fitness categories (ACSM 2022):
+
+| VO2max (mL/kg/min) | Category |
+|--------------------|---------|
+| ≥ 58 | Excellent |
+| 48 – 57 | Very good |
+| 38 – 47 | Good |
+| 28 – 37 | Fair |
+| < 28 | Poor |
+
+```python
+from cardiolab.protocols import vo2max_from_hrv
+result = vo2max_from_hrv(rr_resting, hr_max=185.0)
+# result.vo2max_uth, result.vo2max_esco_flatt, result.fitness_category
+```
+
+See [`docs/protocols/vo2max.md`](cardiolab/docs/protocols/vo2max.md) for full protocol instructions.
+
 ---
 
 ## Analytics
@@ -179,17 +299,35 @@ Clinical interpretation:
 
 ## Database
 
-PostgreSQL persistence via `HRVRepository` (context manager, upsert-safe):
+PostgreSQL persistence via `HRVRepository` (context manager, upsert-safe).
+Six dedicated tables, one per protocol:
 
 ```python
 with HRVRepository.from_env() as repo:
+    # Resting HRV
     repo.create_table()
     repo.save_features(features, user_id="<uuid>")
     history = repo.load_features(user_id="<uuid>")
 
+    # Orthostatic
     repo.create_orthostatic_table()
     repo.save_orthostatic(result, user_id="<uuid>", date="2026-05-15")
-    records = repo.load_orthostatic(user_id="<uuid>")
+
+    # Cardiac coherence
+    repo.create_coherence_table()
+    repo.save_coherence(coherence_result, user_id="<uuid>", date="2026-05-19")
+
+    # Heart Rate Recovery
+    repo.create_hrr_table()
+    repo.save_hrr(hrr_result, user_id="<uuid>", date="2026-05-19")
+
+    # Cardiac drift
+    repo.create_drift_table()
+    repo.save_drift(drift_result, user_id="<uuid>", date="2026-05-19")
+
+    # VO2max estimation
+    repo.create_vo2max_table()
+    repo.save_vo2max(vo2max_result, user_id="<uuid>", date="2026-05-19")
 ```
 
 See [`example/README.md`](example/README.md) for the full step-by-step setup.
@@ -201,16 +339,22 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | Module | State |
 |--------|-------|
 | `signals/` — ECGSignal, RRSeries | Implemented |
-| `features/` — time & frequency domain | Implemented |
+| `features/` — time, frequency & non-linear domain | Implemented |
 | `protocols/resting` | Implemented |
 | `protocols/orthostatic` | Implemented |
+| `protocols/cardiac_coherence` | Implemented |
+| `protocols/hrr` | Implemented |
+| `protocols/cardiac_drift` | Implemented |
+| `protocols/vo2max` | Implemented |
 | `analytics/` — baseline, scoring, anomaly, trend | Implemented |
-| `database/` — resting + orthostatic | Implemented |
+| `database/` — 6 protocol tables | Implemented |
+| `io/` — CSV & JSON export for all protocols | Implemented |
 | `sensors_tools/` — Polar | Implemented |
 | `visualization/` | Implemented |
 | PPG signal support | Planned |
+| Training load model (ATL / CTL / TSB) | Planned |
 
-**Test coverage:** 360+ unit tests, 0 failures.
+**Test coverage:** 584+ unit tests, 0 failures.
 
 ---
 
@@ -225,8 +369,45 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 
 ## References
 
-* Task Force of the European Society of Cardiology (1996). *Standards of measurement, physiological interpretation and clinical use of Heart Rate Variability.*
-* Shaffer, F. & Ginsberg, J.P. (2017). *An Overview of Heart Rate Variability Metrics and Norms.*
+### HRV — Standards and general reviews
+
+* Task Force of the European Society of Cardiology and the North American Society of Pacing and Electrophysiology (1996). Standards of measurement, physiological interpretation and clinical use of Heart Rate Variability. *Circulation*, 93(5), 1043–1065.
+* Shaffer, F., & Ginsberg, J. P. (2017). An overview of heart rate variability metrics and norms. *Frontiers in Public Health*, 5, 258. https://doi.org/10.3389/fpubh.2017.00258
+* Camm, A. J., et al. (1996). Heart rate variability: standards of measurement, physiological interpretation, and clinical use. *European Heart Journal*, 17(3), 354–381.
+
+### Non-linear features
+
+* Pincus, S. M. (1991). Approximate entropy as a measure of system complexity. *Proceedings of the National Academy of Sciences*, 88(6), 2297–2301. https://doi.org/10.1073/pnas.88.6.2297
+* Richman, J. S., & Moorman, J. R. (2000). Physiological time-series analysis using approximate entropy and sample entropy. *American Journal of Physiology — Heart and Circulatory Physiology*, 278(6), H2039–H2049. https://doi.org/10.1152/ajpheart.2000.278.6.H2039
+* Peng, C. K., Havlin, S., Stanley, H. E., & Goldberger, A. L. (1995). Quantification of scaling exponents and crossover phenomena in nonstationary heartbeat time series. *Chaos*, 5(1), 82–87. https://doi.org/10.1063/1.166141
+* Gronwald, T., & Hoos, O. (2020). Correlation properties of heart rate variability during endurance exercise: A systematic review. *Annals of Noninvasive Electrocardiology*, 25(1), e12697. https://doi.org/10.1111/anec.12697
+
+### Cardiac coherence
+
+* Lehrer, P. M., & Gevirtz, R. (2014). Heart rate variability biofeedback: how and why does it work? *Frontiers in Psychology*, 5, 756. https://doi.org/10.3389/fpsyg.2014.00756
+* McCraty, R., & Shaffer, F. (2015). Heart rate variability: new perspectives on physiological mechanisms, assessment of self-regulatory capacity, and health risk. *Global Advances in Health and Medicine*, 4(1), 46–61. https://doi.org/10.7453/gahmj.2014.073
+* Shaffer, F., McCraty, R., & Zerr, C. L. (2014). A healthy heart is not a metronome: an integrative review of the heart's anatomy and heart rate variability. *Frontiers in Psychology*, 5, 1040. https://doi.org/10.3389/fpsyg.2014.01040
+
+### Heart Rate Recovery
+
+* Cole, C. R., Blackstone, E. H., Pashkow, F. J., Snader, C. E., & Lauer, M. S. (1999). Heart-rate recovery immediately after exercise as a predictor of mortality. *New England Journal of Medicine*, 341(18), 1351–1357. https://doi.org/10.1056/NEJM199910283411804
+* Imai, K., Sato, H., Hori, M., et al. (1994). Vagally mediated heart rate recovery after exercise is accelerated in athletes but blunted in patients with chronic heart failure. *Journal of the American College of Cardiology*, 24(6), 1529–1535. https://doi.org/10.1016/0735-1097(94)90150-3
+* Jouven, X., Empana, J. P., Schwartz, P. J., Desnos, M., Courbon, D., & Ducimetière, P. (2005). Heart-rate profile during exercise as a predictor of sudden death. *New England Journal of Medicine*, 352(19), 1951–1958. https://doi.org/10.1056/NEJMoa043012
+* Morshedi-Meibodi, A., Larson, M. G., Levy, D., O'Donnell, C. J., & Vasan, R. S. (2002). Heart rate recovery after treadmill exercise testing and risk of cardiovascular disease events (The Framingham Heart Study). *American Journal of Cardiology*, 90(8), 848–852. https://doi.org/10.1016/S0002-9149(02)02801-1
+
+### Cardiac drift
+
+* Coyle, E. F., & González-Alonso, J. (2001). Cardiovascular drift during prolonged exercise: new perspectives. *Exercise and Sport Sciences Reviews*, 29(2), 88–92. https://doi.org/10.1097/00003677-200104000-00009
+* Wingo, J. E., & Cureton, K. J. (2006). Cardiovascular responses to exercise with and without hydration. *Medicine & Science in Sports & Exercise*, 38(4), 739–748. https://doi.org/10.1249/01.mss.0000191765.30569.03
+* González-Alonso, J., Calbet, J. A., & Nielsen, B. (1999). Metabolic and thermodynamic responses to dehydration-induced reductions in muscle blood flow in exercising humans. *Journal of Physiology*, 520(2), 577–589. https://doi.org/10.1111/j.1469-7793.1999.00577.x
+
+### VO2max estimation
+
+* Uth, N., Sørensen, H., Overgaard, K., & Pedersen, P. K. (2004). Estimation of VO2max from the ratio between HRmax and HRrest — the Heart Rate Ratio Method. *European Journal of Applied Physiology*, 91(1), 111–115. https://doi.org/10.1007/s00421-003-0988-y
+* Esco, M. R., & Flatt, A. A. (2014). Ultra-short-term heart rate variability indices for gender identification and automatic prediction of cardiorespiratory fitness. *Sensors*, 14(3), 3934–3952. https://doi.org/10.3390/s140303934
+* Nunan, D., Donovan, G., Jakovljevic, D. G., Hodges, L. D., Sandercock, G. R., & Brodie, D. A. (2010). Validity and reliability of short-term heart-rate variability from the Polar S810. *Medicine & Science in Sports & Exercise*, 42(2), 243–250. https://doi.org/10.1249/MSS.0b013e3181b6dd7a
+* Tanaka, H., Monahan, K. D., & Seals, D. R. (2001). Age-predicted maximal heart rate revisited. *Journal of the American College of Cardiology*, 37(1), 153–156. https://doi.org/10.1016/S0735-1097(00)01054-8
+* American College of Sports Medicine. (2022). *ACSM's Guidelines for Exercise Testing and Prescription* (11th ed.). Lippincott Williams & Wilkins.
 
 ---
 
@@ -242,11 +423,18 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] Resting protocol
 * [x] Orthostatic protocol with automatic phase detection
 * [x] Analytics pipeline (baseline, scoring, anomaly, trend)
-* [x] PostgreSQL persistence layer (resting + orthostatic)
+* [x] PostgreSQL persistence layer (6 protocol tables)
 * [x] Physiological validation with `PhysiologicalWarning` on `RRSeries`
 * [x] `auto_clean` option in all protocols
 * [x] `to_dict()` export on all result dataclasses
-* [ ] SD1 / SD2 / DFA α1 non-linear features
-* [ ] Heart Rate Recovery (HRR) and cardiac drift protocols
+* [x] SD1 / SD2 / SD1:SD2 / DFA α1 non-linear features
+* [x] ApEn / SampEn entropy features
+* [x] Feature documentation (`docs/features/`)
+* [x] Cardiac coherence 5-5 protocol
+* [x] Heart Rate Recovery (HRR) protocol
+* [x] Cardiac drift protocol
+* [x] VO2max estimation from HRV (Uth, Esco-Flatt, ln-RMSSD)
+* [x] Protocol documentation (`docs/protocols/`)
+* [x] CSV & JSON export for all protocols
 * [ ] Training load model (ATL / CTL / TSB)
 * [ ] PPG signal support

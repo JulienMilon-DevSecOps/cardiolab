@@ -135,6 +135,11 @@ class OrthostaticResult:
     def to_dict(self) -> dict:
         """Return a plain-Python dict of the full orthostatic result.
 
+        The dictionary is nested: top-level keys are ``phases`` (which
+        contains sub-dicts for ``supine``, ``transition``, and ``standing``
+        with their timing fields and nested ``features`` dict) and the four
+        derived clinical metrics plus ``interpretation``.
+
         Returns:
             Nested dictionary with ``phases`` (supine / transition / standing)
             and all derived clinical metrics.
@@ -153,6 +158,73 @@ class OrthostaticResult:
             "interpretation": self.interpretation,
         }
 
+    def to_flat_dict(self) -> dict:
+        """Return a wide-format flat dict of the full orthostatic result.
+
+        All phase HRV features are prefixed (``supine_``, ``transition_``,
+        ``standing_``). Phase timing fields and the derived clinical metrics
+        are appended at the same level. Intended for CSV/DataFrame export.
+
+        Returns:
+            Flat dictionary with one key per scalar value.
+
+        """
+        row: dict = {}
+
+        for prefix, phase in [
+            ("supine", self.phases.supine),
+            ("standing", self.phases.standing),
+        ]:
+            for key, val in phase.features.to_dict().items():
+                row[f"{prefix}_{key}"] = val
+            row[f"{prefix}_start_sec"] = phase.start_sec
+            row[f"{prefix}_end_sec"] = phase.end_sec
+            row[f"{prefix}_duration_sec"] = phase.duration_sec
+
+        trans = self.phases.transition
+        for key, val in trans.features.to_dict().items():
+            row[f"transition_{key}"] = val
+        row["transition_start_sec"] = trans.start_sec
+        row["transition_end_sec"] = trans.end_sec
+        row["transition_duration_sec"] = trans.duration_sec
+        row["transition_delta_hr"] = trans.delta_hr
+        row["transition_peak_hr"] = trans.peak_hr
+
+        row["hr_response"] = self.hr_response
+        row["lf_hf_ratio_change"] = self.lf_hf_ratio_change
+        row["hf_response_pct"] = self.hf_response_pct
+        row["hf_hr_pct_change"] = self.hf_hr_pct_change
+        row["interpretation"] = self.interpretation
+
+        return row
+
+    def to_dataframe(self):
+        """Return a one-row wide-format pandas DataFrame of the full result.
+
+        Each phase's HRV features are flattened with a prefix (``supine_``,
+        ``transition_``, ``standing_``). Phase timing and the derived clinical
+        metrics are added at top level. The result is a single row suitable
+        for building a time-series of orthostatic test records.
+
+        Returns:
+            A ``pandas.DataFrame`` with one row and one column per scalar
+            field.
+
+        Raises:
+            ImportError: If ``pandas`` is not installed. Install with
+                ``pip install cardiolab[analysis]``.
+
+        """
+        try:
+            import pandas as pd
+        except ImportError as exc:
+            raise ImportError(
+                "pandas is required for to_dataframe(). "
+                "Install it with: pip install cardiolab[analysis]"
+            ) from exc
+
+        return pd.DataFrame([self.to_flat_dict()])
+
 
 # ======================
 # MAIN PROTOCOL
@@ -165,6 +237,7 @@ def orthostatic_hrv(
     hr_threshold: float = 10.0,
     window_sec: float = 30.0,
     auto_clean: bool = False,
+    method: str = "welch",
 ) -> OrthostaticResult:
     """Run the orthostatic HRV protocol on a continuous RR recording.
 
@@ -189,6 +262,10 @@ def orthostatic_hrv(
         auto_clean: If ``True``, removes physiological outliers (< 300 ms or
             > 2000 ms) from ``rr`` before phase detection and feature
             computation. Defaults to ``False``.
+        method: Spectral estimation method passed to ``resting_hrv()`` for
+            each phase. ``"welch"`` (default) suits long phases (≥ 5 min);
+            ``"ar"`` offers better resolution on the short transition window
+            (< 2 min) — consider ``"ar"`` when the transition is brief.
 
     Returns:
         An ``OrthostaticResult`` with segmented phases, HRV features for each
@@ -203,7 +280,9 @@ def orthostatic_hrv(
     if auto_clean:
         rr = rr.remove_outliers()
 
-    phases = detect_phases(rr, hr_threshold=hr_threshold, window_sec=window_sec)
+    phases = detect_phases(
+        rr, hr_threshold=hr_threshold, window_sec=window_sec, method=method
+    )
 
     if phases.supine.duration_sec < min_phase_duration:
         raise ValueError(
@@ -260,6 +339,7 @@ def detect_phases(
     window_sec: float = 30.0,
     stabilization_window_sec: float = 20.0,
     stabilization_std_threshold: float = 5.0,
+    method: str = "welch",
 ) -> OrthostaticPhases:
     """Detect supine, transition, and standing phases in a continuous RR series.
 
@@ -279,6 +359,8 @@ def detect_phases(
         stabilization_std_threshold: Maximum beat-to-beat HR standard
             deviation (bpm) within the stabilisation window for the transition
             to be declared complete. Defaults to 5 bpm.
+        method: Spectral estimation method forwarded to ``resting_hrv()`` for
+            each phase. Defaults to ``"welch"``.
 
     Returns:
         An ``OrthostaticPhases`` with the three segments and their HRV features.
@@ -347,7 +429,7 @@ def detect_phases(
             start_sec=supine_start,
             end_sec=supine_end,
             duration_sec=supine_end - supine_start,
-            features=resting_hrv(supine_rr),
+            features=resting_hrv(supine_rr, method=method),
         ),
         transition=TransitionSegment(
             rr=transition_rr,
@@ -356,14 +438,14 @@ def detect_phases(
             duration_sec=trans_end - trans_start,
             delta_hr=delta_hr,
             peak_hr=peak_hr,
-            features=resting_hrv(transition_rr),
+            features=resting_hrv(transition_rr, method=method),
         ),
         standing=PhaseSegment(
             rr=standing_rr,
             start_sec=standing_start,
             end_sec=standing_end,
             duration_sec=standing_end - standing_start,
-            features=resting_hrv(standing_rr),
+            features=resting_hrv(standing_rr, method=method),
         ),
     )
 
