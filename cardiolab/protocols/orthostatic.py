@@ -591,7 +591,10 @@ def _find_stabilization(
         ahead_mask = (cumtime >= cumtime[i]) & (cumtime <= end_time)
         ahead_hr = hr[ahead_mask]
 
-        if len(ahead_hr) >= _MIN_BEATS_FOR_STABILITY and float(np.std(ahead_hr)) < std_threshold:
+        if (
+            len(ahead_hr) >= _MIN_BEATS_FOR_STABILITY
+            and float(np.std(ahead_hr)) < std_threshold
+        ):
             return i
 
     return start_idx + (n - start_idx) // 2
