@@ -5,6 +5,19 @@ from __future__ import annotations
 import numpy as np
 from scipy.signal import welch
 
+# ── Physiological frequency band definitions (Task Force ESC/NASPE 1996) ─────
+# These are the authoritative constants for the whole package.
+# Import them in other modules rather than redefining locally.
+
+_VLF_BAND: tuple[float, float] = (0.003, 0.04)
+"""Very-low-frequency band (Hz): thermoregulatory and hormonal influences."""
+
+_LF_BAND: tuple[float, float] = (0.04, 0.15)
+"""Low-frequency band (Hz): baroreflex, mixed sympathetic/parasympathetic."""
+
+_HF_BAND: tuple[float, float] = (0.15, 0.40)
+"""High-frequency band (Hz): respiratory sinus arrhythmia, vagal tone."""
+
 
 def frequency_domain(
     rr,
@@ -83,9 +96,9 @@ def frequency_domain(
     # Band power integration
     # ======================
 
-    vlf = _band_power(freqs, psd, 0.003, 0.04)
-    lf = _band_power(freqs, psd, 0.04, 0.15)
-    hf = _band_power(freqs, psd, 0.15, 0.4)
+    vlf = _band_power(freqs, psd, *_VLF_BAND)
+    lf = _band_power(freqs, psd, *_LF_BAND)
+    hf = _band_power(freqs, psd, *_HF_BAND)
 
     tp = vlf + lf + hf
 

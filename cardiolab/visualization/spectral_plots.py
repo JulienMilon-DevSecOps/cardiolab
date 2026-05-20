@@ -17,8 +17,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 
+from cardiolab.features.frequency_domain import (
+    _HF_BAND,
+    _LF_BAND,
+    _VLF_BAND,
+    _band_power,
+    _interpolate,
+)
 from cardiolab.features.frequency_domain import _ar_psd as _ar_psd_raw
-from cardiolab.features.frequency_domain import _band_power, _interpolate
 from cardiolab.features.frequency_domain import _welch_psd as _welch_psd_raw
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.signals.rr import RRSeries
@@ -43,12 +49,6 @@ _PALETTE = [
     "#7f8c8d",
 ]
 
-# ── Band definitions ─────────────────────────────────────────────────────────
-
-_VLF_BAND = (0.003, 0.04)
-_LF_BAND = (0.04, 0.15)
-_HF_BAND = (0.15, 0.40)
-
 # ── Radar normalisation ranges (min, max) ────────────────────────────────────
 # Each tuple defines the reference range used to scale 0 → 1.
 # Values outside the range are clipped.
@@ -63,22 +63,44 @@ _RADAR_METRICS: list[tuple[str, str, float, float]] = [
 
 
 # ── Private helpers (signal-level) ──────────────────────────────────────────
-# _interpolate, _welch_psd (raw), _ar_psd (raw), _band_power are imported
-# from cardiolab.features.frequency_domain above.
-# The two wrappers below accept RRSeries and delegate after interpolation.
+# Low-level primitives (_interpolate, _welch_psd, _ar_psd, _band_power) and
+# band constants (_VLF_BAND, _LF_BAND, _HF_BAND) are imported from
+# cardiolab.features.frequency_domain — the single source of truth.
 
 
-def _welch_psd(rr: RRSeries, fs: float = 4.0) -> tuple[np.ndarray, np.ndarray]:
-    """Return ``(freqs, psd)`` via Welch's method for an RRSeries input."""
-    _, signal = _interpolate(rr, fs)
-    return _welch_psd_raw(signal, fs)
-
-
-def _ar_psd(
-    rr: RRSeries, fs: float = 4.0, order: int = 16
+def _compute_psd(
+    rr: RRSeries,
+    method: str = "welch",
+    fs: float = 4.0,
+    order: int = 16,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return ``(freqs, psd)`` via the Yule-Walker AR method for an RRSeries input."""
+    """Compute the one-sided PSD of an RR interval series.
+
+    This is the single entry-point for PSD estimation within the visualization
+    layer.  It interpolates the :class:`~cardiolab.signals.rr.RRSeries` onto a
+    uniform time grid at ``fs`` Hz and then delegates to the appropriate
+    estimator from :mod:`cardiolab.features.frequency_domain`:
+
+    * ``"welch"`` — Welch's periodogram.  Smoothed estimate, optimal for
+      recordings ≥ 5 min (≥ 256 interpolated samples at 4 Hz).
+    * ``"ar"``    — Yule-Walker autoregressive model (order ``order``).
+      Sharper spectral peaks, better suited to short recordings (< 2 min).
+
+    Args:
+        rr: RR interval series.
+        method: PSD estimation method — ``"welch"`` or ``"ar"``.
+        fs: Sampling frequency used for the interpolation grid (Hz).
+            Defaults to 4.0 Hz (Task Force 1996 recommendation).
+        order: AR model order, used only when ``method="ar"``.
+            Defaults to 16.
+
+    Returns:
+        Tuple ``(freqs, psd)``: one-sided frequency axis (Hz) and PSD (ms²/Hz).
+
+    """
     _, signal = _interpolate(rr, fs)
+    if method == "welch":
+        return _welch_psd_raw(signal, fs)
     return _ar_psd_raw(signal, fs=fs, order=order)
 
 
@@ -102,8 +124,8 @@ def _fill_bands(
 
 
 def _draw_band_boundaries(ax: plt.Axes) -> None:
-    """Draw dotted vertical lines at VLF/LF/HF boundaries."""
-    for x in (0.04, 0.15, 0.40):
+    """Draw dotted vertical lines at the VLF/LF/HF transition frequencies."""
+    for x in (_VLF_BAND[1], _LF_BAND[1], _HF_BAND[1]):
         ax.axvline(x, color=_GRAY, linewidth=0.8, linestyle=":", alpha=0.7)
 
 
@@ -197,7 +219,7 @@ def plot_psd_welch(
     if order < 1:
         raise ValueError(f"order must be >= 1, got {order}")
 
-    freqs, psd = _welch_psd(rr) if method == "welch" else _ar_psd(rr, order=order)
+    freqs, psd = _compute_psd(rr, method=method, order=order)
 
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -253,8 +275,8 @@ def plot_psd_comparison(
     if order < 1:
         raise ValueError(f"order must be >= 1, got {order}")
 
-    freqs_w, psd_w = _welch_psd(rr)
-    freqs_ar, psd_ar = _ar_psd(rr, order=order)
+    freqs_w, psd_w = _compute_psd(rr, method="welch")
+    freqs_ar, psd_ar = _compute_psd(rr, method="ar", order=order)
 
     fig, ax = plt.subplots(figsize=figsize)
 
