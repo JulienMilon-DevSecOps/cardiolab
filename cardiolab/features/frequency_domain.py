@@ -72,23 +72,10 @@ def frequency_domain(
     if method not in ("welch", "ar"):
         raise ValueError(f"Unknown method {method!r}. Choose 'welch' or 'ar'.")
 
-    rr_ms = np.array(rr.intervals)
-    time_s = np.cumsum(rr_ms) / 1000.0
-    time_s = time_s - time_s[0]
-
-    # ======================
-    # Interpolation
-    # ======================
-
-    interp_time = np.arange(0, time_s[-1], 1 / fs)
-    interp_rr = np.interp(interp_time, time_s, rr_ms)
-
-    # ======================
-    # PSD estimation
-    # ======================
+    _, interp_rr = _interpolate(rr, fs)
 
     if method == "welch":
-        freqs, psd = welch(interp_rr, fs=fs, nperseg=min(256, len(interp_rr)))
+        freqs, psd = _welch_psd(interp_rr, fs)
     else:
         freqs, psd = _ar_psd(interp_rr, fs=fs, order=order)
 
@@ -115,6 +102,43 @@ def frequency_domain(
         "LF_HF_sum": lf + hf,
         "LF_HF_over_TP": (lf + hf) / tp if tp > 0 else 0,
     }
+
+
+def _interpolate(
+    rr, fs: float = 4.0
+) -> tuple[np.ndarray, np.ndarray]:
+    """Linearly interpolate an RRSeries onto a uniform time grid at ``fs`` Hz.
+
+    Args:
+        rr: An ``RRSeries`` instance.
+        fs: Target sampling frequency in Hz.
+
+    Returns:
+        Tuple ``(t_interp, rr_interp)``: time axis (s) and interpolated RR (ms).
+
+    """
+    rr_ms = np.array(rr.intervals)
+    t = np.cumsum(rr_ms) / 1000.0
+    t = t - t[0]
+    t_interp = np.arange(0, t[-1], 1.0 / fs)
+    return t_interp, np.interp(t_interp, t, rr_ms)
+
+
+def _welch_psd(
+    signal: np.ndarray, fs: float = 4.0
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return ``(freqs, psd)`` using Welch's method on a uniformly sampled signal.
+
+    Args:
+        signal: Uniformly sampled RR signal (ms) on a regular time grid.
+        fs: Sampling frequency in Hz.
+
+    Returns:
+        Tuple ``(freqs, psd)``: one-sided frequency axis (Hz) and PSD (ms²/Hz).
+
+    """
+    freqs, psd = welch(signal, fs=fs, nperseg=min(256, len(signal)))
+    return freqs, psd
 
 
 def _ar_psd(

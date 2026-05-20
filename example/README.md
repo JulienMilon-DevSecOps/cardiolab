@@ -24,6 +24,7 @@ example/
 │   ── Visualisation ────────────────────────────────────────────────────────
 ├── 09_rr_signal_plots.py     ← 5 graphiques du signal RR brut (tachogramme, distribution, …)
 ├── 10_resting_evolution_plots.py ← évolution RMSSD et score de récupération dans le temps
+├── 11_spectral_plots.py      ← 6 graphiques spectraux (PSD, LF/HF, radar, heatmap)
 │
 └── figures/                  ← figures PNG générées par les scripts de visualisation
 ```
@@ -198,5 +199,26 @@ Les figures sont sauvegardées dans `example/figures/` au format PNG (150 dpi).
 | `10_01_rmssd_evolution.png` | RMSSD et médiane glissante sur la période |
 | `10_02_readiness_score.png` | Score de récupération avec seuils d'interprétation |
 
+### Script 11 — Visualisation spectrale
+
+```bash
+python example/11_spectral_plots.py
+```
+
+Démontre les 5 fonctions de `cardiolab.visualization.spectral_plots` avec des
+données JSON depuis `cardiolab/datasets/resting/` ou des sessions synthétiques.
+
+| Figure générée | Contenu |
+|---|---|
+| `11_01_psd_welch.png` | PSD Welch avec bandes VLF/LF/HF colorées |
+| `11_02_psd_ar.png` | PSD AR (Yule-Walker) avec bandes colorées |
+| `11_03_psd_comparison.png` | Superposition Welch (bleu) et AR (rouge pointillé) |
+| `11_04_lf_hf_evolution.png` | Barres LF_nu / HF_nu + ratio LF/HF par session |
+| `11_05_hrv_radar.png` | Radar HRV — 5 métriques normalisées (dernière session) |
+| `11_06_spectral_heatmap.png` | Heatmap sessions × bandes fréquentielles |
+
+Voir [`cardiolab/docs/visualization/reading_spectral_charts.md`](../cardiolab/docs/visualization/reading_spectral_charts.md)
+pour le guide de lecture des graphiques spectraux.
+
 Voir [`cardiolab/docs/visualization/reading_charts.md`](../cardiolab/docs/visualization/reading_charts.md)
-pour le guide de lecture de chaque type de graphique.
+pour le guide de lecture des graphiques RR (scripts 09 et 10).
