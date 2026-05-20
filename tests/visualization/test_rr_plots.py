@@ -47,8 +47,8 @@ def rr_with_artefacts() -> RRSeries:
     """RRSeries containing physiological outliers."""
     rng = np.random.default_rng(0)
     intervals = rng.normal(857, 20, 100).clip(min=310)
-    intervals[10] = 2500.0   # above high bound
-    intervals[50] = 250.0    # below low bound — triggers PhysiologicalWarning
+    intervals[10] = 2500.0  # above high bound
+    intervals[50] = 250.0  # below low bound — triggers PhysiologicalWarning
     return RRSeries(intervals)
 
 

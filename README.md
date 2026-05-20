@@ -60,11 +60,15 @@ cardiolab/
 ├── docs/             → protocol & feature documentation
 │   ├── protocols/    → resting.md, orthostatic.md, cardiac_coherence.md,
 │   │                   hrr.md, cardiac_drift.md, vo2max.md
-│   └── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md
+│   ├── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md
+│   └── visualization/→ reading_charts.md — how to read each chart type
 └── visualization/    → signal and HRV plots
+    ├── resting_plots.py  → RMSSD & readiness score evolution over time
+    └── rr_plots.py       → raw RR: tachogram, distribution, filtered,
+                            multi-session comparison, 2×2 summary
 
-example/              → step-by-step usage scripts
-tests/                → full unit test suite (584 tests)
+example/              → step-by-step usage scripts (01 – 10)
+tests/                → full unit test suite (621 tests)
 ```
 
 ---
@@ -285,6 +289,49 @@ See [`docs/protocols/vo2max.md`](cardiolab/docs/protocols/vo2max.md) for full pr
 
 ---
 
+## Visualization
+
+The `cardiolab.visualization` module provides ready-made matplotlib figures
+for exploring raw RR signals and tracking HRV trends over time.
+
+### Raw RR signal — `rr_plots`
+
+```python
+from cardiolab.visualization.rr_plots import (
+    plot_rr_tachogram,    # beat-by-beat time series + HR secondary axis
+    plot_rr_distribution, # histogram + Gaussian KDE
+    plot_rr_filtered,     # raw vs cleaned overlay, artefacts in red
+    plot_rr_comparison,   # stacked multi-session tachograms
+    plot_rr_summary,      # 2×2 compound figure with HRV stats table
+)
+
+fig = plot_rr_tachogram(rr, show_mean=True, show_band=True, show_hr_axis=True)
+fig.savefig("tachogram.png", dpi=150)
+
+fig = plot_rr_summary(rr, title="Session 2026-05-20")
+fig.show()
+```
+
+All functions return a `Figure` and accept a `figsize` argument. Input
+validation raises `TypeError` on wrong types and `ValueError` on out-of-range
+parameters.
+
+See [`docs/visualization/reading_charts.md`](cardiolab/docs/visualization/reading_charts.md)
+for a guide on interpreting each chart type.
+
+### HRV evolution over time — `resting_plots`
+
+```python
+from cardiolab.visualization.resting_plots import (
+    plot_resting_evolution,         # RMSSD + readiness score over time
+    plot_resting_evolution_rolling, # same with rolling-median RMSSD overlay
+)
+
+plot_resting_evolution_rolling("cardiolab/datasets/resting/*.json")
+```
+
+---
+
 ## Analytics
 
 * **Baseline** — rolling 7-session RMSSD mean, median, mean HR
@@ -419,6 +466,7 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 
 ## Roadmap
 
+### Core pipeline
 * [x] Full HRV implementation (time & frequency domain)
 * [x] Resting protocol
 * [x] Orthostatic protocol with automatic phase detection
@@ -438,3 +486,18 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] CSV & JSON export for all protocols
 * [ ] Training load model (ATL / CTL / TSB)
 * [ ] PPG signal support
+
+### Visualization
+* [x] Raw RR signal tachogram with HR secondary axis (`plot_rr_tachogram`)
+* [x] RR interval distribution — histogram + Gaussian KDE (`plot_rr_distribution`)
+* [x] Raw vs filtered overlay with artefact highlighting (`plot_rr_filtered`)
+* [x] Multi-session stacked comparison (`plot_rr_comparison`)
+* [x] 2×2 compound summary figure with HRV stats table (`plot_rr_summary`)
+* [x] RMSSD and readiness score evolution over time (`plot_resting_evolution`)
+* [x] RMSSD evolution with rolling-median overlay (`plot_resting_evolution_rolling`)
+* [x] Chart reading guide (`docs/visualization/reading_charts.md`)
+* [ ] Spectral analysis plot — Welch PSD with LF / HF / VLF colour bands
+* [ ] Poincaré plot — SD1 / SD2 scatter with ellipse overlay
+* [ ] DFA α1 fluctuation plot — log-log scale with α1 regression line
+* [ ] Per-protocol evolution charts (cardiac coherence score, HRR, drift rate, VO2max)
+* [ ] Multi-protocol recovery dashboard — side-by-side session comparison
