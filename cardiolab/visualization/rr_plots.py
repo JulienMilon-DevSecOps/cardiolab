@@ -122,6 +122,9 @@ def plot_rr_tachogram(
         ``fig.savefig(...)``).
 
     """
+    if not isinstance(rr, RRSeries):
+        raise TypeError(f"rr must be an RRSeries, got {type(rr).__name__}")
+
     t = _time_axis(rr)
     intervals = rr.intervals
     mean_rr = float(np.mean(intervals))
@@ -192,6 +195,11 @@ def plot_rr_distribution(
         The :class:`~matplotlib.figure.Figure`.
 
     """
+    if not isinstance(rr, RRSeries):
+        raise TypeError(f"rr must be an RRSeries, got {type(rr).__name__}")
+    if bins < 1:
+        raise ValueError(f"bins must be >= 1, got {bins}")
+
     intervals = rr.intervals
     mean_rr = float(np.mean(intervals))
     std_rr = float(np.std(intervals, ddof=1))
@@ -302,6 +310,17 @@ def plot_rr_filtered(
         The :class:`~matplotlib.figure.Figure`.
 
     """
+    if not isinstance(rr, RRSeries):
+        raise TypeError(f"rr must be an RRSeries, got {type(rr).__name__}")
+    if rr_filtered is not None and not isinstance(rr_filtered, RRSeries):
+        raise TypeError(
+            f"rr_filtered must be an RRSeries or None, got {type(rr_filtered).__name__}"
+        )
+    if low <= 0:
+        raise ValueError(f"low must be > 0, got {low}")
+    if low >= high:
+        raise ValueError(f"low ({low}) must be strictly less than high ({high})")
+
     intervals_raw = rr.intervals
     t_raw = _time_axis(rr)
 
@@ -406,6 +425,15 @@ def plot_rr_comparison(
     n = len(rr_list)
     if n == 0:
         raise ValueError("rr_list must contain at least one RRSeries.")
+    for idx, item in enumerate(rr_list):
+        if not isinstance(item, RRSeries):
+            raise TypeError(
+                f"rr_list[{idx}] must be an RRSeries, got {type(item).__name__}"
+            )
+    if labels is not None and len(labels) != n:
+        raise ValueError(
+            f"labels length ({len(labels)}) must match rr_list length ({n})"
+        )
 
     if labels is None:
         labels = [f"Session {i + 1}" for i in range(n)]
@@ -484,6 +512,9 @@ def plot_rr_summary(
         The :class:`~matplotlib.figure.Figure`.
 
     """
+    if not isinstance(rr, RRSeries):
+        raise TypeError(f"rr must be an RRSeries, got {type(rr).__name__}")
+
     intervals = rr.intervals
     t = _time_axis(rr)
     stats = _basic_stats(rr)
