@@ -1,14 +1,31 @@
-# cardiolab — exemples d'utilisation de la base de données
+# cardiolab — exemples d'utilisation
 
-Ce dossier contient des scripts d'exemple pour utiliser le module
-`cardiolab.database.repository` avec PostgreSQL.
+Ce dossier contient des scripts d'exemple couvrant l'ensemble du pipeline :
+base de données PostgreSQL, analyse HRV, validation du signal, export et visualisation.
 
 ```
 example/
-├── .env.example              ← template à copier en .env
-├── 01_setup_database.py      ← à lancer une seule fois
-├── 02_feed_database.py       ← à lancer après chaque nouvelle session
-└── 03_load_and_analyze.py    ← analyse complète depuis la DB
+├── .env.example              ← template à copier en .env (requis pour 01–03)
+│
+│   ── Base de données ──────────────────────────────────────────────────────
+├── 01_setup_database.py      ← créer les tables (une seule fois)
+├── 02_feed_database.py       ← alimenter la base après chaque nouvelle session
+├── 03_load_and_analyze.py    ← analyse complète depuis la DB
+│
+│   ── Import & pipeline ────────────────────────────────────────────────────
+├── 04_import_resting.py      ← importer des sessions de repos depuis des fichiers bruts
+├── 05_import_orthostatic.py  ← importer des sessions orthostatiques
+│
+│   ── Validation & export ──────────────────────────────────────────────────
+├── 06_rr_validation.py       ← PhysiologicalWarning et nettoyage du signal RR
+├── 07_auto_clean.py          ← suppression automatique des artefacts
+├── 08_to_dict_export.py      ← sérialisation to_dict(), JSON et DataFrame pandas
+│
+│   ── Visualisation ────────────────────────────────────────────────────────
+├── 09_rr_signal_plots.py     ← 5 graphiques du signal RR brut (tachogramme, distribution, …)
+├── 10_resting_evolution_plots.py ← évolution RMSSD et score de récupération dans le temps
+│
+└── figures/                  ← figures PNG générées par les scripts de visualisation
 ```
 
 ---
@@ -145,3 +162,41 @@ La colonne `user_id` est de type `TEXT` dans PostgreSQL. Elle pourrait contenir 
 - **Stable dans le temps** — contrairement à un identifiant dérivé d'un nom ou d'une adresse, un UUID ne change pas si tu modifies tes informations.
 
 Le format normalisé est `8-4-4-4-12` (exemple : `550e8400-e29b-41d4-a716-446655440000`). Le script `02_feed_database.py` normalise automatiquement la valeur lue depuis `.env` via `uuid.UUID(raw_value)`, donc peu importe si tu l'as copié avec ou sans tirets.
+
+---
+
+## Scripts de visualisation (sans base de données)
+
+Les scripts 09 et 10 ne nécessitent pas de PostgreSQL et fonctionnent directement
+depuis les fichiers de session JSON présents dans `cardiolab/datasets/resting/`.
+Si aucun fichier n'est trouvé, des données synthétiques sont générées automatiquement.
+
+```bash
+# Graphiques du signal RR brut (5 types de figures)
+python example/09_rr_signal_plots.py
+
+# Évolution du RMSSD et du score de récupération dans le temps
+python example/10_resting_evolution_plots.py
+```
+
+Les figures sont sauvegardées dans `example/figures/` au format PNG (150 dpi).
+
+### Script 09 — Graphiques RR
+
+| Figure générée | Contenu |
+|---|---|
+| `09_01_tachogram.png` | Tachogramme RR avec axe FC |
+| `09_02_distribution.png` | Histogramme + KDE de la distribution |
+| `09_03_filtered.png` | Signal brut vs filtré, artefacts en rouge |
+| `09_04_comparison.png` | Comparaison multi-sessions |
+| `09_05_summary.png` | Figure 2×2 avec tableau de statistiques |
+
+### Script 10 — Évolution temporelle
+
+| Figure générée | Contenu |
+|---|---|
+| `10_01_rmssd_evolution.png` | RMSSD et médiane glissante sur la période |
+| `10_02_readiness_score.png` | Score de récupération avec seuils d'interprétation |
+
+Voir [`cardiolab/docs/visualization/reading_charts.md`](../cardiolab/docs/visualization/reading_charts.md)
+pour le guide de lecture de chaque type de graphique.

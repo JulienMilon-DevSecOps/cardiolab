@@ -1,118 +1,157 @@
-# Protocole de dérive cardiaque
+# Cardiac Drift Protocol
 
-## Principe physiologique
+## Physiological principle
 
-La dérive cardiaque (cardiac drift) est l'augmentation progressive et continue de la fréquence cardiaque lors d'un exercice prolongé à puissance constante. Ce phénomène survient sans augmentation de la demande métabolique et traduit une inadéquation croissante entre le débit cardiaque et les besoins hémodynamiques.
+Cardiac drift is the progressive and continuous increase in heart rate during prolonged
+exercise at constant work rate. This phenomenon occurs without any increase in metabolic
+demand and reflects a growing mismatch between cardiac output and haemodynamic needs.
 
-Les trois mécanismes principaux sont :
+The three main mechanisms are:
 
-1. **Déshydratation** : la réduction du volume plasmatique (−10 à −15 % après 60 min d'effort par temps chaud) diminue le retour veineux et le volume d'éjection systolique. Pour maintenir le débit cardiaque (Q = FC × VES), le cœur compense en augmentant la FC.
+1. **Dehydration**: the reduction in plasma volume (−10 to −15 % after 60 min of
+   exercise in the heat) decreases venous return and stroke volume. To maintain cardiac
+   output (Q = HR × SV), the heart compensates by increasing HR.
 
-2. **Thermorégulation** : la redistribution du flux sanguin vers la peau (refroidissement par sudation) réduit le volume central disponible pour le muscle cardiaque, accentuant la baisse du VES.
+2. **Thermoregulation**: the redistribution of blood flow to the skin (cooling via
+   sweating) reduces the central volume available to the cardiac muscle, amplifying the
+   fall in stroke volume.
 
-3. **Fatigue autonome** : la diminution progressive du tonus parasympathique au cours d'un effort prolongé contribue à l'élévation de la FC basale.
+3. **Autonomic fatigue**: the progressive decrease in parasympathetic tone during
+   prolonged exercise contributes to the rise in baseline HR.
 
-La dérive est quantifiée par la **pente de régression linéaire** de la FC moyenne par fenêtre temporelle sur la durée de l'effort.
+Drift is quantified by the **slope of the linear regression** of window-averaged HR
+over exercise duration.
 
-## Comment réaliser le protocole
+## How to perform the protocol
 
-### Conditions de mesure
-- Exercice **à puissance constante** : vélo à wattage fixe, course à allure stable, tapis roulant à vitesse et pente constantes
-- Durée minimale : **20 minutes** (pour 3 fenêtres de 60 s + marge)
-- Durée optimale : **30–60 minutes**
-- Conditions environnementales à noter : température, humidité, hydratation
+### Measurement conditions
 
-### Déroulement
-1. Démarrer l'enregistrement RR dès le début de l'effort à puissance constante (pas d'échauffement dans la série)
-2. Maintenir une cadence respiratoire et une posture stables
-3. Ne pas consommer de boisson ni s'arrêter pendant la mesure (ou consigner les pauses)
-4. Exporter les intervalles RR à la fin de la session
+- **Constant work rate** exercise: cycling at a fixed wattage, running at a steady
+  pace, treadmill at constant speed and grade.
+- Minimum duration: **20 minutes** (for 3 windows of 60 s + margin).
+- Optimal duration: **30–60 minutes**.
+- Environmental conditions to record: temperature, humidity, hydration status.
 
-### Enregistrement
+### Procedure
+
+1. Start RR recording at the beginning of constant-load exercise (no warm-up in the
+   series).
+2. Maintain a stable breathing cadence and posture.
+3. Do not drink or stop during the measurement (or log any interruptions).
+4. Export the RR intervals at the end of the session.
+
+### Recording
+
 ```python
 from cardiolab.signals.rr import RRSeries
 from cardiolab.protocols.cardiac_drift import cardiac_drift
 
-rr = RRSeries.from_csv("effort_constant.csv")
+rr = RRSeries.from_csv("constant_effort.csv")
 result = cardiac_drift(rr, window_sec=60.0)
 
-print(f"Dérive : {result.drift_rate:.2f} bpm/min")
-print(f"FC initiale : {result.initial_hr:.0f} bpm → FC finale : {result.final_hr:.0f} bpm")
-print(f"Magnitude totale : {result.drift_magnitude:.1f} bpm")
-print(f"R² : {result.r_squared:.3f}")
-print(f"Interprétation : {result.interpretation}")
+print(f"Drift rate: {result.drift_rate:.2f} bpm/min")
+print(f"Initial HR: {result.initial_hr:.0f} bpm → Final HR: {result.final_hr:.0f} bpm")
+print(f"Total magnitude: {result.drift_magnitude:.1f} bpm")
+print(f"R²: {result.r_squared:.3f}")
+print(f"Interpretation: {result.interpretation}")
 ```
 
-## Métriques calculées
+## Computed metrics
 
-| Métrique | Description | Unité |
+| Metric | Description | Unit |
 |---|---|---|
-| `drift_rate` | Pente de régression FC ∼ temps | bpm/min |
-| `drift_magnitude` | Différence FC_finale − FC_initiale | bpm |
-| `r_squared` | Coefficient de détermination R² de la régression | sans unité (0–1) |
-| `drift_detected` | Vrai si la dérive ≥ 0,5 bpm/min | booléen |
-| `initial_hr` | FC moyenne de la première fenêtre | bpm |
-| `final_hr` | FC moyenne de la dernière fenêtre | bpm |
-| `n_windows` | Nombre de fenêtres temporelles | entier |
-| `interpretation` | Catégorie clinique | texte |
-| `duration` | Durée totale de l'enregistrement | s |
+| `drift_rate` | HR ∼ time linear regression slope | bpm/min |
+| `drift_magnitude` | Final HR − Initial HR | bpm |
+| `r_squared` | R² coefficient of determination of the regression | dimensionless (0–1) |
+| `drift_detected` | True if drift ≥ 0.5 bpm/min | boolean |
+| `initial_hr` | Mean HR of the first window | bpm |
+| `final_hr` | Mean HR of the last window | bpm |
+| `n_windows` | Number of time windows | integer |
+| `interpretation` | Clinical category | text |
+| `duration` | Total recording duration | s |
 
-## Interprétation des résultats
+## Interpreting results
 
-### Taux de dérive
+### Drift rate
 
-| Taux (bpm/min) | Catégorie | Signification |
+| Rate (bpm/min) | Category | Meaning |
 |---|---|---|
-| < 0,5 | **Pas de dérive** | Thermorégulation efficace, bonne hydratation |
-| 0,5 – 1,5 | **Dérive légère** | Surveiller l'hydratation |
-| 1,5 – 3,0 | **Dérive modérée** | S'hydrater, envisager de réduire l'intensité |
-| > 3,0 | **Dérive forte** | Arrêter ou réduire significativement |
+| < 0.5 | **No drift** | Efficient thermoregulation, good hydration |
+| 0.5 – 1.5 | **Mild drift** | Monitor hydration |
+| 1.5 – 3.0 | **Moderate drift** | Hydrate, consider reducing intensity |
+| > 3.0 | **Strong drift** | Stop or significantly reduce intensity |
 
-### Coefficient R²
+### R² coefficient
 
-Le R² de la régression linéaire indique si la dérive est **progressive et régulière** :
-- R² > 0,8 : dérive linéaire claire → mécanisme physiologique constant
-- R² 0,5–0,8 : dérive modérément linéaire → possible variabilité de l'effort
-- R² < 0,5 : pas de tendance claire → pas de dérive cardiaque vraie, ou variabilité importante de la puissance
+The R² of the linear regression indicates whether the drift is **progressive and
+regular**:
 
-### Magnitude totale
+- R² > 0.8: clear linear drift → constant physiological mechanism.
+- R² 0.5–0.8: moderately linear drift → possible effort variability.
+- R² < 0.5: no clear trend → no true cardiac drift, or high power variability.
 
-La magnitude (FC_finale − FC_initiale) est un complément utile :
-- Une dérive de +10 bpm sur 30 min (0,33 bpm/min) est légère
-- Une dérive de +20 bpm sur 30 min (0,67 bpm/min) nécessite une attention
-- Une dérive de +30 bpm sur 30 min (1,0 bpm/min) est cliniquement significative
+### Total magnitude
 
-### Fenêtres temporelles
+The magnitude (final HR − initial HR) is a useful complement:
 
-L'algorithme divise la série RR en fenêtres de `window_sec` secondes (défaut 60 s). Chaque fenêtre produit un point de FC moyenne. Il faut **au minimum 3 fenêtres** pour calculer une régression significative.
+- A drift of +10 bpm over 30 min (0.33 bpm/min) is mild.
+- A drift of +20 bpm over 30 min (0.67 bpm/min) warrants attention.
+- A drift of +30 bpm over 30 min (1.0 bpm/min) is clinically significant.
 
-## Applications pratiques
+### Time windows
 
-### Évaluation de l'hydratation
-Un protocole simple consiste à réaliser deux sessions à la même puissance :
-- Session 1 : sans hydratation
-- Session 2 : avec hydratation ad libitum
-La différence de dérive entre les deux sessions quantifie l'effet de l'hydratation.
+The algorithm divides the RR series into windows of `window_sec` seconds (default
+60 s). Each window produces a mean HR data point. A **minimum of 3 windows** is
+required to compute a meaningful regression.
 
-### Suivi longitudinal
-Répéter le test dans des conditions identiques (même puissance, même durée, même heure) permet de suivre l'évolution de la tolérance thermique et de l'efficacité cardiovasculaire.
+## Practical applications
 
-### Prescription d'effort
-Si la dérive est forte (> 3 bpm/min) à une puissance donnée, réduire l'intensité cible de 10–15 % pour limiter la dérive lors des prochaines sessions.
+### Hydration assessment
 
-## Limites et précautions
+A simple protocol consists of two sessions at the same work rate:
+- Session 1: without hydration.
+- Session 2: with ad libitum hydration.
 
-- La puissance d'effort doit être **strictement constante** ; toute variation de cadence ou d'allure introduit un biais dans la régression.
-- La dérive est physiologiquement plus importante par **temps chaud et humide** (> 25 °C, > 70 % HR) ; interpréter en fonction des conditions ambiantes.
-- La durée minimale est de **3 × window_sec** : pour window_sec = 60 s, il faut ≥ 3 min d'effort.
-- Éviter de mesurer pendant des efforts intermittents (HIIT, intervalles) — réservé aux efforts en état stable.
+The difference in drift between the two sessions quantifies the effect of hydration.
 
-## Références
+### Longitudinal tracking
 
-Coyle, E. F., & González-Alonso, J. (2001). Cardiovascular drift during prolonged exercise: new perspectives. *Exercise and Sport Sciences Reviews*, 29(2), 88–92. https://doi.org/10.1097/00003677-200104000-00009
+Repeating the test under identical conditions (same work rate, same duration, same
+time of day) allows tracking of the evolution of thermal tolerance and cardiovascular
+efficiency.
 
-Wingo, J. E., & Cureton, K. J. (2006). Cardiovascular responses to exercise with and without hydration. *Medicine & Science in Sports & Exercise*, 38(4), 739–748. https://doi.org/10.1249/01.mss.0000191765.30569.03
+### Exercise prescription
 
-González-Alonso, J., Calbet, J. A., & Nielsen, B. (1999). Metabolic and thermodynamic responses to dehydration-induced reductions in muscle blood flow in exercising humans. *Journal of Physiology*, 520(2), 577–589. https://doi.org/10.1111/j.1469-7793.1999.00577.x
+If drift is strong (> 3 bpm/min) at a given work rate, reduce the target intensity by
+10–15 % to limit drift in subsequent sessions.
 
-Cheung, S. S., & McLellan, T. M. (1998). Heat acclimation, aerobic fitness, and hydration effects on tolerance during uncompensable heat stress. *Journal of Applied Physiology*, 84(5), 1731–1739. https://doi.org/10.1152/jappl.1998.84.5.1731
+## Limitations and precautions
+
+- The work rate must be **strictly constant**; any variation in cadence or pace
+  introduces a bias in the regression.
+- Drift is physiologically greater in **hot and humid conditions** (> 25 °C, > 70 %
+  relative humidity); interpret in light of ambient conditions.
+- Minimum duration is **3 × window_sec**: for window_sec = 60 s, at least 3 min of
+  effort is required.
+- Do not measure during intermittent exercise (HIIT, intervals) — reserved for
+  steady-state effort.
+
+## References
+
+Coyle, E. F., & González-Alonso, J. (2001). Cardiovascular drift during prolonged
+exercise: new perspectives. *Exercise and Sport Sciences Reviews*, 29(2), 88–92.
+https://doi.org/10.1097/00003677-200104000-00009
+
+Wingo, J. E., & Cureton, K. J. (2006). Cardiovascular responses to exercise with and
+without hydration. *Medicine & Science in Sports & Exercise*, 38(4), 739–748.
+https://doi.org/10.1249/01.mss.0000191765.30569.03
+
+González-Alonso, J., Calbet, J. A., & Nielsen, B. (1999). Metabolic and thermodynamic
+responses to dehydration-induced reductions in muscle blood flow in exercising humans.
+*Journal of Physiology*, 520(2), 577–589.
+https://doi.org/10.1111/j.1469-7793.1999.00577.x
+
+Cheung, S. S., & McLellan, T. M. (1998). Heat acclimation, aerobic fitness, and
+hydration effects on tolerance during uncompensable heat stress.
+*Journal of Applied Physiology*, 84(5), 1731–1739.
+https://doi.org/10.1152/jappl.1998.84.5.1731
