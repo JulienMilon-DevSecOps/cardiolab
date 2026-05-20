@@ -1,4 +1,4 @@
-## Goal
+## 🎯 Goal
 
 **Describe clearly what this issue should accomplish.**
 
@@ -6,7 +6,7 @@
 
 ---
 
-## Context
+## 🧠 Context
 
 **Explain why this issue matters in the project.**
 
@@ -14,7 +14,7 @@
 
 ---
 
-## Scope
+## 📦 Scope
 
 **List precisely what is included in this issue.**
 
@@ -24,7 +24,7 @@
 
 ---
 
-## Out of scope
+## ❌ Out of scope
 
 **List explicitly what is NOT part of this issue.**
 
@@ -34,7 +34,7 @@
 
 ---
 
-## Proposed implementation
+## 🛠️ Proposed implementation
 
 **Describe the planned technical approach.**
 
@@ -44,7 +44,7 @@
 
 ---
 
-## Acceptance criteria
+## 📊 Acceptance criteria
 
 **Define the conditions that must be met for this issue to be closed.**
 
@@ -56,7 +56,7 @@
 
 ---
 
-## Testing
+## 🧪 Testing
 
 **Explain how to verify that the implementation is correct.**
 
@@ -66,7 +66,7 @@
 
 ---
 
-## References
+## 📚 References
 
 **Add relevant sources (scientific or technical).**
 
@@ -76,7 +76,7 @@
 
 ---
 
-## Related issues
+## 🧩 Related issues
 
 **List related issues or dependencies.**
 
