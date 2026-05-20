@@ -30,8 +30,14 @@ _GRAY = "#95a5a6"
 _DARK = "#2c3e50"
 
 _PALETTE = [
-    "#2980b9", "#27ae60", "#e74c3c", "#f39c12",
-    "#8e44ad", "#16a085", "#d35400", "#7f8c8d",
+    "#2980b9",
+    "#27ae60",
+    "#e74c3c",
+    "#f39c12",
+    "#8e44ad",
+    "#16a085",
+    "#d35400",
+    "#7f8c8d",
 ]
 
 
@@ -49,7 +55,11 @@ def _basic_stats(rr: RRSeries) -> dict:
     diffs = np.diff(intervals)
     rmssd = float(np.sqrt(np.mean(diffs**2)))
     sdnn = float(np.std(intervals, ddof=1))
-    pnn50 = float(100.0 * np.sum(np.abs(diffs) > 50) / len(diffs)) if len(diffs) > 0 else 0.0
+    pnn50 = (
+        float(100.0 * np.sum(np.abs(diffs) > 50) / len(diffs))
+        if len(diffs) > 0
+        else 0.0
+    )
     return {
         "n": len(intervals),
         "duration_s": rr.duration,
@@ -124,14 +134,19 @@ def plot_rr_tachogram(
 
     if show_band:
         ax.axhspan(
-            mean_rr - std_rr, mean_rr + std_rr,
-            alpha=0.10, color=color, label=f"±1 σ  ({std_rr:.0f} ms)",
+            mean_rr - std_rr,
+            mean_rr + std_rr,
+            alpha=0.10,
+            color=color,
+            label=f"±1 σ  ({std_rr:.0f} ms)",
         )
 
     if show_mean:
         ax.axhline(
             mean_rr,
-            color=_DARK, linewidth=1.3, linestyle="--",
+            color=_DARK,
+            linewidth=1.3,
+            linestyle="--",
             label=f"Moyenne  {mean_rr:.0f} ms  ({60_000.0 / mean_rr:.0f} bpm)",
         )
 
@@ -184,8 +199,12 @@ def plot_rr_distribution(
     fig, ax = plt.subplots(figsize=figsize)
 
     ax.hist(
-        intervals, bins=bins,
-        color=color, alpha=0.55, edgecolor="white", linewidth=0.5,
+        intervals,
+        bins=bins,
+        color=color,
+        alpha=0.55,
+        edgecolor="white",
+        linewidth=0.5,
         label="Fréquence",
     )
     ax.set_xlabel("Intervalle RR (ms)", fontsize=10)
@@ -193,9 +212,22 @@ def plot_rr_distribution(
     ax.set_title(title, fontsize=12, fontweight="bold", pad=10)
 
     # Vertical markers
-    ax.axvline(mean_rr, color=_DARK, linewidth=1.5, linestyle="--", label=f"Moyenne {mean_rr:.0f} ms")
+    ax.axvline(
+        mean_rr,
+        color=_DARK,
+        linewidth=1.5,
+        linestyle="--",
+        label=f"Moyenne {mean_rr:.0f} ms",
+    )
     ax.axvline(mean_rr - std_rr, color=_GRAY, linewidth=1.0, linestyle=":", alpha=0.8)
-    ax.axvline(mean_rr + std_rr, color=_GRAY, linewidth=1.0, linestyle=":", alpha=0.8, label=f"±1 σ ({std_rr:.0f} ms)")
+    ax.axvline(
+        mean_rr + std_rr,
+        color=_GRAY,
+        linewidth=1.0,
+        linestyle=":",
+        alpha=0.8,
+        label=f"±1 σ ({std_rr:.0f} ms)",
+    )
 
     # KDE on secondary axis
     if show_kde and len(intervals) >= 5:
@@ -221,10 +253,19 @@ def plot_rr_distribution(
             f"Max = {intervals.max():.0f} ms"
         )
         ax.text(
-            0.97, 0.97, stats_text,
+            0.97,
+            0.97,
+            stats_text,
             transform=ax.transAxes,
-            fontsize=8, verticalalignment="top", horizontalalignment="right",
-            bbox={"boxstyle": "round,pad=0.4", "facecolor": "white", "alpha": 0.8, "edgecolor": _GRAY},
+            fontsize=8,
+            verticalalignment="top",
+            horizontalalignment="right",
+            bbox={
+                "boxstyle": "round,pad=0.4",
+                "facecolor": "white",
+                "alpha": 0.8,
+                "edgecolor": _GRAY,
+            },
         )
 
     ax.legend(loc="upper center", fontsize=8)
@@ -278,15 +319,27 @@ def plot_rr_filtered(
     fig, (ax_top, ax_bot) = plt.subplots(2, 1, figsize=figsize, sharex=False)
 
     # ── Top panel: raw signal + highlighted artefacts ────────────────────────
-    ax_top.plot(t_raw, intervals_raw, color=_GRAY, linewidth=0.8, alpha=0.7, label="Brut")
+    ax_top.plot(
+        t_raw, intervals_raw, color=_GRAY, linewidth=0.8, alpha=0.7, label="Brut"
+    )
     ax_top.scatter(
-        t_raw[mask_ok], intervals_raw[mask_ok],
-        color=_BLUE, s=5, alpha=0.6, zorder=3, label="Valide",
+        t_raw[mask_ok],
+        intervals_raw[mask_ok],
+        color=_BLUE,
+        s=5,
+        alpha=0.6,
+        zorder=3,
+        label="Valide",
     )
     if n_removed > 0:
         ax_top.scatter(
-            t_raw[~mask_ok], intervals_raw[~mask_ok],
-            color=_RED, s=30, marker="x", linewidths=1.5, zorder=4,
+            t_raw[~mask_ok],
+            intervals_raw[~mask_ok],
+            color=_RED,
+            s=30,
+            marker="x",
+            linewidths=1.5,
+            zorder=4,
             label=f"Artefacts supprimés ({n_removed})",
         )
     ax_top.axhline(low, color=_RED, linewidth=0.8, linestyle=":", alpha=0.6)
@@ -302,12 +355,19 @@ def plot_rr_filtered(
     ax_bot.scatter(t_filt, intervals_filt, color=_GREEN, s=5, alpha=0.7, zorder=3)
     mean_filt = float(np.mean(intervals_filt))
     ax_bot.axhline(
-        mean_filt, color=_DARK, linewidth=1.2, linestyle="--",
+        mean_filt,
+        color=_DARK,
+        linewidth=1.2,
+        linestyle="--",
         label=f"Moyenne {mean_filt:.0f} ms ({60_000.0 / mean_filt:.0f} bpm)",
     )
     ax_bot.set_xlabel("Temps (s)", fontsize=9)
     ax_bot.set_ylabel("RR (ms)", fontsize=9)
-    ax_bot.set_title(f"Signal filtré  ({len(intervals_filt)} intervalles, −{n_removed} artefacts)", fontsize=10, fontweight="bold")
+    ax_bot.set_title(
+        f"Signal filtré  ({len(intervals_filt)} intervalles, −{n_removed} artefacts)",
+        fontsize=10,
+        fontweight="bold",
+    )
     ax_bot.legend(loc="upper right", fontsize=8)
     ax_bot.grid(axis="y", alpha=0.20, linestyle=":")
     _add_hr_axis(ax_bot)
@@ -358,7 +418,9 @@ def plot_rr_comparison(
     total_height = figsize[1] * n
     fig, axes = plt.subplots(n, 1, figsize=(figsize[0], total_height), squeeze=False)
 
-    for i, (rr, label, color) in enumerate(zip(rr_list, labels, _PALETTE * 4, strict=False)):
+    for i, (rr, label, color) in enumerate(
+        zip(rr_list, labels, _PALETTE * 4, strict=False)
+    ):
         ax = axes[i, 0]
         t = _time_axis(rr)
         if normalize_time and t[-1] > 0:
@@ -373,7 +435,11 @@ def plot_rr_comparison(
         ax.plot(t, intervals, color=color, linewidth=0.9, alpha=0.85)
         ax.scatter(t, intervals, color=color, s=5, alpha=0.6, zorder=3)
         ax.axhline(
-            mean_rr, color=_DARK, linewidth=1.1, linestyle="--", alpha=0.7,
+            mean_rr,
+            color=_DARK,
+            linewidth=1.1,
+            linestyle="--",
+            alpha=0.7,
             label=f"Moy. {mean_rr:.0f} ms ({60_000.0 / mean_rr:.0f} bpm)",
         )
 
@@ -444,8 +510,12 @@ def plot_rr_summary(
 
     # ── Panel B: Distribution ────────────────────────────────────────────────
     ax_b = fig.add_subplot(gs[0, 1])
-    ax_b.hist(intervals, bins=35, color=_BLUE, alpha=0.55, edgecolor="white", linewidth=0.4)
-    ax_b.axvline(mean_rr, color=_DARK, linewidth=1.4, linestyle="--", label=f"{mean_rr:.0f} ms")
+    ax_b.hist(
+        intervals, bins=35, color=_BLUE, alpha=0.55, edgecolor="white", linewidth=0.4
+    )
+    ax_b.axvline(
+        mean_rr, color=_DARK, linewidth=1.4, linestyle="--", label=f"{mean_rr:.0f} ms"
+    )
     ax_b.axvline(mean_rr - std_rr, color=_GRAY, linewidth=0.9, linestyle=":", alpha=0.8)
     ax_b.axvline(mean_rr + std_rr, color=_GRAY, linewidth=0.9, linestyle=":", alpha=0.8)
     if len(intervals) >= 5:
@@ -465,11 +535,24 @@ def plot_rr_summary(
     # ── Panel C: Filtré vs brut ──────────────────────────────────────────────
     ax_c = fig.add_subplot(gs[1, 0])
     ax_c.plot(t, intervals, color=_GRAY, linewidth=0.7, alpha=0.5, label="Brut")
-    ax_c.scatter(t[mask_ok], intervals[mask_ok], color=_GREEN, s=5, alpha=0.7, zorder=3, label="Valide")
+    ax_c.scatter(
+        t[mask_ok],
+        intervals[mask_ok],
+        color=_GREEN,
+        s=5,
+        alpha=0.7,
+        zorder=3,
+        label="Valide",
+    )
     if n_removed > 0:
         ax_c.scatter(
-            t[~mask_ok], intervals[~mask_ok],
-            color=_RED, s=30, marker="x", linewidths=1.5, zorder=4,
+            t[~mask_ok],
+            intervals[~mask_ok],
+            color=_RED,
+            s=30,
+            marker="x",
+            linewidths=1.5,
+            zorder=4,
             label=f"Artefacts ({n_removed})",
         )
     ax_c.axhline(300.0, color=_RED, linewidth=0.7, linestyle=":", alpha=0.5)
@@ -507,16 +590,33 @@ def plot_rr_summary(
         y = y_start - r_idx * row_h
         is_header = r_idx == 0
         weight = "bold" if is_header else "normal"
-        bg_color = "#ecf0f1" if is_header else ("white" if r_idx % 2 == 0 else "#f8f9fa")
+        bg_color = (
+            "#ecf0f1" if is_header else ("white" if r_idx % 2 == 0 else "#f8f9fa")
+        )
         ax_d.add_patch(
-            plt.Rectangle((0.0, y - row_h + 0.005), 1.0, row_h - 0.005,
-                           transform=ax_d.transAxes, facecolor=bg_color, linewidth=0)
+            plt.Rectangle(
+                (0.0, y - row_h + 0.005),
+                1.0,
+                row_h - 0.005,
+                transform=ax_d.transAxes,
+                facecolor=bg_color,
+                linewidth=0,
+            )
         )
         for _c_idx, (text, x) in enumerate(zip(row, col_x, strict=False)):
             ha = "left"
             color = _DARK if is_header else "black"
-            ax_d.text(x, y - 0.01, text, transform=ax_d.transAxes,
-                      fontsize=8.5, fontweight=weight, color=color, ha=ha, va="top")
+            ax_d.text(
+                x,
+                y - 0.01,
+                text,
+                transform=ax_d.transAxes,
+                fontsize=8.5,
+                fontweight=weight,
+                color=color,
+                ha=ha,
+                va="top",
+            )
 
     ax_d.set_title("D — Statistiques HRV", fontsize=10, fontweight="bold")
 
