@@ -38,9 +38,12 @@ import numpy as np
 
 from cardiolab.analytics.baseline import Baseline
 from cardiolab.analytics.scoring import readiness_score_oura
-from cardiolab.protocols.resting import resting_hrv
+from cardiolab.protocols.resting import HRVFeatures, resting_hrv
 from cardiolab.signals.rr import RRSeries
-from cardiolab.visualization.resting_plots import plot_resting_evolution_rolling
+from cardiolab.visualization.resting_plots import (
+    plot_resting_evolution,
+    plot_resting_evolution_rolling,
+)
 
 # ---------------------------------------------------------------------------
 # CONFIGURATION
@@ -57,6 +60,7 @@ _DPI = 150
 
 
 def _save(fig: plt.Figure, name: str) -> None:
+    """Save a figure to the figures directory and close it."""
     path = _FIGURES_DIR / name
     fig.savefig(path, dpi=_DPI, bbox_inches="tight")
     plt.close(fig)
@@ -68,7 +72,6 @@ def _build_synthetic_sessions() -> list[dict]:
     rng = np.random.default_rng(42)
     sessions = []
     for i in range(10):
-        # RMSSD trend: slight upward progression with noise
         mean_rr = 830 + i * 5 + rng.normal(0, 10)
         intervals = rng.normal(mean_rr, 30, 300).clip(min=310).tolist()
         sessions.append(
@@ -112,10 +115,10 @@ def main() -> None:
     # 2. COMPUTE HRV FEATURES AND SCORES PROGRESSIVELY
     # ------------------------------------------------------------------
     dates: list[str] = []
+    all_features: list[HRVFeatures] = []
     rmssd_values: list[float] = []
     rolling_medians: list[float | None] = []
     scores: list[float] = []
-    past_features = []
 
     for session in sessions:
         rr = RRSeries(session["rr_intervals"])
@@ -123,14 +126,14 @@ def main() -> None:
         result.date = session["date"]
 
         baseline = (
-            Baseline.from_features(past_features) if past_features else Baseline()
+            Baseline.from_features(all_features) if all_features else Baseline()
         )
         score = readiness_score_oura(result, baseline)
 
         rolling = baseline.rolling_rmssd_median()
         rolling_medians.append(float(rolling[-1]) if rolling else None)
 
-        past_features.append(result)
+        all_features.append(result)
         dates.append(session["date"])
         rmssd_values.append(result.rmssd)
         scores.append(score)
@@ -218,29 +221,26 @@ def main() -> None:
     _save(fig, "10_02_readiness_score.png")
 
     # ------------------------------------------------------------------
-    # 6. READY-MADE FUNCTION (real files only)
+    # 6. READY-MADE FUNCTIONS — new Figure-returning API
     # ------------------------------------------------------------------
-    if files:
-        print("6. Ready-made plot_resting_evolution_rolling()")
-        # This function opens its own figures and calls plt.show() by default;
-        # we monkey-patch show() to save instead.
-        _shown: list[plt.Figure] = []
-        original_show = plt.show
+    print("6. plot_resting_evolution() — combined RMSSD + score figure")
+    fig = plot_resting_evolution(
+        all_features,
+        scores,
+        labels=dates,
+        title="RMSSD and Readiness Score Evolution",
+    )
+    _save(fig, "10_03_evolution_combined.png")
 
-        def _capture_show():
-            for i, fig in enumerate(map(plt.figure, plt.get_fignums())):
-                _save(fig, f"10_03_evolution_lib_{i + 1}.png")
-            _shown.extend(plt.get_fignums())
-
-        plt.show = _capture_show  # type: ignore[assignment]
-        try:
-            plot_resting_evolution_rolling(_DATA_GLOB)
-        finally:
-            plt.show = original_show  # type: ignore[assignment]
-    else:
-        print(
-            "6. plot_resting_evolution_rolling() — skipped (needs real session files)"
-        )
+    print("7. plot_resting_evolution_rolling() — with rolling median overlay")
+    fig = plot_resting_evolution_rolling(
+        all_features,
+        scores,
+        rolling_medians,
+        labels=dates,
+        title="RMSSD Evolution — with Rolling Median",
+    )
+    _save(fig, "10_04_evolution_rolling.png")
 
     print(f"\nAll figures saved to {_FIGURES_DIR}/")
 
