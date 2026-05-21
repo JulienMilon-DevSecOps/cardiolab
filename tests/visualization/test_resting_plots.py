@@ -159,9 +159,7 @@ class TestPlotRestingEvolution:
         with pytest.raises(TypeError, match="HRVFeatures"):
             plot_resting_evolution([42], single_score)  # type: ignore[list-item]
 
-    def test_scores_not_list_raises(
-        self, single_feature: list[HRVFeatures]
-    ) -> None:
+    def test_scores_not_list_raises(self, single_feature: list[HRVFeatures]) -> None:
         """Non-list scores raises TypeError."""
         with pytest.raises(TypeError, match="scores must be a list"):
             plot_resting_evolution(single_feature, 72.0)  # type: ignore[arg-type]
@@ -332,9 +330,7 @@ class TestPlotRestingEvolutionRolling:
                 multi_features, multi_scores, multi_rolling, labels=["only one"]
             )
 
-    def test_rmssd_values_finite(
-        self, multi_features: list[HRVFeatures]
-    ) -> None:
+    def test_rmssd_values_finite(self, multi_features: list[HRVFeatures]) -> None:
         """All RMSSD values in the fixture are finite (no NaN or Inf)."""
         for f in multi_features:
             assert math.isfinite(f.rmssd)

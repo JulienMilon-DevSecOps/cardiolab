@@ -21,9 +21,9 @@ _GRAY = "#95a5a6"
 
 _SCORE_ZONES = [
     (80, 100, "#d5f5e3", "Very good"),
-    (60,  80, "#fef9e7", "Normal"),
-    (40,  60, "#fdebd0", "Moderate fatigue"),
-    (0,   40, "#fadbd8", "Fatigued"),
+    (60, 80, "#fef9e7", "Normal"),
+    (40, 60, "#fdebd0", "Moderate fatigue"),
+    (0, 40, "#fadbd8", "Fatigued"),
 ]
 
 
@@ -92,19 +92,39 @@ def plot_resting_evolution(
     fig, (ax_rmssd, ax_score) = plt.subplots(2, 1, figsize=figsize, sharex=True)
 
     # ── Top: RMSSD ────────────────────────────────────────────────────────────
-    ax_rmssd.plot(x, rmssd, color=_RMSSD_COLOR, linewidth=1.8, marker="o",
-                  markersize=5, label="RMSSD")
+    ax_rmssd.plot(
+        x,
+        rmssd,
+        color=_RMSSD_COLOR,
+        linewidth=1.8,
+        marker="o",
+        markersize=5,
+        label="RMSSD",
+    )
     mean_rmssd = float(np.mean(rmssd))
-    ax_rmssd.axhline(mean_rmssd, color=_GRAY, linewidth=0.9, linestyle="--",
-                     alpha=0.8, label=f"Mean {mean_rmssd:.1f} ms")
+    ax_rmssd.axhline(
+        mean_rmssd,
+        color=_GRAY,
+        linewidth=0.9,
+        linestyle="--",
+        alpha=0.8,
+        label=f"Mean {mean_rmssd:.1f} ms",
+    )
     ax_rmssd.set_ylabel("RMSSD (ms)", fontsize=10)
     ax_rmssd.legend(loc="upper left", fontsize=8)
     ax_rmssd.grid(alpha=0.20, linestyle=":")
 
     # ── Bottom: readiness score ───────────────────────────────────────────────
     _draw_score_bands(ax_score)
-    ax_score.plot(x, scores_arr, color=_SCORE_COLOR, linewidth=1.8, marker="o",
-                  markersize=5, zorder=4)
+    ax_score.plot(
+        x,
+        scores_arr,
+        color=_SCORE_COLOR,
+        linewidth=1.8,
+        marker="o",
+        markersize=5,
+        zorder=4,
+    )
     ax_score.set_ylim(0, 105)
     ax_score.set_ylabel("Readiness score", fontsize=10)
     ax_score.set_xticks(x)
@@ -186,19 +206,42 @@ def plot_resting_evolution_rolling(
     fig, (ax_rmssd, ax_score) = plt.subplots(2, 1, figsize=figsize, sharex=True)
 
     # ── Top: RMSSD + rolling median ───────────────────────────────────────────
-    ax_rmssd.plot(x, rmssd, color=_RMSSD_COLOR, linewidth=1.8, marker="o",
-                  markersize=5, label="RMSSD", zorder=4)
-    ax_rmssd.plot(x, rolling_arr, color=_ROLLING_COLOR, linewidth=1.6,
-                  linestyle="--", marker="s", markersize=4,
-                  label="Rolling median", zorder=3)
+    ax_rmssd.plot(
+        x,
+        rmssd,
+        color=_RMSSD_COLOR,
+        linewidth=1.8,
+        marker="o",
+        markersize=5,
+        label="RMSSD",
+        zorder=4,
+    )
+    ax_rmssd.plot(
+        x,
+        rolling_arr,
+        color=_ROLLING_COLOR,
+        linewidth=1.6,
+        linestyle="--",
+        marker="s",
+        markersize=4,
+        label="Rolling median",
+        zorder=3,
+    )
     ax_rmssd.set_ylabel("RMSSD (ms)", fontsize=10)
     ax_rmssd.legend(loc="upper left", fontsize=8)
     ax_rmssd.grid(alpha=0.20, linestyle=":")
 
     # ── Bottom: readiness score ───────────────────────────────────────────────
     _draw_score_bands(ax_score)
-    ax_score.plot(x, scores_arr, color=_SCORE_COLOR, linewidth=1.8, marker="o",
-                  markersize=5, zorder=4)
+    ax_score.plot(
+        x,
+        scores_arr,
+        color=_SCORE_COLOR,
+        linewidth=1.8,
+        marker="o",
+        markersize=5,
+        zorder=4,
+    )
     ax_score.set_ylim(0, 105)
     ax_score.set_ylabel("Readiness score", fontsize=10)
     ax_score.set_xticks(x)

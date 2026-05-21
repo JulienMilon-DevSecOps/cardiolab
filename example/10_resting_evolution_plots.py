@@ -125,9 +125,7 @@ def main() -> None:
         result = resting_hrv(rr)
         result.date = session["date"]
 
-        baseline = (
-            Baseline.from_features(all_features) if all_features else Baseline()
-        )
+        baseline = Baseline.from_features(all_features) if all_features else Baseline()
         score = readiness_score_oura(result, baseline)
 
         rolling = baseline.rolling_rmssd_median()
