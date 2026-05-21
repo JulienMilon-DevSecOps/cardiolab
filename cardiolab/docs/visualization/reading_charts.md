@@ -222,9 +222,141 @@ The summary figure enables a full evaluation in a single pass:
 
 ---
 
+---
+
+## 6. RMSSD and Readiness Score Evolution — `plot_resting_evolution`
+
+### What it shows
+
+A two-panel stacked figure covering an entire session history.
+
+**Top panel — RMSSD (ms)**
+
+| Element | Meaning |
+|---|---|
+| Blue line + dots | RMSSD value for each session |
+| Grey dashed line | Overall mean RMSSD across all sessions |
+
+**Bottom panel — Readiness score (0–100)**
+
+| Element | Meaning |
+|---|---|
+| Green line + dots | Readiness score computed from RMSSD and HR |
+| Coloured bands | Interpretation zones (see table below) |
+
+### Score interpretation bands
+
+| Band | Colour | Meaning |
+|---|---|---|
+| 80 – 100 | Light green | Very good recovery — full training load acceptable |
+| 60 – 80 | Light yellow | Normal recovery |
+| 40 – 60 | Light orange | Moderate fatigue — consider reduced intensity |
+| 0 – 40 | Light red | Fatigued — prioritise rest or active recovery |
+
+### How to read it
+
+**Horizontal axis** — sessions in chronological order (one point per day when
+data is recorded daily). Labels default to the `date` attribute of each
+`HRVFeatures` object.
+
+**RMSSD top panel** — scan for trends rather than individual values.
+A consistently rising RMSSD indicates improving recovery over the period.
+The grey mean line is a simple reference; prefer the rolling median (see
+`plot_resting_evolution_rolling`) for a noise-robust baseline.
+
+**Score bottom panel** — use the coloured bands to quickly categorise each
+session. A score that dips into the orange or red zone repeatedly over 3–4
+days suggests accumulated fatigue.
+
+### API
+
+```python
+from cardiolab.visualization.resting_plots import plot_resting_evolution
+
+fig = plot_resting_evolution(
+    features_list,          # list[HRVFeatures] — chronological order
+    scores,                 # list[float] — one score per session (0–100)
+    labels=dates,           # optional list[str] — x-axis labels
+    title="My Evolution",   # optional
+    figsize=(12, 7),        # optional
+)
+fig.savefig("evolution.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
+## 7. RMSSD with Rolling Median — `plot_resting_evolution_rolling`
+
+### What it shows
+
+Identical layout to the previous chart but adds a rolling RMSSD median
+to the top panel.
+
+**Top panel — RMSSD + rolling median**
+
+| Element | Meaning |
+|---|---|
+| Blue line + dots | Raw RMSSD per session |
+| Orange dashed line + squares | Rolling RMSSD median (7-session window by default) |
+| Gap in orange line | `None` entry — no prior baseline available yet |
+
+**Bottom panel** — same readiness score bands as `plot_resting_evolution`.
+
+### Why the rolling median matters
+
+Day-to-day RMSSD fluctuates significantly (stress, sleep quality, digestion,
+measurement time). The rolling median smooths this noise and reveals:
+
+| Pattern | Interpretation |
+|---|---|
+| Blue line consistently above orange | RMSSD trending up — good adaptation |
+| Blue line crosses below orange | Single-day drop — could be one poor night |
+| Blue line stays below orange for ≥ 3 days | Sustained underperformance — likely accumulated fatigue |
+| Rolling median itself rising over weeks | Long-term improvement in autonomic recovery |
+
+### First-session gap
+
+The rolling median requires a prior history window. The first session (and
+sometimes the first several sessions) will have `None` as their rolling value,
+which appears as a gap in the orange line. This is expected behaviour.
+
+### API
+
+```python
+from cardiolab.visualization.resting_plots import plot_resting_evolution_rolling
+
+fig = plot_resting_evolution_rolling(
+    features_list,          # list[HRVFeatures]
+    scores,                 # list[float]
+    rolling_rmssd,          # list[float | None] — None draws a gap
+    labels=dates,           # optional list[str]
+    title="My Evolution",   # optional
+    figsize=(12, 7),        # optional
+)
+fig.savefig("evolution_rolling.png", dpi=150, bbox_inches="tight")
+```
+
+### Computing rolling_rmssd from a Baseline
+
+```python
+from cardiolab.analytics.baseline import Baseline
+from cardiolab.analytics.scoring import readiness_score_oura
+
+all_features, rolling_rmssd, scores = [], [], []
+for session_features in chronological_features:
+    baseline = Baseline.from_features(all_features) if all_features else Baseline()
+    rolling = baseline.rolling_rmssd_median()
+    rolling_rmssd.append(float(rolling[-1]) if rolling else None)
+    scores.append(readiness_score_oura(session_features, baseline))
+    all_features.append(session_features)
+```
+
+---
+
 ## See also
 
 - [`docs/features/time_domain.md`](../features/time_domain.md) — RMSSD, SDNN, pNN50 definitions
 - [`docs/features/frequency_domain.md`](../features/frequency_domain.md) — LF, HF, LF/HF
 - [`docs/hrv_interpretations.md`](../hrv_interpretations.md) — full HRV interpretation guide
-- [`example/09_rr_signal_plots.py`](../../../../example/09_rr_signal_plots.py) — demonstration of all 5 functions
+- [`example/09_rr_signal_plots.py`](../../../../example/09_rr_signal_plots.py) — demonstration of all 5 RR signal functions
+- [`example/10_resting_evolution_plots.py`](../../../../example/10_resting_evolution_plots.py) — complete worked example for sections 6 and 7
