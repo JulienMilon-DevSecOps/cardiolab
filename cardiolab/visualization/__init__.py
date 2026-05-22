@@ -10,8 +10,16 @@ rr_plots
 spectral_plots
     Frequency-domain HRV: PSD (Welch/AR), LF/HF evolution, radar chart,
     and spectral heatmap.
+nonlinear_plots
+    Non-linear HRV: Poincaré scatter with SD1/SD2 ellipse, supine vs standing
+    comparison, and SD1/SD2 evolution over sessions.
 """
 
+from cardiolab.visualization.nonlinear_plots import (
+    plot_poincare,
+    plot_poincare_comparison,
+    plot_sd1_sd2_evolution,
+)
 from cardiolab.visualization.resting_plots import (
     plot_resting_evolution,
     plot_resting_evolution_rolling,
@@ -32,6 +40,10 @@ from cardiolab.visualization.spectral_plots import (
 )
 
 __all__ = [
+    # nonlinear_plots
+    "plot_poincare",
+    "plot_poincare_comparison",
+    "plot_sd1_sd2_evolution",
     # resting_plots
     "plot_resting_evolution",
     "plot_resting_evolution_rolling",
