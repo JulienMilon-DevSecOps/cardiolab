@@ -341,6 +341,30 @@ score bottom). `None` values in `rolling_rmssd` appear as gaps in the line.
 See [`example/10_resting_evolution_plots.py`](example/10_resting_evolution_plots.py)
 for a complete worked example including data loading and score computation.
 
+### Cardiac coherence — `coherence_plots`
+
+```python
+from cardiolab.visualization.coherence_plots import (
+    plot_coherence_psd,             # AR PSD + resonance band + peak annotation
+    plot_coherence_score_evolution, # score over sessions with interpretation bands
+    plot_coherence_tachogram,       # RR tachogram + sinusoidal respiratory reference
+)
+
+result = cardiac_coherence(rr)
+
+# AR PSD with resonance band [0.04–0.26 Hz] colored
+fig = plot_coherence_psd(rr, result)
+fig.savefig("coherence_psd.png", dpi=150, bbox_inches="tight")
+
+# Score evolution over multiple sessions (list[CoherenceResult])
+fig = plot_coherence_score_evolution(results, labels=dates)
+fig.savefig("coherence_score.png", dpi=150, bbox_inches="tight")
+
+# RR tachogram + sine reference at resonance frequency
+fig = plot_coherence_tachogram(rr, result)
+fig.savefig("coherence_tacho.png", dpi=150, bbox_inches="tight")
+```
+
 ### Non-linear visualisation — `nonlinear_plots`
 
 ```python
@@ -541,6 +565,9 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] Poincaré scatter with SD1/SD2 ellipse and arrows (`plot_poincare`)
 * [x] Supine vs standing Poincaré comparison (`plot_poincare_comparison`)
 * [x] SD1/SD2/ratio evolution over sessions (`plot_sd1_sd2_evolution`)
+* [x] Cardiac coherence AR PSD with resonance band (`plot_coherence_psd`)
+* [x] Cardiac coherence score evolution (`plot_coherence_score_evolution`)
+* [x] RR tachogram with respiratory reference (`plot_coherence_tachogram`)
 * [ ] DFA α1 fluctuation plot — log-log scale with α1 regression line
 * [ ] Per-protocol evolution charts (cardiac coherence score, HRR, drift rate, VO2max)
 * [ ] Multi-protocol recovery dashboard — side-by-side session comparison
