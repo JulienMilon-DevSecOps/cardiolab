@@ -341,6 +341,31 @@ score bottom). `None` values in `rolling_rmssd` appear as gaps in the line.
 See [`example/10_resting_evolution_plots.py`](example/10_resting_evolution_plots.py)
 for a complete worked example including data loading and score computation.
 
+### Non-linear visualisation — `nonlinear_plots`
+
+```python
+from cardiolab.visualization.nonlinear_plots import (
+    plot_poincare,            # RR(n) vs RR(n+1) scatter with SD1/SD2 ellipse
+    plot_poincare_comparison, # supine vs standing side-by-side
+    plot_sd1_sd2_evolution,   # SD1/SD2/ratio evolution over sessions
+)
+
+# Single session — Poincaré scatter
+fig = plot_poincare(rr, title="Session 2026-05-20")
+fig.savefig("poincare.png", dpi=150, bbox_inches="tight")
+
+# Orthostatic comparison (rr from OrthstaticResult.phases)
+fig = plot_poincare_comparison(result.phases.supine.rr, result.phases.standing.rr)
+fig.savefig("poincare_ortho.png", dpi=150, bbox_inches="tight")
+
+# Evolution over multiple sessions
+fig = plot_sd1_sd2_evolution(features_list, labels=dates)
+fig.savefig("sd1_sd2.png", dpi=150, bbox_inches="tight")
+```
+
+All three functions return a `Figure`.  The comparison function uses a shared
+axis range so the SD1 contraction on standing is directly visible.
+
 ---
 
 ## Analytics
@@ -513,7 +538,9 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] HRV radar chart — 5 normalised metrics (`plot_hrv_radar`)
 * [x] Sessions × frequency bands heatmap (`plot_spectral_heatmap`)
 * [x] Spectral chart reading guide (`docs/visualization/reading_spectral_charts.md`)
-* [ ] Poincaré plot — SD1 / SD2 scatter with ellipse overlay
+* [x] Poincaré scatter with SD1/SD2 ellipse and arrows (`plot_poincare`)
+* [x] Supine vs standing Poincaré comparison (`plot_poincare_comparison`)
+* [x] SD1/SD2/ratio evolution over sessions (`plot_sd1_sd2_evolution`)
 * [ ] DFA α1 fluctuation plot — log-log scale with α1 regression line
 * [ ] Per-protocol evolution charts (cardiac coherence score, HRR, drift rate, VO2max)
 * [ ] Multi-protocol recovery dashboard — side-by-side session comparison

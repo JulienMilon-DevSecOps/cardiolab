@@ -353,6 +353,149 @@ for session_features in chronological_features:
 
 ---
 
+---
+
+## 8. Poincaré Plot — `plot_poincare`
+
+### What it shows
+
+| Element | Meaning |
+|---|---|
+| Grey dots | Each consecutive pair (RR_n, RR_{n+1}) |
+| Dashed grey line | Identity line y = x |
+| Dark ellipse | SD1/SD2 fitted ellipse centred on mean RR |
+| Blue arrow (SD1) | Short axis — perpendicular to y=x |
+| Orange arrow (SD2) | Long axis — along y=x |
+| Text box (top-left) | SD1, SD2 and SD1/SD2 ratio |
+
+### How to read it
+
+The Poincaré plot maps each RR interval against the following one.  The shape of
+the resulting cloud encodes autonomic tone:
+
+| Shape | SD1 vs SD2 | Interpretation |
+|---|---|---|
+| Elongated comet | SD1 ≪ SD2 | Sympathetic dominance, low vagal tone |
+| Compact oval | SD1 ≈ SD2 | Balanced autonomic regulation |
+| Wide round cloud | Both large | High variability, strong parasympathetic tone |
+| Tight cluster | Both small | Very low HRV — fatigue, exercise, or pathology |
+
+**SD1** (perpendicular to y=x, blue arrow): short-term beat-to-beat variability.
+Mathematically equal to RMSSD / √2.
+
+**SD2** (along y=x, orange arrow): long-term and overall variability.
+Mathematically derived from SDNN and SD1.
+
+**SD1/SD2 ratio**: shape index of the ellipse.
+
+| Ratio | Interpretation |
+|---|---|
+| < 0.25 | Very low — sympathetic dominance |
+| 0.25 – 0.55 | Normal resting range |
+| > 0.55 | High — parasympathetic dominance |
+
+### API
+
+```python
+from cardiolab.visualization.nonlinear_plots import plot_poincare
+
+fig = plot_poincare(rr, title="Session 2026-05-20", figsize=(6, 6))
+fig.savefig("poincare.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
+## 9. Orthostatic Poincaré Comparison — `plot_poincare_comparison`
+
+### What it shows
+
+Two side-by-side Poincaré plots sharing the same axis range:
+
+| Panel | Colour | Content |
+|---|---|---|
+| Left — Supine | Blue | Resting lying-down phase |
+| Right — Standing | Red | Stabilised standing phase |
+
+Each panel shows the scatter cloud, the SD1/SD2 ellipse, and a stats annotation
+box.  Because both panels share the same scale, the geometry change is
+immediately visible.
+
+### What to look for
+
+The key signature of the orthostatic reflex is **SD1 contraction on standing**:
+the vagal withdrawal triggered by posture change shrinks the short axis of the
+ellipse (SD1) while SD2 remains more stable.
+
+| Observation | Interpretation |
+|---|---|
+| SD1 visibly smaller on right panel | Normal vagal withdrawal on standing |
+| SD1 unchanged between panels | Blunted orthostatic response — possible autonomic impairment |
+| Both SD1 and SD2 decrease | Global reduction in HRV — general fatigue or deconditioning |
+| Right cloud shifted left (lower mean RR) | HR increase on standing — expected (+10–30 bpm) |
+
+### API
+
+```python
+from cardiolab.visualization.nonlinear_plots import plot_poincare_comparison
+
+# rr_supine and rr_standing are RRSeries from an OrthstaticResult:
+#   result.phases.supine.rr  /  result.phases.standing.rr
+fig = plot_poincare_comparison(
+    result.phases.supine.rr,
+    result.phases.standing.rr,
+    label_supine="Supine (5 min)",
+    label_standing="Standing (5 min)",
+)
+fig.savefig("poincare_ortho.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
+## 10. SD1 / SD2 Evolution — `plot_sd1_sd2_evolution`
+
+### What it shows
+
+A single figure with two y-axes:
+
+| Element | Axis | Meaning |
+|---|---|---|
+| Blue line + circles | Left (ms) | SD1 per session — short-term vagal activity |
+| Orange line + squares | Left (ms) | SD2 per session — overall autonomic regulation |
+| Green dashed + triangles | Right (ratio) | SD1/SD2 ratio — ellipse shape index |
+
+### How to read it
+
+**SD1 trend** — a rising SD1 over days indicates improving vagal tone and
+recovery from training load.
+
+**SD2 trend** — SD2 is more stable than SD1 and reflects longer-term autonomic
+adaptation.
+
+**Ratio trend** — divergence between SD1 and SD2 is captured by the ratio:
+
+| Ratio trend | Interpretation |
+|---|---|
+| Falling ratio | SD1 decreasing faster than SD2 — growing sympathetic load |
+| Rising ratio | SD1 recovering — parasympathetic reactivation |
+| Ratio stable at < 0.3 | Chronic sympathetic dominance — watch for overtraining |
+
+A `float('nan')` SD1/SD2 ratio (SD2 = 0) appears as a gap in the green line.
+
+### API
+
+```python
+from cardiolab.visualization.nonlinear_plots import plot_sd1_sd2_evolution
+
+fig = plot_sd1_sd2_evolution(
+    features_list,      # list[HRVFeatures] — chronological order
+    labels=dates,       # optional list[str]
+    title="SD1/SD2 — May 2026",
+)
+fig.savefig("sd1_sd2_evolution.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
 ## See also
 
 - [`docs/features/time_domain.md`](../features/time_domain.md) — RMSSD, SDNN, pNN50 definitions
