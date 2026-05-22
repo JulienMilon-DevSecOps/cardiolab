@@ -196,8 +196,10 @@ Les figures sont sauvegardées dans `example/figures/` au format PNG (150 dpi).
 
 | Figure générée | Contenu |
 |---|---|
-| `10_01_rmssd_evolution.png` | RMSSD et médiane glissante sur la période |
-| `10_02_readiness_score.png` | Score de récupération avec seuils d'interprétation |
+| `10_01_rmssd_evolution.png` | RMSSD brut + médiane glissante (tracé manuel) |
+| `10_02_readiness_score.png` | Score de récupération avec seuils (tracé manuel) |
+| `10_03_evolution_combined.png` | RMSSD + score via `plot_resting_evolution()` |
+| `10_04_evolution_rolling.png` | RMSSD + médiane + score via `plot_resting_evolution_rolling()` |
 
 ### Script 11 — Visualisation spectrale
 

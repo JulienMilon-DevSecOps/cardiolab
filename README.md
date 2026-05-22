@@ -327,8 +327,19 @@ from cardiolab.visualization.resting_plots import (
     plot_resting_evolution_rolling, # same with rolling-median RMSSD overlay
 )
 
-plot_resting_evolution_rolling("cardiolab/datasets/resting/*.json")
+# features_list: list[HRVFeatures], scores: list[float]
+fig = plot_resting_evolution(features_list, scores, labels=dates)
+fig.savefig("evolution.png", dpi=150, bbox_inches="tight")
+
+# rolling_rmssd: list[float | None]  (None = no prior baseline)
+fig = plot_resting_evolution_rolling(features_list, scores, rolling_rmssd, labels=dates)
+fig.savefig("evolution_rolling.png", dpi=150, bbox_inches="tight")
 ```
+
+Both functions return a `Figure` with two stacked panels (RMSSD top, readiness
+score bottom). `None` values in `rolling_rmssd` appear as gaps in the line.
+See [`example/10_resting_evolution_plots.py`](example/10_resting_evolution_plots.py)
+for a complete worked example including data loading and score computation.
 
 ---
 
