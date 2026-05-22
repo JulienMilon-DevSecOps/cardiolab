@@ -78,12 +78,13 @@ def plot_poincare(
     _add_stats_annotation(ax, stats)
 
     legend_elements = [
-        Line2D([0], [0], color=_SD1_COLOR, lw=1.5,
-               label=f"SD1 = {stats['sd1']:.1f} ms"),
-        Line2D([0], [0], color=_SD2_COLOR, lw=1.5,
-               label=f"SD2 = {stats['sd2']:.1f} ms"),
-        Line2D([0], [0], color=_IDENTITY_COLOR, lw=0.9, linestyle="--",
-               label="y = x"),
+        Line2D(
+            [0], [0], color=_SD1_COLOR, lw=1.5, label=f"SD1 = {stats['sd1']:.1f} ms"
+        ),
+        Line2D(
+            [0], [0], color=_SD2_COLOR, lw=1.5, label=f"SD2 = {stats['sd2']:.1f} ms"
+        ),
+        Line2D([0], [0], color=_IDENTITY_COLOR, lw=0.9, linestyle="--", label="y = x"),
     ]
     ax.legend(handles=legend_elements, loc="lower right", fontsize=8)
     ax.set_xlabel("RR(n) (ms)", fontsize=10)
@@ -152,19 +153,22 @@ def plot_poincare_comparison(
         (ax_sup, rr_supine, _SUPINE_COLOR, stats_supine, label_supine),
         (ax_sta, rr_standing, _STANDING_COLOR, stats_standing, label_standing),
     ):
-        _draw_poincare_on_ax(ax, rr, scatter_color=color, limits=limits, show_arrows=True)
+        _draw_poincare_on_ax(
+            ax, rr, scatter_color=color, limits=limits, show_arrows=True
+        )
         _add_stats_annotation(ax, stats)
         ax.set_title(label, fontsize=11, fontweight="bold")
         ax.set_xlabel("RR(n) (ms)", fontsize=9)
         ax.set_ylabel("RR(n+1) (ms)", fontsize=9)
         ax.grid(alpha=0.20, linestyle=":")
         legend_elements = [
-            Line2D([0], [0], color=color, lw=1.5,
-                   label=f"SD1 = {stats['sd1']:.1f} ms"),
-            Line2D([0], [0], color=_SD2_COLOR, lw=1.5,
-                   label=f"SD2 = {stats['sd2']:.1f} ms"),
-            Line2D([0], [0], color=_IDENTITY_COLOR, lw=0.9, linestyle="--",
-                   label="y = x"),
+            Line2D([0], [0], color=color, lw=1.5, label=f"SD1 = {stats['sd1']:.1f} ms"),
+            Line2D(
+                [0], [0], color=_SD2_COLOR, lw=1.5, label=f"SD2 = {stats['sd2']:.1f} ms"
+            ),
+            Line2D(
+                [0], [0], color=_IDENTITY_COLOR, lw=0.9, linestyle="--", label="y = x"
+            ),
         ]
         ax.legend(handles=legend_elements, loc="lower right", fontsize=7)
 
@@ -225,8 +229,10 @@ def plot_sd1_sd2_evolution(
     sd1_arr = np.array([f.sd1 for f in features_list], dtype=float)
     sd2_arr = np.array([f.sd2 for f in features_list], dtype=float)
     ratio_arr = np.array(
-        [f.sd_ratio if not math.isnan(f.sd_ratio) else float("nan")
-         for f in features_list],
+        [
+            f.sd_ratio if not math.isnan(f.sd_ratio) else float("nan")
+            for f in features_list
+        ],
         dtype=float,
     )
 
@@ -234,17 +240,41 @@ def plot_sd1_sd2_evolution(
     ax_ratio = ax.twinx()
 
     # SD1 and SD2 on the left axis
-    ax.plot(x, sd1_arr, color=_SD1_COLOR, linewidth=1.8, marker="o",
-            markersize=5, label="SD1 (ms)", zorder=4)
-    ax.plot(x, sd2_arr, color=_SD2_COLOR, linewidth=1.8, marker="s",
-            markersize=5, label="SD2 (ms)", zorder=4)
+    ax.plot(
+        x,
+        sd1_arr,
+        color=_SD1_COLOR,
+        linewidth=1.8,
+        marker="o",
+        markersize=5,
+        label="SD1 (ms)",
+        zorder=4,
+    )
+    ax.plot(
+        x,
+        sd2_arr,
+        color=_SD2_COLOR,
+        linewidth=1.8,
+        marker="s",
+        markersize=5,
+        label="SD2 (ms)",
+        zorder=4,
+    )
     ax.set_ylabel("SD1 / SD2 (ms)", fontsize=10)
     ax.grid(alpha=0.20, linestyle=":")
 
     # SD1/SD2 ratio on the right axis
-    ax_ratio.plot(x, ratio_arr, color=_RATIO_COLOR, linewidth=1.4,
-                  linestyle="--", marker="^", markersize=5,
-                  label="SD1/SD2 ratio", zorder=3)
+    ax_ratio.plot(
+        x,
+        ratio_arr,
+        color=_RATIO_COLOR,
+        linewidth=1.4,
+        linestyle="--",
+        marker="^",
+        markersize=5,
+        label="SD1/SD2 ratio",
+        zorder=3,
+    )
     ax_ratio.set_ylabel("SD1/SD2 ratio", fontsize=10, color=_RATIO_COLOR)
     ax_ratio.tick_params(axis="y", colors=_RATIO_COLOR)
     ax_ratio.set_ylim(0, None)
@@ -259,7 +289,8 @@ def plot_sd1_sd2_evolution(
     ax.legend(
         handles_left + handles_right,
         labels_left + labels_right,
-        loc="upper left", fontsize=8,
+        loc="upper left",
+        fontsize=8,
     )
 
     fig.suptitle(title, fontsize=13, fontweight="bold", y=1.01)
@@ -325,8 +356,14 @@ def _draw_poincare_on_ax(
     lo, hi = limits
 
     # Identity line
-    ax.plot([lo, hi], [lo, hi], color=_IDENTITY_COLOR, linewidth=0.9,
-            linestyle="--", alpha=0.7)
+    ax.plot(
+        [lo, hi],
+        [lo, hi],
+        color=_IDENTITY_COLOR,
+        linewidth=0.9,
+        linestyle="--",
+        alpha=0.7,
+    )
 
     # Scatter
     ax.scatter(rr_n, rr_n1, s=8, color=scatter_color, alpha=0.35, zorder=2)
@@ -380,8 +417,11 @@ def _add_stats_annotation(ax: plt.Axes, stats: dict) -> None:
         f"SD1/SD2 = {ratio_str}"
     )
     ax.text(
-        0.03, 0.97, text,
-        transform=ax.transAxes, va="top",
+        0.03,
+        0.97,
+        text,
+        transform=ax.transAxes,
+        va="top",
         bbox={
             "boxstyle": "round,pad=0.4",
             "facecolor": "white",

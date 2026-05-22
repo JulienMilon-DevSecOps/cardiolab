@@ -103,7 +103,9 @@ def features_multi() -> list[HRVFeatures]:
 @pytest.fixture
 def features_nan_ratio() -> list[HRVFeatures]:
     """List with one entry where sd_ratio is NaN (forced edge case)."""
-    return [_make_features(sd1=35.0, sd2=80.0, sd_ratio=float("nan"), date="2026-05-21")]
+    return [
+        _make_features(sd1=35.0, sd2=80.0, sd_ratio=float("nan"), date="2026-05-21")
+    ]
 
 
 # ── plot_poincare ─────────────────────────────────────────────────────────────
@@ -170,9 +172,7 @@ class TestPlotPoincare:
 class TestPlotPoincareComparison:
     """Tests for plot_poincare_comparison."""
 
-    def test_returns_figure(
-        self, rr_normal: RRSeries, rr_standing: RRSeries
-    ) -> None:
+    def test_returns_figure(self, rr_normal: RRSeries, rr_standing: RRSeries) -> None:
         """Two valid RRSeries: function returns a Figure."""
         fig = plot_poincare_comparison(rr_normal, rr_standing)
         assert isinstance(fig, Figure)
@@ -182,13 +182,13 @@ class TestPlotPoincareComparison:
         fig = plot_poincare_comparison(rr_normal, rr_standing)
         assert len(fig.axes) == 2
 
-    def test_custom_labels(
-        self, rr_normal: RRSeries, rr_standing: RRSeries
-    ) -> None:
+    def test_custom_labels(self, rr_normal: RRSeries, rr_standing: RRSeries) -> None:
         """Custom panel labels: figure is created without raising."""
         fig = plot_poincare_comparison(
-            rr_normal, rr_standing,
-            label_supine="Allongé", label_standing="Debout",
+            rr_normal,
+            rr_standing,
+            label_supine="Allongé",
+            label_standing="Debout",
         )
         assert isinstance(fig, Figure)
 
@@ -197,9 +197,7 @@ class TestPlotPoincareComparison:
         fig = plot_poincare_comparison(rr_normal, rr_standing, title="My Test")
         assert isinstance(fig, Figure)
 
-    def test_custom_figsize(
-        self, rr_normal: RRSeries, rr_standing: RRSeries
-    ) -> None:
+    def test_custom_figsize(self, rr_normal: RRSeries, rr_standing: RRSeries) -> None:
         """Custom figsize: figure dimensions match the requested size."""
         fig = plot_poincare_comparison(rr_normal, rr_standing, figsize=(10, 5))
         assert fig.get_size_inches().tolist() == pytest.approx([10.0, 5.0])
@@ -216,16 +214,12 @@ class TestPlotPoincareComparison:
         ax1, ax2 = fig.axes
         assert ax1.get_ylim() == pytest.approx(ax2.get_ylim())
 
-    def test_supine_not_rrseries_raises(
-        self, rr_standing: RRSeries
-    ) -> None:
+    def test_supine_not_rrseries_raises(self, rr_standing: RRSeries) -> None:
         """Non-RRSeries supine argument raises TypeError."""
         with pytest.raises(TypeError, match="rr must be an RRSeries"):
             plot_poincare_comparison("not_rr", rr_standing)  # type: ignore[arg-type]
 
-    def test_standing_not_rrseries_raises(
-        self, rr_normal: RRSeries
-    ) -> None:
+    def test_standing_not_rrseries_raises(self, rr_normal: RRSeries) -> None:
         """Non-RRSeries standing argument raises TypeError."""
         with pytest.raises(TypeError, match="rr must be an RRSeries"):
             plot_poincare_comparison(rr_normal, "not_rr")  # type: ignore[arg-type]
@@ -235,9 +229,7 @@ class TestPlotPoincareComparison:
         with pytest.raises(ValueError, match="at least"):
             plot_poincare_comparison(RRSeries([800.0]), rr_standing)
 
-    def test_ellipses_present(
-        self, rr_normal: RRSeries, rr_standing: RRSeries
-    ) -> None:
+    def test_ellipses_present(self, rr_normal: RRSeries, rr_standing: RRSeries) -> None:
         """Each panel contains at least one Ellipse patch."""
         from matplotlib.patches import Ellipse
 
@@ -284,9 +276,7 @@ class TestPlotSd1Sd2Evolution:
         fig = plot_sd1_sd2_evolution(features_multi)
         assert len(fig.axes) == 2
 
-    def test_nan_ratio_accepted(
-        self, features_nan_ratio: list[HRVFeatures]
-    ) -> None:
+    def test_nan_ratio_accepted(self, features_nan_ratio: list[HRVFeatures]) -> None:
         """NaN sd_ratio is plotted as a gap without raising."""
         fig = plot_sd1_sd2_evolution(features_nan_ratio)
         assert isinstance(fig, Figure)
@@ -313,9 +303,7 @@ class TestPlotSd1Sd2Evolution:
         with pytest.raises(ValueError, match="labels length"):
             plot_sd1_sd2_evolution(features_multi, labels=["only one"])
 
-    def test_default_labels_from_date(
-        self, features_multi: list[HRVFeatures]
-    ) -> None:
+    def test_default_labels_from_date(self, features_multi: list[HRVFeatures]) -> None:
         """X-axis labels default to the date attribute of each HRVFeatures."""
         fig = plot_sd1_sd2_evolution(features_multi)
         ax = fig.axes[0]
