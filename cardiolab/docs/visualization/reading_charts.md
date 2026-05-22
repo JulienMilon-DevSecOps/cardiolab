@@ -496,6 +496,133 @@ fig.savefig("sd1_sd2_evolution.png", dpi=150, bbox_inches="tight")
 
 ---
 
+---
+
+## 11. Cardiac Coherence AR PSD — `plot_coherence_psd`
+
+### What it shows
+
+| Element | Meaning |
+|---|---|
+| Dark curve | Full AR power spectral density (0–0.5 Hz) |
+| Light green fill | Cardiac resonance band (default 0.04–0.26 Hz) |
+| Red dashed line | Dominant peak within the resonance band |
+| Grey dotted line | Target breathing frequency (0.1 Hz = 6 breaths/min) |
+| Annotation box | Coherence score and interpretation |
+
+### How to read it
+
+The cardiac resonance band (0.04–0.26 Hz) covers the frequency range activated by
+paced breathing at 4–15 breaths/min.  For the 5-5 pattern (6 breaths/min), the
+dominant peak should appear near **0.1 Hz**.
+
+| Peak position | Interpretation |
+|---|---|
+| Near 0.10 Hz (target line) | Breathing cadence well calibrated |
+| Shifted left (< 0.08 Hz) | Breathing too slow — below target cadence |
+| Shifted right (> 0.12 Hz) | Breathing too fast — above target cadence |
+| Flat or multiple peaks | Irregular breathing — coherence not achieved |
+
+**Coherence score** (annotation box):
+
+| Score | Interpretation |
+|---|---|
+| ≥ 60 % | Good — dominant peak is narrow and concentrated |
+| 40–60 % | Moderate — peak is present but diffuse |
+| < 40 % | Low — energy spread across the band, no clear peak |
+
+### API
+
+```python
+from cardiolab.visualization.coherence_plots import plot_coherence_psd
+from cardiolab.protocols.cardiac_coherence import cardiac_coherence
+
+result = cardiac_coherence(rr)
+fig = plot_coherence_psd(rr, result, title="Session 2026-05-20")
+fig.savefig("coherence_psd.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
+## 12. Coherence Score Evolution — `plot_coherence_score_evolution`
+
+### What it shows
+
+| Element | Meaning |
+|---|---|
+| Green line + dots | Coherence score per session (0–100 %) |
+| Score labels | Numeric value annotated above each point |
+| Light green band (≥ 60 %) | Good coherence zone |
+| Light yellow band (40–60 %) | Moderate coherence zone |
+| Light red band (< 40 %) | Low coherence zone |
+
+### How to read it
+
+Track the progression of coherence score over weeks of practice:
+
+| Trend | Interpretation |
+|---|---|
+| Stable in green zone | Consistent parasympathetic activation — good practice |
+| Gradual rise from red to yellow | Improvement in breathing control |
+| Dip below threshold | Stress, fatigue, or irregular session |
+| Persistent red zone | Technique needs adjustment |
+
+The **threshold at 60 %** is the commonly used clinical target for cardiac
+coherence biofeedback practice (Lehrer & Gevirtz 2014).
+
+### API
+
+```python
+from cardiolab.visualization.coherence_plots import plot_coherence_score_evolution
+
+# results: list[CoherenceResult] — one per session
+fig = plot_coherence_score_evolution(results, labels=dates)
+fig.savefig("coherence_score.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
+## 13. Coherence Tachogram — `plot_coherence_tachogram`
+
+### What it shows
+
+| Element | Meaning |
+|---|---|
+| Blue line + dots | Raw RR tachogram (ms over time) |
+| Grey dashed line | Mean RR for the session |
+| Red dashed sine | Reference sinusoid at the resonance frequency |
+| Light blue band | ±RMSSD band around the mean |
+| Annotation box | Coherence score and RMSSD |
+
+### How to read it
+
+The reference sine wave represents the ideal RR oscillation for the measured
+resonance frequency.  When the blue RR curve **tracks the sine closely**, the
+session shows good cardiac coherence — the vagal system is being driven
+rhythmically by the breathing pattern.
+
+| Observation | Interpretation |
+|---|---|
+| RR follows sine closely, same period | Good synchronisation — high coherence |
+| RR oscillates but phase drifts | Breathing cadence inconsistent |
+| RR amplitude much smaller than sine | Weak vagal response |
+| No visible oscillation | Poor coherence — breathing not entrained |
+
+The **±RMSSD band** shows the range of normal beat-to-beat variation.  During
+a good coherence session, the RR amplitude should exceed the RMSSD band,
+producing the characteristic large sinusoidal swing.
+
+### API
+
+```python
+from cardiolab.visualization.coherence_plots import plot_coherence_tachogram
+
+fig = plot_coherence_tachogram(rr, result, title="Session 2026-05-20")
+fig.savefig("coherence_tacho.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
 ## See also
 
 - [`docs/features/time_domain.md`](../features/time_domain.md) — RMSSD, SDNN, pNN50 definitions

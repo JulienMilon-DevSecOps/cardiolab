@@ -13,8 +13,16 @@ spectral_plots
 nonlinear_plots
     Non-linear HRV: Poincaré scatter with SD1/SD2 ellipse, supine vs standing
     comparison, and SD1/SD2 evolution over sessions.
+coherence_plots
+    Cardiac coherence: AR PSD with resonance band, score evolution over sessions,
+    and RR tachogram with sinusoidal respiratory reference.
 """
 
+from cardiolab.visualization.coherence_plots import (
+    plot_coherence_psd,
+    plot_coherence_score_evolution,
+    plot_coherence_tachogram,
+)
 from cardiolab.visualization.nonlinear_plots import (
     plot_poincare,
     plot_poincare_comparison,
@@ -40,6 +48,10 @@ from cardiolab.visualization.spectral_plots import (
 )
 
 __all__ = [
+    # coherence_plots
+    "plot_coherence_psd",
+    "plot_coherence_score_evolution",
+    "plot_coherence_tachogram",
     # nonlinear_plots
     "plot_poincare",
     "plot_poincare_comparison",
