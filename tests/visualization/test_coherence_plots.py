@@ -145,16 +145,12 @@ class TestPlotCoherencePsd:
         fig = plot_coherence_psd(rr_coherence, result_low)
         assert isinstance(fig, Figure)
 
-    def test_rr_not_rrseries_raises(
-        self, coherence_result: CoherenceResult
-    ) -> None:
+    def test_rr_not_rrseries_raises(self, coherence_result: CoherenceResult) -> None:
         """Non-RRSeries rr raises TypeError."""
         with pytest.raises(TypeError, match="rr must be an RRSeries"):
             plot_coherence_psd([800.0] * 50, coherence_result)  # type: ignore[arg-type]
 
-    def test_rr_too_short_raises(
-        self, coherence_result: CoherenceResult
-    ) -> None:
+    def test_rr_too_short_raises(self, coherence_result: CoherenceResult) -> None:
         """RRSeries shorter than minimum raises ValueError."""
         with pytest.raises(ValueError, match="at least"):
             plot_coherence_psd(RRSeries([800.0, 820.0]), coherence_result)
@@ -192,9 +188,7 @@ class TestPlotCoherenceScoreEvolution:
         fig = plot_coherence_score_evolution([result_good])
         assert isinstance(fig, Figure)
 
-    def test_returns_figure_multi(
-        self, results_multi: list[CoherenceResult]
-    ) -> None:
+    def test_returns_figure_multi(self, results_multi: list[CoherenceResult]) -> None:
         """Three results: function returns a Figure without raising."""
         fig = plot_coherence_score_evolution(results_multi)
         assert isinstance(fig, Figure)
@@ -284,9 +278,7 @@ class TestPlotCoherenceTachogram:
         self, rr_coherence: RRSeries, coherence_result: CoherenceResult
     ) -> None:
         """Custom figsize: figure dimensions match the requested size."""
-        fig = plot_coherence_tachogram(
-            rr_coherence, coherence_result, figsize=(10, 4)
-        )
+        fig = plot_coherence_tachogram(rr_coherence, coherence_result, figsize=(10, 4))
         assert fig.get_size_inches().tolist() == pytest.approx([10.0, 4.0])
 
     def test_single_axis(
@@ -303,16 +295,12 @@ class TestPlotCoherenceTachogram:
         fig = plot_coherence_tachogram(rr_coherence, result_low)
         assert isinstance(fig, Figure)
 
-    def test_rr_not_rrseries_raises(
-        self, coherence_result: CoherenceResult
-    ) -> None:
+    def test_rr_not_rrseries_raises(self, coherence_result: CoherenceResult) -> None:
         """Non-RRSeries rr raises TypeError."""
         with pytest.raises(TypeError, match="rr must be an RRSeries"):
             plot_coherence_tachogram([900.0] * 50, coherence_result)  # type: ignore[arg-type]
 
-    def test_rr_too_short_raises(
-        self, coherence_result: CoherenceResult
-    ) -> None:
+    def test_rr_too_short_raises(self, coherence_result: CoherenceResult) -> None:
         """RRSeries shorter than minimum raises ValueError."""
         with pytest.raises(ValueError, match="at least"):
             plot_coherence_tachogram(RRSeries([800.0, 820.0]), coherence_result)

@@ -21,15 +21,15 @@ from cardiolab.signals.rr import RRSeries
 
 # ── Band and score constants ──────────────────────────────────────────────────
 
-_RESONANCE_LOW = 0.04    # Hz — lower bound of cardiac resonance band
-_RESONANCE_HIGH = 0.26   # Hz — upper bound of cardiac resonance band
+_RESONANCE_LOW = 0.04  # Hz — lower bound of cardiac resonance band
+_RESONANCE_HIGH = 0.26  # Hz — upper bound of cardiac resonance band
 _RESONANCE_TARGET = 0.1  # Hz — expected peak for 6 breaths/min (5-5 pattern)
-_SCORE_GOOD = 60         # % — good coherence threshold
-_SCORE_MODERATE = 40     # % — moderate / low coherence boundary
-_MIN_INTERVALS_PSD = 5   # minimum intervals needed for PSD computation
+_SCORE_GOOD = 60  # % — good coherence threshold
+_SCORE_MODERATE = 40  # % — moderate / low coherence boundary
+_MIN_INTERVALS_PSD = 5  # minimum intervals needed for PSD computation
 
-_AR_FS: float = 4.0   # resampling frequency (Hz), matches cardiac_coherence default
-_AR_ORDER: int = 16   # AR model order, matches cardiac_coherence default
+_AR_FS: float = 4.0  # resampling frequency (Hz), matches cardiac_coherence default
+_AR_ORDER: int = 16  # AR model order, matches cardiac_coherence default
 
 # ── Colour palette ────────────────────────────────────────────────────────────
 
@@ -106,34 +106,58 @@ def plot_coherence_psd(
 
     # Full PSD curve (0–0.5 Hz)
     mask_display = freqs <= fs / 2
-    ax.plot(freqs[mask_display], psd[mask_display],
-            color=_DARK, linewidth=1.4, zorder=3)
+    ax.plot(
+        freqs[mask_display], psd[mask_display], color=_DARK, linewidth=1.4, zorder=3
+    )
 
     # Resonance band — filled
     mask_res = (freqs >= resonance_low) & (freqs <= resonance_high)
     if np.any(mask_res):
-        ax.fill_between(freqs[mask_res], psd[mask_res],
-                        color=_RESONANCE_FILL, alpha=0.7, zorder=2,
-                        label=f"Resonance band\n({resonance_low}–{resonance_high} Hz)")
-        ax.plot(freqs[mask_res], psd[mask_res],
-                color=_RESONANCE_EDGE, linewidth=1.2, zorder=3)
+        ax.fill_between(
+            freqs[mask_res],
+            psd[mask_res],
+            color=_RESONANCE_FILL,
+            alpha=0.7,
+            zorder=2,
+            label=f"Resonance band\n({resonance_low}–{resonance_high} Hz)",
+        )
+        ax.plot(
+            freqs[mask_res],
+            psd[mask_res],
+            color=_RESONANCE_EDGE,
+            linewidth=1.2,
+            zorder=3,
+        )
 
     # Resonance peak annotation
     if result.resonance_freq > 0.0:
-        ax.axvline(result.resonance_freq, color=_PEAK_COLOR, linewidth=1.2,
-                   linestyle="--", alpha=0.85, zorder=4,
-                   label=f"Peak: {result.resonance_freq:.3f} Hz")
+        ax.axvline(
+            result.resonance_freq,
+            color=_PEAK_COLOR,
+            linewidth=1.2,
+            linestyle="--",
+            alpha=0.85,
+            zorder=4,
+            label=f"Peak: {result.resonance_freq:.3f} Hz",
+        )
         ax.annotate(
             f"{result.resonance_freq:.3f} Hz",
             xy=(result.resonance_freq, result.peak_power),
             xytext=(result.resonance_freq + 0.02, result.peak_power * 0.9),
-            fontsize=8, color=_PEAK_COLOR,
+            fontsize=8,
+            color=_PEAK_COLOR,
             arrowprops={"arrowstyle": "->", "color": _PEAK_COLOR, "lw": 0.9},
         )
 
     # Target breathing frequency reference
-    ax.axvline(_RESONANCE_TARGET, color=_GRAY, linewidth=0.8,
-               linestyle=":", alpha=0.6, label=f"Target: {_RESONANCE_TARGET} Hz")
+    ax.axvline(
+        _RESONANCE_TARGET,
+        color=_GRAY,
+        linewidth=0.8,
+        linestyle=":",
+        alpha=0.6,
+        label=f"Target: {_RESONANCE_TARGET} Hz",
+    )
 
     # Coherence score annotation box
     score_color = _score_color(result.coherence_score)
@@ -142,10 +166,18 @@ def plot_coherence_psd(
         f"{_score_label(result.coherence_score)}"
     )
     ax.text(
-        0.98, 0.97, score_text,
-        transform=ax.transAxes, ha="right", va="top",
-        bbox={"boxstyle": "round,pad=0.4", "facecolor": score_color,
-              "alpha": 0.85, "edgecolor": "#bdc3c7"},
+        0.98,
+        0.97,
+        score_text,
+        transform=ax.transAxes,
+        ha="right",
+        va="top",
+        bbox={
+            "boxstyle": "round,pad=0.4",
+            "facecolor": score_color,
+            "alpha": 0.85,
+            "edgecolor": "#bdc3c7",
+        },
         fontsize=9,
     )
 
@@ -211,8 +243,15 @@ def plot_coherence_score_evolution(
         ax.axhline(threshold, color=_GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
 
     # Score line
-    ax.plot(x, scores, color=_SCORE_LINE_COLOR, linewidth=1.8,
-            marker="o", markersize=6, zorder=4)
+    ax.plot(
+        x,
+        scores,
+        color=_SCORE_LINE_COLOR,
+        linewidth=1.8,
+        marker="o",
+        markersize=6,
+        zorder=4,
+    )
 
     # Score labels on each point
     for xi, sc in zip(x, scores, strict=False):
@@ -221,7 +260,9 @@ def plot_coherence_score_evolution(
             xy=(xi, sc),
             xytext=(0, 7),
             textcoords="offset points",
-            ha="center", fontsize=8, color=_DARK,
+            ha="center",
+            fontsize=8,
+            color=_DARK,
         )
 
     ax.set_ylim(0, 105)
@@ -286,10 +327,25 @@ def plot_coherence_tachogram(
     fig, ax = plt.subplots(figsize=figsize)
 
     # RR tachogram
-    ax.plot(beat_times, intervals, color=_RR_COLOR, linewidth=1.4,
-            marker="o", markersize=3, alpha=0.8, label="RR intervals", zorder=3)
-    ax.axhline(mean_rr, color=_GRAY, linewidth=0.8, linestyle="--",
-               alpha=0.7, label=f"Mean RR ({mean_rr:.0f} ms)")
+    ax.plot(
+        beat_times,
+        intervals,
+        color=_RR_COLOR,
+        linewidth=1.4,
+        marker="o",
+        markersize=3,
+        alpha=0.8,
+        label="RR intervals",
+        zorder=3,
+    )
+    ax.axhline(
+        mean_rr,
+        color=_GRAY,
+        linewidth=0.8,
+        linestyle="--",
+        alpha=0.7,
+        label=f"Mean RR ({mean_rr:.0f} ms)",
+    )
 
     # Sinusoidal respiratory reference
     if result.resonance_freq > 0.0:
@@ -298,29 +354,42 @@ def plot_coherence_tachogram(
         sine_ref = mean_rr + amplitude * np.sin(
             2.0 * np.pi * result.resonance_freq * t_ref
         )
-        ax.plot(t_ref, sine_ref, color=_SINE_COLOR, linewidth=1.6,
-                linestyle="--", alpha=0.75, zorder=2,
-                label=f"Reference sine ({result.resonance_freq:.3f} Hz)")
+        ax.plot(
+            t_ref,
+            sine_ref,
+            color=_SINE_COLOR,
+            linewidth=1.6,
+            linestyle="--",
+            alpha=0.75,
+            zorder=2,
+            label=f"Reference sine ({result.resonance_freq:.3f} Hz)",
+        )
 
         # Shaded ±RMSSD band around mean
         ax.fill_between(
             t_ref,
             mean_rr - result.rmssd,
             mean_rr + result.rmssd,
-            color=_RR_COLOR, alpha=0.08, zorder=1,
+            color=_RR_COLOR,
+            alpha=0.08,
+            zorder=1,
         )
 
     # Coherence score annotation
     score_color = _score_color(result.coherence_score)
-    score_text = (
-        f"Score: {result.coherence_score:.1f} %\n"
-        f"RMSSD: {result.rmssd:.1f} ms"
-    )
+    score_text = f"Score: {result.coherence_score:.1f} %\nRMSSD: {result.rmssd:.1f} ms"
     ax.text(
-        0.02, 0.97, score_text,
-        transform=ax.transAxes, va="top",
-        bbox={"boxstyle": "round,pad=0.4", "facecolor": score_color,
-              "alpha": 0.85, "edgecolor": "#bdc3c7"},
+        0.02,
+        0.97,
+        score_text,
+        transform=ax.transAxes,
+        va="top",
+        bbox={
+            "boxstyle": "round,pad=0.4",
+            "facecolor": score_color,
+            "alpha": 0.85,
+            "edgecolor": "#bdc3c7",
+        },
         fontsize=9,
     )
 
@@ -358,24 +427,20 @@ def _validate_result(result: CoherenceResult) -> None:
 def _validate_results_list(results: list[CoherenceResult]) -> None:
     """Raise TypeError or ValueError when results is not a valid list."""
     if not isinstance(results, list):
-        raise TypeError(
-            f"results must be a list, got {type(results).__name__}"
-        )
+        raise TypeError(f"results must be a list, got {type(results).__name__}")
     if len(results) == 0:
         raise ValueError("results must contain at least one CoherenceResult.")
     for idx, item in enumerate(results):
         if not isinstance(item, CoherenceResult):
             raise TypeError(
-                f"results[{idx}] must be a CoherenceResult, "
-                f"got {type(item).__name__}"
+                f"results[{idx}] must be a CoherenceResult, got {type(item).__name__}"
             )
 
 
 def _default_labels(results: list[CoherenceResult]) -> list[str]:
     """Return date strings from results or fallback 'Session N' labels."""
     return [
-        str(r.date) if r.date else f"Session {i + 1}"
-        for i, r in enumerate(results)
+        str(r.date) if r.date else f"Session {i + 1}" for i, r in enumerate(results)
     ]
 
 
