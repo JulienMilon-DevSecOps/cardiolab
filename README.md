@@ -550,10 +550,21 @@ Each function returns a `pd.Styler` that is directly exportable to HTML or Excel
 
 ```python
 from cardiolab.reporting import (
+    # Resting HRV
     table_resting_history,        # multi-session history — one row per session
     table_resting_session,        # single-session detail — one row per metric
+    # Orthostatic
     table_orthostatic_comparison, # supine vs standing side-by-side comparison
     table_orthostatic_history,    # condensed orthostatic history
+    # HRR
+    table_hrr_history,            # HRR1/HRR2 history with clinical categories
+    # Cardiac drift
+    table_drift_history,          # drift rate, magnitude, R² history
+    # Cardiac coherence
+    table_coherence_history,      # coherence score history with category
+    # VO2max
+    table_vo2max_history,         # all three model estimates history
+    table_vo2max_session,         # single-session detail (model breakdown)
 )
 ```
 
@@ -595,6 +606,30 @@ display(styler)
 RMSSD, mean HR, SD1, SD2, SD1/SD2, DFA α1, HF_nu, ApEn, SampEn — plus response
 indicators (`hr_response`, `lf_hf_change`, `hf_response_pct`, `hf_hr_pct_change`)
 and a colour-coded `interpretation` column.
+
+### HRR, drift, coherence, VO2max tables
+
+```python
+# Heart Rate Recovery — HRR1/HRR2 with clinical categories
+styler = table_hrr_history(hrr_results, dates=dates)
+display(styler)
+
+# Cardiac drift — rate (bpm/min), magnitude, R², category
+styler = table_drift_history(drift_results, dates=dates)
+display(styler)
+
+# Cardiac coherence — score gradient 0–100, derived category
+styler = table_coherence_history(coherence_results, dates=dates)
+display(styler)
+
+# VO2max — all three model estimates, ACSM fitness category
+styler = table_vo2max_history(vo2max_results, dates=dates)
+display(styler)
+
+# VO2max single session — model breakdown + inputs
+styler = table_vo2max_session(vo2max_result)
+display(styler)
+```
 
 ### Export
 
@@ -676,11 +711,11 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | `io/` — CSV & JSON export for all protocols | Implemented |
 | `sensors_tools/` — Polar | Implemented |
 | `visualization/` | Implemented |
-| `reporting/` — resting + orthostatic tables | Implemented |
+| `reporting/` — all 6 protocols (9 functions) | Implemented |
 | PPG signal support | Planned |
 | Training load model (ATL / CTL / TSB) | Planned |
 
-**Test coverage:** 683+ unit tests, 0 failures.
+**Test coverage:** 775+ unit tests, 0 failures.
 
 ---
 
@@ -807,7 +842,8 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] Resting session detail table — one row per metric (`table_resting_session`)
 * [x] Orthostatic supine vs standing comparison table (`table_orthostatic_comparison`)
 * [x] Orthostatic history table — condensed autonomic response view (`table_orthostatic_history`)
-* [ ] HRR reporting table (`table_hrr_history`)
-* [ ] Cardiac drift reporting table (`table_drift_history`)
-* [ ] Cardiac coherence reporting table (`table_coherence_history`)
-* [ ] VO2max reporting table (`table_vo2max_history`)
+* [x] HRR reporting table — HRR1/HRR2 with clinical categories (`table_hrr_history`)
+* [x] Cardiac drift reporting table — rate, magnitude, R², category (`table_drift_history`)
+* [x] Cardiac coherence reporting table — score gradient + derived category (`table_coherence_history`)
+* [x] VO2max history table — all three model estimates (`table_vo2max_history`)
+* [x] VO2max session detail table — model breakdown + inputs (`table_vo2max_session`)
