@@ -623,10 +623,171 @@ fig.savefig("coherence_tacho.png", dpi=150, bbox_inches="tight")
 
 ---
 
+---
+
+## 14. HR Recovery Curve — `plot_hrr_curve`
+
+### What it shows
+
+| Element | Meaning |
+|---|---|
+| Blue line | Interpolated heart rate (bpm) from peak effort to end of recording |
+| Grey dashed line | Peak HR reference |
+| Red dotted line + dot | HRR1 marker at t = 60 s |
+| Purple dotted line + dot | HRR2 marker at t = 120 s (when available) |
+| Double-headed arrows | HR drop (bpm) between peak and the marker time point |
+| Text annotation | Drop in bpm and clinical category for each marker |
+
+### How to read it
+
+**Horizontal axis** — time in seconds since peak effort (t = 0).
+
+**Vertical axis** — instantaneous heart rate (bpm), linearly interpolated from
+the RR intervals at 4 Hz.
+
+The curve should fall continuously and quickly after the effort stops.
+A fast initial drop (steep slope in the first 30–60 s) indicates strong vagal
+reactivation.
+
+| Curve shape | Interpretation |
+|---|---|
+| Steep drop in the first 60 s | Rapid vagal reactivation — good recovery |
+| Gradual, slow descent | Delayed vagal reactivation — possible fatigue or deconditioning |
+| Plateau or secondary rise | Possible continued sympathetic activation, incomplete recovery |
+| HRR1 arrow large (≥ 25 bpm) | Excellent vagal withdrawal reversal — low cardiovascular risk |
+| HRR1 arrow small (< 12 bpm) | Impaired recovery — independent predictor of mortality (Cole et al. 1999) |
+
+### HRR1 clinical thresholds (Cole et al. 1999)
+
+| HRR1 drop (bpm) | Category | Risk |
+|---|---|---|
+| ≥ 25 | Excellent | Very low |
+| 20 – 24 | Good | Low |
+| 12 – 19 | Normal | Average |
+| < 12 | **Impaired** | Elevated — independent mortality predictor |
+
+### API
+
+```python
+from cardiolab.visualization.hrr_plots import plot_hrr_curve
+
+fig = plot_hrr_curve(
+    rr_post_exercise,           # RRSeries from peak effort onward
+    result,                     # HRRResult from heart_rate_recovery()
+    fs=4.0,                     # resampling frequency (optional)
+    title="Session 2026-05-20",
+)
+fig.savefig("hrr_curve.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
+## 15. HR Recovery Comparison — `plot_hrr_comparison`
+
+### What it shows
+
+Multiple recovery curves superimposed on the same axes, one per session, each
+expressed as **HR drop from peak** (bpm): ``HR_peak − HR(t)``.
+
+| Element | Meaning |
+|---|---|
+| Coloured line per session | HR drop from peak — starts at 0, rises with recovery |
+| Coloured dot at 60 s | HRR1 for that session |
+| Vertical dashed line at 60 s | Reference for reading HRR1 |
+| Background horizontal bands | Clinical zones (impaired / normal / good / excellent) |
+| Zone labels (right margin) | Zone name and threshold range |
+
+### Why HR drop and not absolute HR
+
+Expressing recovery as ``HR_peak − HR(t)`` normalises for differences in peak
+HR between sessions.  All curves start at 0 and rise as the heart slows, so the
+**slope** of each curve directly encodes recovery speed regardless of absolute
+fitness level.
+
+### How to read it
+
+| Observation | Interpretation |
+|---|---|
+| Curve rises faster (steeper) | Better recovery speed that session |
+| Dot at 60 s in green zone (≥ 25 bpm) | Excellent HRR1 — strong vagal reactivation |
+| Dot at 60 s in red zone (< 12 bpm) | Impaired recovery — rest or investigate |
+| Curves trending upward over weeks | Long-term improvement in autonomic recovery capacity |
+| Flatter curve vs previous sessions | Possible fatigue or overtraining |
+
+### API
+
+```python
+from cardiolab.visualization.hrr_plots import plot_hrr_comparison
+
+fig = plot_hrr_comparison(
+    rr_list,            # list[RRSeries] — one per session
+    results,            # list[HRRResult]
+    labels=dates,       # optional list[str]
+    title="Multi-session HRR Comparison",
+)
+fig.savefig("hrr_comparison.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
+## 16. HRR1 Gauge — `plot_hrr_gauge`
+
+### What it shows
+
+A semi-circular (180°) speedometer-style gauge covering 0–40 bpm.
+
+| Element | Meaning |
+|---|---|
+| Red sector (0–12 bpm) | Impaired zone |
+| Orange sector (12–20 bpm) | Normal zone |
+| Blue sector (20–25 bpm) | Good zone |
+| Green sector (25–40 bpm) | Excellent zone |
+| Tick marks with labels | Zone boundary values (0, 12, 20, 25, 40 bpm) |
+| Needle | Points to the HRR1 value |
+| Central text (large number) | HRR1 value in bpm — colour-matched to category |
+| Category label below | Clinical category (Excellent / Good / Normal / Impaired) |
+
+### How to read it
+
+The needle position immediately conveys clinical status without needing to read
+a number.  At a glance:
+
+| Needle position | Meaning |
+|---|---|
+| Far right (green zone) | Excellent recovery — strong vagal reactivation |
+| Centre-right (blue zone) | Good recovery |
+| Centre-left (orange zone) | Normal — room for improvement |
+| Far left (red zone) | Impaired — investigate and prioritise recovery |
+
+**Colour coding** is consistent with the comparison chart background bands, so
+the two plots can be read side by side.
+
+### Best used as
+
+A quick-read summary at the end of a session report.  Pair it with
+`plot_hrr_curve` for the detailed trajectory and `plot_hrr_comparison` for
+the longitudinal trend.
+
+### API
+
+```python
+from cardiolab.visualization.hrr_plots import plot_hrr_gauge
+
+fig = plot_hrr_gauge(
+    result,                     # HRRResult from heart_rate_recovery()
+    title="HRR1 — Session 2026-05-20",
+    figsize=(6, 4),
+)
+fig.savefig("hrr_gauge.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
 ## See also
 
 - [`docs/features/time_domain.md`](../features/time_domain.md) — RMSSD, SDNN, pNN50 definitions
 - [`docs/features/frequency_domain.md`](../features/frequency_domain.md) — LF, HF, LF/HF
 - [`docs/hrv_interpretations.md`](../hrv_interpretations.md) — full HRV interpretation guide
+- [`docs/protocols/hrr.md`](../protocols/hrr.md) — HRR protocol instructions and clinical references
 - [`example/09_rr_signal_plots.py`](../../../../example/09_rr_signal_plots.py) — demonstration of all 5 RR signal functions
 - [`example/10_resting_evolution_plots.py`](../../../../example/10_resting_evolution_plots.py) — complete worked example for sections 6 and 7
