@@ -97,8 +97,15 @@ class TestTableHrrHistory:
         """All HRR columns are present."""
         styler = table_hrr_history([one_result])
         cols = set(styler.data.columns)
-        for col in ("hr_peak", "hr_at_60s", "hrr_60", "hrr_60_category",
-                    "hrr_120", "hrr_120_category", "duration"):
+        for col in (
+            "hr_peak",
+            "hr_at_60s",
+            "hrr_60",
+            "hrr_60_category",
+            "hrr_120",
+            "hrr_120_category",
+            "duration",
+        ):
             assert col in cols
 
     def test_custom_dates(self, two_results: list[HRRResult]) -> None:
@@ -141,7 +148,9 @@ class TestTableHrrHistory:
 
     def test_nan_hrr_120_handled(self) -> None:
         """NaN hrr_120 does not crash."""
-        r = _make_result(hr_at_120s=float("nan"), hrr_120=float("nan"), hrr_120_category="")
+        r = _make_result(
+            hr_at_120s=float("nan"), hrr_120=float("nan"), hrr_120_category=""
+        )
         styler = table_hrr_history([r])
         assert styler is not None
 

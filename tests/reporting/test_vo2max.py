@@ -116,8 +116,13 @@ class TestTableVo2maxHistory:
         """All VO2max columns are present."""
         styler = table_vo2max_history([one_result])
         cols = set(styler.data.columns)
-        for col in ("vo2max_esco_flatt", "vo2max_ln_rmssd",
-                    "hr_rest", "rmssd_used", "fitness_category"):
+        for col in (
+            "vo2max_esco_flatt",
+            "vo2max_ln_rmssd",
+            "hr_rest",
+            "rmssd_used",
+            "fitness_category",
+        ):
             assert col in cols
 
     def test_vo2max_uth_excluded_when_all_nan(self, one_result: VO2maxResult) -> None:
@@ -125,7 +130,9 @@ class TestTableVo2maxHistory:
         styler = table_vo2max_history([one_result])
         assert math.isnan(styler.data["vo2max_uth"].iloc[0])
 
-    def test_vo2max_uth_included_when_present(self, one_result_uth: VO2maxResult) -> None:
+    def test_vo2max_uth_included_when_present(
+        self, one_result_uth: VO2maxResult
+    ) -> None:
         """vo2max_uth value is stored correctly when provided."""
         styler = table_vo2max_history([one_result_uth])
         assert pytest.approx(styler.data["vo2max_uth"].iloc[0], rel=1e-3) == 55.0
@@ -147,7 +154,9 @@ class TestTableVo2maxHistory:
         styler = table_vo2max_history([r])
         assert styler.data["date"].iloc[0] == "2024-08-01"
 
-    def test_dates_length_mismatch_raises(self, two_results: list[VO2maxResult]) -> None:
+    def test_dates_length_mismatch_raises(
+        self, two_results: list[VO2maxResult]
+    ) -> None:
         """Raise ValueError when dates length mismatches results length."""
         with pytest.raises(ValueError, match="dates length"):
             table_vo2max_history(two_results, dates=["only one"])

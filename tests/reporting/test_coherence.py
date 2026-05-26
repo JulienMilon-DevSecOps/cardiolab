@@ -119,9 +119,17 @@ class TestTableCoherenceHistory:
         """All coherence columns are present."""
         styler = table_coherence_history([one_result])
         cols = set(styler.data.columns)
-        for col in ("coherence_score", "category", "resonance_freq",
-                    "peak_power", "total_power_resonance",
-                    "rmssd", "sdnn", "mean_hr", "duration"):
+        for col in (
+            "coherence_score",
+            "category",
+            "resonance_freq",
+            "peak_power",
+            "total_power_resonance",
+            "rmssd",
+            "sdnn",
+            "mean_hr",
+            "duration",
+        ):
             assert col in cols
 
     def test_category_derived_correctly(self, one_result: CoherenceResult) -> None:
@@ -158,7 +166,9 @@ class TestTableCoherenceHistory:
         styler = table_coherence_history([r])
         assert styler.data["date"].iloc[0] == "2024-07-01"
 
-    def test_dates_length_mismatch_raises(self, two_results: list[CoherenceResult]) -> None:
+    def test_dates_length_mismatch_raises(
+        self, two_results: list[CoherenceResult]
+    ) -> None:
         """Raise ValueError when dates length mismatches results length."""
         with pytest.raises(ValueError, match="dates length"):
             table_coherence_history(two_results, dates=["only one"])

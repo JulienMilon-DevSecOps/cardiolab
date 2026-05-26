@@ -50,9 +50,7 @@ def table_drift_history(
     _validate_list(results, DriftResult, "results")
     n = len(results)
     if dates is not None and len(dates) != n:
-        raise ValueError(
-            f"dates length ({len(dates)}) must match results length ({n})"
-        )
+        raise ValueError(f"dates length ({len(dates)}) must match results length ({n})")
     labels = [
         (r.date or (dates[i] if dates else f"Session {i + 1}"))
         for i, r in enumerate(results)
@@ -63,27 +61,29 @@ def table_drift_history(
 
     rows = []
     for label, r in zip(labels, results, strict=False):
-        rows.append({
-            "date":             label,
-            "drift_rate":       r.drift_rate,
-            "drift_magnitude":  r.drift_magnitude,
-            "r_squared":        r.r_squared,
-            "initial_hr":       r.initial_hr,
-            "final_hr":         r.final_hr,
-            "n_windows":        r.n_windows,
-            "duration":         r.duration,
-            "interpretation":   r.interpretation,
-        })
+        rows.append(
+            {
+                "date": label,
+                "drift_rate": r.drift_rate,
+                "drift_magnitude": r.drift_magnitude,
+                "r_squared": r.r_squared,
+                "initial_hr": r.initial_hr,
+                "final_hr": r.final_hr,
+                "n_windows": r.n_windows,
+                "duration": r.duration,
+                "interpretation": r.interpretation,
+            }
+        )
 
     df = pd.DataFrame(rows)
 
     fmt: dict = {
-        "drift_rate":      float2,
+        "drift_rate": float2,
         "drift_magnitude": float1,
-        "r_squared":       float2,
-        "initial_hr":      float1,
-        "final_hr":        float1,
-        "duration":        float1,
+        "r_squared": float2,
+        "initial_hr": float1,
+        "final_hr": float1,
+        "duration": float1,
     }
 
     styler = df.style.format(fmt, na_rep="n/a")

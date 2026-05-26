@@ -98,9 +98,16 @@ class TestTableDriftHistory:
         """All drift columns are present."""
         styler = table_drift_history([one_result])
         cols = set(styler.data.columns)
-        for col in ("drift_rate", "drift_magnitude", "r_squared",
-                    "initial_hr", "final_hr", "n_windows",
-                    "duration", "interpretation"):
+        for col in (
+            "drift_rate",
+            "drift_magnitude",
+            "r_squared",
+            "initial_hr",
+            "final_hr",
+            "n_windows",
+            "duration",
+            "interpretation",
+        ):
             assert col in cols
 
     def test_custom_dates(self, two_results: list[DriftResult]) -> None:

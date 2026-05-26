@@ -52,9 +52,7 @@ def table_hrr_history(
     _validate_list(results, HRRResult, "results")
     n = len(results)
     if dates is not None and len(dates) != n:
-        raise ValueError(
-            f"dates length ({len(dates)}) must match results length ({n})"
-        )
+        raise ValueError(f"dates length ({len(dates)}) must match results length ({n})")
     labels = [
         (r.date or (dates[i] if dates else f"Session {i + 1}"))
         for i, r in enumerate(results)
@@ -66,27 +64,29 @@ def table_hrr_history(
 
     rows = []
     for label, r in zip(labels, results, strict=False):
-        rows.append({
-            "date":             label,
-            "hr_peak":          r.hr_peak,
-            "hr_at_60s":        r.hr_at_60s,
-            "hrr_60":           r.hrr_60,
-            "hrr_60_category":  r.hrr_60_category,
-            "hr_at_120s":       r.hr_at_120s,
-            "hrr_120":          r.hrr_120,
-            "hrr_120_category": r.hrr_120_category,
-            "duration":         r.duration,
-        })
+        rows.append(
+            {
+                "date": label,
+                "hr_peak": r.hr_peak,
+                "hr_at_60s": r.hr_at_60s,
+                "hrr_60": r.hrr_60,
+                "hrr_60_category": r.hrr_60_category,
+                "hr_at_120s": r.hr_at_120s,
+                "hrr_120": r.hrr_120,
+                "hrr_120_category": r.hrr_120_category,
+                "duration": r.duration,
+            }
+        )
 
     df = pd.DataFrame(rows)
 
     fmt: dict = {
-        "hr_peak":   float1,
+        "hr_peak": float1,
         "hr_at_60s": float1,
-        "hrr_60":    float1,
+        "hrr_60": float1,
         "hr_at_120s": nan_fmt,
-        "hrr_120":   nan_fmt,
-        "duration":  float2,
+        "hrr_120": nan_fmt,
+        "duration": float2,
     }
 
     styler = df.style.format(fmt, na_rep="n/a")

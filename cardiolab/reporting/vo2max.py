@@ -54,9 +54,7 @@ def table_vo2max_history(
     _validate_list(results, VO2maxResult, "results")
     n = len(results)
     if dates is not None and len(dates) != n:
-        raise ValueError(
-            f"dates length ({len(dates)}) must match results length ({n})"
-        )
+        raise ValueError(f"dates length ({len(dates)}) must match results length ({n})")
     labels = [
         (r.date or (dates[i] if dates else f"Session {i + 1}"))
         for i, r in enumerate(results)
@@ -68,28 +66,30 @@ def table_vo2max_history(
 
     rows = []
     for label, r in zip(labels, results, strict=False):
-        rows.append({
-            "date":               label,
-            "vo2max_uth":         r.vo2max_uth,
-            "vo2max_esco_flatt":  r.vo2max_esco_flatt,
-            "vo2max_ln_rmssd":    r.vo2max_ln_rmssd,
-            "hr_rest":            r.hr_rest,
-            "hr_max":             r.hr_max,
-            "rmssd_used":         r.rmssd_used,
-            "ln_rmssd_used":      r.ln_rmssd_used,
-            "fitness_category":   r.fitness_category,
-        })
+        rows.append(
+            {
+                "date": label,
+                "vo2max_uth": r.vo2max_uth,
+                "vo2max_esco_flatt": r.vo2max_esco_flatt,
+                "vo2max_ln_rmssd": r.vo2max_ln_rmssd,
+                "hr_rest": r.hr_rest,
+                "hr_max": r.hr_max,
+                "rmssd_used": r.rmssd_used,
+                "ln_rmssd_used": r.ln_rmssd_used,
+                "fitness_category": r.fitness_category,
+            }
+        )
 
     df = pd.DataFrame(rows)
 
     fmt: dict = {
-        "vo2max_uth":        nan_fmt,
+        "vo2max_uth": nan_fmt,
         "vo2max_esco_flatt": float1,
-        "vo2max_ln_rmssd":   float1,
-        "hr_rest":           float1,
-        "hr_max":            nan_fmt,
-        "rmssd_used":        float2,
-        "ln_rmssd_used":     float2,
+        "vo2max_ln_rmssd": float1,
+        "hr_rest": float1,
+        "hr_max": nan_fmt,
+        "rmssd_used": float2,
+        "ln_rmssd_used": float2,
     }
 
     vo2_cols = ["vo2max_esco_flatt", "vo2max_ln_rmssd"]
@@ -127,9 +127,7 @@ def table_vo2max_session(
 
     """
     if not isinstance(result, VO2maxResult):
-        raise TypeError(
-            f"result must be a VO2maxResult, got {type(result).__name__}"
-        )
+        raise TypeError(f"result must be a VO2maxResult, got {type(result).__name__}")
 
     nan_fmt = fmt_nan(1)
 
@@ -138,16 +136,16 @@ def table_vo2max_session(
 
     rows = [
         # Model estimates
-        ("VO2max Uth (mL/kg/min)",        uth_val,                              "Model"),
-        ("VO2max Esco-Flatt (mL/kg/min)", f"{result.vo2max_esco_flatt:.1f}",    "Model"),
-        ("VO2max ln-RMSSD (mL/kg/min)",   f"{result.vo2max_ln_rmssd:.1f}",      "Model"),
+        ("VO2max Uth (mL/kg/min)", uth_val, "Model"),
+        ("VO2max Esco-Flatt (mL/kg/min)", f"{result.vo2max_esco_flatt:.1f}", "Model"),
+        ("VO2max ln-RMSSD (mL/kg/min)", f"{result.vo2max_ln_rmssd:.1f}", "Model"),
         # Inputs
-        ("HR repos (bpm)",                f"{result.hr_rest:.1f}",              "Inputs"),
-        ("HR max (bpm)",                  hr_max_val,                           "Inputs"),
-        ("RMSSD utilisé (ms)",            f"{result.rmssd_used:.2f}",           "Inputs"),
-        ("ln(RMSSD) utilisé",             f"{result.ln_rmssd_used:.3f}",        "Inputs"),
+        ("HR repos (bpm)", f"{result.hr_rest:.1f}", "Inputs"),
+        ("HR max (bpm)", hr_max_val, "Inputs"),
+        ("RMSSD utilisé (ms)", f"{result.rmssd_used:.2f}", "Inputs"),
+        ("ln(RMSSD) utilisé", f"{result.ln_rmssd_used:.3f}", "Inputs"),
         # Result
-        ("Catégorie fitness",             result.fitness_category,              "Result"),
+        ("Catégorie fitness", result.fitness_category, "Result"),
     ]
 
     df = pd.DataFrame(rows, columns=["Indicateur", "Valeur", "Groupe"])

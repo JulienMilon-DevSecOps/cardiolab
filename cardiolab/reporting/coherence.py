@@ -65,9 +65,7 @@ def table_coherence_history(
     _validate_list(results, CoherenceResult, "results")
     n = len(results)
     if dates is not None and len(dates) != n:
-        raise ValueError(
-            f"dates length ({len(dates)}) must match results length ({n})"
-        )
+        raise ValueError(f"dates length ({len(dates)}) must match results length ({n})")
     labels = [
         (r.date or (dates[i] if dates else f"Session {i + 1}"))
         for i, r in enumerate(results)
@@ -78,30 +76,32 @@ def table_coherence_history(
 
     rows = []
     for label, r in zip(labels, results, strict=False):
-        rows.append({
-            "date":                  label,
-            "coherence_score":       r.coherence_score,
-            "category":              _coherence_category(r.coherence_score),
-            "resonance_freq":        r.resonance_freq,
-            "peak_power":            r.peak_power,
-            "total_power_resonance": r.total_power_resonance,
-            "rmssd":                 r.rmssd,
-            "sdnn":                  r.sdnn,
-            "mean_hr":               r.mean_hr,
-            "duration":              r.duration,
-        })
+        rows.append(
+            {
+                "date": label,
+                "coherence_score": r.coherence_score,
+                "category": _coherence_category(r.coherence_score),
+                "resonance_freq": r.resonance_freq,
+                "peak_power": r.peak_power,
+                "total_power_resonance": r.total_power_resonance,
+                "rmssd": r.rmssd,
+                "sdnn": r.sdnn,
+                "mean_hr": r.mean_hr,
+                "duration": r.duration,
+            }
+        )
 
     df = pd.DataFrame(rows)
 
     fmt: dict = {
-        "coherence_score":       float1,
-        "resonance_freq":        fmt_float(3),
-        "peak_power":            float2,
+        "coherence_score": float1,
+        "resonance_freq": fmt_float(3),
+        "peak_power": float2,
         "total_power_resonance": float2,
-        "rmssd":                 float2,
-        "sdnn":                  float2,
-        "mean_hr":               float1,
-        "duration":              float1,
+        "rmssd": float2,
+        "sdnn": float2,
+        "mean_hr": float1,
+        "duration": float1,
     }
 
     styler = df.style.format(fmt, na_rep="n/a")
