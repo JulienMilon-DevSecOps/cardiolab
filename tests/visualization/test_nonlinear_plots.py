@@ -374,6 +374,7 @@ class TestPlotDfaFluctuation:
     def test_scatter_points_equal_scale_count(self, rr_dfa: RRSeries) -> None:
         """Draw one scatter point per valid DFA scale (4 to 16 = up to 13 scales)."""
         from matplotlib.collections import PathCollection
+
         fig = plot_dfa_fluctuation(rr_dfa)
         ax = fig.axes[0]
         # PathCollection = scatter; PolyCollection = fill_between
@@ -403,6 +404,7 @@ class TestPlotDfaFluctuation:
     def test_normal_zone_patch_present(self, rr_dfa: RRSeries) -> None:
         """Draw the normal zone fill-between (PolyCollection present)."""
         from matplotlib.collections import PolyCollection
+
         fig = plot_dfa_fluctuation(rr_dfa)
         ax = fig.axes[0]
         poly = [c for c in ax.collections if isinstance(c, PolyCollection)]

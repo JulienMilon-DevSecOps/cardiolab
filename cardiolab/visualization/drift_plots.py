@@ -30,26 +30,26 @@ _MIN_WINDOWS: int = 3
 # ── Zone definitions: (low, high, fill_color, label) ─────────────────────────
 
 _DRIFT_ZONES: list[tuple[float, float, str, str]] = [
-    (0.0,                   _DRIFT_NO_THRESHOLD,   "#d5f5e3", "No drift  (< 0.5)"),
-    (_DRIFT_NO_THRESHOLD,   _DRIFT_MILD_THRESHOLD, "#fef9e7", "Mild      (0.5–1.5)"),
-    (_DRIFT_MILD_THRESHOLD, _DRIFT_MOD_THRESHOLD,  "#fdebd0", "Moderate  (1.5–3.0)"),
-    (_DRIFT_MOD_THRESHOLD,  _DRIFT_MAX_AXIS,       "#fadbd8", "Strong    (> 3.0)"),
+    (0.0, _DRIFT_NO_THRESHOLD, "#d5f5e3", "No drift  (< 0.5)"),
+    (_DRIFT_NO_THRESHOLD, _DRIFT_MILD_THRESHOLD, "#fef9e7", "Mild      (0.5–1.5)"),
+    (_DRIFT_MILD_THRESHOLD, _DRIFT_MOD_THRESHOLD, "#fdebd0", "Moderate  (1.5–3.0)"),
+    (_DRIFT_MOD_THRESHOLD, _DRIFT_MAX_AXIS, "#fadbd8", "Strong    (> 3.0)"),
 ]
 
 # ── Category colours ──────────────────────────────────────────────────────────
 
 _CATEGORY_COLORS: dict[str, str] = {
     "no_drift": "#27ae60",
-    "mild":     "#f39c12",
+    "mild": "#f39c12",
     "moderate": "#e67e22",
-    "strong":   "#e74c3c",
+    "strong": "#e74c3c",
 }
 
 _ZONE_BG: dict[str, str] = {
     "no_drift": "#eafaf1",
-    "mild":     "#fefdf0",
+    "mild": "#fefdf0",
     "moderate": "#fdf2e9",
-    "strong":   "#fdf0ef",
+    "strong": "#fdf0ef",
 }
 
 _DARK = "#2c3e50"
@@ -105,8 +105,11 @@ def plot_drift_curve(
 
     # Windowed HR scatter
     ax.scatter(
-        win_times_min, win_hrs,
-        s=60, color=cat_color, zorder=4,
+        win_times_min,
+        win_hrs,
+        s=60,
+        color=cat_color,
+        zorder=4,
         label="Mean HR per window",
     )
 
@@ -118,19 +121,31 @@ def plot_drift_curve(
     hr_line = result.drift_rate * t_line + intercept
     sign = "+" if result.drift_rate >= 0 else ""
     ax.plot(
-        t_line, hr_line,
-        color=_DARK, linewidth=1.8, linestyle="--", zorder=5,
+        t_line,
+        hr_line,
+        color=_DARK,
+        linewidth=1.8,
+        linestyle="--",
+        zorder=5,
         label=f"Regression  {sign}{result.drift_rate:.2f} bpm/min",
     )
 
     # Initial / final HR horizontal references
     ax.axhline(
-        result.initial_hr, color=_GRAY, linewidth=0.7, linestyle=":",
-        alpha=0.7, label=f"Initial HR ({result.initial_hr:.0f} bpm)",
+        result.initial_hr,
+        color=_GRAY,
+        linewidth=0.7,
+        linestyle=":",
+        alpha=0.7,
+        label=f"Initial HR ({result.initial_hr:.0f} bpm)",
     )
     ax.axhline(
-        result.final_hr, color=cat_color, linewidth=0.7, linestyle=":",
-        alpha=0.7, label=f"Final HR ({result.final_hr:.0f} bpm)",
+        result.final_hr,
+        color=cat_color,
+        linewidth=0.7,
+        linestyle=":",
+        alpha=0.7,
+        label=f"Final HR ({result.final_hr:.0f} bpm)",
     )
 
     # Annotation box
@@ -142,10 +157,19 @@ def plot_drift_curve(
         f"Category    : {interp_label}"
     )
     ax.text(
-        0.02, 0.97, txt,
-        transform=ax.transAxes, fontsize=8,
-        va="top", ha="left",
-        bbox={"boxstyle": "round,pad=0.4", "fc": "white", "alpha": 0.88, "ec": cat_color},
+        0.02,
+        0.97,
+        txt,
+        transform=ax.transAxes,
+        fontsize=8,
+        va="top",
+        ha="left",
+        bbox={
+            "boxstyle": "round,pad=0.4",
+            "fc": "white",
+            "alpha": 0.88,
+            "ec": cat_color,
+        },
         zorder=6,
     )
 
@@ -219,17 +243,24 @@ def plot_drift_zones(
     # Zone labels on the right margin
     x_label_pos = n - 0.5
     zone_mids = [
-        (_DRIFT_NO_THRESHOLD / 2.0,
-         (_DRIFT_NO_THRESHOLD + _DRIFT_MILD_THRESHOLD) / 2.0,
-         (_DRIFT_MILD_THRESHOLD + _DRIFT_MOD_THRESHOLD) / 2.0,
-         (_DRIFT_MOD_THRESHOLD + y_max) / 2.0),
+        (
+            _DRIFT_NO_THRESHOLD / 2.0,
+            (_DRIFT_NO_THRESHOLD + _DRIFT_MILD_THRESHOLD) / 2.0,
+            (_DRIFT_MILD_THRESHOLD + _DRIFT_MOD_THRESHOLD) / 2.0,
+            (_DRIFT_MOD_THRESHOLD + y_max) / 2.0,
+        ),
         ("No drift", "Mild", "Moderate", "Strong"),
     ]
     for y_mid, zone_text in zip(zone_mids[0], zone_mids[1], strict=True):
         if float(y_mid) <= y_max:
             ax.text(
-                x_label_pos, float(y_mid), str(zone_text),
-                ha="right", va="center", fontsize=8, color=_GRAY,
+                x_label_pos,
+                float(y_mid),
+                str(zone_text),
+                ha="right",
+                va="center",
+                fontsize=8,
+                color=_GRAY,
             )
 
     # Session points connected by a neutral line
@@ -239,8 +270,13 @@ def plot_drift_zones(
         color = _CATEGORY_COLORS.get(cat, _DARK)
         ax.scatter([x], [rate], s=70, color=color, zorder=5)
         ax.text(
-            x, rate + y_max * 0.015, f"{rate:.2f}",
-            ha="center", va="bottom", fontsize=7, color=color,
+            x,
+            rate + y_max * 0.015,
+            f"{rate:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=7,
+            color=color,
         )
 
     ax.set_xticks(xs)
@@ -248,8 +284,11 @@ def plot_drift_zones(
     ax.set_ylim(0.0, y_max)
     ax.set_ylabel("|Drift rate| (bpm/min)", fontsize=10)
     ax.legend(
-        handles=legend_patches, loc="upper left", fontsize=8,
-        title="Clinical zones", title_fontsize=8,
+        handles=legend_patches,
+        loc="upper left",
+        fontsize=8,
+        title="Clinical zones",
+        title_fontsize=8,
     )
     ax.grid(alpha=0.20, linestyle=":", axis="y")
     fig.suptitle(title, fontsize=12, fontweight="bold")
@@ -302,9 +341,7 @@ def _validate_rr(rr: RRSeries, window_sec: float) -> None:
 def _validate_result(result: DriftResult) -> None:
     """Raise TypeError when result is not a DriftResult."""
     if not isinstance(result, DriftResult):
-        raise TypeError(
-            f"result must be a DriftResult, got {type(result).__name__}"
-        )
+        raise TypeError(f"result must be a DriftResult, got {type(result).__name__}")
 
 
 def _validate_results_list(results: list[DriftResult]) -> None:
@@ -323,6 +360,5 @@ def _validate_results_list(results: list[DriftResult]) -> None:
 def _default_labels(results: list[DriftResult]) -> list[str]:
     """Return date strings from results or fallback 'Session N' labels."""
     return [
-        str(r.date) if r.date else f"Session {i + 1}"
-        for i, r in enumerate(results)
+        str(r.date) if r.date else f"Session {i + 1}" for i, r in enumerate(results)
     ]

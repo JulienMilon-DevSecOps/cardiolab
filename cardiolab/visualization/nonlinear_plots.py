@@ -26,7 +26,7 @@ from cardiolab.signals.rr import RRSeries
 _MIN_INTERVALS_POINCARE = 3
 _DFA_N_MIN_DEFAULT: int = 4
 _DFA_N_MAX_DEFAULT: int = 16
-_MIN_INTERVALS_DFA: int = 32   # 2 × n_max to guarantee ≥ 2 valid scales
+_MIN_INTERVALS_DFA: int = 32  # 2 × n_max to guarantee ≥ 2 valid scales
 
 # ── Colour palette ────────────────────────────────────────────────────────────
 
@@ -375,39 +375,66 @@ def plot_dfa_fluctuation(
     f_low = 0.75 * n_ref + intercept
     f_high = 1.25 * n_ref + intercept
     ax.fill_between(
-        n_ref, f_low, f_high,
-        color="#d5f5e3", alpha=0.50, zorder=0,
+        n_ref,
+        f_low,
+        f_high,
+        color="#d5f5e3",
+        alpha=0.50,
+        zorder=0,
         label="Normal α1 zone (0.75 – 1.25)",
     )
 
     # Reference lines α = 0.5 and α = 1.5
     for ref_alpha, ref_label, ref_ls in (
-        (0.5,  "α = 0.5 (white noise)",   ":"),
-        (1.5,  "α = 1.5 (Brownian noise)", "--"),
+        (0.5, "α = 0.5 (white noise)", ":"),
+        (1.5, "α = 1.5 (Brownian noise)", "--"),
     ):
         f_ref = ref_alpha * n_ref + intercept
-        ax.plot(n_ref, f_ref, color=_GRAY, linewidth=0.9,
-                linestyle=ref_ls, alpha=0.7, label=ref_label)
+        ax.plot(
+            n_ref,
+            f_ref,
+            color=_GRAY,
+            linewidth=0.9,
+            linestyle=ref_ls,
+            alpha=0.7,
+            label=ref_label,
+        )
 
     # Regression line
-    ax.plot(log_n_line, log_f_line, color=_DARK, linewidth=1.8,
-            label=f"Regression  α1 = {alpha:.3f}", zorder=4)
+    ax.plot(
+        log_n_line,
+        log_f_line,
+        color=_DARK,
+        linewidth=1.8,
+        label=f"Regression  α1 = {alpha:.3f}",
+        zorder=4,
+    )
 
     # Fluctuation points
-    ax.scatter(log_n, log_f, s=65, color=_SD1_COLOR, zorder=5,
-               label="F(n) per scale")
+    ax.scatter(log_n, log_f, s=65, color=_SD1_COLOR, zorder=5, label="F(n) per scale")
 
     # Axis ticks: show actual beat values instead of log values
     ax.set_xticks(log_n)
     ax.set_xticklabels([str(int(s)) for s in scales], fontsize=8)
 
     # Annotation box
-    txt = f"α1 = {alpha:.3f}\n{interp}\nn = {len(scales)} scales ({n_min}–{n_max} beats)"
+    txt = (
+        f"α1 = {alpha:.3f}\n{interp}\nn = {len(scales)} scales ({n_min}–{n_max} beats)"
+    )
     ax.text(
-        0.97, 0.05, txt,
-        transform=ax.transAxes, fontsize=8,
-        va="bottom", ha="right",
-        bbox={"boxstyle": "round,pad=0.4", "fc": "white", "alpha": 0.88, "ec": _SD1_COLOR},
+        0.97,
+        0.05,
+        txt,
+        transform=ax.transAxes,
+        fontsize=8,
+        va="bottom",
+        ha="right",
+        bbox={
+            "boxstyle": "round,pad=0.4",
+            "fc": "white",
+            "alpha": 0.88,
+            "ec": _SD1_COLOR,
+        },
         zorder=6,
     )
 
