@@ -81,9 +81,7 @@ def result_excellent() -> HRRResult:
 @pytest.fixture()
 def result_impaired() -> HRRResult:
     """Return an HRRResult with HRR1=8 (impaired), no HRR2."""
-    return _make_result(
-        hrr_60=8.0, category="impaired", duration=70.0, with_hrr2=False
-    )
+    return _make_result(hrr_60=8.0, category="impaired", duration=70.0, with_hrr2=False)
 
 
 @pytest.fixture()
@@ -196,32 +194,27 @@ class TestPlotHrrComparison:
     """Tests for plot_hrr_comparison."""
 
     def test_returns_figure(
-        self, rr_hrr: RRSeries, rr_short: RRSeries,
-        result_good: HRRResult, result_impaired: HRRResult,
+        self,
+        rr_hrr: RRSeries,
+        rr_short: RRSeries,
+        result_good: HRRResult,
+        result_impaired: HRRResult,
     ) -> None:
         """Return a matplotlib Figure."""
-        fig = plot_hrr_comparison(
-            [rr_hrr, rr_short], [result_good, result_impaired]
-        )
+        fig = plot_hrr_comparison([rr_hrr, rr_short], [result_good, result_impaired])
         assert isinstance(fig, Figure)
 
-    def test_single_axis(
-        self, rr_hrr: RRSeries, result_good: HRRResult
-    ) -> None:
+    def test_single_axis(self, rr_hrr: RRSeries, result_good: HRRResult) -> None:
         """Produce exactly one axes."""
         fig = plot_hrr_comparison([rr_hrr], [result_good])
         assert len(fig.axes) == 1
 
-    def test_custom_title(
-        self, rr_hrr: RRSeries, result_good: HRRResult
-    ) -> None:
+    def test_custom_title(self, rr_hrr: RRSeries, result_good: HRRResult) -> None:
         """Accept and apply a custom title."""
         fig = plot_hrr_comparison([rr_hrr], [result_good], title="My Comparison")
         assert fig.texts[0].get_text() == "My Comparison"
 
-    def test_custom_figsize(
-        self, rr_hrr: RRSeries, result_good: HRRResult
-    ) -> None:
+    def test_custom_figsize(self, rr_hrr: RRSeries, result_good: HRRResult) -> None:
         """Accept and apply a custom figure size."""
         fig = plot_hrr_comparison([rr_hrr], [result_good], figsize=(10, 4))
         w, h = fig.get_size_inches()
@@ -229,8 +222,11 @@ class TestPlotHrrComparison:
         assert h == pytest.approx(4.0)
 
     def test_custom_labels(
-        self, rr_hrr: RRSeries, rr_short: RRSeries,
-        result_good: HRRResult, result_impaired: HRRResult,
+        self,
+        rr_hrr: RRSeries,
+        rr_short: RRSeries,
+        result_good: HRRResult,
+        result_impaired: HRRResult,
     ) -> None:
         """Accept custom session labels in legend."""
         labels = ["Week 1", "Week 2"]

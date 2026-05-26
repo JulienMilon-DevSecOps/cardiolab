@@ -49,22 +49,28 @@ _DARK = "#2c3e50"
 _GRAY = "#95a5a6"
 
 _PALETTE = [
-    "#2980b9", "#27ae60", "#e74c3c", "#f39c12",
-    "#8e44ad", "#16a085", "#d35400", "#7f8c8d",
+    "#2980b9",
+    "#27ae60",
+    "#e74c3c",
+    "#f39c12",
+    "#8e44ad",
+    "#16a085",
+    "#d35400",
+    "#7f8c8d",
 ]
 
 _CATEGORY_COLORS: dict[str, str] = {
     "excellent": "#27ae60",
-    "good":      "#2980b9",
-    "normal":    "#f39c12",
-    "impaired":  "#e74c3c",
+    "good": "#2980b9",
+    "normal": "#f39c12",
+    "impaired": "#e74c3c",
 }
 
 # Low → high, used for comparison background bands and gauge sectors
 _HRR_ZONES: list[tuple[float, float, str, str]] = [
-    (0.0,              _HRR_NORMAL_BPM,    "#fadbd8", "Impaired  (< 12)"),
-    (_HRR_NORMAL_BPM,  _HRR_GOOD_BPM,     "#fdebd0", "Normal   (12–19)"),
-    (_HRR_GOOD_BPM,    _HRR_EXCELLENT_BPM,"#d6eaf8", "Good     (20–24)"),
+    (0.0, _HRR_NORMAL_BPM, "#fadbd8", "Impaired  (< 12)"),
+    (_HRR_NORMAL_BPM, _HRR_GOOD_BPM, "#fdebd0", "Normal   (12–19)"),
+    (_HRR_GOOD_BPM, _HRR_EXCELLENT_BPM, "#d6eaf8", "Good     (20–24)"),
     (_HRR_EXCELLENT_BPM, _HRR_MAX_GAUGE_BPM, "#d5f5e3", "Excellent (≥ 25)"),
 ]
 
@@ -109,24 +115,41 @@ def plot_hrr_curve(
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    ax.plot(time_s, hr_interp, color=_HR_COLOR, linewidth=1.8,
-            label="HR (bpm)", zorder=4)
-    ax.axhline(result.hr_peak, color=_GRAY, linewidth=0.8, linestyle="--",
-               alpha=0.7, label=f"Peak HR ({result.hr_peak:.0f} bpm)")
+    ax.plot(
+        time_s, hr_interp, color=_HR_COLOR, linewidth=1.8, label="HR (bpm)", zorder=4
+    )
+    ax.axhline(
+        result.hr_peak,
+        color=_GRAY,
+        linewidth=0.8,
+        linestyle="--",
+        alpha=0.7,
+        label=f"Peak HR ({result.hr_peak:.0f} bpm)",
+    )
 
     # HRR1 marker at 60 s
     _draw_hrr_marker(
-        ax, t=60.0, hr_ref=result.hr_peak, hr_mark=result.hr_at_60s,
-        drop=result.hrr_60, category=result.hrr_60_category,
-        color=_HRR1_COLOR, label="HRR1",
+        ax,
+        t=60.0,
+        hr_ref=result.hr_peak,
+        hr_mark=result.hr_at_60s,
+        drop=result.hrr_60,
+        category=result.hrr_60_category,
+        color=_HRR1_COLOR,
+        label="HRR1",
     )
 
     # HRR2 marker at 120 s (when available)
     if not math.isnan(result.hrr_120) and result.duration >= 120.0:
         _draw_hrr_marker(
-            ax, t=120.0, hr_ref=result.hr_peak, hr_mark=result.hr_at_120s,
-            drop=result.hrr_120, category=result.hrr_120_category,
-            color=_HRR2_COLOR, label="HRR2",
+            ax,
+            t=120.0,
+            hr_ref=result.hr_peak,
+            hr_mark=result.hr_at_120s,
+            drop=result.hrr_120,
+            category=result.hrr_120_category,
+            color=_HRR2_COLOR,
+            label="HRR2",
         )
 
     ax.set_xlabel("Time post-peak (s)", fontsize=10)
@@ -198,8 +221,14 @@ def plot_hrr_comparison(
         hr_drop = res.hr_peak - hr_interp
         hr_drop = np.clip(hr_drop, 0.0, None)  # prevent negative artefacts at t=0
         cat = res.hrr_60_category.title() if res.hrr_60_category else "—"
-        ax.plot(time_s, hr_drop, color=color, linewidth=1.6,
-                label=f"{lbl}  HRR1={res.hrr_60:.0f} ({cat})", zorder=4)
+        ax.plot(
+            time_s,
+            hr_drop,
+            color=color,
+            linewidth=1.6,
+            label=f"{lbl}  HRR1={res.hrr_60:.0f} ({cat})",
+            zorder=4,
+        )
         # Marker at 60 s
         if res.duration >= 60.0:
             ax.scatter([60.0], [res.hrr_60], s=50, color=color, zorder=5)
@@ -208,8 +237,15 @@ def plot_hrr_comparison(
     # Zone labels on the right margin
     for low, high, _, zone_label in _HRR_ZONES:
         mid = (low + high) / 2.0
-        ax.text(max_t * 0.99, mid, zone_label, ha="right", va="center",
-                fontsize=7, color=_GRAY)
+        ax.text(
+            max_t * 0.99,
+            mid,
+            zone_label,
+            ha="right",
+            va="center",
+            fontsize=7,
+            color=_GRAY,
+        )
 
     ax.set_xlim(left=0.0)
     ax.set_ylim(bottom=0.0)
@@ -261,37 +297,47 @@ def plot_hrr_gauge(
         theta1 = _angle_from_hrr(high)
         theta2 = _angle_from_hrr(low)
         wedge = Wedge(
-            (0.0, 0.0), _GAUGE_R_OUTER, theta1, theta2,
-            width=gauge_width, color=color, zorder=2,
+            (0.0, 0.0),
+            _GAUGE_R_OUTER,
+            theta1,
+            theta2,
+            width=gauge_width,
+            color=color,
+            zorder=2,
         )
         ax.add_patch(wedge)
 
     # Outer arc outline
     arc_wedge = Wedge(
-        (0.0, 0.0), _GAUGE_R_OUTER, 0.0, 180.0,
-        width=gauge_width, fill=False,
-        edgecolor=_DARK, linewidth=0.8, zorder=3,
+        (0.0, 0.0),
+        _GAUGE_R_OUTER,
+        0.0,
+        180.0,
+        width=gauge_width,
+        fill=False,
+        edgecolor=_DARK,
+        linewidth=0.8,
+        zorder=3,
     )
     ax.add_patch(arc_wedge)
 
     # ── Tick marks and labels at zone boundaries ──────────────────────────────
     for tick_val, tick_label in (
-        (0.0,              "0"),
-        (_HRR_NORMAL_BPM,  "12"),
-        (_HRR_GOOD_BPM,    "20"),
+        (0.0, "0"),
+        (_HRR_NORMAL_BPM, "12"),
+        (_HRR_GOOD_BPM, "20"),
         (_HRR_EXCELLENT_BPM, "25"),
         (_HRR_MAX_GAUGE_BPM, "40"),
     ):
         angle_rad = math.radians(_angle_from_hrr(tick_val))
-        xi = _GAUGE_R_TICK_IN  * math.cos(angle_rad)
-        yi = _GAUGE_R_TICK_IN  * math.sin(angle_rad)
+        xi = _GAUGE_R_TICK_IN * math.cos(angle_rad)
+        yi = _GAUGE_R_TICK_IN * math.sin(angle_rad)
         xo = _GAUGE_R_TICK_OUT * math.cos(angle_rad)
         yo = _GAUGE_R_TICK_OUT * math.sin(angle_rad)
         ax.plot([xi, xo], [yi, yo], color=_DARK, linewidth=0.8, zorder=4)
         xl = _GAUGE_R_LABEL * math.cos(angle_rad)
         yl = _GAUGE_R_LABEL * math.sin(angle_rad)
-        ax.text(xl, yl, tick_label, ha="center", va="center",
-                fontsize=8, color=_DARK)
+        ax.text(xl, yl, tick_label, ha="center", va="center", fontsize=8, color=_DARK)
 
     # ── Zone labels (inside sectors) ─────────────────────────────────────────
     zone_label_r = (_GAUGE_R_OUTER + _GAUGE_R_INNER) / 2.0
@@ -302,27 +348,57 @@ def plot_hrr_gauge(
         yl = zone_label_r * math.sin(angle_rad)
         # Remove the threshold range from the label (just keep the word)
         word = zone_label.split()[0]
-        ax.text(xl, yl, word, ha="center", va="center",
-                fontsize=6, color=_DARK, alpha=0.8, rotation=_angle_from_hrr(mid_val) - 90)
+        ax.text(
+            xl,
+            yl,
+            word,
+            ha="center",
+            va="center",
+            fontsize=6,
+            color=_DARK,
+            alpha=0.8,
+            rotation=_angle_from_hrr(mid_val) - 90,
+        )
 
     # ── Needle ────────────────────────────────────────────────────────────────
     hrr1_clamped = max(0.0, min(result.hrr_60, _HRR_MAX_GAUGE_BPM))
     needle_angle_rad = math.radians(_angle_from_hrr(hrr1_clamped))
     nx = _GAUGE_R_NEEDLE * math.cos(needle_angle_rad)
     ny = _GAUGE_R_NEEDLE * math.sin(needle_angle_rad)
-    ax.plot([0.0, nx], [0.0, ny], color=_DARK, linewidth=2.2,
-            solid_capstyle="round", zorder=5)
+    ax.plot(
+        [0.0, nx],
+        [0.0, ny],
+        color=_DARK,
+        linewidth=2.2,
+        solid_capstyle="round",
+        zorder=5,
+    )
     ax.add_patch(plt.Circle((0.0, 0.0), 0.06, color=_DARK, zorder=6))
 
     # ── Central value display ─────────────────────────────────────────────────
     cat = result.hrr_60_category or "—"
     cat_color = _CATEGORY_COLORS.get(cat, _DARK)
-    ax.text(0.0, -0.18, f"{result.hrr_60:.0f}", ha="center", va="center",
-            fontsize=26, fontweight="bold", color=cat_color)
-    ax.text(0.0, -0.38, "bpm HRR1", ha="center", va="center",
-            fontsize=9, color=_GRAY)
-    ax.text(0.0, -0.54, cat.title(), ha="center", va="center",
-            fontsize=11, fontweight="bold", color=cat_color)
+    ax.text(
+        0.0,
+        -0.18,
+        f"{result.hrr_60:.0f}",
+        ha="center",
+        va="center",
+        fontsize=26,
+        fontweight="bold",
+        color=cat_color,
+    )
+    ax.text(0.0, -0.38, "bpm HRR1", ha="center", va="center", fontsize=9, color=_GRAY)
+    ax.text(
+        0.0,
+        -0.54,
+        cat.title(),
+        ha="center",
+        va="center",
+        fontsize=11,
+        fontweight="bold",
+        color=cat_color,
+    )
 
     fig.suptitle(title, fontsize=12, fontweight="bold", y=0.98)
     plt.tight_layout()
@@ -406,9 +482,7 @@ def _validate_rr(rr: RRSeries) -> None:
 def _validate_result(result: HRRResult) -> None:
     """Raise TypeError when result is not an HRRResult."""
     if not isinstance(result, HRRResult):
-        raise TypeError(
-            f"result must be an HRRResult, got {type(result).__name__}"
-        )
+        raise TypeError(f"result must be an HRRResult, got {type(result).__name__}")
 
 
 def _validate_rr_results(
@@ -442,6 +516,5 @@ def _validate_rr_results(
 def _default_labels(results: list[HRRResult]) -> list[str]:
     """Return date strings from results or fallback 'Session N' labels."""
     return [
-        str(r.date) if r.date else f"Session {i + 1}"
-        for i, r in enumerate(results)
+        str(r.date) if r.date else f"Session {i + 1}" for i, r in enumerate(results)
     ]
