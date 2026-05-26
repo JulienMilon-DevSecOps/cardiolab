@@ -16,6 +16,9 @@ nonlinear_plots
 coherence_plots
     Cardiac coherence: AR PSD with resonance band, score evolution over sessions,
     and RR tachogram with sinusoidal respiratory reference.
+drift_plots
+    Cardiac drift: windowed HR + regression curve with zone background,
+    and multi-session drift-rate evolution with clinical zone bands.
 hrr_plots
     Heart Rate Recovery: recovery curve with HRR1/HRR2 markers, multi-session
     comparison of HR-drop curves, and semi-circular HRR1 gauge.
@@ -25,6 +28,10 @@ from cardiolab.visualization.coherence_plots import (
     plot_coherence_psd,
     plot_coherence_score_evolution,
     plot_coherence_tachogram,
+)
+from cardiolab.visualization.drift_plots import (
+    plot_drift_curve,
+    plot_drift_zones,
 )
 from cardiolab.visualization.hrr_plots import (
     plot_hrr_comparison,
@@ -60,6 +67,9 @@ __all__ = [
     "plot_coherence_psd",
     "plot_coherence_score_evolution",
     "plot_coherence_tachogram",
+    # drift_plots
+    "plot_drift_curve",
+    "plot_drift_zones",
     # hrr_plots
     "plot_hrr_comparison",
     "plot_hrr_curve",

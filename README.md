@@ -390,6 +390,30 @@ fig.savefig("sd1_sd2.png", dpi=150, bbox_inches="tight")
 All three functions return a `Figure`.  The comparison function uses a shared
 axis range so the SD1 contraction on standing is directly visible.
 
+### Cardiac drift — `drift_plots`
+
+```python
+from cardiolab.visualization.drift_plots import (
+    plot_drift_curve,  # windowed HR + linear regression + zone background
+    plot_drift_zones,  # multi-session drift-rate evolution with zone bands
+)
+
+result = cardiac_drift(rr_exercise, window_sec=60.0)
+
+# Single session — scatter points + regression line, background tinted by category
+fig = plot_drift_curve(rr_exercise, result, title="Session 2026-05-20")
+fig.savefig("drift_curve.png", dpi=150, bbox_inches="tight")
+
+# Multi-session evolution — coloured dots on zone-banded axes
+fig = plot_drift_zones(results, labels=dates)
+fig.savefig("drift_zones.png", dpi=150, bbox_inches="tight")
+```
+
+Both functions return a `Figure`.  `plot_drift_curve` applies the same
+non-overlapping windowing as `cardiac_drift()` so the scatter exactly matches
+the regression input.  The background tint immediately signals the clinical
+category without reading the annotation box.
+
 ### Heart Rate Recovery — `hrr_plots`
 
 ```python
@@ -600,6 +624,8 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] HR recovery curve with HRR1/HRR2 markers (`plot_hrr_curve`)
 * [x] Multi-session HR-drop comparison (`plot_hrr_comparison`)
 * [x] Semi-circular HRR1 gauge, red → green (`plot_hrr_gauge`)
+* [x] Windowed HR + regression curve with zone background (`plot_drift_curve`)
+* [x] Multi-session drift-rate evolution with zone bands (`plot_drift_zones`)
 * [ ] DFA α1 fluctuation plot — log-log scale with α1 regression line
-* [ ] Per-protocol evolution charts (cardiac drift rate, VO2max)
+* [ ] VO2max evolution across sessions
 * [ ] Multi-protocol recovery dashboard — side-by-side session comparison

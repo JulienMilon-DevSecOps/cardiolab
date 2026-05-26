@@ -783,11 +783,108 @@ fig.savefig("hrr_gauge.png", dpi=150, bbox_inches="tight")
 
 ---
 
+## 17. Cardiac Drift Curve — `plot_drift_curve`
+
+### What it shows
+
+| Element | Meaning |
+|---|---|
+| Coloured dots | Mean HR for each non-overlapping window (bpm) |
+| Dark dashed line | Linear regression of windowed HR over time |
+| Grey dotted horizontal | Initial HR (first window mean) |
+| Coloured dotted horizontal | Final HR (last window mean) |
+| Tinted background | Category colour — green (no drift) → yellow → orange → red (strong) |
+| Annotation box | Drift rate, magnitude, R², category |
+
+### How to read it
+
+**Horizontal axis** — time in minutes since the start of the recording.
+
+**Vertical axis** — mean heart rate (bpm) per window.
+
+**Regression slope** = drift rate in bpm/min.  A positive slope means HR is
+rising; a negative slope means HR is falling (may reflect warm-up adaptation or
+a recording starting after peak effort).
+
+| Slope | Category | Interpretation |
+|---|---|---|
+| < 0.5 bpm/min | No drift | Normal thermoregulation at constant load |
+| 0.5 – 1.5 | Mild | Monitor hydration; reduce intensity if hot |
+| 1.5 – 3.0 | Moderate | Drink soon; consider pace reduction |
+| > 3.0 | Strong | Stop or sharply reduce intensity |
+
+**R²** (annotation box) measures how linearly the drift progresses.  High R²
+(> 0.7) means a clean, consistent upward trend; low R² suggests irregular HR
+behaviour (arrhythmia, pace variations, sensor noise).
+
+**Background tint** provides an at-a-glance category signal: a greenish
+background means no significant drift; a reddish background warrants
+immediate attention.
+
+### API
+
+```python
+from cardiolab.visualization.drift_plots import plot_drift_curve
+
+result = cardiac_drift(rr_exercise, window_sec=60.0)
+fig = plot_drift_curve(
+    rr_exercise,
+    result,
+    window_sec=60.0,          # must match cardiac_drift() call
+    title="Session 2026-05-20",
+)
+fig.savefig("drift_curve.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
+## 18. Cardiac Drift Zones — `plot_drift_zones`
+
+### What it shows
+
+| Element | Meaning |
+|---|---|
+| Coloured dots (per session) | |Drift rate| in bpm/min — colour = category |
+| Grey connecting line | Session-to-session trend |
+| Annotated value above each dot | Numeric drift rate (bpm/min) |
+| Horizontal coloured bands | Clinical zones (green / yellow / orange / red) |
+| Threshold lines at 0.5, 1.5, 3.0 | Zone boundaries |
+| Legend | Zone name and threshold range |
+
+### How to read it
+
+The y-axis uses the **absolute** drift rate so that both upward and downward
+progressive HR changes are evaluated against the same clinical thresholds.
+
+| Observation | Interpretation |
+|---|---|
+| Points consistently in green zone | Good thermoregulation — pace, hydration, conditions stable |
+| Gradual upward trend across sessions | Accumulating training load or declining heat tolerance |
+| Single spike into orange/red | Isolated event — check hydration, ambient temperature, effort level |
+| Points falling back to green | Successful adaptation after rest or protocol adjustment |
+
+**Comparing across sessions over weeks** helps identify whether drift is a
+chronic issue (poor fitness or persistent dehydration) versus an acute one
+(single hot session, insufficient hydration that day).
+
+### API
+
+```python
+from cardiolab.visualization.drift_plots import plot_drift_zones
+
+# results: list[DriftResult] — one per session, chronological order
+fig = plot_drift_zones(results, labels=dates, title="Drift Evolution — May 2026")
+fig.savefig("drift_zones.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
 ## See also
 
 - [`docs/features/time_domain.md`](../features/time_domain.md) — RMSSD, SDNN, pNN50 definitions
 - [`docs/features/frequency_domain.md`](../features/frequency_domain.md) — LF, HF, LF/HF
 - [`docs/hrv_interpretations.md`](../hrv_interpretations.md) — full HRV interpretation guide
 - [`docs/protocols/hrr.md`](../protocols/hrr.md) — HRR protocol instructions and clinical references
+- [`docs/protocols/cardiac_drift.md`](../protocols/cardiac_drift.md) — cardiac drift protocol and thresholds
 - [`example/09_rr_signal_plots.py`](../../../../example/09_rr_signal_plots.py) — demonstration of all 5 RR signal functions
 - [`example/10_resting_evolution_plots.py`](../../../../example/10_resting_evolution_plots.py) — complete worked example for sections 6 and 7
