@@ -3,7 +3,6 @@
 import math
 
 import matplotlib
-import numpy as np
 import pytest
 from matplotlib.figure import Figure
 from matplotlib.patches import Wedge
@@ -137,7 +136,9 @@ class TestPlotVo2maxComparison:
         """Exactly 3 bars rendered when Uth available."""
         fig = plot_vo2max_comparison(result_good)
         ax = fig.axes[0]
-        bar_count = len([p for p in ax.patches if hasattr(p, "get_width") and p.get_width() > 0])
+        bar_count = len(
+            [p for p in ax.patches if hasattr(p, "get_width") and p.get_width() > 0]
+        )
         assert bar_count >= 2
 
     def test_xticklabels_with_uth(self, result_good: VO2maxResult) -> None:
@@ -167,7 +168,9 @@ class TestPlotVo2maxComparison:
         texts = [t.get_text() for t in ax.texts]
         assert any("42.0" in t for t in texts)
 
-    def test_annotation_hr_max_na_when_no_uth(self, result_no_uth: VO2maxResult) -> None:
+    def test_annotation_hr_max_na_when_no_uth(
+        self, result_no_uth: VO2maxResult
+    ) -> None:
         """Annotation shows 'n/a' for HR max when not provided."""
         fig = plot_vo2max_comparison(result_no_uth)
         ax = fig.axes[0]
@@ -231,6 +234,7 @@ class TestPlotVo2maxEvolution:
     def test_uncertainty_band_present(self, result_good: VO2maxResult) -> None:
         """Draw a ±10 % fill_between band (PolyCollection)."""
         from matplotlib.collections import PolyCollection
+
         fig = plot_vo2max_evolution([result_good])
         ax = fig.axes[0]
         poly = [c for c in ax.collections if isinstance(c, PolyCollection)]
@@ -249,6 +253,7 @@ class TestPlotVo2maxEvolution:
     ) -> None:
         """Draw scatter dots (PathCollection) for each session."""
         from matplotlib.collections import PathCollection
+
         fig = plot_vo2max_evolution([result_good, result_excellent])
         ax = fig.axes[0]
         dots = [c for c in ax.collections if isinstance(c, PathCollection)]
@@ -341,14 +346,18 @@ class TestPlotVo2maxEvolution:
         """Best estimate is Uth (45.0) not ln-RMSSD (44.5) when Uth is present."""
         fig = plot_vo2max_evolution([result_good])
         ax = fig.axes[0]
-        best_line = next(l for l in ax.lines if l.get_label() == "Best estimate")
+        best_line = next(
+            line for line in ax.lines if line.get_label() == "Best estimate"
+        )
         assert best_line.get_ydata()[0] == pytest.approx(45.0)
 
     def test_ln_rmssd_used_when_no_uth(self, result_no_uth: VO2maxResult) -> None:
         """Best estimate falls back to ln-RMSSD when Uth is NaN."""
         fig = plot_vo2max_evolution([result_no_uth])
         ax = fig.axes[0]
-        best_line = next(l for l in ax.lines if l.get_label() == "Best estimate")
+        best_line = next(
+            line for line in ax.lines if line.get_label() == "Best estimate"
+        )
         assert best_line.get_ydata()[0] == pytest.approx(result_no_uth.vo2max_ln_rmssd)
 
 

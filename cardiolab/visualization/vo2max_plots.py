@@ -30,32 +30,32 @@ _VO2MAX_GOOD: float = 48.0
 _VO2MAX_VERY_GOOD: float = 58.0
 _VO2MAX_MAX_GAUGE: float = 70.0
 
-_MODEL_UNCERTAINTY: float = 0.10   # ±10 % band on the best estimate
+_MODEL_UNCERTAINTY: float = 0.10  # ±10 % band on the best estimate
 
 # ── Zone definitions: (low, high, fill_color, label) ─────────────────────────
 
 _VO2MAX_ZONES: list[tuple[float, float, str, str]] = [
-    (0.0,             _VO2MAX_POOR,     "#fadbd8", "Poor      (< 28)"),
-    (_VO2MAX_POOR,    _VO2MAX_FAIR,     "#fdebd0", "Fair      (28–37)"),
-    (_VO2MAX_FAIR,    _VO2MAX_GOOD,     "#fef9e7", "Good      (38–47)"),
-    (_VO2MAX_GOOD,    _VO2MAX_VERY_GOOD,"#d6eaf8", "Very good (48–57)"),
+    (0.0, _VO2MAX_POOR, "#fadbd8", "Poor      (< 28)"),
+    (_VO2MAX_POOR, _VO2MAX_FAIR, "#fdebd0", "Fair      (28–37)"),
+    (_VO2MAX_FAIR, _VO2MAX_GOOD, "#fef9e7", "Good      (38–47)"),
+    (_VO2MAX_GOOD, _VO2MAX_VERY_GOOD, "#d6eaf8", "Very good (48–57)"),
     (_VO2MAX_VERY_GOOD, _VO2MAX_MAX_GAUGE, "#d5f5e3", "Excellent (≥ 58)"),
 ]
 
 # ── Colour palettes ───────────────────────────────────────────────────────────
 
 _CATEGORY_COLORS: dict[str, str] = {
-    "poor":      "#e74c3c",
-    "fair":      "#e67e22",
-    "good":      "#f39c12",
+    "poor": "#e74c3c",
+    "fair": "#e67e22",
+    "good": "#f39c12",
     "very_good": "#2980b9",
     "excellent": "#27ae60",
 }
 
 _MODEL_COLORS: dict[str, str] = {
-    "Uth":       "#2980b9",
-    "Esco-Flatt":"#27ae60",
-    "ln-RMSSD":  "#e67e22",
+    "Uth": "#2980b9",
+    "Esco-Flatt": "#27ae60",
+    "ln-RMSSD": "#e67e22",
 }
 
 # ── Gauge geometry ────────────────────────────────────────────────────────────
@@ -128,8 +128,15 @@ def plot_vo2max_comparison(
     for low, high, _, zone_label in _VO2MAX_ZONES:
         mid = (low + min(high, y_max)) / 2.0
         if mid < y_max:
-            ax.text(x_label, mid, zone_label.split()[0],
-                    ha="right", va="center", fontsize=8, color=_GRAY)
+            ax.text(
+                x_label,
+                mid,
+                zone_label.split()[0],
+                ha="right",
+                va="center",
+                fontsize=8,
+                color=_GRAY,
+            )
 
     # Bars
     xs = list(range(len(models)))
@@ -141,7 +148,10 @@ def plot_vo2max_comparison(
             bar.get_x() + bar.get_width() / 2.0,
             val + y_max * 0.015,
             f"{val:.1f}",
-            ha="center", va="bottom", fontsize=9, fontweight="bold",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+            fontweight="bold",
             color=bar.get_facecolor(),
         )
 
@@ -156,10 +166,19 @@ def plot_vo2max_comparison(
         f"HR max    : {hr_max_str}"
     )
     ax.text(
-        0.02, 0.97, txt,
-        transform=ax.transAxes, fontsize=8,
-        va="top", ha="left",
-        bbox={"boxstyle": "round,pad=0.4", "fc": "white", "alpha": 0.88, "ec": cat_color},
+        0.02,
+        0.97,
+        txt,
+        transform=ax.transAxes,
+        fontsize=8,
+        va="top",
+        ha="left",
+        bbox={
+            "boxstyle": "round,pad=0.4",
+            "fc": "white",
+            "alpha": 0.88,
+            "ec": cat_color,
+        },
         zorder=6,
     )
 
@@ -232,7 +251,9 @@ def plot_vo2max_evolution(
         xs,
         best * (1.0 - _MODEL_UNCERTAINTY),
         best * (1.0 + _MODEL_UNCERTAINTY),
-        color="#aed6f1", alpha=0.40, zorder=1,
+        color="#aed6f1",
+        alpha=0.40,
+        zorder=1,
         label=f"±{_MODEL_UNCERTAINTY:.0%} model uncertainty",
     )
 
@@ -243,16 +264,30 @@ def plot_vo2max_evolution(
     for x, val, cat in zip(xs, best, categories, strict=False):
         color = _CATEGORY_COLORS.get(cat, _DARK)
         ax.scatter([x], [val], s=65, color=color, zorder=5)
-        ax.text(x, val + y_max * 0.02, f"{val:.1f}",
-                ha="center", va="bottom", fontsize=7, color=color)
+        ax.text(
+            x,
+            val + y_max * 0.02,
+            f"{val:.1f}",
+            ha="center",
+            va="bottom",
+            fontsize=7,
+            color=color,
+        )
 
     # Zone labels on right margin
     x_r = n - 0.5
     for low, high, _, zone_label in _VO2MAX_ZONES:
         mid = (low + min(high, y_max)) / 2.0
         if mid < y_max:
-            ax.text(x_r, mid, zone_label.split()[0],
-                    ha="right", va="center", fontsize=8, color=_GRAY)
+            ax.text(
+                x_r,
+                mid,
+                zone_label.split()[0],
+                ha="right",
+                va="center",
+                fontsize=8,
+                color=_GRAY,
+            )
 
     ax.set_xticks(xs)
     ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=9)
@@ -305,25 +340,47 @@ def plot_vo2max_gauge(
     for low, high, color, _ in _VO2MAX_ZONES:
         theta1 = _angle_from_vo2max(high)
         theta2 = _angle_from_vo2max(low)
-        ax.add_patch(Wedge(
-            (0.0, 0.0), _GAUGE_R_OUTER, theta1, theta2,
-            width=gauge_width, color=color, zorder=2,
-        ))
+        ax.add_patch(
+            Wedge(
+                (0.0, 0.0),
+                _GAUGE_R_OUTER,
+                theta1,
+                theta2,
+                width=gauge_width,
+                color=color,
+                zorder=2,
+            )
+        )
 
     # Outer arc outline
-    ax.add_patch(Wedge(
-        (0.0, 0.0), _GAUGE_R_OUTER, 0.0, 180.0,
-        width=gauge_width, fill=False,
-        edgecolor=_DARK, linewidth=0.8, zorder=3,
-    ))
+    ax.add_patch(
+        Wedge(
+            (0.0, 0.0),
+            _GAUGE_R_OUTER,
+            0.0,
+            180.0,
+            width=gauge_width,
+            fill=False,
+            edgecolor=_DARK,
+            linewidth=0.8,
+            zorder=3,
+        )
+    )
 
     # Tick marks at zone boundaries + max
-    tick_vals = [0.0, _VO2MAX_POOR, _VO2MAX_FAIR, _VO2MAX_GOOD, _VO2MAX_VERY_GOOD, _VO2MAX_MAX_GAUGE]
-    tick_lbls = ["0",  "28",        "38",         "48",         "58",             "70"]
+    tick_vals = [
+        0.0,
+        _VO2MAX_POOR,
+        _VO2MAX_FAIR,
+        _VO2MAX_GOOD,
+        _VO2MAX_VERY_GOOD,
+        _VO2MAX_MAX_GAUGE,
+    ]
+    tick_lbls = ["0", "28", "38", "48", "58", "70"]
     for val, lbl in zip(tick_vals, tick_lbls, strict=True):
         a_rad = math.radians(_angle_from_vo2max(val))
-        xi = _GAUGE_R_TICK_IN  * math.cos(a_rad)
-        yi = _GAUGE_R_TICK_IN  * math.sin(a_rad)
+        xi = _GAUGE_R_TICK_IN * math.cos(a_rad)
+        yi = _GAUGE_R_TICK_IN * math.sin(a_rad)
         xo = _GAUGE_R_TICK_OUT * math.cos(a_rad)
         yo = _GAUGE_R_TICK_OUT * math.sin(a_rad)
         ax.plot([xi, xo], [yi, yo], color=_DARK, linewidth=0.8, zorder=4)
@@ -339,28 +396,57 @@ def plot_vo2max_gauge(
         xl = zone_r * math.cos(a_rad)
         yl = zone_r * math.sin(a_rad)
         word = zone_label.split()[0]
-        ax.text(xl, yl, word, ha="center", va="center",
-                fontsize=5, color=_DARK, alpha=0.8,
-                rotation=_angle_from_vo2max(mid_val) - 90)
+        ax.text(
+            xl,
+            yl,
+            word,
+            ha="center",
+            va="center",
+            fontsize=5,
+            color=_DARK,
+            alpha=0.8,
+            rotation=_angle_from_vo2max(mid_val) - 90,
+        )
 
     # Needle
     val_clamped = max(0.0, min(best, _VO2MAX_MAX_GAUGE))
     a_rad = math.radians(_angle_from_vo2max(val_clamped))
     nx = _GAUGE_R_NEEDLE * math.cos(a_rad)
     ny = _GAUGE_R_NEEDLE * math.sin(a_rad)
-    ax.plot([0.0, nx], [0.0, ny], color=_DARK, linewidth=2.2,
-            solid_capstyle="round", zorder=5)
+    ax.plot(
+        [0.0, nx],
+        [0.0, ny],
+        color=_DARK,
+        linewidth=2.2,
+        solid_capstyle="round",
+        zorder=5,
+    )
     ax.add_patch(plt.Circle((0.0, 0.0), 0.06, color=_DARK, zorder=6))
 
     # Central text
     cat = result.fitness_category.replace("_", " ").title()
     cat_color = _CATEGORY_COLORS.get(result.fitness_category, _DARK)
-    ax.text(0.0, -0.18, f"{best:.0f}", ha="center", va="center",
-            fontsize=24, fontweight="bold", color=cat_color)
-    ax.text(0.0, -0.38, "mL/kg/min", ha="center", va="center",
-            fontsize=9, color=_GRAY)
-    ax.text(0.0, -0.54, cat, ha="center", va="center",
-            fontsize=11, fontweight="bold", color=cat_color)
+    ax.text(
+        0.0,
+        -0.18,
+        f"{best:.0f}",
+        ha="center",
+        va="center",
+        fontsize=24,
+        fontweight="bold",
+        color=cat_color,
+    )
+    ax.text(0.0, -0.38, "mL/kg/min", ha="center", va="center", fontsize=9, color=_GRAY)
+    ax.text(
+        0.0,
+        -0.54,
+        cat,
+        ha="center",
+        va="center",
+        fontsize=11,
+        fontweight="bold",
+        color=cat_color,
+    )
 
     fig.suptitle(title, fontsize=12, fontweight="bold", y=0.98)
     plt.tight_layout()
@@ -390,9 +476,7 @@ def _best_estimate(result: VO2maxResult) -> float:
 def _validate_result(result: VO2maxResult) -> None:
     """Raise TypeError when result is not a VO2maxResult."""
     if not isinstance(result, VO2maxResult):
-        raise TypeError(
-            f"result must be a VO2maxResult, got {type(result).__name__}"
-        )
+        raise TypeError(f"result must be a VO2maxResult, got {type(result).__name__}")
 
 
 def _validate_results_list(results: list[VO2maxResult]) -> None:
@@ -411,6 +495,5 @@ def _validate_results_list(results: list[VO2maxResult]) -> None:
 def _default_labels(results: list[VO2maxResult]) -> list[str]:
     """Return date strings from results or fallback 'Session N' labels."""
     return [
-        str(r.date) if r.date else f"Session {i + 1}"
-        for i, r in enumerate(results)
+        str(r.date) if r.date else f"Session {i + 1}" for i, r in enumerate(results)
     ]
