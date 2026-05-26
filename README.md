@@ -390,6 +390,35 @@ fig.savefig("sd1_sd2.png", dpi=150, bbox_inches="tight")
 All three functions return a `Figure`.  The comparison function uses a shared
 axis range so the SD1 contraction on standing is directly visible.
 
+### Heart Rate Recovery — `hrr_plots`
+
+```python
+from cardiolab.visualization.hrr_plots import (
+    plot_hrr_curve,       # HR(t) recovery curve with HRR1/HRR2 markers
+    plot_hrr_comparison,  # multi-session HR-drop curves coloured by date
+    plot_hrr_gauge,       # semi-circular HRR1 gauge (red → green)
+)
+
+result = heart_rate_recovery(rr_post_exercise)
+
+# Recovery curve with drop arrows at 60 s and 120 s
+fig = plot_hrr_curve(rr_post_exercise, result, title="Session 2026-05-20")
+fig.savefig("hrr_curve.png", dpi=150, bbox_inches="tight")
+
+# Superimposed HR-drop curves across sessions
+fig = plot_hrr_comparison(rr_list, results, labels=dates)
+fig.savefig("hrr_comparison.png", dpi=150, bbox_inches="tight")
+
+# Instant HRR1 gauge (colour-coded by clinical zone)
+fig = plot_hrr_gauge(result, title="HRR1 — Session 2026-05-20")
+fig.savefig("hrr_gauge.png", dpi=150, bbox_inches="tight")
+```
+
+All three functions return a `Figure`.  The comparison chart uses **HR drop from
+peak** (starts at 0 for all sessions) so curves with different peak HRs remain
+directly comparable.  The gauge spans 0–40 bpm with four clinical zones
+colour-coded from red (impaired) to green (excellent) following Cole et al. 1999.
+
 ---
 
 ## Analytics
@@ -568,6 +597,9 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] Cardiac coherence AR PSD with resonance band (`plot_coherence_psd`)
 * [x] Cardiac coherence score evolution (`plot_coherence_score_evolution`)
 * [x] RR tachogram with respiratory reference (`plot_coherence_tachogram`)
+* [x] HR recovery curve with HRR1/HRR2 markers (`plot_hrr_curve`)
+* [x] Multi-session HR-drop comparison (`plot_hrr_comparison`)
+* [x] Semi-circular HRR1 gauge, red → green (`plot_hrr_gauge`)
 * [ ] DFA α1 fluctuation plot — log-log scale with α1 regression line
-* [ ] Per-protocol evolution charts (cardiac coherence score, HRR, drift rate, VO2max)
+* [ ] Per-protocol evolution charts (cardiac drift rate, VO2max)
 * [ ] Multi-protocol recovery dashboard — side-by-side session comparison
