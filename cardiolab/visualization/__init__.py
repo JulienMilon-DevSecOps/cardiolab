@@ -22,6 +22,10 @@ drift_plots
 hrr_plots
     Heart Rate Recovery: recovery curve with HRR1/HRR2 markers, multi-session
     comparison of HR-drop curves, and semi-circular HRR1 gauge.
+vo2max_plots
+    VO2max estimation from HRV: grouped model comparison bars with ACSM zone
+    backgrounds, multi-session best-estimate evolution with ±10 % uncertainty
+    band, and semi-circular fitness gauge (poor → excellent).
 """
 
 from cardiolab.visualization.coherence_plots import (
@@ -62,6 +66,11 @@ from cardiolab.visualization.spectral_plots import (
     plot_psd_welch,
     plot_spectral_heatmap,
 )
+from cardiolab.visualization.vo2max_plots import (
+    plot_vo2max_comparison,
+    plot_vo2max_evolution,
+    plot_vo2max_gauge,
+)
 
 __all__ = [
     # coherence_plots
@@ -95,4 +104,8 @@ __all__ = [
     "plot_lf_hf_evolution",
     "plot_hrv_radar",
     "plot_spectral_heatmap",
+    # vo2max_plots
+    "plot_vo2max_comparison",
+    "plot_vo2max_evolution",
+    "plot_vo2max_gauge",
 ]

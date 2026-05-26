@@ -448,6 +448,38 @@ peak** (starts at 0 for all sessions) so curves with different peak HRs remain
 directly comparable.  The gauge spans 0–40 bpm with four clinical zones
 colour-coded from red (impaired) to green (excellent) following Cole et al. 1999.
 
+### VO2max estimation — `vo2max_plots`
+
+```python
+from cardiolab.visualization.vo2max_plots import (
+    plot_vo2max_comparison,  # grouped bars (Uth / Esco-Flatt / ln-RMSSD) + ACSM zones
+    plot_vo2max_evolution,   # best-estimate timeline with ±10 % uncertainty band
+    plot_vo2max_gauge,       # semi-circular fitness gauge (poor → excellent)
+)
+
+result = vo2max_from_hrv(rr_resting, hr_max=185.0)
+
+# Model comparison — 2 or 3 bars depending on whether hr_max was provided
+fig = plot_vo2max_comparison(result, title="VO2max — Session 2026-05-20")
+fig.savefig("vo2max_comparison.png", dpi=150, bbox_inches="tight")
+
+# Multi-session evolution with uncertainty band
+fig = plot_vo2max_evolution(results, labels=dates)
+fig.savefig("vo2max_evolution.png", dpi=150, bbox_inches="tight")
+
+# Instant fitness gauge with needle and central category text
+fig = plot_vo2max_gauge(result, title="Fitness Gauge — Session 2026-05-20")
+fig.savefig("vo2max_gauge.png", dpi=150, bbox_inches="tight")
+```
+
+All three functions return a `Figure`.  The best estimate used by the gauge and
+evolution chart follows the priority Uth > ln-RMSSD: Uth is the most validated
+model when `hr_max` is known, otherwise ln-RMSSD is preferred.  The ±10 %
+uncertainty band on the evolution chart reflects the typical model error range
+(Uth: ±10–15 %, ln-RMSSD / Esco-Flatt: ±7–12 %).  ACSM zones (< 28 poor,
+28–37 fair, 38–47 good, 48–57 very good, ≥ 58 excellent) are shown as coloured
+backgrounds in all three charts.
+
 ---
 
 ## Analytics
@@ -632,5 +664,7 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] Windowed HR + regression curve with zone background (`plot_drift_curve`)
 * [x] Multi-session drift-rate evolution with zone bands (`plot_drift_zones`)
 * [x] DFA α1 log-log fluctuation plot with regression line (`plot_dfa_fluctuation`)
-* [ ] VO2max evolution across sessions
+* [x] VO2max model comparison bars with ACSM zone bands (`plot_vo2max_comparison`)
+* [x] VO2max evolution across sessions with ±10 % uncertainty band (`plot_vo2max_evolution`)
+* [x] Semi-circular VO2max fitness gauge, poor → excellent (`plot_vo2max_gauge`)
 * [ ] Multi-protocol recovery dashboard — side-by-side session comparison
