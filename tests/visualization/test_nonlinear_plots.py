@@ -15,6 +15,7 @@ from matplotlib.figure import Figure  # noqa: E402
 from cardiolab.protocols.resting import HRVFeatures  # noqa: E402
 from cardiolab.signals.rr import RRSeries  # noqa: E402
 from cardiolab.visualization.nonlinear_plots import (  # noqa: E402
+    plot_dfa_fluctuation,
     plot_poincare,
     plot_poincare_comparison,
     plot_sd1_sd2_evolution,
@@ -327,3 +328,105 @@ class TestPlotSd1Sd2Evolution:
         """All SD2 values in the fixture are strictly positive."""
         for f in features_multi:
             assert f.sd2 > 0.0
+
+
+# ── plot_dfa_fluctuation ──────────────────────────────────────────────────────
+
+
+@pytest.fixture()
+def rr_dfa() -> RRSeries:
+    """Return a 300-interval RRSeries long enough for DFA (≥ 32 intervals)."""
+    rng = np.random.default_rng(42)
+    return RRSeries(rng.normal(860, 45, 300).clip(min=310))
+
+
+@pytest.fixture()
+def rr_dfa_short() -> RRSeries:
+    """Return a 10-interval RRSeries too short for DFA."""
+    return RRSeries([800.0] * 10)
+
+
+class TestPlotDfaFluctuation:
+    """Tests for plot_dfa_fluctuation."""
+
+    def test_returns_figure(self, rr_dfa: RRSeries) -> None:
+        """Return a matplotlib Figure."""
+        fig = plot_dfa_fluctuation(rr_dfa)
+        assert isinstance(fig, Figure)
+
+    def test_single_axis(self, rr_dfa: RRSeries) -> None:
+        """Produce exactly one axes."""
+        fig = plot_dfa_fluctuation(rr_dfa)
+        assert len(fig.axes) == 1
+
+    def test_custom_title(self, rr_dfa: RRSeries) -> None:
+        """Accept and apply a custom title."""
+        fig = plot_dfa_fluctuation(rr_dfa, title="My DFA")
+        assert fig.texts[0].get_text() == "My DFA"
+
+    def test_custom_figsize(self, rr_dfa: RRSeries) -> None:
+        """Accept and apply a custom figure size."""
+        fig = plot_dfa_fluctuation(rr_dfa, figsize=(10, 6))
+        w, h = fig.get_size_inches()
+        assert w == pytest.approx(10.0)
+        assert h == pytest.approx(6.0)
+
+    def test_scatter_points_equal_scale_count(self, rr_dfa: RRSeries) -> None:
+        """Draw one scatter point per valid DFA scale (4 to 16 = up to 13 scales)."""
+        from matplotlib.collections import PathCollection
+
+        fig = plot_dfa_fluctuation(rr_dfa)
+        ax = fig.axes[0]
+        # PathCollection = scatter; PolyCollection = fill_between
+        scatter = next(c for c in ax.collections if isinstance(c, PathCollection))
+        assert len(scatter.get_offsets()) >= 2
+
+    def test_xtick_labels_are_beat_integers(self, rr_dfa: RRSeries) -> None:
+        """X-axis tick labels show beat counts (integers), not log values."""
+        fig = plot_dfa_fluctuation(rr_dfa)
+        ax = fig.axes[0]
+        labels = [t.get_text() for t in ax.get_xticklabels()]
+        assert all(lbl.isdigit() for lbl in labels if lbl)
+
+    def test_regression_line_present(self, rr_dfa: RRSeries) -> None:
+        """Draw at least one Line2D (the regression line)."""
+        fig = plot_dfa_fluctuation(rr_dfa)
+        ax = fig.axes[0]
+        assert len(ax.lines) >= 1
+
+    def test_annotation_contains_alpha(self, rr_dfa: RRSeries) -> None:
+        """Annotation box text contains the α1 label."""
+        fig = plot_dfa_fluctuation(rr_dfa)
+        ax = fig.axes[0]
+        texts = [t.get_text() for t in ax.texts]
+        assert any("α1" in t for t in texts)
+
+    def test_normal_zone_patch_present(self, rr_dfa: RRSeries) -> None:
+        """Draw the normal zone fill-between (PolyCollection present)."""
+        from matplotlib.collections import PolyCollection
+
+        fig = plot_dfa_fluctuation(rr_dfa)
+        ax = fig.axes[0]
+        poly = [c for c in ax.collections if isinstance(c, PolyCollection)]
+        assert len(poly) >= 1
+
+    def test_custom_n_min_n_max(self, rr_dfa: RRSeries) -> None:
+        """Accept custom n_min and n_max without error."""
+        fig = plot_dfa_fluctuation(rr_dfa, n_min=4, n_max=10)
+        assert isinstance(fig, Figure)
+
+    def test_type_error_not_rr_series(self) -> None:
+        """Raise TypeError when rr is not an RRSeries."""
+        with pytest.raises(TypeError, match="RRSeries"):
+            plot_dfa_fluctuation([860.0] * 100)  # type: ignore[arg-type]
+
+    def test_value_error_too_short(self, rr_dfa_short: RRSeries) -> None:
+        """Raise ValueError when rr has fewer than 32 intervals."""
+        with pytest.raises(ValueError, match="at least"):
+            plot_dfa_fluctuation(rr_dfa_short)
+
+    def test_alpha_label_in_legend(self, rr_dfa: RRSeries) -> None:
+        """Legend contains the α1 regression label."""
+        fig = plot_dfa_fluctuation(rr_dfa)
+        legend_texts = [t.get_text() for t in fig.axes[0].get_legend().get_texts()]
+        assert any("Regression" in t or "α1" in t for t in legend_texts)

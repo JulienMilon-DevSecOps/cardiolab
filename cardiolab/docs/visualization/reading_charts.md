@@ -783,11 +783,171 @@ fig.savefig("hrr_gauge.png", dpi=150, bbox_inches="tight")
 
 ---
 
+## 17. Cardiac Drift Curve — `plot_drift_curve`
+
+### What it shows
+
+| Element | Meaning |
+|---|---|
+| Coloured dots | Mean HR for each non-overlapping window (bpm) |
+| Dark dashed line | Linear regression of windowed HR over time |
+| Grey dotted horizontal | Initial HR (first window mean) |
+| Coloured dotted horizontal | Final HR (last window mean) |
+| Tinted background | Category colour — green (no drift) → yellow → orange → red (strong) |
+| Annotation box | Drift rate, magnitude, R², category |
+
+### How to read it
+
+**Horizontal axis** — time in minutes since the start of the recording.
+
+**Vertical axis** — mean heart rate (bpm) per window.
+
+**Regression slope** = drift rate in bpm/min.  A positive slope means HR is
+rising; a negative slope means HR is falling (may reflect warm-up adaptation or
+a recording starting after peak effort).
+
+| Slope | Category | Interpretation |
+|---|---|---|
+| < 0.5 bpm/min | No drift | Normal thermoregulation at constant load |
+| 0.5 – 1.5 | Mild | Monitor hydration; reduce intensity if hot |
+| 1.5 – 3.0 | Moderate | Drink soon; consider pace reduction |
+| > 3.0 | Strong | Stop or sharply reduce intensity |
+
+**R²** (annotation box) measures how linearly the drift progresses.  High R²
+(> 0.7) means a clean, consistent upward trend; low R² suggests irregular HR
+behaviour (arrhythmia, pace variations, sensor noise).
+
+**Background tint** provides an at-a-glance category signal: a greenish
+background means no significant drift; a reddish background warrants
+immediate attention.
+
+### API
+
+```python
+from cardiolab.visualization.drift_plots import plot_drift_curve
+
+result = cardiac_drift(rr_exercise, window_sec=60.0)
+fig = plot_drift_curve(
+    rr_exercise,
+    result,
+    window_sec=60.0,          # must match cardiac_drift() call
+    title="Session 2026-05-20",
+)
+fig.savefig("drift_curve.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
+## 18. Cardiac Drift Zones — `plot_drift_zones`
+
+### What it shows
+
+| Element | Meaning |
+|---|---|
+| Coloured dots (per session) | |Drift rate| in bpm/min — colour = category |
+| Grey connecting line | Session-to-session trend |
+| Annotated value above each dot | Numeric drift rate (bpm/min) |
+| Horizontal coloured bands | Clinical zones (green / yellow / orange / red) |
+| Threshold lines at 0.5, 1.5, 3.0 | Zone boundaries |
+| Legend | Zone name and threshold range |
+
+### How to read it
+
+The y-axis uses the **absolute** drift rate so that both upward and downward
+progressive HR changes are evaluated against the same clinical thresholds.
+
+| Observation | Interpretation |
+|---|---|
+| Points consistently in green zone | Good thermoregulation — pace, hydration, conditions stable |
+| Gradual upward trend across sessions | Accumulating training load or declining heat tolerance |
+| Single spike into orange/red | Isolated event — check hydration, ambient temperature, effort level |
+| Points falling back to green | Successful adaptation after rest or protocol adjustment |
+
+**Comparing across sessions over weeks** helps identify whether drift is a
+chronic issue (poor fitness or persistent dehydration) versus an acute one
+(single hot session, insufficient hydration that day).
+
+### API
+
+```python
+from cardiolab.visualization.drift_plots import plot_drift_zones
+
+# results: list[DriftResult] — one per session, chronological order
+fig = plot_drift_zones(results, labels=dates, title="Drift Evolution — May 2026")
+fig.savefig("drift_zones.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
 ## See also
 
 - [`docs/features/time_domain.md`](../features/time_domain.md) — RMSSD, SDNN, pNN50 definitions
 - [`docs/features/frequency_domain.md`](../features/frequency_domain.md) — LF, HF, LF/HF
 - [`docs/hrv_interpretations.md`](../hrv_interpretations.md) — full HRV interpretation guide
 - [`docs/protocols/hrr.md`](../protocols/hrr.md) — HRR protocol instructions and clinical references
+---
+
+## 19. DFA α1 Fluctuation Plot — `plot_dfa_fluctuation`
+
+### What it shows
+
+| Element | Meaning |
+|---|---|
+| Blue dots | Each `(n, F(n))` pair on a log-log scale — one per window size |
+| Dark dashed line | Linear regression: slope = α1 |
+| Green shaded band | Normal α1 zone (0.75 – 1.25) |
+| Grey dotted line | α = 0.5 reference (white noise — uncorrelated) |
+| Grey dashed line | α = 1.5 reference (Brownian noise — strongly correlated) |
+| Annotation box | α1 value, clinical interpretation, number of scales used |
+
+### How to read it
+
+**Horizontal axis** — window size `n` in beats (4 to 16 by default), shown on a log scale with actual beat values as tick labels.
+
+**Vertical axis** — `log F(n)`, the log of the root-mean-square fluctuation at each scale.
+
+**The regression line** fits all points.  Its slope is α1.  A steeper slope (closer to 1.0) means the RR signal has stronger long-range fractal correlations — a hallmark of healthy autonomic regulation.
+
+| α1 range | Interpretation |
+|---|---|
+| ≈ 0.5 | White noise — no correlation structure, pathological at rest |
+| < 0.75 | Below normal — possible overtraining, autonomic impairment |
+| 0.75 – 1.25 | **Normal** fractal long-range correlations (green zone) |
+| > 1.25 | Strongly correlated — typical during exercise or with artefacts |
+| ≈ 1.5 | Brownian noise — maximal correlation |
+
+**The normal zone band** (green fill) visually anchors where the regression line should sit for a healthy resting recording.  If the line runs clearly above or below the band, the signal departs from the expected fractal structure.
+
+### What to look for
+
+| Observation | Interpretation |
+|---|---|
+| Points well-aligned with the regression line (high R²) | Clean fractal structure — reliable α1 estimate |
+| Scattered points, poor alignment | Irregular HR behaviour or short signal |
+| Regression line inside the green band | Normal autonomic regulation |
+| Line below the green band (α1 < 0.75) | Possible fatigue, overtraining, or pathology |
+| Line above the green band (α1 > 1.25) | Possible exercise residue, strong trend, or artefacts |
+
+### Signal length note
+
+DFA requires at least **32 intervals** (2 × n_max with default n_max = 16) to compute two or more valid scales.  Very short recordings will raise `ValueError`.  For resting HRV, a standard 5-minute recording (~350–450 intervals) provides all 13 scales and a reliable α1.
+
+### API
+
+```python
+from cardiolab.visualization.nonlinear_plots import plot_dfa_fluctuation
+
+fig = plot_dfa_fluctuation(
+    rr,                         # RRSeries — at least 32 intervals
+    n_min=4,                    # smallest window size in beats (optional)
+    n_max=16,                   # largest window size in beats (optional)
+    title="DFA α1 — Session 2026-05-20",
+)
+fig.savefig("dfa_fluctuation.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
+- [`docs/protocols/cardiac_drift.md`](../protocols/cardiac_drift.md) — cardiac drift protocol and thresholds
 - [`example/09_rr_signal_plots.py`](../../../../example/09_rr_signal_plots.py) — demonstration of all 5 RR signal functions
 - [`example/10_resting_evolution_plots.py`](../../../../example/10_resting_evolution_plots.py) — complete worked example for sections 6 and 7

@@ -1,10 +1,11 @@
 """Visualisation helpers for non-linear HRV analysis.
 
-Three public functions cover the Poincaré domain:
+Four public functions cover the non-linear domain:
 
 * :func:`plot_poincare`            — Poincaré scatter with SD1/SD2 ellipse and arrows.
 * :func:`plot_poincare_comparison` — Side-by-side supine vs standing Poincaré plots.
 * :func:`plot_sd1_sd2_evolution`   — SD1, SD2 and SD1/SD2 ratio evolution over sessions.
+* :func:`plot_dfa_fluctuation`     — Log-log DFA fluctuation plot with α1 regression line.
 """
 
 from __future__ import annotations
@@ -23,6 +24,9 @@ from cardiolab.signals.rr import RRSeries
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 _MIN_INTERVALS_POINCARE = 3
+_DFA_N_MIN_DEFAULT: int = 4
+_DFA_N_MAX_DEFAULT: int = 16
+_MIN_INTERVALS_DFA: int = 32  # 2 × n_max to guarantee ≥ 2 valid scales
 
 # ── Colour palette ────────────────────────────────────────────────────────────
 
@@ -298,6 +302,151 @@ def plot_sd1_sd2_evolution(
     return fig
 
 
+def plot_dfa_fluctuation(
+    rr: RRSeries,
+    n_min: int = _DFA_N_MIN_DEFAULT,
+    n_max: int = _DFA_N_MAX_DEFAULT,
+    title: str = "DFA α1 — Fluctuation Function",
+    figsize: tuple[float, float] = (8, 5),
+) -> Figure:
+    """Plot the DFA log-log fluctuation function with the α1 regression line.
+
+    Recomputes the same Detrended Fluctuation Analysis as
+    :func:`~cardiolab.features.nonlinear.dfa_alpha1` and shows each ``F(n)``
+    value as a dot on a log-log scale.  The regression line fitted to those
+    dots has slope = α1.  Reference lines at α = 0.5 (white noise) and
+    α = 1.5 (Brownian noise) provide clinical anchoring.
+
+    Args:
+        rr: :class:`~cardiolab.signals.rr.RRSeries` to analyse.
+        n_min: Smallest window size in beats. Defaults to 4.
+        n_max: Largest window size in beats. Defaults to 16.
+        title: Figure title.
+        figsize: Width × height of the figure in inches.
+
+    Returns:
+        The :class:`~matplotlib.figure.Figure`.
+
+    Raises:
+        TypeError: If ``rr`` is not an :class:`~cardiolab.signals.rr.RRSeries`.
+        ValueError: If ``rr`` has fewer than ``_MIN_INTERVALS_DFA`` intervals,
+            or if fewer than two valid scales can be computed.
+
+    """
+    if not isinstance(rr, RRSeries):
+        raise TypeError(f"rr must be an RRSeries, got {type(rr).__name__}")
+    if len(rr.intervals) < _MIN_INTERVALS_DFA:
+        raise ValueError(
+            f"rr must have at least {_MIN_INTERVALS_DFA} intervals for DFA, "
+            f"got {len(rr.intervals)}"
+        )
+
+    scales, fluctuations, alpha = _dfa_data(rr, n_min, n_max)
+
+    if len(scales) < 2:
+        raise ValueError(
+            "Fewer than two valid DFA scales — signal too short or too uniform."
+        )
+
+    log_n = np.log(scales)
+    log_f = np.log(fluctuations)
+
+    # Regression line over the full log-log range
+    intercept = float(np.mean(log_f)) - alpha * float(np.mean(log_n))
+    log_n_line = np.linspace(log_n[0], log_n[-1], 200)
+    log_f_line = alpha * log_n_line + intercept
+
+    # Clinical interpretation
+    if alpha < 0.6:
+        interp = "Uncorrelated / pathological"
+    elif alpha < 0.75:
+        interp = "Below normal range"
+    elif alpha <= 1.25:
+        interp = "Normal fractal correlations"
+    elif alpha <= 1.5:
+        interp = "Above normal — exercise / strong trend"
+    else:
+        interp = "Brownian noise"
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Normal zone band (0.75 ≤ α1 ≤ 1.25) shown on log_f axis
+    n_ref = np.array([log_n[0], log_n[-1]])
+    f_low = 0.75 * n_ref + intercept
+    f_high = 1.25 * n_ref + intercept
+    ax.fill_between(
+        n_ref,
+        f_low,
+        f_high,
+        color="#d5f5e3",
+        alpha=0.50,
+        zorder=0,
+        label="Normal α1 zone (0.75 – 1.25)",
+    )
+
+    # Reference lines α = 0.5 and α = 1.5
+    for ref_alpha, ref_label, ref_ls in (
+        (0.5, "α = 0.5 (white noise)", ":"),
+        (1.5, "α = 1.5 (Brownian noise)", "--"),
+    ):
+        f_ref = ref_alpha * n_ref + intercept
+        ax.plot(
+            n_ref,
+            f_ref,
+            color=_GRAY,
+            linewidth=0.9,
+            linestyle=ref_ls,
+            alpha=0.7,
+            label=ref_label,
+        )
+
+    # Regression line
+    ax.plot(
+        log_n_line,
+        log_f_line,
+        color=_DARK,
+        linewidth=1.8,
+        label=f"Regression  α1 = {alpha:.3f}",
+        zorder=4,
+    )
+
+    # Fluctuation points
+    ax.scatter(log_n, log_f, s=65, color=_SD1_COLOR, zorder=5, label="F(n) per scale")
+
+    # Axis ticks: show actual beat values instead of log values
+    ax.set_xticks(log_n)
+    ax.set_xticklabels([str(int(s)) for s in scales], fontsize=8)
+
+    # Annotation box
+    txt = (
+        f"α1 = {alpha:.3f}\n{interp}\nn = {len(scales)} scales ({n_min}–{n_max} beats)"
+    )
+    ax.text(
+        0.97,
+        0.05,
+        txt,
+        transform=ax.transAxes,
+        fontsize=8,
+        va="bottom",
+        ha="right",
+        bbox={
+            "boxstyle": "round,pad=0.4",
+            "fc": "white",
+            "alpha": 0.88,
+            "ec": _SD1_COLOR,
+        },
+        zorder=6,
+    )
+
+    ax.set_xlabel("Scale n (beats)  [log axis]", fontsize=10)
+    ax.set_ylabel("log F(n)", fontsize=10)
+    ax.legend(loc="upper left", fontsize=8)
+    ax.grid(alpha=0.20, linestyle=":")
+    fig.suptitle(title, fontsize=12, fontweight="bold")
+    plt.tight_layout()
+    return fig
+
+
 # ── Private helpers ───────────────────────────────────────────────────────────
 
 
@@ -430,6 +579,54 @@ def _add_stats_annotation(ax: plt.Axes, stats: dict) -> None:
         },
         fontsize=9,
     )
+
+
+def _dfa_data(
+    rr: RRSeries,
+    n_min: int,
+    n_max: int,
+) -> tuple[np.ndarray, np.ndarray, float]:
+    """Recompute DFA windows and return (scales, fluctuations, alpha).
+
+    Mirrors the algorithm in :func:`~cardiolab.features.nonlinear.dfa_alpha1`
+    exactly so that plot points match the stored feature value.
+
+    """
+    intervals = rr.intervals
+    n_total = len(intervals)
+    y = np.cumsum(intervals - np.mean(intervals))
+
+    scales_list: list[int] = []
+    fluct_list: list[float] = []
+
+    for n in range(n_min, n_max + 1):
+        n_windows = n_total // n
+        if n_windows < 2:
+            continue
+        y_trimmed = y[: n_windows * n].reshape(n_windows, n)
+        t = np.arange(n, dtype=float)
+        t_mean = t.mean()
+        t_c = t - t_mean
+        t_sq_sum = float(np.sum(t_c**2))
+        if t_sq_sum == 0.0:
+            continue
+        row_means = y_trimmed.mean(axis=1, keepdims=True)
+        slopes = np.sum((y_trimmed - row_means) * t_c, axis=1) / t_sq_sum
+        intercepts = row_means.squeeze() - slopes * t_mean
+        trends = slopes[:, np.newaxis] * t + intercepts[:, np.newaxis]
+        residuals = y_trimmed - trends
+        f_n = float(np.sqrt(np.mean(residuals**2)))
+        if f_n > 0.0:
+            scales_list.append(n)
+            fluct_list.append(f_n)
+
+    if len(fluct_list) < 2:
+        return np.array([]), np.array([]), float("nan")
+
+    log_s = np.log(np.array(scales_list, dtype=float))
+    log_f = np.log(np.array(fluct_list))
+    alpha = float(np.polyfit(log_s, log_f, 1)[0])
+    return np.array(scales_list, dtype=float), np.array(fluct_list), alpha
 
 
 def _validate_rr(rr: RRSeries) -> None:
