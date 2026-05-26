@@ -155,7 +155,9 @@ class TestTableOrthostaticComparison:
         styler = table_orthostatic_comparison(two_results)
         assert len(styler.data) == 2
 
-    def test_supine_standing_columns_present(self, one_result: OrthostaticResult) -> None:
+    def test_supine_standing_columns_present(
+        self, one_result: OrthostaticResult
+    ) -> None:
         """Supine and standing RMSSD and HR columns exist."""
         styler = table_orthostatic_comparison([one_result])
         cols = set(styler.data.columns)
@@ -168,8 +170,13 @@ class TestTableOrthostaticComparison:
         """Delta / response columns and interpretation are present."""
         styler = table_orthostatic_comparison([one_result])
         cols = set(styler.data.columns)
-        for col in ("hr_response", "lf_hf_change", "hf_response_pct",
-                    "hf_hr_pct_change", "interpretation"):
+        for col in (
+            "hr_response",
+            "lf_hf_change",
+            "hf_response_pct",
+            "hf_hr_pct_change",
+            "interpretation",
+        ):
             assert col in cols
 
     def test_custom_dates(self, two_results: list[OrthostaticResult]) -> None:
@@ -184,7 +191,9 @@ class TestTableOrthostaticComparison:
         assert styler.data["date"].iloc[0] == "Session 1"
         assert styler.data["date"].iloc[1] == "Session 2"
 
-    def test_dates_length_mismatch_raises(self, two_results: list[OrthostaticResult]) -> None:
+    def test_dates_length_mismatch_raises(
+        self, two_results: list[OrthostaticResult]
+    ) -> None:
         """Raise ValueError when dates length mismatches results length."""
         with pytest.raises(ValueError, match="dates length"):
             table_orthostatic_comparison(two_results, dates=["only one"])
@@ -227,7 +236,9 @@ class TestTableOrthostaticComparison:
         styler = table_orthostatic_comparison([one_result])
         assert pytest.approx(styler.data["lf_hf_change"].iloc[0], rel=1e-3) == 1.4
 
-    def test_interpretation_categories(self, two_results: list[OrthostaticResult]) -> None:
+    def test_interpretation_categories(
+        self, two_results: list[OrthostaticResult]
+    ) -> None:
         """Both 'normal' and 'impaired' interpretations appear in the table."""
         styler = table_orthostatic_comparison(two_results)
         interps = list(styler.data["interpretation"])
@@ -261,9 +272,15 @@ class TestTableOrthostaticHistory:
         styler = table_orthostatic_history([one_result])
         cols = set(styler.data.columns)
         for col in (
-            "supine_rmssd", "standing_rmssd", "supine_hr", "standing_hr",
-            "hr_response", "lf_hf_change", "hf_response_pct",
-            "hf_hr_pct_change", "interpretation",
+            "supine_rmssd",
+            "standing_rmssd",
+            "supine_hr",
+            "standing_hr",
+            "hr_response",
+            "lf_hf_change",
+            "hf_response_pct",
+            "hf_hr_pct_change",
+            "interpretation",
         ):
             assert col in cols, f"missing column: {col}"
 
@@ -278,7 +295,9 @@ class TestTableOrthostaticHistory:
         styler = table_orthostatic_history(two_results)
         assert styler.data["date"].iloc[0] == "Session 1"
 
-    def test_dates_length_mismatch_raises(self, two_results: list[OrthostaticResult]) -> None:
+    def test_dates_length_mismatch_raises(
+        self, two_results: list[OrthostaticResult]
+    ) -> None:
         """Raise ValueError when dates length mismatches results length."""
         with pytest.raises(ValueError, match="dates length"):
             table_orthostatic_history(two_results, dates=["only one"])

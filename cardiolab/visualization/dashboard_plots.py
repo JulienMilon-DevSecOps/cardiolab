@@ -42,8 +42,8 @@ _GREEN = "#27ae60"
 _ORANGE = "#e67e22"
 _RED = "#e74c3c"
 
-_FS: float = 4.0          # resampling frequency for PSD (Hz)
-_NPERSEG: int = 256       # Welch window length
+_FS: float = 4.0  # resampling frequency for PSD (Hz)
+_NPERSEG: int = 256  # Welch window length
 
 # Frequency band limits (Hz)
 _VLF_LO: float = 0.003
@@ -53,8 +53,8 @@ _HF_HI: float = 0.40
 
 # Spectral band colours
 _VLF_COLOR = "#fadbd8"
-_LF_COLOR  = "#fdebd0"
-_HF_COLOR  = "#d5f5e3"
+_LF_COLOR = "#fdebd0"
+_HF_COLOR = "#d5f5e3"
 
 # Coherence score bands
 _COH_LOW: float = 50.0
@@ -62,8 +62,8 @@ _COH_MED: float = 70.0
 _COH_HIGH: float = 100.0
 
 # Coherence band colours
-_COH_LOW_COLOR  = "#fadbd8"
-_COH_MED_COLOR  = "#fef9e7"
+_COH_LOW_COLOR = "#fadbd8"
+_COH_MED_COLOR = "#fef9e7"
 _COH_HIGH_COLOR = "#d5f5e3"
 
 # Drift thresholds (bpm/min)
@@ -75,15 +75,15 @@ _DRIFT_MAX_AXIS: float = 5.0
 # Drift zone colours (absolute drift_rate background)
 _DRIFT_BG: dict[str, str] = {
     "no_drift": "#eafaf1",
-    "mild":     "#fef9e7",
+    "mild": "#fef9e7",
     "moderate": "#fdebd0",
-    "strong":   "#fdf0ef",
+    "strong": "#fdf0ef",
 }
 _DRIFT_CAT_COLORS: dict[str, str] = {
     "no_drift": _GREEN,
-    "mild":     _ORANGE,
+    "mild": _ORANGE,
     "moderate": "#e67e22",
-    "strong":   _RED,
+    "strong": _RED,
 }
 
 # HRR thresholds (bpm)
@@ -101,9 +101,9 @@ _HRR_R_TICK_OUT: float = 1.04
 _HRR_GAUGE_MAX: float = 40.0
 
 _HRR_ZONES: list[tuple[float, float, str]] = [
-    (0.0,          _HRR_NORMAL,    "#fdf0ef"),
-    (_HRR_NORMAL,  _HRR_GOOD,      "#fdebd0"),
-    (_HRR_GOOD,    _HRR_EXCELLENT, "#fef9e7"),
+    (0.0, _HRR_NORMAL, "#fdf0ef"),
+    (_HRR_NORMAL, _HRR_GOOD, "#fdebd0"),
+    (_HRR_GOOD, _HRR_EXCELLENT, "#fef9e7"),
     (_HRR_EXCELLENT, _HRR_GAUGE_MAX, "#d5f5e3"),
 ]
 
@@ -115,24 +115,24 @@ _VO2_VG: float = 58.0
 _VO2_MAX: float = 70.0
 
 _VO2_ZONES: list[tuple[float, float, str]] = [
-    (0.0,     _VO2_POOR, "#fadbd8"),
+    (0.0, _VO2_POOR, "#fadbd8"),
     (_VO2_POOR, _VO2_FAIR, "#fdebd0"),
     (_VO2_FAIR, _VO2_GOOD, "#fef9e7"),
-    (_VO2_GOOD, _VO2_VG,   "#d6eaf8"),
-    (_VO2_VG,  _VO2_MAX,   "#d5f5e3"),
+    (_VO2_GOOD, _VO2_VG, "#d6eaf8"),
+    (_VO2_VG, _VO2_MAX, "#d5f5e3"),
 ]
 
 _VO2_CAT_COLORS: dict[str, str] = {
-    "poor":      _RED,
-    "fair":      _ORANGE,
-    "good":      "#f39c12",
+    "poor": _RED,
+    "fair": _ORANGE,
+    "good": "#f39c12",
     "very_good": _BLUE,
     "excellent": _GREEN,
 }
 _VO2_MODEL_COLORS: dict[str, str] = {
-    "Uth":        _BLUE,
+    "Uth": _BLUE,
     "Esco-Flatt": _GREEN,
-    "ln-RMSSD":   _ORANGE,
+    "ln-RMSSD": _ORANGE,
 }
 
 # Window size for rolling bands (sessions)
@@ -140,13 +140,13 @@ _ROLLING_WIN: int = 3
 
 # Heatmap metric labels (display name, higher_is_better)
 _HEATMAP_META: list[tuple[str, bool]] = [
-    ("RMSSD (ms)",       True),
-    ("HRV Score",        True),
-    ("HF_nu (%)",        True),
-    ("HRR1 (bpm)",       True),
+    ("RMSSD (ms)", True),
+    ("HRV Score", True),
+    ("HF_nu (%)", True),
+    ("HRR1 (bpm)", True),
     ("VO2max (mL/kg/min)", True),
-    ("Drift (bpm/min)",  False),
-    ("Coherence",        True),
+    ("Drift (bpm/min)", False),
+    ("Coherence", True),
 ]
 
 
@@ -198,7 +198,9 @@ def plot_session_dashboard(
     if not isinstance(rr, RRSeries):
         raise TypeError(f"rr must be an RRSeries, got {type(rr).__name__}")
     if not isinstance(features, HRVFeatures):
-        raise TypeError(f"features must be an HRVFeatures, got {type(features).__name__}")
+        raise TypeError(
+            f"features must be an HRVFeatures, got {type(features).__name__}"
+        )
 
     fig, axes = plt.subplots(2, 3, figsize=figsize)
 
@@ -215,7 +217,9 @@ def plot_session_dashboard(
         _draw_no_data(axes[1, 0], "No HRR data")
 
     if rr_exercise is not None and drift_result is not None:
-        _draw_drift_curve_ax(axes[1, 1], rr_exercise, drift_result, title="Cardiac Drift")
+        _draw_drift_curve_ax(
+            axes[1, 1], rr_exercise, drift_result, title="Cardiac Drift"
+        )
     elif drift_result is not None:
         _draw_drift_summary(axes[1, 1], drift_result, title="Drift Summary")
     else:
@@ -358,19 +362,27 @@ def plot_longitudinal_heatmap(
                 raw = data[ri, ci]
                 txt_color = "white" if v < 0.25 or v > 0.75 else _DARK
                 ax.text(
-                    ci, ri, f"{raw:.1f}",
-                    ha="center", va="center", fontsize=7.5, color=txt_color,
+                    ci,
+                    ri,
+                    f"{raw:.1f}",
+                    ha="center",
+                    va="center",
+                    fontsize=7.5,
+                    color=txt_color,
                     fontweight="bold",
                 )
             rect = plt.Rectangle(
-                (ci - 0.5, ri - 0.5), 1.0, 1.0,
+                (ci - 0.5, ri - 0.5),
+                1.0,
+                1.0,
                 color=color if not np.isnan(norm_data[ri, ci]) else "#cccccc",
                 zorder=1,
             )
             ax.add_patch(rect)
             if np.isnan(norm_data[ri, ci]):
-                ax.text(ci, ri, "—", ha="center", va="center",
-                        fontsize=9, color="#888888")
+                ax.text(
+                    ci, ri, "—", ha="center", va="center", fontsize=9, color="#888888"
+                )
 
     ax.set_xlim(-0.5, n_cols - 0.5)
     ax.set_ylim(-0.5, n - 0.5)
@@ -466,12 +478,23 @@ def plot_readiness_evolution(
         rx = list(range(_ROLLING_WIN - 1, n))
         ax.fill_between(
             rx,
-            rolling * 0.90, rolling * 1.10,
-            color="#aed6f1", alpha=0.35, zorder=1,
+            rolling * 0.90,
+            rolling * 1.10,
+            color="#aed6f1",
+            alpha=0.35,
+            zorder=1,
             label=f"{_ROLLING_WIN}-session rolling band",
         )
-        ax.plot(rx, rolling, color=_BLUE, linewidth=1.2,
-                linestyle="--", alpha=0.7, zorder=2, label="Rolling mean")
+        ax.plot(
+            rx,
+            rolling,
+            color=_BLUE,
+            linewidth=1.2,
+            linestyle="--",
+            alpha=0.7,
+            zorder=2,
+            label="Rolling mean",
+        )
 
     # Score line
     ax.plot(xs, scores, color=_DARK, linewidth=1.8, zorder=3, label="Score")
@@ -485,13 +508,20 @@ def plot_readiness_evolution(
         else:
             dot_color = _RED
         ax.scatter([x], [s], s=55, color=dot_color, zorder=5)
-        ax.text(x, s + 2.0, f"{s:.0f}",
-                ha="center", va="bottom", fontsize=7, color=dot_color)
+        ax.text(
+            x,
+            s + 2.0,
+            f"{s:.0f}",
+            ha="center",
+            va="bottom",
+            fontsize=7,
+            color=dot_color,
+        )
 
     # Right-margin zone labels
-    ax.text(n - 0.5, 16.5, "Low",      ha="right", va="center", fontsize=8, color=_GRAY)
+    ax.text(n - 0.5, 16.5, "Low", ha="right", va="center", fontsize=8, color=_GRAY)
     ax.text(n - 0.5, 49.5, "Moderate", ha="right", va="center", fontsize=8, color=_GRAY)
-    ax.text(n - 0.5, 83.0, "Good",     ha="right", va="center", fontsize=8, color=_GRAY)
+    ax.text(n - 0.5, 83.0, "Good", ha="right", va="center", fontsize=8, color=_GRAY)
 
     ax.set_xticks(xs)
     ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=9)
@@ -535,7 +565,9 @@ def plot_resting_mini(
     if not isinstance(rr, RRSeries):
         raise TypeError(f"rr must be an RRSeries, got {type(rr).__name__}")
     if not isinstance(features, HRVFeatures):
-        raise TypeError(f"features must be an HRVFeatures, got {type(features).__name__}")
+        raise TypeError(
+            f"features must be an HRVFeatures, got {type(features).__name__}"
+        )
 
     fig, axes = plt.subplots(2, 2, figsize=figsize)
     _draw_tachogram(axes[0, 0], rr, title="HR Tachogram")
@@ -612,7 +644,9 @@ def plot_drift_mini(
         raise TypeError(f"result must be a DriftResult, got {type(result).__name__}")
 
     fig, axes = plt.subplots(1, 2, figsize=figsize)
-    _draw_drift_curve_ax(axes[0], rr, result, window_sec=window_sec, title="Drift Curve")
+    _draw_drift_curve_ax(
+        axes[0], rr, result, window_sec=window_sec, title="Drift Curve"
+    )
     _draw_drift_summary(axes[1], result, title="Drift Metrics")
 
     fig.suptitle(title, fontsize=12, fontweight="bold")
@@ -698,8 +732,14 @@ def _draw_tachogram(ax: plt.Axes, rr: RRSeries, title: str = "") -> None:
     t_min = np.cumsum(vals) / 60_000.0
     hr = 60_000.0 / vals
     ax.plot(t_min, hr, color=_BLUE, linewidth=0.9, alpha=0.85)
-    ax.fill_between(t_min, hr.mean() - hr.std(), hr.mean() + hr.std(),
-                    color=_BLUE, alpha=0.12, zorder=0)
+    ax.fill_between(
+        t_min,
+        hr.mean() - hr.std(),
+        hr.mean() + hr.std(),
+        color=_BLUE,
+        alpha=0.12,
+        zorder=0,
+    )
     ax.axhline(hr.mean(), color=_DARK, linewidth=0.8, linestyle="--", alpha=0.6)
     ax.set_xlabel("Time (min)", fontsize=7)
     ax.set_ylabel("HR (bpm)", fontsize=7)
@@ -727,10 +767,16 @@ def _draw_poincare(
     ax.set_title(title, fontsize=8, fontweight="bold")
 
     # SD1/SD2 text
-    ax.text(0.97, 0.05,
-            f"SD1={features.sd1:.1f}\nSD2={features.sd2:.1f}",
-            transform=ax.transAxes, fontsize=6.5, ha="right", va="bottom",
-            bbox={"boxstyle": "round,pad=0.3", "fc": "white", "alpha": 0.8})
+    ax.text(
+        0.97,
+        0.05,
+        f"SD1={features.sd1:.1f}\nSD2={features.sd2:.1f}",
+        transform=ax.transAxes,
+        fontsize=6.5,
+        ha="right",
+        va="bottom",
+        bbox={"boxstyle": "round,pad=0.3", "fc": "white", "alpha": 0.8},
+    )
 
 
 def _draw_psd_welch(ax: plt.Axes, rr: RRSeries, title: str = "") -> None:
@@ -748,8 +794,8 @@ def _draw_psd_welch(ax: plt.Axes, rr: RRSeries, title: str = "") -> None:
     mask = freqs <= _HF_HI
     ax.semilogy(freqs[mask], psd[mask], color=_BLUE, linewidth=0.9)
     ax.axvspan(_VLF_LO, _VLF_HI, color=_VLF_COLOR, alpha=0.4)
-    ax.axvspan(_VLF_HI, _LF_HI,  color=_LF_COLOR,  alpha=0.4)
-    ax.axvspan(_LF_HI,  _HF_HI,  color=_HF_COLOR,  alpha=0.4)
+    ax.axvspan(_VLF_HI, _LF_HI, color=_LF_COLOR, alpha=0.4)
+    ax.axvspan(_LF_HI, _HF_HI, color=_HF_COLOR, alpha=0.4)
     ax.set_xlim(0.0, _HF_HI)
     ax.set_xlabel("Frequency (Hz)", fontsize=7)
     ax.set_ylabel("PSD (ms²/Hz)", fontsize=7)
@@ -757,9 +803,7 @@ def _draw_psd_welch(ax: plt.Axes, rr: RRSeries, title: str = "") -> None:
     ax.set_title(title, fontsize=8, fontweight="bold")
 
 
-def _draw_resting_stats(
-    ax: plt.Axes, features: HRVFeatures, title: str = ""
-) -> None:
+def _draw_resting_stats(ax: plt.Axes, features: HRVFeatures, title: str = "") -> None:
     """Draw a key-stats text panel with a score progress bar on ``ax``."""
     ax.axis("off")
     ax.set_title(title, fontsize=8, fontweight="bold")
@@ -773,30 +817,65 @@ def _draw_resting_stats(
         score_color = _RED
 
     # Score bar background
-    ax.add_patch(plt.Rectangle((0.05, 0.80), 0.90, 0.10,
-                                color="#eeeeee", zorder=1, transform=ax.transAxes))
-    ax.add_patch(plt.Rectangle((0.05, 0.80), 0.90 * score / 100.0, 0.10,
-                                color=score_color, alpha=0.80, zorder=2,
-                                transform=ax.transAxes))
-    ax.text(0.50, 0.855, f"Score: {score:.0f} / 100",
-            transform=ax.transAxes, ha="center", va="center",
-            fontsize=9, fontweight="bold", color="white", zorder=3)
+    ax.add_patch(
+        plt.Rectangle(
+            (0.05, 0.80), 0.90, 0.10, color="#eeeeee", zorder=1, transform=ax.transAxes
+        )
+    )
+    ax.add_patch(
+        plt.Rectangle(
+            (0.05, 0.80),
+            0.90 * score / 100.0,
+            0.10,
+            color=score_color,
+            alpha=0.80,
+            zorder=2,
+            transform=ax.transAxes,
+        )
+    )
+    ax.text(
+        0.50,
+        0.855,
+        f"Score: {score:.0f} / 100",
+        transform=ax.transAxes,
+        ha="center",
+        va="center",
+        fontsize=9,
+        fontweight="bold",
+        color="white",
+        zorder=3,
+    )
 
     # Key metrics table
     stats = [
-        ("RMSSD",    f"{features.rmssd:.1f} ms"),
-        ("SDNN",     f"{features.sdnn:.1f} ms"),
-        ("Mean HR",  f"{features.mean_hr:.0f} bpm"),
-        ("pNN50",    f"{features.pnn50:.1f} %"),
-        ("LF/HF",    f"{features.lf_hf:.2f}"),
-        ("DFA α1",   f"{features.dfa_alpha1:.2f}"),
+        ("RMSSD", f"{features.rmssd:.1f} ms"),
+        ("SDNN", f"{features.sdnn:.1f} ms"),
+        ("Mean HR", f"{features.mean_hr:.0f} bpm"),
+        ("pNN50", f"{features.pnn50:.1f} %"),
+        ("LF/HF", f"{features.lf_hf:.2f}"),
+        ("DFA α1", f"{features.dfa_alpha1:.2f}"),
     ]
     y_start = 0.68
     for label, value in stats:
-        ax.text(0.10, y_start, label, transform=ax.transAxes,
-                fontsize=8, color=_DARK, ha="left")
-        ax.text(0.90, y_start, value, transform=ax.transAxes,
-                fontsize=8, color=_BLUE, ha="right", fontweight="bold")
+        ax.text(
+            0.10,
+            y_start,
+            label,
+            transform=ax.transAxes,
+            fontsize=8,
+            color=_DARK,
+            ha="left",
+        )
+        ax.text(
+            0.90,
+            y_start,
+            value,
+            transform=ax.transAxes,
+            fontsize=8,
+            color=_BLUE,
+            ha="right",
+            fontweight="bold",
+        )
         y_start -= 0.09
 
 
@@ -839,17 +918,25 @@ def _draw_hrr_summary(ax: plt.Axes, result: HRRResult, title: str = "") -> None:
     ax.axis("off")
     ax.set_title(title, fontsize=8, fontweight="bold")
     stats = [
-        ("HRR1 (60 s)",  f"{result.hrr_60:.0f} bpm"),
+        ("HRR1 (60 s)", f"{result.hrr_60:.0f} bpm"),
         ("HRR2 (120 s)", f"{result.hrr_120:.0f} bpm"),
-        ("Category",     result.hrr_60_category.replace("_", " ").title()),
-        ("HR peak",      f"{result.hr_peak:.0f} bpm"),
-        ("HR @ 60 s",    f"{result.hr_at_60s:.0f} bpm"),
+        ("Category", result.hrr_60_category.replace("_", " ").title()),
+        ("HR peak", f"{result.hr_peak:.0f} bpm"),
+        ("HR @ 60 s", f"{result.hr_at_60s:.0f} bpm"),
     ]
     y = 0.75
     for label, val in stats:
         ax.text(0.10, y, label, transform=ax.transAxes, fontsize=9, color=_DARK)
-        ax.text(0.90, y, val,   transform=ax.transAxes, fontsize=9, color=_BLUE,
-                ha="right", fontweight="bold")
+        ax.text(
+            0.90,
+            y,
+            val,
+            transform=ax.transAxes,
+            fontsize=9,
+            color=_BLUE,
+            ha="right",
+            fontweight="bold",
+        )
         y -= 0.13
 
 
@@ -865,22 +952,45 @@ def _draw_hrr_gauge_ax(ax: plt.Axes, result: HRRResult, title: str = "") -> None
     for lo, hi, color in _HRR_ZONES:
         t1 = _hrr_angle(hi)
         t2 = _hrr_angle(lo)
-        ax.add_patch(Wedge((0, 0), _HRR_R_OUTER, t1, t2,
-                           width=gauge_w, color=color, zorder=2))
-    ax.add_patch(Wedge((0, 0), _HRR_R_OUTER, 0, 180,
-                       width=gauge_w, fill=False,
-                       edgecolor=_DARK, linewidth=0.8, zorder=3))
+        ax.add_patch(
+            Wedge((0, 0), _HRR_R_OUTER, t1, t2, width=gauge_w, color=color, zorder=2)
+        )
+    ax.add_patch(
+        Wedge(
+            (0, 0),
+            _HRR_R_OUTER,
+            0,
+            180,
+            width=gauge_w,
+            fill=False,
+            edgecolor=_DARK,
+            linewidth=0.8,
+            zorder=3,
+        )
+    )
 
     val = max(0.0, min(result.hrr_60, _HRR_GAUGE_MAX))
     a = math.radians(_hrr_angle(val))
-    ax.plot([0, _HRR_R_NEEDLE * math.cos(a)],
-            [0, _HRR_R_NEEDLE * math.sin(a)],
-            color=_DARK, linewidth=1.8, solid_capstyle="round", zorder=5)
+    ax.plot(
+        [0, _HRR_R_NEEDLE * math.cos(a)],
+        [0, _HRR_R_NEEDLE * math.sin(a)],
+        color=_DARK,
+        linewidth=1.8,
+        solid_capstyle="round",
+        zorder=5,
+    )
     ax.add_patch(plt.Circle((0, 0), 0.055, color=_DARK, zorder=6))
 
     cat = result.hrr_60_category.replace("_", " ").title()
-    ax.text(0, -0.20, f"{result.hrr_60:.0f}", ha="center",
-            fontsize=20, fontweight="bold", color=_DARK)
+    ax.text(
+        0,
+        -0.20,
+        f"{result.hrr_60:.0f}",
+        ha="center",
+        fontsize=20,
+        fontweight="bold",
+        color=_DARK,
+    )
     ax.text(0, -0.38, "bpm", ha="center", fontsize=8, color=_GRAY)
     ax.text(0, -0.52, cat, ha="center", fontsize=9, fontweight="bold", color=_DARK)
 
@@ -909,17 +1019,29 @@ def _draw_drift_curve_ax(
     hr_mean = float(np.mean(hr_per_win))
     intercept = hr_mean - result.drift_rate * t_mean
     t_line = np.array([times_min[0], times_min[-1]])
-    ax.plot(t_line, result.drift_rate * t_line + intercept,
-            color=_RED, linewidth=1.2, zorder=3, alpha=0.9)
+    ax.plot(
+        t_line,
+        result.drift_rate * t_line + intercept,
+        color=_RED,
+        linewidth=1.2,
+        zorder=3,
+        alpha=0.9,
+    )
 
     ax.set_xlabel("Time (min)", fontsize=7)
     ax.set_ylabel("HR (bpm)", fontsize=7)
     ax.tick_params(labelsize=6)
     ax.set_title(title, fontsize=8, fontweight="bold")
-    ax.text(0.97, 0.05,
-            f"Drift: {result.drift_rate:+.2f} bpm/min\nR²={result.r_squared:.2f}",
-            transform=ax.transAxes, fontsize=6.5, ha="right", va="bottom",
-            bbox={"boxstyle": "round,pad=0.3", "fc": "white", "alpha": 0.8})
+    ax.text(
+        0.97,
+        0.05,
+        f"Drift: {result.drift_rate:+.2f} bpm/min\nR²={result.r_squared:.2f}",
+        transform=ax.transAxes,
+        fontsize=6.5,
+        ha="right",
+        va="bottom",
+        bbox={"boxstyle": "round,pad=0.3", "fc": "white", "alpha": 0.8},
+    )
     ax.grid(alpha=0.15, linestyle=":")
 
 
@@ -928,39 +1050,51 @@ def _draw_drift_summary(ax: plt.Axes, result: DriftResult, title: str = "") -> N
     ax.axis("off")
     ax.set_title(title, fontsize=8, fontweight="bold")
     cat_color = _DRIFT_CAT_COLORS.get(result.interpretation, _DARK)
-    ax.text(0.50, 0.88,
-            result.interpretation.replace("_", " ").title(),
-            transform=ax.transAxes, ha="center", fontsize=13,
-            fontweight="bold", color=cat_color)
+    ax.text(
+        0.50,
+        0.88,
+        result.interpretation.replace("_", " ").title(),
+        transform=ax.transAxes,
+        ha="center",
+        fontsize=13,
+        fontweight="bold",
+        color=cat_color,
+    )
     stats = [
-        ("Drift rate",  f"{result.drift_rate:+.2f} bpm/min"),
-        ("Magnitude",   f"{result.drift_magnitude:.1f} bpm"),
-        ("R²",          f"{result.r_squared:.2f}"),
-        ("Init HR",     f"{result.initial_hr:.0f} bpm"),
-        ("Final HR",    f"{result.final_hr:.0f} bpm"),
-        ("Windows",     str(result.n_windows)),
+        ("Drift rate", f"{result.drift_rate:+.2f} bpm/min"),
+        ("Magnitude", f"{result.drift_magnitude:.1f} bpm"),
+        ("R²", f"{result.r_squared:.2f}"),
+        ("Init HR", f"{result.initial_hr:.0f} bpm"),
+        ("Final HR", f"{result.final_hr:.0f} bpm"),
+        ("Windows", str(result.n_windows)),
     ]
     y = 0.70
     for label, val in stats:
         ax.text(0.10, y, label, transform=ax.transAxes, fontsize=8.5, color=_DARK)
-        ax.text(0.90, y, val,   transform=ax.transAxes, fontsize=8.5, color=_BLUE,
-                ha="right", fontweight="bold")
+        ax.text(
+            0.90,
+            y,
+            val,
+            transform=ax.transAxes,
+            fontsize=8.5,
+            color=_BLUE,
+            ha="right",
+            fontweight="bold",
+        )
         y -= 0.10
 
 
-def _draw_vo2max_bars_ax(
-    ax: plt.Axes, result: VO2maxResult, title: str = ""
-) -> None:
+def _draw_vo2max_bars_ax(ax: plt.Axes, result: VO2maxResult, title: str = "") -> None:
     """Draw grouped VO2max model comparison bars on ``ax``."""
     models: list[tuple[str, float]] = []
     if not math.isnan(result.vo2max_uth):
         models.append(("Uth", result.vo2max_uth))
     models.append(("Esco-Flatt", result.vo2max_esco_flatt))
-    models.append(("ln-RMSSD",   result.vo2max_ln_rmssd))
+    models.append(("ln-RMSSD", result.vo2max_ln_rmssd))
 
-    vals   = [m[1] for m in models]
+    vals = [m[1] for m in models]
     colors = [_VO2_MODEL_COLORS[m[0]] for m in models]
-    y_max  = max(_VO2_MAX, max(vals) * 1.12)
+    y_max = max(_VO2_MAX, max(vals) * 1.12)
 
     for lo, hi, col in _VO2_ZONES:
         ax.axhspan(lo, min(hi, y_max), color=col, alpha=0.35, zorder=0)
@@ -968,8 +1102,16 @@ def _draw_vo2max_bars_ax(
     xs = list(range(len(models)))
     ax.bar(xs, vals, color=colors, width=0.5, zorder=4, alpha=0.85)
     for x, val, col in zip(xs, vals, colors, strict=False):
-        ax.text(x, val + y_max * 0.015, f"{val:.1f}",
-                ha="center", va="bottom", fontsize=7, fontweight="bold", color=col)
+        ax.text(
+            x,
+            val + y_max * 0.015,
+            f"{val:.1f}",
+            ha="center",
+            va="bottom",
+            fontsize=7,
+            fontweight="bold",
+            color=col,
+        )
 
     ax.set_xticks(xs)
     ax.set_xticklabels([m[0] for m in models], fontsize=7)
@@ -980,9 +1122,7 @@ def _draw_vo2max_bars_ax(
     ax.grid(alpha=0.15, linestyle=":", axis="y")
 
 
-def _draw_vo2max_gauge_ax(
-    ax: plt.Axes, result: VO2maxResult, title: str = ""
-) -> None:
+def _draw_vo2max_gauge_ax(ax: plt.Axes, result: VO2maxResult, title: str = "") -> None:
     """Draw a semi-circular VO2max fitness gauge on ``ax``."""
     ax.set_aspect("equal")
     ax.axis("off")
@@ -994,27 +1134,49 @@ def _draw_vo2max_gauge_ax(
     for lo, hi, color in _VO2_ZONES:
         t1 = _vo2max_angle(hi)
         t2 = _vo2max_angle(lo)
-        ax.add_patch(Wedge((0, 0), _HRR_R_OUTER, t1, t2,
-                           width=gauge_w, color=color, zorder=2))
-    ax.add_patch(Wedge((0, 0), _HRR_R_OUTER, 0, 180,
-                       width=gauge_w, fill=False,
-                       edgecolor=_DARK, linewidth=0.8, zorder=3))
+        ax.add_patch(
+            Wedge((0, 0), _HRR_R_OUTER, t1, t2, width=gauge_w, color=color, zorder=2)
+        )
+    ax.add_patch(
+        Wedge(
+            (0, 0),
+            _HRR_R_OUTER,
+            0,
+            180,
+            width=gauge_w,
+            fill=False,
+            edgecolor=_DARK,
+            linewidth=0.8,
+            zorder=3,
+        )
+    )
 
     best = _vo2max_best(result)
     val = max(0.0, min(best, _VO2_MAX))
     a = math.radians(_vo2max_angle(val))
-    ax.plot([0, _HRR_R_NEEDLE * math.cos(a)],
-            [0, _HRR_R_NEEDLE * math.sin(a)],
-            color=_DARK, linewidth=1.8, solid_capstyle="round", zorder=5)
+    ax.plot(
+        [0, _HRR_R_NEEDLE * math.cos(a)],
+        [0, _HRR_R_NEEDLE * math.sin(a)],
+        color=_DARK,
+        linewidth=1.8,
+        solid_capstyle="round",
+        zorder=5,
+    )
     ax.add_patch(plt.Circle((0, 0), 0.055, color=_DARK, zorder=6))
 
     cat = result.fitness_category.replace("_", " ").title()
     cat_color = _VO2_CAT_COLORS.get(result.fitness_category, _DARK)
-    ax.text(0, -0.20, f"{best:.0f}", ha="center",
-            fontsize=20, fontweight="bold", color=cat_color)
+    ax.text(
+        0,
+        -0.20,
+        f"{best:.0f}",
+        ha="center",
+        fontsize=20,
+        fontweight="bold",
+        color=cat_color,
+    )
     ax.text(0, -0.38, "mL/kg/min", ha="center", fontsize=7.5, color=_GRAY)
-    ax.text(0, -0.52, cat, ha="center", fontsize=9,
-            fontweight="bold", color=cat_color)
+    ax.text(0, -0.52, cat, ha="center", fontsize=9, fontweight="bold", color=cat_color)
 
 
 def _draw_coherence_psd_ax(
@@ -1035,8 +1197,14 @@ def _draw_coherence_psd_ax(
     # Resonance band ±0.02 Hz around resonance_freq
     res_f = result.resonance_freq
     bw = 0.02
-    ax.axvspan(max(0.0, res_f - bw), res_f + bw,
-               color="#aed6f1", alpha=0.55, zorder=0, label=f"{res_f:.3f} Hz")
+    ax.axvspan(
+        max(0.0, res_f - bw),
+        res_f + bw,
+        color="#aed6f1",
+        alpha=0.55,
+        zorder=0,
+        label=f"{res_f:.3f} Hz",
+    )
     ax.axvline(res_f, color=_BLUE, linewidth=0.9, linestyle="--", alpha=0.8)
 
     ax.set_xlim(0.0, _HF_HI)
@@ -1044,10 +1212,16 @@ def _draw_coherence_psd_ax(
     ax.set_ylabel("PSD (ms²/Hz)", fontsize=7)
     ax.tick_params(labelsize=6)
     ax.set_title(title, fontsize=8, fontweight="bold")
-    ax.text(0.97, 0.97,
-            f"Score: {result.coherence_score:.1f}",
-            transform=ax.transAxes, fontsize=7, ha="right", va="top",
-            bbox={"boxstyle": "round,pad=0.3", "fc": "white", "alpha": 0.8})
+    ax.text(
+        0.97,
+        0.97,
+        f"Score: {result.coherence_score:.1f}",
+        transform=ax.transAxes,
+        fontsize=7,
+        ha="right",
+        va="top",
+        bbox={"boxstyle": "round,pad=0.3", "fc": "white", "alpha": 0.8},
+    )
 
 
 def _draw_coherence_tachogram_ax(
@@ -1065,8 +1239,15 @@ def _draw_coherence_tachogram_ax(
     t_ref = np.linspace(t_s[0], t_s[-1], 500)
     phase = 2.0 * math.pi * result.resonance_freq * t_ref
     ref = mean_rr + amplitude * np.sin(phase)
-    ax.plot(t_ref, ref, color=_BLUE, linewidth=0.8,
-            linestyle="--", alpha=0.6, label=f"{result.resonance_freq:.3f} Hz ref")
+    ax.plot(
+        t_ref,
+        ref,
+        color=_BLUE,
+        linewidth=0.8,
+        linestyle="--",
+        alpha=0.6,
+        label=f"{result.resonance_freq:.3f} Hz ref",
+    )
 
     ax.set_xlabel("Time (s)", fontsize=7)
     ax.set_ylabel("RR (ms)", fontsize=7)
@@ -1078,13 +1259,20 @@ def _draw_coherence_tachogram_ax(
 def _draw_no_data(ax: plt.Axes, label: str = "No data") -> None:
     """Draw a placeholder panel with a centred label on ``ax``."""
     ax.set_facecolor("#f8f9fa")
-    ax.text(0.5, 0.5, label, transform=ax.transAxes,
-            ha="center", va="center", fontsize=10, color=_GRAY,
-            fontstyle="italic")
+    ax.text(
+        0.5,
+        0.5,
+        label,
+        transform=ax.transAxes,
+        ha="center",
+        va="center",
+        fontsize=10,
+        color=_GRAY,
+        fontstyle="italic",
+    )
     for spine in ax.spines.values():
         spine.set_edgecolor("#dddddd")
-    ax.tick_params(left=False, bottom=False,
-                   labelleft=False, labelbottom=False)
+    ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
 
 
 # ── Private utility functions ─────────────────────────────────────────────────
@@ -1109,9 +1297,7 @@ def _vo2max_best(result: VO2maxResult) -> float:
     return result.vo2max_ln_rmssd
 
 
-def _drift_windows(
-    rr: RRSeries, window_sec: float
-) -> tuple[np.ndarray, np.ndarray]:
+def _drift_windows(rr: RRSeries, window_sec: float) -> tuple[np.ndarray, np.ndarray]:
     """Return (times_min, hr_per_window) arrays from non-overlapping windows."""
     vals = rr.intervals
     window_ms = window_sec * 1000.0

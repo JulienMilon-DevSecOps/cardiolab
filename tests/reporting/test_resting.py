@@ -118,7 +118,9 @@ class TestTableRestingHistory:
         styler = table_resting_history(two_features, cols=["date", "rmssd"])
         assert list(styler.data.columns) == ["date", "rmssd"]
 
-    def test_missing_cols_silently_dropped(self, two_features: list[HRVFeatures]) -> None:
+    def test_missing_cols_silently_dropped(
+        self, two_features: list[HRVFeatures]
+    ) -> None:
         """Unknown column names are ignored."""
         styler = table_resting_history(
             two_features, cols=["date", "rmssd", "nonexistent"]

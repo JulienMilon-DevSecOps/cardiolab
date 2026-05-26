@@ -21,36 +21,36 @@ import pandas as pd
 
 _HRR_CAT_COLORS: dict[str, str] = {
     "excellent": "#d5f5e3",
-    "good":      "#fef9e7",
-    "normal":    "#fdebd0",
-    "impaired":  "#fadbd8",
+    "good": "#fef9e7",
+    "normal": "#fdebd0",
+    "impaired": "#fadbd8",
 }
 
 _DRIFT_CAT_COLORS: dict[str, str] = {
     "no_drift": "#d5f5e3",
-    "mild":     "#fef9e7",
+    "mild": "#fef9e7",
     "moderate": "#fdebd0",
-    "strong":   "#fadbd8",
+    "strong": "#fadbd8",
 }
 
 _ORTHO_CAT_COLORS: dict[str, str] = {
-    "normal":   "#d5f5e3",
+    "normal": "#d5f5e3",
     "impaired": "#fadbd8",
     "elevated": "#fdebd0",
 }
 
 _VO2_CAT_COLORS: dict[str, str] = {
-    "poor":      "#fadbd8",
-    "fair":      "#fdebd0",
-    "good":      "#fef9e7",
+    "poor": "#fadbd8",
+    "fair": "#fdebd0",
+    "good": "#fef9e7",
     "very_good": "#d6eaf8",
     "excellent": "#d5f5e3",
 }
 
 _COH_CAT_COLORS: dict[str, str] = {
-    "low":      "#fadbd8",
+    "low": "#fadbd8",
     "moderate": "#fef9e7",
-    "high":     "#d5f5e3",
+    "high": "#d5f5e3",
 }
 
 

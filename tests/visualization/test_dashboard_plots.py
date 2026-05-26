@@ -106,7 +106,9 @@ def _make_hrr_result(hrr_60: float = 22.0, category: str = "good") -> HRRResult:
     )
 
 
-def _make_drift_result(drift_rate: float = 1.2, interpretation: str = "mild") -> DriftResult:
+def _make_drift_result(
+    drift_rate: float = 1.2, interpretation: str = "mild"
+) -> DriftResult:
     """Return a synthetic DriftResult."""
     return DriftResult(
         date="2024-06-01",
@@ -237,9 +239,12 @@ class TestPlotSessionDashboard:
     ) -> None:
         """Accept all optional protocols without error."""
         fig = plot_session_dashboard(
-            rr_rest, feats,
-            rr_recovery=rr_rec, hrr_result=hrr_res,
-            rr_exercise=rr_ex, drift_result=drift_res,
+            rr_rest,
+            feats,
+            rr_recovery=rr_rec,
+            hrr_result=hrr_res,
+            rr_exercise=rr_ex,
+            drift_result=drift_res,
             vo2max_result=vo2max_res,
         )
         assert isinstance(fig, Figure)
@@ -313,8 +318,11 @@ class TestPlotLongitudinalHeatmap:
     ) -> None:
         """Accept all optional protocol result lists without error."""
         feats_list = [_make_features(score=50.0), _make_features(score=60.0)]
-        hrr_list  = [_make_hrr_result(hrr_60=22.0), _make_hrr_result(hrr_60=26.0)]
-        drift_list = [_make_drift_result(drift_rate=1.0), _make_drift_result(drift_rate=0.3)]
+        hrr_list = [_make_hrr_result(hrr_60=22.0), _make_hrr_result(hrr_60=26.0)]
+        drift_list = [
+            _make_drift_result(drift_rate=1.0),
+            _make_drift_result(drift_rate=0.3),
+        ]
         vo2max_list = [_make_vo2max_result("good"), _make_vo2max_result("very_good")]
         fig = plot_longitudinal_heatmap(
             feats_list,
@@ -393,6 +401,7 @@ class TestPlotReadinessEvolution:
     def test_rolling_band_present_when_enough_sessions(self) -> None:
         """Draw a fill_between band when sessions ≥ 3."""
         from matplotlib.collections import PolyCollection
+
         feats_list = [_make_features(score=s) for s in [40.0, 55.0, 70.0]]
         fig = plot_readiness_evolution(feats_list)
         poly = [c for c in fig.axes[0].collections if isinstance(c, PolyCollection)]
@@ -464,6 +473,7 @@ class TestPlotRestingMini:
     def test_poincare_has_scatter(self, rr_rest: RRSeries, feats: HRVFeatures) -> None:
         """Top-right panel (Poincaré) draws at least one PathCollection."""
         from matplotlib.collections import PathCollection
+
         fig = plot_resting_mini(rr_rest, feats)
         dots = [c for c in fig.axes[1].collections if isinstance(c, PathCollection)]
         assert len(dots) >= 1
@@ -594,9 +604,7 @@ class TestPlotCoherenceMini:
         fig = plot_coherence_mini(rr_coh, coherence_res)
         assert isinstance(fig, Figure)
 
-    def test_two_axes(
-        self, rr_coh: RRSeries, coherence_res: CoherenceResult
-    ) -> None:
+    def test_two_axes(self, rr_coh: RRSeries, coherence_res: CoherenceResult) -> None:
         """Produce exactly 2 axes (1×2 grid)."""
         fig = plot_coherence_mini(rr_coh, coherence_res)
         assert len(fig.axes) == 2

@@ -77,9 +77,7 @@ def table_resting_history(
     df = df[cols]
 
     nan_cols = [c for c in cols if "dfa" in c or "apen" in c or "sampen" in c]
-    float_cols = [
-        c for c in df.select_dtypes("float").columns if c not in nan_cols
-    ]
+    float_cols = [c for c in df.select_dtypes("float").columns if c not in nan_cols]
 
     fmt: dict = {c: fmt_float(1) for c in float_cols}
     fmt.update({c: fmt_nan(3) for c in nan_cols if c in cols})
@@ -129,29 +127,29 @@ def table_resting_session(
 
     rows = [
         # Temporal
-        ("RMSSD (ms)",       f"{features.rmssd:.2f}",           "Temporal"),
-        ("ln(RMSSD)",        f"{features.ln_rmssd:.3f}",         "Temporal"),
-        ("SDNN (ms)",        f"{features.sdnn:.2f}",             "Temporal"),
-        ("pNN50 (%)",        f"{features.pnn50:.1f}",            "Temporal"),
-        ("Mean HR (bpm)",    f"{features.mean_hr:.1f}",          "Temporal"),
+        ("RMSSD (ms)", f"{features.rmssd:.2f}", "Temporal"),
+        ("ln(RMSSD)", f"{features.ln_rmssd:.3f}", "Temporal"),
+        ("SDNN (ms)", f"{features.sdnn:.2f}", "Temporal"),
+        ("pNN50 (%)", f"{features.pnn50:.1f}", "Temporal"),
+        ("Mean HR (bpm)", f"{features.mean_hr:.1f}", "Temporal"),
         # Frequency
-        ("Method",           features.method or "—",             "Frequency"),
-        ("VLF (ms²)",        f"{features.vlf:.2f}",              "Frequency"),
-        ("LF (ms²)",         f"{features.lf:.2f}",               "Frequency"),
-        ("HF (ms²)",         f"{features.hf:.2f}",               "Frequency"),
-        ("LF/HF",            f"{features.lf_hf:.3f}",            "Frequency"),
-        ("HF% (%)",          f"{features.hf_pct:.1f}",           "Frequency"),
-        ("LF_nu",            f"{features.lf_nu:.3f}",            "Frequency"),
-        ("HF_nu",            f"{features.hf_nu:.3f}",            "Frequency"),
+        ("Method", features.method or "—", "Frequency"),
+        ("VLF (ms²)", f"{features.vlf:.2f}", "Frequency"),
+        ("LF (ms²)", f"{features.lf:.2f}", "Frequency"),
+        ("HF (ms²)", f"{features.hf:.2f}", "Frequency"),
+        ("LF/HF", f"{features.lf_hf:.3f}", "Frequency"),
+        ("HF% (%)", f"{features.hf_pct:.1f}", "Frequency"),
+        ("LF_nu", f"{features.lf_nu:.3f}", "Frequency"),
+        ("HF_nu", f"{features.hf_nu:.3f}", "Frequency"),
         # Non-linear
-        ("SD1 (ms)",         f"{features.sd1:.2f}",              "Non-linear"),
-        ("SD2 (ms)",         f"{features.sd2:.2f}",              "Non-linear"),
-        ("SD1/SD2",          f"{features.sd_ratio:.3f}",         "Non-linear"),
-        ("DFA α1",           _nan(features.dfa_alpha1),          "Non-linear"),
-        ("ApEn",             _nan(features.apen),                "Non-linear"),
-        ("SampEn",           _nan(features.sampen),              "Non-linear"),
+        ("SD1 (ms)", f"{features.sd1:.2f}", "Non-linear"),
+        ("SD2 (ms)", f"{features.sd2:.2f}", "Non-linear"),
+        ("SD1/SD2", f"{features.sd_ratio:.3f}", "Non-linear"),
+        ("DFA α1", _nan(features.dfa_alpha1), "Non-linear"),
+        ("ApEn", _nan(features.apen), "Non-linear"),
+        ("SampEn", _nan(features.sampen), "Non-linear"),
         # Score
-        ("HRV Score",        f"{features.score:.1f} / 100",      "Score"),
+        ("HRV Score", f"{features.score:.1f} / 100", "Score"),
     ]
 
     df = pd.DataFrame(rows, columns=["Metric", "Value", "Domain"])

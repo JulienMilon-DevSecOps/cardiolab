@@ -72,9 +72,7 @@ def table_orthostatic_comparison(
     _validate_list(results, OrthostaticResult, "results")
     n = len(results)
     if dates is not None and len(dates) != n:
-        raise ValueError(
-            f"dates length ({len(dates)}) must match results length ({n})"
-        )
+        raise ValueError(f"dates length ({len(dates)}) must match results length ({n})")
     labels = dates or [f"Session {i + 1}" for i in range(n)]
 
     rows = []
@@ -82,11 +80,11 @@ def table_orthostatic_comparison(
         row: dict[str, object] = {"date": label}
         p = r.phases
         for col in _PHASE_METRICS:
-            row[f"supine_{col}"]   = getattr(p.supine.features,   col, float("nan"))
+            row[f"supine_{col}"] = getattr(p.supine.features, col, float("nan"))
             row[f"standing_{col}"] = getattr(p.standing.features, col, float("nan"))
-        row["hr_response"]    = r.hr_response
-        row["lf_hf_change"]   = r.lf_hf_ratio_change
-        row["hf_response_pct"]  = r.hf_response_pct
+        row["hr_response"] = r.hr_response
+        row["lf_hf_change"] = r.lf_hf_ratio_change
+        row["hf_response_pct"] = r.hf_response_pct
         row["hf_hr_pct_change"] = r.hf_hr_pct_change
         row["interpretation"] = r.interpretation
         rows.append(row)
@@ -152,26 +150,26 @@ def table_orthostatic_history(
     _validate_list(results, OrthostaticResult, "results")
     n = len(results)
     if dates is not None and len(dates) != n:
-        raise ValueError(
-            f"dates length ({len(dates)}) must match results length ({n})"
-        )
+        raise ValueError(f"dates length ({len(dates)}) must match results length ({n})")
     labels = dates or [f"Session {i + 1}" for i in range(n)]
 
     rows = []
     for label, r in zip(labels, results, strict=False):
         p = r.phases
-        rows.append({
-            "date":              label,
-            "supine_rmssd":      p.supine.features.rmssd,
-            "standing_rmssd":    p.standing.features.rmssd,
-            "supine_hr":         p.supine.features.mean_hr,
-            "standing_hr":       p.standing.features.mean_hr,
-            "hr_response":       r.hr_response,
-            "lf_hf_change":      r.lf_hf_ratio_change,
-            "hf_response_pct":   r.hf_response_pct,
-            "hf_hr_pct_change":  r.hf_hr_pct_change,
-            "interpretation":    r.interpretation,
-        })
+        rows.append(
+            {
+                "date": label,
+                "supine_rmssd": p.supine.features.rmssd,
+                "standing_rmssd": p.standing.features.rmssd,
+                "supine_hr": p.supine.features.mean_hr,
+                "standing_hr": p.standing.features.mean_hr,
+                "hr_response": r.hr_response,
+                "lf_hf_change": r.lf_hf_ratio_change,
+                "hf_response_pct": r.hf_response_pct,
+                "hf_hr_pct_change": r.hf_hr_pct_change,
+                "interpretation": r.interpretation,
+            }
+        )
 
     df = pd.DataFrame(rows)
 
