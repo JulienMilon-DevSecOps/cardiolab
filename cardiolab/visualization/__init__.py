@@ -39,6 +39,7 @@ from cardiolab.visualization.hrr_plots import (
     plot_hrr_gauge,
 )
 from cardiolab.visualization.nonlinear_plots import (
+    plot_dfa_fluctuation,
     plot_poincare,
     plot_poincare_comparison,
     plot_sd1_sd2_evolution,
@@ -75,6 +76,7 @@ __all__ = [
     "plot_hrr_curve",
     "plot_hrr_gauge",
     # nonlinear_plots
+    "plot_dfa_fluctuation",
     "plot_poincare",
     "plot_poincare_comparison",
     "plot_sd1_sd2_evolution",

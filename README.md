@@ -372,6 +372,7 @@ from cardiolab.visualization.nonlinear_plots import (
     plot_poincare,            # RR(n) vs RR(n+1) scatter with SD1/SD2 ellipse
     plot_poincare_comparison, # supine vs standing side-by-side
     plot_sd1_sd2_evolution,   # SD1/SD2/ratio evolution over sessions
+    plot_dfa_fluctuation,     # log-log F(n) with α1 regression line
 )
 
 # Single session — Poincaré scatter
@@ -385,9 +386,13 @@ fig.savefig("poincare_ortho.png", dpi=150, bbox_inches="tight")
 # Evolution over multiple sessions
 fig = plot_sd1_sd2_evolution(features_list, labels=dates)
 fig.savefig("sd1_sd2.png", dpi=150, bbox_inches="tight")
+
+# DFA α1 log-log fluctuation plot
+fig = plot_dfa_fluctuation(rr, n_min=4, n_max=16, title="DFA α1 — Session 2026-05-20")
+fig.savefig("dfa_fluctuation.png", dpi=150, bbox_inches="tight")
 ```
 
-All three functions return a `Figure`.  The comparison function uses a shared
+All four functions return a `Figure`.  The comparison function uses a shared
 axis range so the SD1 contraction on standing is directly visible.
 
 ### Cardiac drift — `drift_plots`
@@ -626,6 +631,6 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] Semi-circular HRR1 gauge, red → green (`plot_hrr_gauge`)
 * [x] Windowed HR + regression curve with zone background (`plot_drift_curve`)
 * [x] Multi-session drift-rate evolution with zone bands (`plot_drift_zones`)
-* [ ] DFA α1 fluctuation plot — log-log scale with α1 regression line
+* [x] DFA α1 log-log fluctuation plot with regression line (`plot_dfa_fluctuation`)
 * [ ] VO2max evolution across sessions
 * [ ] Multi-protocol recovery dashboard — side-by-side session comparison

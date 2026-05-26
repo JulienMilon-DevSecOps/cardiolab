@@ -885,6 +885,69 @@ fig.savefig("drift_zones.png", dpi=150, bbox_inches="tight")
 - [`docs/features/frequency_domain.md`](../features/frequency_domain.md) — LF, HF, LF/HF
 - [`docs/hrv_interpretations.md`](../hrv_interpretations.md) — full HRV interpretation guide
 - [`docs/protocols/hrr.md`](../protocols/hrr.md) — HRR protocol instructions and clinical references
+---
+
+## 19. DFA α1 Fluctuation Plot — `plot_dfa_fluctuation`
+
+### What it shows
+
+| Element | Meaning |
+|---|---|
+| Blue dots | Each `(n, F(n))` pair on a log-log scale — one per window size |
+| Dark dashed line | Linear regression: slope = α1 |
+| Green shaded band | Normal α1 zone (0.75 – 1.25) |
+| Grey dotted line | α = 0.5 reference (white noise — uncorrelated) |
+| Grey dashed line | α = 1.5 reference (Brownian noise — strongly correlated) |
+| Annotation box | α1 value, clinical interpretation, number of scales used |
+
+### How to read it
+
+**Horizontal axis** — window size `n` in beats (4 to 16 by default), shown on a log scale with actual beat values as tick labels.
+
+**Vertical axis** — `log F(n)`, the log of the root-mean-square fluctuation at each scale.
+
+**The regression line** fits all points.  Its slope is α1.  A steeper slope (closer to 1.0) means the RR signal has stronger long-range fractal correlations — a hallmark of healthy autonomic regulation.
+
+| α1 range | Interpretation |
+|---|---|
+| ≈ 0.5 | White noise — no correlation structure, pathological at rest |
+| < 0.75 | Below normal — possible overtraining, autonomic impairment |
+| 0.75 – 1.25 | **Normal** fractal long-range correlations (green zone) |
+| > 1.25 | Strongly correlated — typical during exercise or with artefacts |
+| ≈ 1.5 | Brownian noise — maximal correlation |
+
+**The normal zone band** (green fill) visually anchors where the regression line should sit for a healthy resting recording.  If the line runs clearly above or below the band, the signal departs from the expected fractal structure.
+
+### What to look for
+
+| Observation | Interpretation |
+|---|---|
+| Points well-aligned with the regression line (high R²) | Clean fractal structure — reliable α1 estimate |
+| Scattered points, poor alignment | Irregular HR behaviour or short signal |
+| Regression line inside the green band | Normal autonomic regulation |
+| Line below the green band (α1 < 0.75) | Possible fatigue, overtraining, or pathology |
+| Line above the green band (α1 > 1.25) | Possible exercise residue, strong trend, or artefacts |
+
+### Signal length note
+
+DFA requires at least **32 intervals** (2 × n_max with default n_max = 16) to compute two or more valid scales.  Very short recordings will raise `ValueError`.  For resting HRV, a standard 5-minute recording (~350–450 intervals) provides all 13 scales and a reliable α1.
+
+### API
+
+```python
+from cardiolab.visualization.nonlinear_plots import plot_dfa_fluctuation
+
+fig = plot_dfa_fluctuation(
+    rr,                         # RRSeries — at least 32 intervals
+    n_min=4,                    # smallest window size in beats (optional)
+    n_max=16,                   # largest window size in beats (optional)
+    title="DFA α1 — Session 2026-05-20",
+)
+fig.savefig("dfa_fluctuation.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
 - [`docs/protocols/cardiac_drift.md`](../protocols/cardiac_drift.md) — cardiac drift protocol and thresholds
 - [`example/09_rr_signal_plots.py`](../../../../example/09_rr_signal_plots.py) — demonstration of all 5 RR signal functions
 - [`example/10_resting_evolution_plots.py`](../../../../example/10_resting_evolution_plots.py) — complete worked example for sections 6 and 7
