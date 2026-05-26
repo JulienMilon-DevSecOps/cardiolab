@@ -26,12 +26,26 @@ vo2max_plots
     VO2max estimation from HRV: grouped model comparison bars with ACSM zone
     backgrounds, multi-session best-estimate evolution with ±10 % uncertainty
     band, and semi-circular fitness gauge (poor → excellent).
+dashboard_plots
+    Synthetic dashboards: multi-protocol session dashboard (2×3 grid), longitudinal
+    heatmap (sessions × metrics), readiness score evolution, and per-protocol
+    mini-dashboards (resting, HRR, drift, VO2max, coherence).
 """
 
 from cardiolab.visualization.coherence_plots import (
     plot_coherence_psd,
     plot_coherence_score_evolution,
     plot_coherence_tachogram,
+)
+from cardiolab.visualization.dashboard_plots import (
+    plot_coherence_mini,
+    plot_drift_mini,
+    plot_hrr_mini,
+    plot_longitudinal_heatmap,
+    plot_readiness_evolution,
+    plot_resting_mini,
+    plot_session_dashboard,
+    plot_vo2max_mini,
 )
 from cardiolab.visualization.drift_plots import (
     plot_drift_curve,
@@ -73,6 +87,15 @@ from cardiolab.visualization.vo2max_plots import (
 )
 
 __all__ = [
+    # dashboard_plots
+    "plot_session_dashboard",
+    "plot_longitudinal_heatmap",
+    "plot_readiness_evolution",
+    "plot_resting_mini",
+    "plot_hrr_mini",
+    "plot_drift_mini",
+    "plot_vo2max_mini",
+    "plot_coherence_mini",
     # coherence_plots
     "plot_coherence_psd",
     "plot_coherence_score_evolution",

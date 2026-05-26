@@ -1105,6 +1105,155 @@ fig.savefig("vo2max_evolution.png", dpi=150, bbox_inches="tight")
 
 ---
 
+## 23. Multi-Protocol Session Dashboard — `plot_session_dashboard`
+
+### What it shows
+
+A 2×3 compound figure that summarises one complete session across all available
+protocols.
+
+| Panel | Content | Required data |
+|---|---|---|
+| Top-left | HR tachogram (resting HR over time) | `rr` (always) |
+| Top-centre | Poincaré scatter with SD1/SD2 annotation | `rr` + `features` |
+| Top-right | Welch PSD with VLF/LF/HF band colouring | `rr` |
+| Bottom-left | HRR recovery curve **or** text summary **or** placeholder | `rr_recovery` + `hrr_result` (optional) |
+| Bottom-centre | Cardiac drift curve **or** text summary **or** placeholder | `rr_exercise` + `drift_result` (optional) |
+| Bottom-right | VO2max fitness gauge **or** placeholder | `vo2max_result` (optional) |
+
+### How to read it
+
+The top row always shows resting HRV data — use it to assess the autonomic
+baseline for the session.  The bottom row shows exercise and recovery protocols
+when data is available.  Placeholder panels indicate that a measurement was not
+taken that day.
+
+### What to look for
+
+A well-conditioned session shows:
+- **Tachogram**: stable, oscillatory pattern with clear respiratory sinus arrhythmia
+- **Poincaré**: cloud shape with SD1 ≥ 20 ms and SD2 ≥ SD1 (elongated ellipse)
+- **PSD**: dominant HF peak, LF/HF < 1.5
+- **HRR**: rapid HR drop (> 20 bpm in 60 s)
+- **Drift**: flat regression line, R² low, category "no drift"
+- **VO2max gauge**: needle in blue or green zone
+
+---
+
+## 24. Longitudinal Heatmap — `plot_longitudinal_heatmap`
+
+### What it shows
+
+| Element | Meaning |
+|---|---|
+| Rows | Sessions in chronological order (oldest at top) |
+| Columns | HRV metrics: RMSSD, HRV Score, HFnu, and optional HRR1, VO2max, Drift, Coherence |
+| Cell colour | Normalised value: green = best, red = worst within that metric |
+| Cell number | Raw value for that metric and session |
+| Grey cell | Missing data for that session / protocol |
+| Colour bar | Normalisation scale (0 = worst, 1 = best) |
+
+### How to read it
+
+Each column is **independently normalised** so you can compare trends even when
+metrics have different scales.  Focus on the **direction of change** rather than
+absolute colours.
+
+### What to look for
+
+| Pattern | Interpretation |
+|---|---|
+| All cells progressively greening | Across-the-board improvement — training is effective |
+| RMSSD and Score diverge | Score formula weights may not match this athlete's physiology |
+| Drift column darkening | Accumulated exercise fatigue — reduce training load |
+| VO2max flat while HRR1 improves | Cardiac efficiency adapting before central VO2 changes |
+| Grey column | A protocol is not measured consistently — fix the data pipeline |
+
+---
+
+## 25. Readiness Score Evolution — `plot_readiness_evolution`
+
+### What it shows
+
+| Element | Meaning |
+|---|---|
+| Dark line + coloured dots | Daily readiness score (0–100) |
+| Blue dashed line | 3-session rolling mean |
+| Blue band | ±10 % rolling band around the mean |
+| Green background | Good zone (66–100) |
+| Yellow background | Moderate zone (33–66) |
+| Red background | Low zone (0–33) |
+
+### How to read it
+
+**Score thresholds**: ≥ 66 = ready to train hard; 33–66 = moderate load only;
+< 33 = prioritise recovery.
+
+**Rolling band**: smooths day-to-day variability.  A band that drifts downward
+over multiple sessions signals accumulated fatigue even if individual days vary.
+
+### What to look for
+
+| Observation | Interpretation |
+|---|---|
+| Score consistently in green zone | Good recovery between sessions |
+| Score oscillating between red and green | Training load too high — insufficient recovery time |
+| Rolling mean slowly declining | Overreaching — consider a deload week |
+| Single red session surrounded by green | Transient stress — monitor next session before adjusting |
+
+---
+
+## 26. Per-Protocol Mini-Dashboards
+
+Each protocol has a dedicated two-panel (or four-panel) mini-dashboard for
+quick single-session reporting.
+
+| Function | Layout | Panels |
+|---|---|---|
+| `plot_resting_mini` | 2×2 | Tachogram / Poincaré / Welch PSD / Score + stats |
+| `plot_hrr_mini` | 1×2 | Recovery curve with HRR1 arrow / HRR1 gauge |
+| `plot_drift_mini` | 1×2 | Drift curve with regression / Drift metrics text panel |
+| `plot_vo2max_mini` | 1×2 | Model comparison bars / Fitness gauge |
+| `plot_coherence_mini` | 1×2 | AR PSD with resonance band / RR tachogram with sine reference |
+
+Each mini-dashboard is a self-contained summary for reporting, athlete feedback,
+or embedding in a larger document.  Refer to the individual protocol sections
+(§1–22) for detailed reading instructions for each panel.
+
+```python
+from cardiolab.visualization.dashboard_plots import (
+    plot_session_dashboard,
+    plot_longitudinal_heatmap,
+    plot_readiness_evolution,
+    plot_resting_mini,
+    plot_hrr_mini,
+    plot_drift_mini,
+    plot_vo2max_mini,
+    plot_coherence_mini,
+)
+
+# Full multi-protocol session overview
+fig = plot_session_dashboard(rr, features, vo2max_result=vo2max_res)
+fig.savefig("session_dashboard.png", dpi=150, bbox_inches="tight")
+
+# Longitudinal heatmap over a training block
+fig = plot_longitudinal_heatmap(features_list, hrr_results=hrr_list, labels=dates)
+fig.savefig("heatmap.png", dpi=150, bbox_inches="tight")
+
+# Daily readiness tracking
+fig = plot_readiness_evolution(features_list, labels=dates)
+fig.savefig("readiness.png", dpi=150, bbox_inches="tight")
+
+# Protocol mini-dashboards
+fig = plot_resting_mini(rr, features, title="Resting HRV — 2026-05-20")
+fig = plot_hrr_mini(rr_recovery, hrr_result)
+fig = plot_drift_mini(rr_exercise, drift_result)
+fig = plot_vo2max_mini(vo2max_result)
+fig = plot_coherence_mini(rr, coherence_result)
+```
+
+---
+
 - [`docs/protocols/cardiac_drift.md`](../protocols/cardiac_drift.md) — cardiac drift protocol and thresholds
 - [`example/09_rr_signal_plots.py`](../../../../example/09_rr_signal_plots.py) — demonstration of all 5 RR signal functions
 - [`example/10_resting_evolution_plots.py`](../../../../example/10_resting_evolution_plots.py) — complete worked example for sections 6 and 7

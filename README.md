@@ -480,6 +480,61 @@ uncertainty band on the evolution chart reflects the typical model error range
 28–37 fair, 38–47 good, 48–57 very good, ≥ 58 excellent) are shown as coloured
 backgrounds in all three charts.
 
+### Dashboards — `dashboard_plots`
+
+```python
+from cardiolab.visualization.dashboard_plots import (
+    # C6 global dashboards
+    plot_session_dashboard,    # 2×3 multi-protocol overview for one session
+    plot_longitudinal_heatmap, # sessions × metrics colour heatmap
+    plot_readiness_evolution,  # daily readiness score line with rolling band
+    # Per-protocol mini-dashboards
+    plot_resting_mini,         # 2×2: tachogram + Poincaré + PSD + score panel
+    plot_hrr_mini,             # 1×2: recovery curve + HRR1 gauge
+    plot_drift_mini,           # 1×2: drift curve + metrics summary
+    plot_vo2max_mini,          # 1×2: model comparison bars + fitness gauge
+    plot_coherence_mini,       # 1×2: AR PSD + RR tachogram
+)
+
+# Multi-protocol session overview
+fig = plot_session_dashboard(
+    rr_resting, features,
+    rr_recovery=rr_post, hrr_result=hrr_res,
+    rr_exercise=rr_ex, drift_result=drift_res,
+    vo2max_result=vo2max_res,
+    title="Session 2026-05-20",
+)
+fig.savefig("session_dashboard.png", dpi=150, bbox_inches="tight")
+
+# Longitudinal heatmap (RMSSD + score + HRR1 + VO2max + drift)
+fig = plot_longitudinal_heatmap(
+    features_list,
+    hrr_results=hrr_list,
+    drift_results=drift_list,
+    vo2max_results=vo2max_list,
+    labels=dates,
+)
+fig.savefig("heatmap.png", dpi=150, bbox_inches="tight")
+
+# Daily readiness score evolution
+fig = plot_readiness_evolution(features_list, labels=dates)
+fig.savefig("readiness.png", dpi=150, bbox_inches="tight")
+
+# Per-protocol mini-dashboards
+fig = plot_resting_mini(rr, features)
+fig = plot_hrr_mini(rr_post, hrr_result)
+fig = plot_drift_mini(rr_exercise, drift_result)
+fig = plot_vo2max_mini(vo2max_result)
+fig = plot_coherence_mini(rr, coherence_result)
+```
+
+`plot_session_dashboard` adapts gracefully: when a protocol result is provided
+without its associated RR series, it falls back to a text summary panel; when
+neither is provided, a "No data" placeholder is shown.
+`plot_longitudinal_heatmap` normalises each metric column to [0, 1] so sessions
+can be compared visually even when metrics have different scales.  Missing data
+cells appear in grey.
+
 ---
 
 ## Analytics
@@ -667,4 +722,7 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] VO2max model comparison bars with ACSM zone bands (`plot_vo2max_comparison`)
 * [x] VO2max evolution across sessions with ±10 % uncertainty band (`plot_vo2max_evolution`)
 * [x] Semi-circular VO2max fitness gauge, poor → excellent (`plot_vo2max_gauge`)
-* [ ] Multi-protocol recovery dashboard — side-by-side session comparison
+* [x] Multi-protocol session dashboard — 2×3 grid of 6 mini-plots (`plot_session_dashboard`)
+* [x] Longitudinal heatmap — sessions × metrics normalised colour map (`plot_longitudinal_heatmap`)
+* [x] Readiness score evolution with rolling band (`plot_readiness_evolution`)
+* [x] Per-protocol mini-dashboards — resting, HRR, drift, VO2max, coherence (`plot_*_mini`)
