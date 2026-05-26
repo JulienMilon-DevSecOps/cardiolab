@@ -948,6 +948,163 @@ fig.savefig("dfa_fluctuation.png", dpi=150, bbox_inches="tight")
 
 ---
 
+## 20. VO2max Model Comparison — `plot_vo2max_comparison`
+
+### What it shows
+
+| Element | Meaning |
+|---|---|
+| Blue bar (Uth) | VO2max from Uth et al. 2004 — requires HR_max; omitted when not available |
+| Green bar (Esco-Flatt) | VO2max from Esco & Flatt 2014 using RMSSD directly |
+| Orange bar (ln-RMSSD) | VO2max from the ln(RMSSD) extended model (Nunan) |
+| Coloured background bands | ACSM fitness zones: poor / fair / good / very good / excellent |
+| Dotted threshold lines | Zone boundaries at 28, 38, 48, 58 mL/kg/min |
+| Annotation box (top-left) | Category, RMSSD, HR rest, HR max (or n/a) |
+
+### How to read it
+
+**X-axis** — model name. Two bars when `hr_max` was not provided; three when it was.
+
+**Y-axis** — VO2max in mL/kg/min. The ACSM zone backgrounds provide immediate
+clinical context without needing to read the threshold lines.
+
+**Bar height** — the estimate from that specific model. Bars from different models
+should agree within ±5 mL/kg/min; larger divergence signals a mismatch between
+the HRV-derived estimate and the maximal-test value (or unusual physiology).
+
+### What to look for
+
+| Observation | Interpretation |
+|---|---|
+| All bars in the same zone | Consistent estimation — high confidence |
+| Uth notably higher than ln-RMSSD | Normal: Uth is calibrated on HR_max; RMSSD may overestimate when parasympathetic tone is very high |
+| ln-RMSSD notably lower than Uth | Low resting HRV — possible fatigue or autonomic blunting |
+| Bars straddle two zones | Borderline fitness — focus on trend over sessions, not a single measurement |
+| Excellent zone (≥ 58 mL/kg/min) | Elite aerobic capacity — typically competitive endurance athletes |
+
+### Clinical zone table (ACSM)
+
+| Zone | VO2max range (mL/kg/min) | Interpretation |
+|---|---|---|
+| Poor | < 28 | Very low aerobic capacity — high cardiovascular risk |
+| Fair | 28–37 | Below average — moderate risk, aerobic training recommended |
+| Good | 38–47 | Average — acceptable long-term health profile |
+| Very good | 48–57 | Above average — regularly active, good aerobic conditioning |
+| Excellent | ≥ 58 | High performance — typical of competitive aerobic athletes |
+
+---
+
+## 21. VO2max Evolution — `plot_vo2max_evolution`
+
+### What it shows
+
+| Element | Meaning |
+|---|---|
+| Dark line | Best-estimate VO2max per session (Uth if available, otherwise ln-RMSSD) |
+| Blue band | ±10 % model uncertainty — the plausible range around the best estimate |
+| Coloured dots | Per-session value, colour-coded by ACSM category |
+| Value labels | Numeric VO2max above each dot |
+| Coloured background bands | ACSM fitness zones across the full session history |
+| Zone name labels (right) | Zone name at the zone midpoint |
+
+### How to read it
+
+**X-axis** — session labels (date or custom). Values come from
+`result.date` unless custom labels are passed.
+
+**Y-axis** — VO2max in mL/kg/min. The background zones and right-margin labels
+allow immediate category reading for each session.
+
+**Uncertainty band** — reflects the typical accuracy range of HRV-based VO2max
+models (±7–15 % depending on the model and population). Use it as a reminder
+that the absolute value has noise; focus on the **trend** across sessions rather
+than individual numbers.
+
+### What to look for
+
+| Observation | Interpretation |
+|---|---|
+| Consistent upward trend | Progressive aerobic adaptation — training is working |
+| Consistent downward trend | Accumulated fatigue, illness, or detraining |
+| Stable plateau | Maintenance phase — training volume matches recovery |
+| Abrupt single-session drop followed by recovery | Transient stress (illness, poor sleep, travel) — not a true fitness loss |
+| Narrow band that changes zone | Clear threshold crossing — clinically significant change |
+| Wide, overlapping bands | Estimates are variable — increase recording consistency (same time of day, same preparation) |
+
+### Signal quality note
+
+VO2max from HRV is a resting measure estimated from autonomic markers (RMSSD,
+HR_rest, HR_max). A single outlier session does not reflect true fitness change.
+Interpret trends over at least 4–6 sessions before drawing conclusions.
+
+---
+
+## 22. VO2max Fitness Gauge — `plot_vo2max_gauge`
+
+### What it shows
+
+| Element | Meaning |
+|---|---|
+| Coloured annular sectors | Five ACSM zones from left (poor, red) to right (excellent, green) |
+| Needle | Points to the best VO2max estimate (Uth if available, else ln-RMSSD) |
+| Central numeric value | Best estimate in mL/kg/min |
+| Category text | ACSM category name below the value |
+| Tick marks + labels | Zone boundaries at 0, 28, 38, 48, 58, 70 mL/kg/min |
+
+### How to read it
+
+The gauge is a visual complement to `plot_vo2max_comparison` for a quick,
+single-glance summary.  0 mL/kg/min is at the **left** (180°), 70 mL/kg/min is
+at the **right** (0°).
+
+**Needle position** — the further right, the higher the aerobic fitness.  A
+needle in the blue-green sector (very good / excellent) indicates elite aerobic
+capacity.
+
+**Zone colour** — the sector under the needle tip directly indicates the ACSM
+category without reading any number.
+
+### What to look for
+
+| Needle position | Category | Clinical meaning |
+|---|---|---|
+| Far left (red zone) | Poor | Aerobic capacity needs significant development |
+| Left-centre (orange zone) | Fair | Below average — structured cardio programme recommended |
+| Centre (yellow zone) | Good | Average fitness — maintain current training |
+| Right-centre (blue zone) | Very good | Above average — well-conditioned individual |
+| Far right (green zone) | Excellent | Elite aerobic fitness |
+
+### Gauge vs. comparison chart
+
+Use the **gauge** for a quick session summary or athlete dashboard.  Use the
+**comparison chart** when you need to evaluate model agreement or when `hr_max`
+was not measured and you want to see the Esco-Flatt estimate alongside ln-RMSSD.
+
+```python
+from cardiolab.visualization.vo2max_plots import (
+    plot_vo2max_comparison,
+    plot_vo2max_evolution,
+    plot_vo2max_gauge,
+)
+
+# Single session
+fig = plot_vo2max_comparison(result, title="VO2max — Session 2026-05-20")
+fig.savefig("vo2max_comparison.png", dpi=150, bbox_inches="tight")
+
+fig = plot_vo2max_gauge(result, title="Fitness Gauge — Session 2026-05-20")
+fig.savefig("vo2max_gauge.png", dpi=150, bbox_inches="tight")
+
+# Multi-session evolution
+fig = plot_vo2max_evolution(
+    results,
+    labels=dates,
+    title="VO2max Progression — 2026",
+)
+fig.savefig("vo2max_evolution.png", dpi=150, bbox_inches="tight")
+```
+
+---
+
 - [`docs/protocols/cardiac_drift.md`](../protocols/cardiac_drift.md) — cardiac drift protocol and thresholds
 - [`example/09_rr_signal_plots.py`](../../../../example/09_rr_signal_plots.py) — demonstration of all 5 RR signal functions
 - [`example/10_resting_evolution_plots.py`](../../../../example/10_resting_evolution_plots.py) — complete worked example for sections 6 and 7
