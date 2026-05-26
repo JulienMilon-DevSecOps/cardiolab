@@ -10,9 +10,9 @@ from matplotlib.figure import Figure
 matplotlib.use("Agg")
 
 from cardiolab.protocols.cardiac_coherence import CoherenceResult, cardiac_coherence
-from cardiolab.protocols.cardiac_drift import DriftResult, cardiac_drift
-from cardiolab.protocols.hrr import HRRResult, heart_rate_recovery
-from cardiolab.protocols.resting import HRVFeatures, resting_hrv
+from cardiolab.protocols.cardiac_drift import DriftResult
+from cardiolab.protocols.hrr import HRRResult
+from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.protocols.vo2max import VO2maxResult
 from cardiolab.signals.rr import RRSeries
 from cardiolab.visualization.dashboard_plots import (

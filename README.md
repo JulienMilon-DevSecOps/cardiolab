@@ -55,13 +55,18 @@ cardiolab/
 ├── sensors_tools/    → Polar sensor integration
 ├── database/         → PostgreSQL persistence layer (6 tables)
 ├── io/               → CSV and JSON export for all protocols
+├── reporting/        → tabular reporting (pandas Styler, HTML/Excel export)
+│   ├── _core.py          → shared formatters, colour palettes, gradient builders
+│   ├── resting.py        → table_resting_history, table_resting_session
+│   └── orthostatic.py    → table_orthostatic_comparison, table_orthostatic_history
 ├── scripts/          → CLI import tools
 ├── datasets/         → sample recordings (resting/, orthostatic/)
 ├── docs/             → protocol & feature documentation
 │   ├── protocols/    → resting.md, orthostatic.md, cardiac_coherence.md,
 │   │                   hrr.md, cardiac_drift.md, vo2max.md
 │   ├── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md
-│   └── visualization/→ reading_charts.md — how to read each chart type
+│   ├── visualization/→ reading_charts.md — how to read each chart type
+│   └── reporting/    → tables.md — reporting API reference
 └── visualization/    → signal and HRV plots
     ├── resting_plots.py  → RMSSD & readiness score evolution over time
     └── rr_plots.py       → raw RR: tachogram, distribution, filtered,
@@ -537,6 +542,74 @@ cells appear in grey.
 
 ---
 
+## Reporting
+
+The `cardiolab.reporting` module produces **ready-to-display pandas Styler tables**
+for Jupyter Notebook, with colour gradients and clinical category highlighting.
+Each function returns a `pd.Styler` that is directly exportable to HTML or Excel.
+
+```python
+from cardiolab.reporting import (
+    table_resting_history,        # multi-session history — one row per session
+    table_resting_session,        # single-session detail — one row per metric
+    table_orthostatic_comparison, # supine vs standing side-by-side comparison
+    table_orthostatic_history,    # condensed orthostatic history
+)
+```
+
+### Resting HRV tables
+
+```python
+# Multi-session history with colour gradients
+styler = table_resting_history(features_list)
+display(styler)
+
+# Optional: restrict columns
+styler = table_resting_history(features_list, cols=["date", "rmssd", "score"])
+
+# Single-session detail (one row per metric, grouped by domain)
+styler = table_resting_session(features)
+display(styler)
+```
+
+`table_resting_history` includes: date · RMSSD · SDNN · mean HR · SD1 · SD2 ·
+SD1/SD2 · DFA α1 · ApEn · SampEn · score.  
+Green gradient = better (RMSSD, SD1, SD2, score, DFA α1).  Red gradient = better low (mean HR).
+
+### Orthostatic HRV tables
+
+```python
+results = [r1, r2, r3]           # list[OrthostaticResult]
+dates   = ["2024-01-01", ...]    # optional — defaults to "Session N"
+
+# Side-by-side supine vs standing with delta columns
+styler = table_orthostatic_comparison(results, dates=dates)
+display(styler)
+
+# Condensed history — key autonomic response indicators
+styler = table_orthostatic_history(results, dates=dates)
+display(styler)
+```
+
+`table_orthostatic_comparison` includes: `supine_*` and `standing_*` columns for
+RMSSD, mean HR, SD1, SD2, SD1/SD2, DFA α1, HF_nu, ApEn, SampEn — plus response
+indicators (`hr_response`, `lf_hf_change`, `hf_response_pct`, `hf_hr_pct_change`)
+and a colour-coded `interpretation` column.
+
+### Export
+
+```python
+# HTML with colours
+styler.to_html("report.html")
+
+# Excel with colours (requires openpyxl)
+styler.to_excel("report.xlsx", engine="openpyxl")
+```
+
+See [`docs/reporting/tables.md`](cardiolab/docs/reporting/tables.md) for the full API reference.
+
+---
+
 ## Analytics
 
 * **Baseline** — rolling 7-session RMSSD mean, median, mean HR
@@ -603,10 +676,11 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | `io/` — CSV & JSON export for all protocols | Implemented |
 | `sensors_tools/` — Polar | Implemented |
 | `visualization/` | Implemented |
+| `reporting/` — resting + orthostatic tables | Implemented |
 | PPG signal support | Planned |
 | Training load model (ATL / CTL / TSB) | Planned |
 
-**Test coverage:** 584+ unit tests, 0 failures.
+**Test coverage:** 683+ unit tests, 0 failures.
 
 ---
 
@@ -726,3 +800,14 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] Longitudinal heatmap — sessions × metrics normalised colour map (`plot_longitudinal_heatmap`)
 * [x] Readiness score evolution with rolling band (`plot_readiness_evolution`)
 * [x] Per-protocol mini-dashboards — resting, HRR, drift, VO2max, coherence (`plot_*_mini`)
+
+### Reporting
+* [x] Shared formatting infrastructure — colour palettes, gradient builders (`reporting/_core`)
+* [x] Resting history table with colour gradients (`table_resting_history`)
+* [x] Resting session detail table — one row per metric (`table_resting_session`)
+* [x] Orthostatic supine vs standing comparison table (`table_orthostatic_comparison`)
+* [x] Orthostatic history table — condensed autonomic response view (`table_orthostatic_history`)
+* [ ] HRR reporting table (`table_hrr_history`)
+* [ ] Cardiac drift reporting table (`table_drift_history`)
+* [ ] Cardiac coherence reporting table (`table_coherence_history`)
+* [ ] VO2max reporting table (`table_vo2max_history`)

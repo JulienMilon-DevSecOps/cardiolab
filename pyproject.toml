@@ -70,6 +70,7 @@ ignore = [
 # Règles ignorées par fichier
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]  # assert is pytest's standard assertion mechanism
+"*.ipynb" = ["E402", "F811"]  # notebooks : imports après docstring et réimports inter-cellules
 
 # Règles que --fix peux corriger automatiquement
 fixable = [
