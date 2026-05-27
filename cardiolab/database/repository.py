@@ -1,7 +1,10 @@
 """PostgreSQL repository for HRV feature storage and retrieval.
 
-Manages six protocol tables through a single class:
+Manages seven tables through a single class:
 
+* **Raw sessions** (``hrv_raw_sessions``): raw RR intervals in ms for every
+  recorded session. Source of truth that allows reprocessing with different
+  parameters. Linked to protocol tables via ``(user_id, session_date, protocol)``.
 * **Resting** (``hrv_features``): one row per session, 19 HRV indicators.
 * **Orthostatic** (``hrv_orthostatic``): one row per test, 19 HRV indicators
   for three phases (supine / transition / standing).
@@ -51,7 +54,10 @@ import os
 import re
 from dataclasses import dataclass
 
+import json
+
 from psycopg2 import connect, sql
+from psycopg2.extras import Json
 
 from cardiolab.protocols.cardiac_coherence import CoherenceResult
 from cardiolab.protocols.cardiac_drift import DriftResult
@@ -59,6 +65,7 @@ from cardiolab.protocols.hrr import HRRResult
 from cardiolab.protocols.orthostatic import OrthostaticResult
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.protocols.vo2max import VO2maxResult
+from cardiolab.signals.rr import RRSeries
 
 # ======================
 # VALIDATION
@@ -668,6 +675,7 @@ class HRVRepository:
         hrr_table_name: str = "hrv_hrr",
         drift_table_name: str = "hrv_drift",
         vo2max_table_name: str = "hrv_vo2max",
+        raw_sessions_table_name: str = "hrv_raw_sessions",
         port: int = 5432,
     ) -> None:
         """Store connection parameters and validate table names."""
@@ -678,6 +686,7 @@ class HRVRepository:
             hrr_table_name,
             drift_table_name,
             vo2max_table_name,
+            raw_sessions_table_name,
         ):
             _validate_identifier(name)
         self._dsn = {
@@ -693,6 +702,7 @@ class HRVRepository:
         self.hrr_table_name = hrr_table_name
         self.drift_table_name = drift_table_name
         self.vo2max_table_name = vo2max_table_name
+        self.raw_sessions_table_name = raw_sessions_table_name
         self._conn = None
 
     # ── Factory ──────────────────────────────────────────────────────────
@@ -706,6 +716,7 @@ class HRVRepository:
         hrr_table_name: str = "hrv_hrr",
         drift_table_name: str = "hrv_drift",
         vo2max_table_name: str = "hrv_vo2max",
+        raw_sessions_table_name: str = "hrv_raw_sessions",
     ) -> HRVRepository:
         """Build a repository from environment variables.
 
@@ -751,6 +762,7 @@ class HRVRepository:
             hrr_table_name=hrr_table_name,
             drift_table_name=drift_table_name,
             vo2max_table_name=vo2max_table_name,
+            raw_sessions_table_name=raw_sessions_table_name,
         )
 
     # ── Connection lifecycle ──────────────────────────────────────────────
@@ -1632,5 +1644,234 @@ class HRVRepository:
                 ln_rmssd_used=row[7],
                 fitness_category=row[8] or "poor",
             )
+            for row in rows
+        ]
+
+    # ── Raw sessions — schema ────────────────────────────────────────────
+
+    def create_raw_sessions_table(self) -> None:
+        """Create the raw RR sessions table if it does not already exist.
+
+        The table stores the raw RR interval array (in milliseconds) for every
+        recorded session together with provenance metadata.  It is the
+        **source of truth** for all protocol analyses: having the raw signal
+        allows reprocessing with different parameters (spectral method, clean
+        thresholds, …) without re-importing original files.
+
+        Schema::
+
+            hrv_raw_sessions (
+                id           SERIAL PRIMARY KEY,
+                user_id      TEXT      NOT NULL,
+                session_date DATE      NOT NULL,
+                protocol     TEXT      NOT NULL,
+                rr_intervals FLOAT[]   NOT NULL,   -- ms, one value per beat
+                source_file  TEXT,                  -- original filename
+                device       TEXT DEFAULT 'hrv_elite',
+                duration_sec FLOAT,                 -- total recording duration
+                beat_count   INT,                   -- len(rr_intervals)
+                created_at   TIMESTAMP DEFAULT NOW(),
+                metadata     JSONB     DEFAULT '{}',
+                UNIQUE(user_id, session_date, protocol)
+            )
+
+        The ``UNIQUE(user_id, session_date, protocol)`` constraint mirrors the
+        key used by all protocol tables, enabling natural joins and safe
+        upserts.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the SQL statement is rejected.
+
+        """
+        query = sql.SQL(
+            "CREATE TABLE IF NOT EXISTS {table} (\n"
+            "    id           SERIAL PRIMARY KEY,\n"
+            "    user_id      TEXT      NOT NULL,\n"
+            "    session_date DATE      NOT NULL,\n"
+            "    protocol     TEXT      NOT NULL,\n"
+            "    rr_intervals FLOAT[]   NOT NULL,\n"
+            "    source_file  TEXT,\n"
+            "    device       TEXT      DEFAULT 'hrv_elite',\n"
+            "    duration_sec FLOAT,\n"
+            "    beat_count   INT,\n"
+            "    created_at   TIMESTAMP DEFAULT NOW(),\n"
+            "    metadata     JSONB     DEFAULT '{{}}',\n"
+            "    UNIQUE(user_id, session_date, protocol)\n"
+            ");"
+        ).format(table=sql.Identifier(self.raw_sessions_table_name))
+
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query)
+
+    # ── Raw sessions — write ─────────────────────────────────────────────
+
+    def save_raw_session(
+        self,
+        rr: RRSeries,
+        user_id: str,
+        date: str,
+        protocol: str,
+        source_file: str | None = None,
+        device: str = "hrv_elite",
+        metadata: dict | None = None,
+    ) -> None:
+        """Save raw RR intervals for a session (upsert).
+
+        Stores the full RR interval array in milliseconds alongside provenance
+        metadata.  An existing row for the same ``(user_id, date, protocol)``
+        is overwritten so repeated imports are safe.
+
+        Args:
+            rr: RR interval series to persist.  ``rr.intervals`` is converted
+                to a plain Python list before insertion so that NumPy arrays
+                are handled transparently.
+            user_id: User identifier (UUID or string).
+            date: ISO-format date string (``"YYYY-MM-DD"``).
+            protocol: Protocol name (``"resting"``, ``"orthostatic"``, etc.).
+            source_file: Original filename for traceability. Optional.
+            device: Acquisition device name. Defaults to ``"hrv_elite"``.
+            metadata: Arbitrary key-value pairs serialised as JSONB — e.g.
+                ``{"method": "ar", "hr_max": 185.0}``. Defaults to ``{}``.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        rr_list = [float(v) for v in rr.intervals]
+        meta = Json(metadata or {})
+
+        query = sql.SQL(
+            "INSERT INTO {table} "
+            "(user_id, session_date, protocol, rr_intervals, source_file, "
+            " device, duration_sec, beat_count, metadata)\n"
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)\n"
+            "ON CONFLICT (user_id, session_date, protocol) DO UPDATE SET\n"
+            "    rr_intervals = EXCLUDED.rr_intervals,\n"
+            "    source_file  = EXCLUDED.source_file,\n"
+            "    device       = EXCLUDED.device,\n"
+            "    duration_sec = EXCLUDED.duration_sec,\n"
+            "    beat_count   = EXCLUDED.beat_count,\n"
+            "    metadata     = EXCLUDED.metadata,\n"
+            "    created_at   = NOW();"
+        ).format(table=sql.Identifier(self.raw_sessions_table_name))
+
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(
+                query,
+                (
+                    user_id,
+                    date,
+                    protocol,
+                    rr_list,
+                    source_file,
+                    device,
+                    rr.duration,
+                    len(rr_list),
+                    meta,
+                ),
+            )
+
+    # ── Raw sessions — read ──────────────────────────────────────────────
+
+    def load_raw_session(
+        self,
+        user_id: str,
+        date: str,
+        protocol: str,
+    ) -> RRSeries | None:
+        """Load raw RR intervals for a specific session.
+
+        Args:
+            user_id: User identifier.
+            date: ISO date string (``"YYYY-MM-DD"``).
+            protocol: Protocol name.
+
+        Returns:
+            A :class:`~cardiolab.signals.rr.RRSeries` reconstructed from the
+            stored intervals, or ``None`` if no record exists for the given
+            ``(user_id, date, protocol)`` triplet.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        query = sql.SQL(
+            "SELECT rr_intervals, metadata\n"
+            "FROM {table}\n"
+            "WHERE user_id = %s AND session_date = %s AND protocol = %s;"
+        ).format(table=sql.Identifier(self.raw_sessions_table_name))
+
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (user_id, date, protocol))
+            row = cur.fetchone()
+
+        if row is None:
+            return None
+
+        rr_intervals, metadata = row
+        return RRSeries(
+            intervals=rr_intervals,
+            metadata=metadata if isinstance(metadata, dict) else {},
+        )
+
+    def list_raw_sessions(
+        self,
+        user_id: str,
+        protocol: str | None = None,
+    ) -> list[dict]:
+        """List stored raw sessions for a user.
+
+        Args:
+            user_id: User identifier.
+            protocol: If provided, filter to sessions of that protocol only.
+
+        Returns:
+            List of dicts, one per session, sorted by ascending date.
+            Each dict has keys: ``date``, ``protocol``, ``source_file``,
+            ``device``, ``duration_sec``, ``beat_count``, ``created_at``,
+            ``metadata``.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        if protocol is not None:
+            query = sql.SQL(
+                "SELECT session_date, protocol, source_file, device,\n"
+                "       duration_sec, beat_count, created_at, metadata\n"
+                "FROM {table}\n"
+                "WHERE user_id = %s AND protocol = %s\n"
+                "ORDER BY session_date ASC;"
+            ).format(table=sql.Identifier(self.raw_sessions_table_name))
+            params = (user_id, protocol)
+        else:
+            query = sql.SQL(
+                "SELECT session_date, protocol, source_file, device,\n"
+                "       duration_sec, beat_count, created_at, metadata\n"
+                "FROM {table}\n"
+                "WHERE user_id = %s\n"
+                "ORDER BY session_date ASC, protocol ASC;"
+            ).format(table=sql.Identifier(self.raw_sessions_table_name))
+            params = (user_id,)
+
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+
+        return [
+            {
+                "date": str(row[0]),
+                "protocol": row[1],
+                "source_file": row[2],
+                "device": row[3],
+                "duration_sec": row[4],
+                "beat_count": row[5],
+                "created_at": str(row[6]) if row[6] else None,
+                "metadata": row[7] if isinstance(row[7], dict) else {},
+            }
             for row in rows
         ]
