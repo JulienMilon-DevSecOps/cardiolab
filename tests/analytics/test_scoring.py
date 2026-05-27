@@ -827,7 +827,9 @@ class TestOrthostaticScore:
         ]
         for hr, hf in test_cases:
             s = orthostatic_score(hr, hf)
-            assert 0.0 <= s <= 100.0, f"orthostatic_score({hr}, {hf}) = {s} out of [0, 100]"
+            assert 0.0 <= s <= 100.0, (
+                f"orthostatic_score({hr}, {hf}) = {s} out of [0, 100]"
+            )
 
     def test_optimal_hr_range_high_score(self):
         """ΔHR in [10, 25] with good HF withdrawal → score above 70."""
@@ -866,8 +868,8 @@ class TestOrthostaticScore:
 
     def test_hf_component_weight(self):
         """HF component has 20 % weight: same ΔHR, varying HF → modest score difference."""
-        s_good_hf = orthostatic_score(17.5, -45.0)   # perfect HF
-        s_no_hf = orthostatic_score(17.5, 0.0)        # worst HF
+        s_good_hf = orthostatic_score(17.5, -45.0)  # perfect HF
+        s_no_hf = orthostatic_score(17.5, 0.0)  # worst HF
         diff = abs(s_good_hf - s_no_hf)
         # The HF sub-score moves from 0 to 100 * 20% = 20 pts max
         assert diff <= 22.0

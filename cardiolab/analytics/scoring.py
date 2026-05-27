@@ -510,10 +510,10 @@ def orthostatic_score(hr_response: float, hf_response_pct: float = 0.0) -> float
     """
     # ── ΔHR component (piece-wise, U-shaped) ─────────────────────────────────
     # Local constants (lowercase to comply with PEP 8 / ruff N806)
-    opt_low: float = 10.0   # lower bound of normal range (bpm)
+    opt_low: float = 10.0  # lower bound of normal range (bpm)
     opt_high: float = 25.0  # upper bound of normal range (bpm)
-    opt_ctr: float = 17.5   # midpoint — peak score (bpm)
-    pots: float = 30.0      # POTS threshold (bpm)
+    opt_ctr: float = 17.5  # midpoint — peak score (bpm)
+    pots: float = 30.0  # POTS threshold (bpm)
 
     hr = max(hr_response, 0.0)
 

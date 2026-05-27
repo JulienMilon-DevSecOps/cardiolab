@@ -399,9 +399,9 @@ class TestBuildOrthoRow:
         result = _mock_ortho_result()
         result.interpretation = "elevated_response"
         row = _build_ortho_row(result, user_id="uid", date="2026-05-15")
-        assert row[-3] == "elevated_response"    # interpretation
-        assert isinstance(row[-2], str)           # spectral_method
-        assert isinstance(row[-1], float)         # score
+        assert row[-3] == "elevated_response"  # interpretation
+        assert isinstance(row[-2], str)  # spectral_method
+        assert isinstance(row[-1], float)  # score
 
     def test_hr_response_in_row(self):
         """hr_response must appear in the row."""
