@@ -381,7 +381,9 @@ def coherence_score_100(coherence_score: float) -> float:
 
     """
     # Sigmoid centred at 50 % with steeper slope to spread good/poor apart
-    return float(np.clip(50.0 + 50.0 * np.tanh((coherence_score - 50.0) / 20.0), 0.0, 100.0))
+    return float(
+        np.clip(50.0 + 50.0 * np.tanh((coherence_score - 50.0) / 20.0), 0.0, 100.0)
+    )
 
 
 def drift_score(drift_rate: float) -> float:

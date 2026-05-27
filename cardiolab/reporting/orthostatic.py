@@ -164,11 +164,17 @@ def table_orthostatic_history(
         # Duck-typing: OrthostaticRecord exposes to_reporting_row()
         if hasattr(r, "to_reporting_row"):
             row = r.to_reporting_row()
-            row["date"] = (dates[i] if dates else None) or row.get("date") or f"Session {i + 1}"
+            row["date"] = (
+                (dates[i] if dates else None) or row.get("date") or f"Session {i + 1}"
+            )
         else:
             # OrthostaticResult — access via phases
             p = r.phases
-            label = (dates[i] if dates else None) or getattr(r, "date", None) or f"Session {i + 1}"
+            label = (
+                (dates[i] if dates else None)
+                or getattr(r, "date", None)
+                or f"Session {i + 1}"
+            )
             row = {
                 "date": label,
                 "supine_rmssd": p.supine.features.rmssd,

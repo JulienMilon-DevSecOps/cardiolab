@@ -621,9 +621,9 @@ def _register_numpy_adapters() -> None:
 
         register_adapter(np.float64, lambda v: AsIs(float(v)))
         register_adapter(np.float32, lambda v: AsIs(float(v)))
-        register_adapter(np.int64,   lambda v: AsIs(int(v)))
-        register_adapter(np.int32,   lambda v: AsIs(int(v)))
-        register_adapter(np.bool_,   lambda v: AsIs(bool(v)))
+        register_adapter(np.int64, lambda v: AsIs(int(v)))
+        register_adapter(np.int32, lambda v: AsIs(int(v)))
+        register_adapter(np.bool_, lambda v: AsIs(bool(v)))
     except ImportError:
         pass  # NumPy non installé — aucune action requise
 
