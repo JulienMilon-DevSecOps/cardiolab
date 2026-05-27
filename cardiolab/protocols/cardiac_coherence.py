@@ -27,6 +27,7 @@ References:
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
@@ -34,7 +35,7 @@ import numpy as np
 from cardiolab.features.frequency_domain import _ar_psd
 from cardiolab.features.time_domain import rmssd as _rmssd
 from cardiolab.features.time_domain import sdnn as _sdnn
-from cardiolab.signals.rr import RRSeries
+from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
 
 
 @dataclass
@@ -132,6 +133,16 @@ def cardiac_coherence(
     rr_ms = np.array(rr.intervals, dtype=float)
     time_s = np.cumsum(rr_ms) / 1000.0
     time_s -= time_s[0]
+
+    _min_recommended_sec = 120.0  # 2 min — ideally ≥ 5 min for 5-5 breathing
+    if time_s[-1] < _min_recommended_sec:
+        warnings.warn(
+            f"Coherence recording duration ({time_s[-1]:.0f} s) is below the "
+            f"recommended minimum of {_min_recommended_sec:.0f} s (2 min). "
+            "The coherence score may be unreliable.",
+            PhysiologicalWarning,
+            stacklevel=2,
+        )
 
     interp_time = np.arange(0, time_s[-1], 1.0 / fs)
     interp_rr = np.interp(interp_time, time_s, rr_ms)

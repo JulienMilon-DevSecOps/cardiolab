@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
@@ -14,7 +15,7 @@ from cardiolab.features.nonlinear import sd1 as _sd1
 from cardiolab.features.nonlinear import sd2 as _sd2
 from cardiolab.features.nonlinear import sd_ratio as _sd_ratio
 from cardiolab.features.time_domain import ln_rmssd, pnn50, rmssd, sdnn
-from cardiolab.signals.rr import RRSeries
+from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
 
 
 @dataclass
@@ -59,8 +60,13 @@ class HRVFeatures:
             less sensitive to recording length. Returns ``nan`` for short or
             constant series. Standard parameters: m=2, r=0.2·std(RR).
         duration: Effective recording duration in seconds.
-        score: Optional readiness score (0–1). Defaults to 0.0 when not
-            computed.
+        score: Readiness score on a **[0–100]** scale. Defaults to ``0.0``.
+            Must be populated by a baseline-relative function such as
+            :func:`~cardiolab.analytics.scoring.readiness_score_multi` before
+            the session is saved to the database or displayed in a report.
+            The internal ``_compute_simple_score`` helper (absolute heuristic,
+            scale [0–1]) must **not** be written to this field — it uses a
+            different scale and is not comparable across users.
         method: Spectral estimation method used for frequency-domain metrics.
             ``"welch"`` (default) or ``"ar"``. Stored for traceability —
             LF/HF values computed with different methods are not directly
@@ -212,7 +218,13 @@ def resting_hrv(
     duration = rr.duration
 
     if duration < min_duration:
-        pass  # sub-threshold recordings are accepted but may yield noisy results
+        warnings.warn(
+            f"Recording duration ({duration:.0f} s) is below the recommended "
+            f"minimum of {min_duration:.0f} s for resting HRV analysis. "
+            "Frequency-domain and non-linear metrics may be unreliable.",
+            PhysiologicalWarning,
+            stacklevel=2,
+        )
 
     # ======================
     # FEATURES
@@ -277,22 +289,31 @@ def resting_hrv(
 
 
 def _compute_simple_score(rmssd_value: float, mean_hr: float) -> float:
-    """Compute a normalised readiness score from RMSSD and heart rate.
+    """Compute an absolute heuristic readiness score from RMSSD and HR.
 
-    Combines a tanh-normalised RMSSD component with an HR penalty to produce
-    a score in [0, 1]. High RMSSD and low HR push the score toward 1 (good
-    readiness); the reverse yields a score near 0.
+    .. warning::
+        **Internal use only — do not store in** ``HRVFeatures.score``.
 
-    This is a simplified heuristic score. For a baseline-relative score,
-    use ``readiness_score_oura`` or ``readiness_score_multi`` from
-    ``cardiolab.analytics.scoring``.
+        This function uses an *absolute* heuristic (no personal baseline) and
+        returns values on a ``[0, 1]`` scale.  All reporting and database
+        functions expect ``HRVFeatures.score`` on a ``[0, 100]`` scale
+        produced by a *baseline-relative* function such as
+        :func:`~cardiolab.analytics.scoring.readiness_score_multi`.
+
+        Storing the output of this function in ``HRVFeatures.score`` will
+        cause the gradient in ``table_resting_history`` to be essentially
+        invisible (the value is < 1 % of the expected 0–100 range).
+
+    Combines a tanh-normalised RMSSD component with an HR penalty and clips
+    the result to ``[0, 1]``.  High RMSSD and low HR push the score toward 1;
+    the reverse yields a score near 0.
 
     Args:
         rmssd_value: RMSSD of the current session in milliseconds.
         mean_hr: Mean heart rate of the current session in bpm.
 
     Returns:
-        Readiness score as a float in [0, 1].
+        Heuristic score clipped to ``[0.0, 1.0]``.
 
     """
     rmssd_norm = np.tanh(rmssd_value / 50.0)
@@ -300,4 +321,4 @@ def _compute_simple_score(rmssd_value: float, mean_hr: float) -> float:
 
     score = (rmssd_norm - hr_penalty + 1) / 2
 
-    return float(score)
+    return float(np.clip(score, 0.0, 1.0))

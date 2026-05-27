@@ -336,6 +336,86 @@ class OrthostaticRecord:
     hf_hr_pct_change: float
     interpretation: str
 
+    def to_flat_dict(self) -> dict:
+        """Return a flat dict of all fields (one row per session).
+
+        Mirrors the structure produced by ``OrthostaticResult.to_flat_dict()``
+        so that export functions that iterate over result objects can handle
+        ``OrthostaticRecord`` with the same code path.
+
+        HRV fields are prefixed ``supine_``, ``transition_``, and
+        ``standing_``.  Timing and response metrics are unprefixed.
+
+        Returns:
+            Dictionary with one key per metric, suitable for CSV export.
+
+        """
+
+        def _hrv_fields(prefix: str, features: HRVFeatures) -> dict:
+            return {
+                f"{prefix}_rmssd": features.rmssd,
+                f"{prefix}_ln_rmssd": features.ln_rmssd,
+                f"{prefix}_sdnn": features.sdnn,
+                f"{prefix}_pnn50": features.pnn50,
+                f"{prefix}_mean_hr": features.mean_hr,
+                f"{prefix}_vlf": features.vlf,
+                f"{prefix}_lf": features.lf,
+                f"{prefix}_hf": features.hf,
+                f"{prefix}_lf_hf": features.lf_hf,
+                f"{prefix}_hf_pct": features.hf_pct,
+                f"{prefix}_lf_nu": features.lf_nu,
+                f"{prefix}_hf_nu": features.hf_nu,
+                f"{prefix}_hf_hr": features.hf_hr,
+                f"{prefix}_sd1": features.sd1,
+                f"{prefix}_sd2": features.sd2,
+                f"{prefix}_sd_ratio": features.sd_ratio,
+                f"{prefix}_dfa_alpha1": features.dfa_alpha1,
+                f"{prefix}_apen": features.apen,
+                f"{prefix}_sampen": features.sampen,
+            }
+
+        return {
+            "date": self.date,
+            **_hrv_fields("supine", self.supine),
+            **_hrv_fields("transition", self.transition_features),
+            **_hrv_fields("standing", self.standing),
+            "transition_start_sec": self.transition_start_sec,
+            "transition_end_sec": self.transition_end_sec,
+            "transition_duration_sec": self.transition_duration_sec,
+            "transition_delta_hr": self.transition_delta_hr,
+            "transition_peak_hr": self.transition_peak_hr,
+            "hr_response": self.hr_response,
+            "lf_hf_ratio_change": self.lf_hf_ratio_change,
+            "hf_response_pct": self.hf_response_pct,
+            "hf_hr_pct_change": self.hf_hr_pct_change,
+            "interpretation": self.interpretation,
+        }
+
+    def to_reporting_row(self) -> dict:
+        """Return a condensed dict for use in reporting tables.
+
+        Produces the same keys as ``table_orthostatic_history`` expects so
+        that ``OrthostaticRecord`` objects can be passed to reporting helpers
+        without conversion.
+
+        Returns:
+            Dictionary with date, key supine/standing metrics, response
+            indicators, and interpretation.
+
+        """
+        return {
+            "date": self.date,
+            "supine_rmssd": self.supine.rmssd,
+            "standing_rmssd": self.standing.rmssd,
+            "supine_hr": self.supine.mean_hr,
+            "standing_hr": self.standing.mean_hr,
+            "hr_response": self.hr_response,
+            "lf_hf_change": self.lf_hf_ratio_change,
+            "hf_response_pct": self.hf_response_pct,
+            "hf_hr_pct_change": self.hf_hr_pct_change,
+            "interpretation": self.interpretation,
+        }
+
 
 # ======================
 # ROW HELPERS

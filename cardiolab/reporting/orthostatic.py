@@ -124,7 +124,7 @@ def table_orthostatic_comparison(
 
 
 def table_orthostatic_history(
-    results: list[OrthostaticResult],
+    results: list,
     dates: list[str] | None = None,
     caption_text: str = "Historique orthostatique — réponse autonome par session",
 ) -> pd.Styler:
@@ -134,30 +134,42 @@ def table_orthostatic_history(
     HF% change, HF/FC% change, LF/HF ratio change, interpretation).
 
     Args:
-        results: List of :class:`~cardiolab.protocols.orthostatic.OrthostaticResult`
-            in chronological order.
-        dates: Session labels. Falls back to ``"Session N"`` when ``None``.
+        results: List of orthostatic result objects in chronological order.
+            Accepts both :class:`~cardiolab.protocols.orthostatic.OrthostaticResult`
+            (live protocol output) and
+            :class:`~cardiolab.database.repository.OrthostaticRecord`
+            (database read-back). The two types expose the same response-metric
+            attributes; ``OrthostaticRecord`` additionally exposes
+            ``to_reporting_row()`` for convenience.
+        dates: Session labels. Falls back to ``r.date`` or ``"Session N"``.
         caption_text: Caption shown below the table.
 
     Returns:
         A :class:`~pandas.io.formats.style.Styler` ready for ``display()``.
 
     Raises:
-        TypeError: If ``results`` is not a list or contains wrong types.
         ValueError: If ``results`` is empty or ``dates`` length mismatches.
 
     """
-    _validate_list(results, OrthostaticResult, "results")
+    if not isinstance(results, list):
+        raise TypeError(f"results must be a list, got {type(results).__name__}")
+    if len(results) == 0:
+        raise ValueError("results must contain at least one element.")
     n = len(results)
     if dates is not None and len(dates) != n:
         raise ValueError(f"dates length ({len(dates)}) must match results length ({n})")
-    labels = dates or [f"Session {i + 1}" for i in range(n)]
 
     rows = []
-    for label, r in zip(labels, results, strict=False):
-        p = r.phases
-        rows.append(
-            {
+    for i, r in enumerate(results):
+        # Duck-typing: OrthostaticRecord exposes to_reporting_row()
+        if hasattr(r, "to_reporting_row"):
+            row = r.to_reporting_row()
+            row["date"] = (dates[i] if dates else None) or row.get("date") or f"Session {i + 1}"
+        else:
+            # OrthostaticResult — access via phases
+            p = r.phases
+            label = (dates[i] if dates else None) or getattr(r, "date", None) or f"Session {i + 1}"
+            row = {
                 "date": label,
                 "supine_rmssd": p.supine.features.rmssd,
                 "standing_rmssd": p.standing.features.rmssd,
@@ -169,7 +181,7 @@ def table_orthostatic_history(
                 "hf_hr_pct_change": r.hf_hr_pct_change,
                 "interpretation": r.interpretation,
             }
-        )
+        rows.append(row)
 
     df = pd.DataFrame(rows)
 
