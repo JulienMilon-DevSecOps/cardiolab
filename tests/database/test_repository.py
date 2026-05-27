@@ -1025,7 +1025,6 @@ def _repo_from_test_env(**kwargs) -> HRVRepository:
         DB_NAME_TEST=cardiolab_test
         DB_USER_TEST=cardiolab
         DB_PASSWORD_TEST=secret
-        RUN_INTEGRATION_TESTS=1
 
     """
     return HRVRepository(
@@ -1038,26 +1037,74 @@ def _repo_from_test_env(**kwargs) -> HRVRepository:
     )
 
 
+def _test_db_cleanup(table: str, user: str) -> None:
+    """Delete all rows for *user* from *table* using a direct psycopg2 connection.
+
+    Called in fixture teardowns so the DELETE is always committed, even when
+    the test raised an exception (pytest does not propagate test exceptions
+    into the fixture teardown, but a ``with HRVRepository`` block would roll
+    back if it sees one — using psycopg2 directly avoids that ambiguity).
+    """
+    import psycopg2  # local import: only needed for integration tests
+
+    conn = psycopg2.connect(
+        host=os.environ["DB_HOST_TEST"],
+        dbname=os.environ["DB_NAME_TEST"],
+        user=os.environ["DB_USER_TEST"],
+        password=os.environ["DB_PASSWORD_TEST"],
+        port=int(os.environ.get("DB_PORT_TEST", "5432")),
+    )
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"DELETE FROM {table} WHERE user_id = %s;", (user,))  # noqa: S608
+        conn.commit()
+    finally:
+        conn.close()
+
+
 @pytest.mark.integration
 @pytest.mark.skipif(
-    not os.getenv("RUN_INTEGRATION_TESTS"),
+    not os.getenv("DB_HOST_TEST"),
     reason=(
-        "Requires a running PostgreSQL instance. "
-        "Set RUN_INTEGRATION_TESTS=1 (and DB_HOST/DB_NAME/DB_USER/DB_PASSWORD) "
-        "to enable — typically done in .env for local NAS testing."
+        "Requires a running PostgreSQL test instance. "
+        "Set DB_HOST_TEST (+ DB_NAME_TEST, DB_USER_TEST, DB_PASSWORD_TEST) "
+        "in your .env — skipped automatically in GitLab CI."
     ),
 )
 class TestHRVRepositoryIntegration:
     """Full round-trip tests against a real PostgreSQL database.
 
-    These tests are skipped automatically when ``RUN_INTEGRATION_TESTS`` is not
-    set in the environment.  In GitLab CI, the variable is absent → tests skip.
-    Locally with the NAS running, add ``RUN_INTEGRATION_TESTS=1`` to your
-    ``.env`` file to enable them.
+    Activated automatically when ``DB_HOST_TEST`` is present in the environment
+    (loaded from ``.env`` by ``tests/conftest.py``).  In GitLab CI the variable
+    is absent → tests skip without any CI configuration needed.
+
+    Required ``.env`` keys::
+
+        DB_HOST_TEST=localhost       # host du conteneur Docker
+        DB_PORT_TEST=5432
+        DB_NAME_TEST=cardiolab_test  # base de test isolée
+        DB_USER_TEST=cardiolab
+        DB_PASSWORD_TEST=secret
+
+    Each test uses a dedicated fictional user ID (``_USER``) and cleans up its
+    rows in teardown so no real data is ever touched.
     """
 
+    _USER = "test-integration-user"
+    _TABLE = "_cardiolab_test_hrv"
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        """Create the test table before and delete test-user rows after each test."""
+        with _repo_from_test_env(table_name=self._TABLE) as repo:
+            repo.create_table()
+        yield
+        _test_db_cleanup(self._TABLE, self._USER)
+
+    # ── Tests ────────────────────────────────────────────────────────────────
+
     def test_resting_round_trip(self):
-        """save_features followed by load_features must return identical data."""
+        """save_features → load_features must return the same session."""
         features = HRVFeatures(
             date="2099-01-01",
             rmssd=55.0,
@@ -1076,22 +1123,35 @@ class TestHRVRepositoryIntegration:
             score=68.0,
         )
 
-        with _repo_from_test_env(table_name="test_hrv") as repo:
-            repo.create_table()
-            repo.save_features(features, user_id="integration-test-user")
-            loaded = repo.load_features(user_id="integration-test-user")
+        with _repo_from_test_env(table_name=self._TABLE) as repo:
+            repo.save_features(features, user_id=self._USER)
+            loaded = repo.load_features(user_id=self._USER)
 
-        assert any(f.date == "2099-01-01" and f.rmssd == 55.0 for f in loaded)
+        match = [f for f in loaded if f.date == "2099-01-01"]
+        assert len(match) == 1
+        assert match[0].rmssd == pytest.approx(55.0)
+        assert match[0].score == pytest.approx(68.0)
 
-    def test_upsert_does_not_duplicate(self):
-        """Saving the same session twice must not create two rows."""
+    def test_resting_upsert_no_duplicate(self):
+        """Saving the same (user, date) twice must produce exactly one row."""
         features = HRVFeatures(date="2099-01-02", rmssd=60.0, mean_hr=70.0)
 
-        with _repo_from_test_env(table_name="test_hrv") as repo:
-            repo.create_table()
-            repo.save_features(features, user_id="integration-test-user")
-            repo.save_features(features, user_id="integration-test-user")
-            loaded = repo.load_features(user_id="integration-test-user")
+        with _repo_from_test_env(table_name=self._TABLE) as repo:
+            repo.save_features(features, user_id=self._USER)
+            repo.save_features(features, user_id=self._USER)
+            loaded = repo.load_features(user_id=self._USER)
 
         matching = [f for f in loaded if f.date == "2099-01-02"]
         assert len(matching) == 1
+
+    def test_resting_score_persisted(self):
+        """The score field must survive a round-trip unchanged."""
+        features = HRVFeatures(date="2099-01-03", rmssd=70.0, mean_hr=62.0, score=83.5)
+
+        with _repo_from_test_env(table_name=self._TABLE) as repo:
+            repo.save_features(features, user_id=self._USER)
+            loaded = repo.load_features(user_id=self._USER)
+
+        match = next((f for f in loaded if f.date == "2099-01-03"), None)
+        assert match is not None
+        assert match.score == pytest.approx(83.5)

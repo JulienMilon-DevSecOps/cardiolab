@@ -3,9 +3,22 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import pytest
+
+# ── Chargement .env ──────────────────────────────────────────────────────────
+# Charge les variables d'environnement depuis le .env situé à la racine du
+# projet (un niveau au-dessus de tests/).  Permet d'utiliser DB_HOST_TEST,
+# DB_NAME_TEST, etc. directement dans les tests d'intégration sans avoir à les
+# exporter manuellement dans le shell.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).parent.parent / ".env", override=False)
+except ImportError:
+    pass  # python-dotenv facultatif — CI n'en a pas besoin
 
 from cardiolab.analytics.baseline import Baseline
 from cardiolab.protocols.resting import HRVFeatures
