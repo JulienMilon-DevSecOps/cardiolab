@@ -13,9 +13,11 @@ Integration tests (full DB round-trip) are in a separate class, marked with
 
 from __future__ import annotations
 
+import math
 import os
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 
 from cardiolab.database.repository import (
@@ -30,7 +32,12 @@ from cardiolab.database.repository import (
     _hrv_fields,
     _validate_identifier,
 )
+from cardiolab.protocols.cardiac_coherence import CoherenceResult
+from cardiolab.protocols.cardiac_drift import DriftResult
+from cardiolab.protocols.hrr import HRRResult
 from cardiolab.protocols.resting import HRVFeatures
+from cardiolab.protocols.vo2max import VO2maxResult
+from cardiolab.signals.rr import RRSeries
 
 # ======================
 # FIXTURES & HELPERS
@@ -1155,3 +1162,454 @@ class TestHRVRepositoryIntegration:
         match = next((f for f in loaded if f.date == "2099-01-03"), None)
         assert match is not None
         assert match.score == pytest.approx(83.5)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Shared skipif decorator for all integration classes
+# ──────────────────────────────────────────────────────────────────────────────
+
+_integration_skipif = pytest.mark.skipif(
+    not os.getenv("DB_HOST_TEST"),
+    reason=(
+        "Requires a running PostgreSQL test instance. "
+        "Set DB_HOST_TEST (+ DB_NAME_TEST, DB_USER_TEST, DB_PASSWORD_TEST) "
+        "in your .env — skipped automatically in GitLab CI."
+    ),
+)
+
+
+@pytest.mark.integration
+@_integration_skipif
+class TestCoherenceIntegration:
+    """Full round-trip tests for cardiac coherence sessions against a real DB."""
+
+    _USER = "test-integration-user"
+    _TABLE = "_cardiolab_test_coherence"
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        with _repo_from_test_env(coherence_table_name=self._TABLE) as repo:
+            repo.create_coherence_table()
+        yield
+        _test_db_cleanup(self._TABLE, self._USER)
+
+    def test_coherence_round_trip(self):
+        """save_coherence → load_coherence must return the same session."""
+        result = CoherenceResult(
+            date="2099-02-01",
+            coherence_score=65.0,
+            resonance_freq=0.1,
+            peak_power=1200.0,
+            total_power_resonance=2000.0,
+            rmssd=52.0,
+            sdnn=68.0,
+            mean_hr=60.0,
+            duration=300.0,
+            score=78.5,
+        )
+
+        with _repo_from_test_env(coherence_table_name=self._TABLE) as repo:
+            repo.save_coherence(result, user_id=self._USER, date="2099-02-01")
+            loaded = repo.load_coherence(user_id=self._USER)
+
+        match = [r for r in loaded if r.date == "2099-02-01"]
+        assert len(match) == 1
+        assert match[0].coherence_score == pytest.approx(65.0)
+        assert match[0].resonance_freq == pytest.approx(0.1)
+        assert match[0].rmssd == pytest.approx(52.0)
+
+    def test_coherence_upsert_no_duplicate(self):
+        """Saving the same (user, date) twice must produce exactly one row."""
+        result = CoherenceResult(date="2099-02-02", coherence_score=60.0)
+
+        with _repo_from_test_env(coherence_table_name=self._TABLE) as repo:
+            repo.save_coherence(result, user_id=self._USER, date="2099-02-02")
+            repo.save_coherence(result, user_id=self._USER, date="2099-02-02")
+            loaded = repo.load_coherence(user_id=self._USER)
+
+        assert len([r for r in loaded if r.date == "2099-02-02"]) == 1
+
+    def test_coherence_score_persisted(self):
+        """The score field must survive a round-trip unchanged."""
+        result = CoherenceResult(date="2099-02-03", coherence_score=72.0, score=82.5)
+
+        with _repo_from_test_env(coherence_table_name=self._TABLE) as repo:
+            repo.save_coherence(result, user_id=self._USER, date="2099-02-03")
+            loaded = repo.load_coherence(user_id=self._USER)
+
+        match = next((r for r in loaded if r.date == "2099-02-03"), None)
+        assert match is not None
+        assert match.score == pytest.approx(82.5)
+
+
+@pytest.mark.integration
+@_integration_skipif
+class TestHRRIntegration:
+    """Full round-trip tests for Heart Rate Recovery sessions against a real DB."""
+
+    _USER = "test-integration-user"
+    _TABLE = "_cardiolab_test_hrr"
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        with _repo_from_test_env(hrr_table_name=self._TABLE) as repo:
+            repo.create_hrr_table()
+        yield
+        _test_db_cleanup(self._TABLE, self._USER)
+
+    def test_hrr_round_trip(self):
+        """save_hrr → load_hrr must return the same session."""
+        result = HRRResult(
+            date="2099-03-01",
+            hr_peak=165.0,
+            hr_at_60s=140.0,
+            hr_at_120s=125.0,
+            hrr_60=25.0,
+            hrr_120=40.0,
+            hrr_60_category="excellent",
+            hrr_120_category="excellent",
+            duration=130.0,
+            score=88.0,
+        )
+
+        with _repo_from_test_env(hrr_table_name=self._TABLE) as repo:
+            repo.save_hrr(result, user_id=self._USER, date="2099-03-01")
+            loaded = repo.load_hrr(user_id=self._USER)
+
+        match = [r for r in loaded if r.date == "2099-03-01"]
+        assert len(match) == 1
+        assert match[0].hrr_60 == pytest.approx(25.0)
+        assert match[0].hrr_60_category == "excellent"
+
+    def test_hrr_upsert_no_duplicate(self):
+        """Saving the same (user, date) twice must produce exactly one row."""
+        result = HRRResult(date="2099-03-02", hrr_60=20.0)
+
+        with _repo_from_test_env(hrr_table_name=self._TABLE) as repo:
+            repo.save_hrr(result, user_id=self._USER, date="2099-03-02")
+            repo.save_hrr(result, user_id=self._USER, date="2099-03-02")
+            loaded = repo.load_hrr(user_id=self._USER)
+
+        assert len([r for r in loaded if r.date == "2099-03-02"]) == 1
+
+    def test_hrr_nan_preserved(self):
+        """hr_at_120s=NaN (short recording) must load back as NaN."""
+        result = HRRResult(
+            date="2099-03-03",
+            hr_peak=160.0,
+            hr_at_60s=138.0,
+            hr_at_120s=float("nan"),
+            hrr_60=22.0,
+            hrr_120=float("nan"),
+            hrr_60_category="good",
+            duration=70.0,
+        )
+
+        with _repo_from_test_env(hrr_table_name=self._TABLE) as repo:
+            repo.save_hrr(result, user_id=self._USER, date="2099-03-03")
+            loaded = repo.load_hrr(user_id=self._USER)
+
+        match = next((r for r in loaded if r.date == "2099-03-03"), None)
+        assert match is not None
+        assert math.isnan(match.hr_at_120s)
+        assert math.isnan(match.hrr_120)
+
+    def test_hrr_score_persisted(self):
+        """The score field must survive a round-trip unchanged."""
+        result = HRRResult(date="2099-03-04", hrr_60=24.0, score=85.0)
+
+        with _repo_from_test_env(hrr_table_name=self._TABLE) as repo:
+            repo.save_hrr(result, user_id=self._USER, date="2099-03-04")
+            loaded = repo.load_hrr(user_id=self._USER)
+
+        match = next((r for r in loaded if r.date == "2099-03-04"), None)
+        assert match is not None
+        assert match.score == pytest.approx(85.0)
+
+
+@pytest.mark.integration
+@_integration_skipif
+class TestDriftIntegration:
+    """Full round-trip tests for cardiac drift sessions against a real DB."""
+
+    _USER = "test-integration-user"
+    _TABLE = "_cardiolab_test_drift"
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        with _repo_from_test_env(drift_table_name=self._TABLE) as repo:
+            repo.create_drift_table()
+        yield
+        _test_db_cleanup(self._TABLE, self._USER)
+
+    def test_drift_round_trip(self):
+        """save_drift → load_drift must return the same session."""
+        result = DriftResult(
+            date="2099-04-01",
+            drift_rate=0.8,
+            drift_magnitude=4.0,
+            r_squared=0.91,
+            drift_detected=True,
+            initial_hr=140.0,
+            final_hr=144.0,
+            n_windows=12,
+            interpretation="mild",
+            duration=1200.0,
+            score=72.0,
+        )
+
+        with _repo_from_test_env(drift_table_name=self._TABLE) as repo:
+            repo.save_drift(result, user_id=self._USER, date="2099-04-01")
+            loaded = repo.load_drift(user_id=self._USER)
+
+        match = [r for r in loaded if r.date == "2099-04-01"]
+        assert len(match) == 1
+        assert match[0].drift_rate == pytest.approx(0.8)
+        assert match[0].interpretation == "mild"
+
+    def test_drift_upsert_no_duplicate(self):
+        """Saving the same (user, date) twice must produce exactly one row."""
+        result = DriftResult(date="2099-04-02", drift_rate=0.3)
+
+        with _repo_from_test_env(drift_table_name=self._TABLE) as repo:
+            repo.save_drift(result, user_id=self._USER, date="2099-04-02")
+            repo.save_drift(result, user_id=self._USER, date="2099-04-02")
+            loaded = repo.load_drift(user_id=self._USER)
+
+        assert len([r for r in loaded if r.date == "2099-04-02"]) == 1
+
+    def test_drift_bool_and_score_persisted(self):
+        """drift_detected (bool) and score must survive a round-trip."""
+        result = DriftResult(
+            date="2099-04-03",
+            drift_rate=2.0,
+            drift_detected=True,
+            interpretation="moderate",
+            score=38.0,
+        )
+
+        with _repo_from_test_env(drift_table_name=self._TABLE) as repo:
+            repo.save_drift(result, user_id=self._USER, date="2099-04-03")
+            loaded = repo.load_drift(user_id=self._USER)
+
+        match = next((r for r in loaded if r.date == "2099-04-03"), None)
+        assert match is not None
+        assert match.drift_detected is True
+        assert match.score == pytest.approx(38.0)
+
+
+@pytest.mark.integration
+@_integration_skipif
+class TestVO2maxIntegration:
+    """Full round-trip tests for VO2max estimation sessions against a real DB."""
+
+    _USER = "test-integration-user"
+    _TABLE = "_cardiolab_test_vo2max"
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        with _repo_from_test_env(vo2max_table_name=self._TABLE) as repo:
+            repo.create_vo2max_table()
+        yield
+        _test_db_cleanup(self._TABLE, self._USER)
+
+    def test_vo2max_round_trip(self):
+        """save_vo2max → load_vo2max must return the same session."""
+        result = VO2maxResult(
+            date="2099-05-01",
+            vo2max_uth=float("nan"),
+            vo2max_esco_flatt=45.0,
+            vo2max_ln_rmssd=43.5,
+            hr_rest=55.0,
+            hr_max=float("nan"),
+            rmssd_used=62.0,
+            ln_rmssd_used=4.13,
+            fitness_category="good",
+            score=55.0,
+        )
+
+        with _repo_from_test_env(vo2max_table_name=self._TABLE) as repo:
+            repo.save_vo2max(result, user_id=self._USER, date="2099-05-01")
+            loaded = repo.load_vo2max(user_id=self._USER)
+
+        match = [r for r in loaded if r.date == "2099-05-01"]
+        assert len(match) == 1
+        assert match[0].vo2max_esco_flatt == pytest.approx(45.0)
+        assert match[0].fitness_category == "good"
+
+    def test_vo2max_upsert_no_duplicate(self):
+        """Saving the same (user, date) twice must produce exactly one row."""
+        result = VO2maxResult(date="2099-05-02", vo2max_esco_flatt=42.0)
+
+        with _repo_from_test_env(vo2max_table_name=self._TABLE) as repo:
+            repo.save_vo2max(result, user_id=self._USER, date="2099-05-02")
+            repo.save_vo2max(result, user_id=self._USER, date="2099-05-02")
+            loaded = repo.load_vo2max(user_id=self._USER)
+
+        assert len([r for r in loaded if r.date == "2099-05-02"]) == 1
+
+    def test_vo2max_nan_preserved(self):
+        """vo2max_uth=NaN (no hr_max provided) must load back as NaN."""
+        result = VO2maxResult(
+            date="2099-05-03",
+            vo2max_uth=float("nan"),
+            vo2max_esco_flatt=44.0,
+            hr_max=float("nan"),
+        )
+
+        with _repo_from_test_env(vo2max_table_name=self._TABLE) as repo:
+            repo.save_vo2max(result, user_id=self._USER, date="2099-05-03")
+            loaded = repo.load_vo2max(user_id=self._USER)
+
+        match = next((r for r in loaded if r.date == "2099-05-03"), None)
+        assert match is not None
+        assert math.isnan(match.vo2max_uth)
+        assert math.isnan(match.hr_max)
+
+    def test_vo2max_score_persisted(self):
+        """The score field must survive a round-trip unchanged."""
+        result = VO2maxResult(date="2099-05-04", vo2max_esco_flatt=50.0, score=73.0)
+
+        with _repo_from_test_env(vo2max_table_name=self._TABLE) as repo:
+            repo.save_vo2max(result, user_id=self._USER, date="2099-05-04")
+            loaded = repo.load_vo2max(user_id=self._USER)
+
+        match = next((r for r in loaded if r.date == "2099-05-04"), None)
+        assert match is not None
+        assert match.score == pytest.approx(73.0)
+
+
+@pytest.mark.integration
+@_integration_skipif
+class TestRawSessionsIntegration:
+    """Full round-trip tests for raw RR interval storage against a real DB."""
+
+    _USER = "test-integration-user"
+    _TABLE = "_cardiolab_test_raw"
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        with _repo_from_test_env(raw_sessions_table_name=self._TABLE) as repo:
+            repo.create_raw_sessions_table()
+        yield
+        # raw sessions table has user_id column — same cleanup pattern
+        _test_db_cleanup(self._TABLE, self._USER)
+
+    def test_raw_session_round_trip(self):
+        """save_raw_session → load_raw_session must reconstruct the same intervals."""
+        intervals = np.array([850.0, 860.0, 840.0, 855.0, 865.0] * 60)
+        rr = RRSeries(intervals=intervals)
+
+        with _repo_from_test_env(raw_sessions_table_name=self._TABLE) as repo:
+            repo.save_raw_session(
+                rr, user_id=self._USER, date="2099-06-01", protocol="resting"
+            )
+            loaded = repo.load_raw_session(
+                user_id=self._USER, date="2099-06-01", protocol="resting"
+            )
+
+        assert loaded is not None
+        assert len(loaded.intervals) == len(intervals)
+        assert loaded.intervals[0] == pytest.approx(850.0)
+
+    def test_raw_session_not_found(self):
+        """load_raw_session for a non-existent key must return None."""
+        with _repo_from_test_env(raw_sessions_table_name=self._TABLE) as repo:
+            result = repo.load_raw_session(
+                user_id=self._USER, date="2099-06-02", protocol="resting"
+            )
+
+        assert result is None
+
+    def test_list_raw_sessions(self):
+        """list_raw_sessions must include all saved sessions for the user."""
+        intervals = np.array([857.0] * 100)
+        rr = RRSeries(intervals=intervals)
+
+        with _repo_from_test_env(raw_sessions_table_name=self._TABLE) as repo:
+            repo.save_raw_session(
+                rr, user_id=self._USER, date="2099-06-03", protocol="resting"
+            )
+            repo.save_raw_session(
+                rr, user_id=self._USER, date="2099-06-04", protocol="orthostatic"
+            )
+            sessions = repo.list_raw_sessions(user_id=self._USER)
+
+        dates = [s["date"] for s in sessions]
+        assert len(sessions) == 2
+        assert any(d == "2099-06-03" for d in dates)
+
+    def test_raw_session_upsert_no_duplicate(self):
+        """Saving the same (user, date, protocol) twice must produce one row."""
+        intervals = np.array([857.0] * 50)
+        rr = RRSeries(intervals=intervals)
+
+        with _repo_from_test_env(raw_sessions_table_name=self._TABLE) as repo:
+            repo.save_raw_session(
+                rr, user_id=self._USER, date="2099-06-05", protocol="resting"
+            )
+            repo.save_raw_session(
+                rr, user_id=self._USER, date="2099-06-05", protocol="resting"
+            )
+            sessions = repo.list_raw_sessions(user_id=self._USER, protocol="resting")
+
+        assert len([s for s in sessions if s["date"] == "2099-06-05"]) == 1
+
+
+@pytest.mark.integration
+@_integration_skipif
+class TestOrthostaticIntegration:
+    """Full round-trip tests for orthostatic sessions against a real DB."""
+
+    _USER = "test-integration-user"
+    _TABLE = "_cardiolab_test_ortho"
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        with _repo_from_test_env(ortho_table_name=self._TABLE) as repo:
+            repo.create_orthostatic_table()
+        yield
+        _test_db_cleanup(self._TABLE, self._USER)
+
+    def _make_ortho_result(self, hr_response: float = 18.0, score: float = 75.0) -> MagicMock:
+        """Build a minimal OrthostaticResult mock suitable for save_orthostatic."""
+        result = _mock_ortho_result()
+        result.hr_response = hr_response
+        result.score = score
+        return result
+
+    def test_ortho_round_trip(self):
+        """save_orthostatic → load_orthostatic must return an OrthostaticRecord."""
+        result = self._make_ortho_result(hr_response=18.0, score=75.0)
+
+        with _repo_from_test_env(ortho_table_name=self._TABLE) as repo:
+            repo.save_orthostatic(result, user_id=self._USER, date="2099-07-01")
+            loaded = repo.load_orthostatic(user_id=self._USER)
+
+        match = [r for r in loaded if str(r.date) == "2099-07-01"]
+        assert len(match) == 1
+        assert match[0].hr_response == pytest.approx(18.0)
+        assert match[0].interpretation == "normal"
+
+    def test_ortho_upsert_no_duplicate(self):
+        """Saving the same (user, date) twice must produce exactly one row."""
+        result = self._make_ortho_result()
+
+        with _repo_from_test_env(ortho_table_name=self._TABLE) as repo:
+            repo.save_orthostatic(result, user_id=self._USER, date="2099-07-02")
+            repo.save_orthostatic(result, user_id=self._USER, date="2099-07-02")
+            loaded = repo.load_orthostatic(user_id=self._USER)
+
+        assert len([r for r in loaded if str(r.date) == "2099-07-02"]) == 1
+
+    def test_ortho_score_persisted(self):
+        """The score field must survive a round-trip unchanged."""
+        result = self._make_ortho_result(hr_response=20.0, score=91.0)
+
+        with _repo_from_test_env(ortho_table_name=self._TABLE) as repo:
+            repo.save_orthostatic(result, user_id=self._USER, date="2099-07-03")
+            loaded = repo.load_orthostatic(user_id=self._USER)
+
+        match = next((r for r in loaded if str(r.date) == "2099-07-03"), None)
+        assert match is not None
+        assert match.score == pytest.approx(91.0)
