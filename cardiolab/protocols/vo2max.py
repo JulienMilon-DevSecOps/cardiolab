@@ -108,6 +108,7 @@ class VO2maxResult:
     rmssd_used: float = 0.0
     ln_rmssd_used: float = 0.0
     fitness_category: str = "poor"
+    score: float = 0.0
 
     def to_dict(self) -> dict:
         """Return a flat dictionary of all result fields."""
@@ -121,6 +122,7 @@ class VO2maxResult:
             "rmssd_used": self.rmssd_used,
             "ln_rmssd_used": self.ln_rmssd_used,
             "fitness_category": self.fitness_category,
+            "score": self.score,
         }
 
 

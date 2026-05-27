@@ -63,6 +63,7 @@ class TestCoherenceResult:
             "sdnn",
             "mean_hr",
             "duration",
+            "score",
         }
         assert set(d.keys()) == expected
 

@@ -1,30 +1,42 @@
-"""Readiness scoring functions based on HRV features and personal baseline.
+"""Readiness and protocol scoring functions.
 
-Three complementary scoring approaches are provided, designed to be used
-together or independently:
+**Resting HRV (baseline-relative) — :func:`readiness_score_multi` et al.**
+
+Three complementary scoring approaches for resting HRV, all relative to
+the personal baseline:
 
 * :func:`readiness_score_multi` — classical multi-factor score combining
   time-domain metrics (RMSSD, HR) with the DFA α1 non-linear marker and a
   short-term trend component. Robust and well-suited for daily monitoring.
-
 * :func:`readiness_score_nonlinear` — purely non-linear score built from the
-  Poincaré and DFA metrics (SD1, SD1/SD2, DFA α1). Captures a dimension of
-  autonomic state that linear metrics alone miss. Best used after at least
-  7 sessions so the SD1 baseline is meaningful.
+  Poincaré and DFA metrics (SD1, SD1/SD2, DFA α1). Best used after at least
+  7 sessions.
+* :func:`readiness_score_composite` — weighted combination of the two above.
 
-* :func:`readiness_score_composite` — weighted combination of the two
-  functions above. Provides the most complete picture by integrating classical
-  and non-linear evidence into a single number.
+All resting scores are normalised to [0, 100]:
 
-All scores are normalised to [0, 100]:
-
-    * 50 = neutral (current session equals the personal baseline on all
-      components, or insufficient data).
+    * 50 = neutral (current session equals the personal baseline).
     * > 50 = above baseline → positive recovery signal.
     * < 50 = below baseline → possible fatigue or stress.
 
-Legacy simple function :func:`readiness_score_oura` is also kept for
-compatibility.
+**Protocol-specific scores (absolute thresholds) — scientific references**
+
+The following functions score other protocols against published clinical
+thresholds. They do **not** require a personal baseline and return [0, 100]:
+
+* :func:`hrr_score` — HRR1 (60 s recovery drop), Cole et al. 1999 (*NEJM*).
+  Inflection at 18 bpm (mid-normal). ≥ 25 bpm → ~88 pts; < 12 bpm → ~13 pts.
+* :func:`coherence_score_100` — maps ``coherence_score`` (%) to [0, 100] with
+  amplified discrimination: ≥ 60 % → ≥ 75 pts (Lehrer & Gevirtz 2014).
+* :func:`drift_score` — inverted score from ``drift_rate`` (bpm/min).
+  No drift (0 bpm/min) → 100 pts; strong drift (≥ 3 bpm/min) → ~17 pts
+  (Coyle & González-Alonso 2001).
+* :func:`vo2max_score` — maps VO2max estimate (mL/kg/min) to [0, 100] via
+  ACSM 2022 fitness categories. Inflection at 43 mL/kg/min (average adult).
+* :func:`orthostatic_score` — composite autonomic score for the postural
+  (tilt) test: 80 % ΔHR component (Brignole et al. 2018 ESC Guidelines;
+  Sheldon et al. 2015 POTS consensus) + 20 % HF vagal-withdrawal component
+  (Task Force ESC/NASPE 1996). Normal ΔHR range: 10–25 bpm.
 """
 
 from __future__ import annotations
@@ -312,3 +324,230 @@ def readiness_score_composite(
     score = (w_multi * score_m + w_nonlinear * score_nl) / total
 
     return float(np.clip(score, 0.0, 100.0))
+
+
+# ======================
+# PROTOCOL-SPECIFIC ABSOLUTE SCORES
+# ======================
+
+
+def hrr_score(hrr_60: float) -> float:
+    """Compute an HRR performance score from the 60-second heart rate drop.
+
+    Maps HRR1 (bpm) to [0, 100] using a sigmoid centred at 18 bpm (mid-normal
+    range), calibrated against the Cole et al. (1999) clinical thresholds:
+
+    | HRR1 (bpm) | Category  | Approximate score |
+    | ---------- | --------- | ----------------- |
+    | ≥ 25       | Excellent | ≥ 88              |
+    | 20 – 24    | Good      | 64 – 87           |
+    | 12 – 19    | Normal    | 14 – 63           |
+    | < 12       | Impaired  | < 14              |
+
+    References:
+        Cole, C. R., et al. (1999). Heart-rate recovery immediately after
+        exercise as a predictor of mortality. *NEJM*, 341(18), 1351–1357.
+
+    Args:
+        hrr_60: Heart-rate drop from peak to 60 s post-exercise (bpm).
+
+    Returns:
+        Score in [0, 100].
+
+    """
+    return float(np.clip(50.0 + 50.0 * np.tanh((hrr_60 - 18.0) / 7.0), 0.0, 100.0))
+
+
+def coherence_score_100(coherence_score: float) -> float:
+    """Map a cardiac coherence percentage to a [0, 100] performance score.
+
+    Amplifies discrimination around the clinical threshold (60 %) so that
+    the good coherence zone (≥ 60 %) maps to ≥ 75 points and the poor zone
+    (< 40 %) maps to ≤ 25 points, following Lehrer & Gevirtz (2014).
+
+    | Coherence (%) | Clinical level | Approximate score |
+    | ------------- | -------------- | ----------------- |
+    | ≥ 60          | Good           | ≥ 75              |
+    | 40 – 59       | Moderate       | 25 – 74           |
+    | < 40          | Poor           | < 25              |
+
+    References:
+        Lehrer, P. M., & Gevirtz, R. (2014). Heart rate variability
+        biofeedback: how and why does it work? *Frontiers in Psychology*, 5,
+        756.
+
+    Args:
+        coherence_score: Raw coherence score [0, 100] from
+            ``cardiac_coherence()``.
+
+    Returns:
+        Normalised performance score in [0, 100].
+
+    """
+    # Sigmoid centred at 50 % with steeper slope to spread good/poor apart
+    return float(
+        np.clip(50.0 + 50.0 * np.tanh((coherence_score - 50.0) / 20.0), 0.0, 100.0)
+    )
+
+
+def drift_score(drift_rate: float) -> float:
+    """Compute a performance score from the cardiac drift rate (bpm/min).
+
+    Lower drift is better. The score is an inverted exponential decay so that
+    no drift (0 bpm/min) gives the maximum score and strong drift (≥ 3 bpm/min)
+    gives a very low score, matching the Coyle & González-Alonso (2001) limits.
+
+    | Drift rate (bpm/min) | Category  | Approximate score |
+    | -------------------- | --------- | ----------------- |
+    | < 0.5                | No drift  | ≥ 82              |
+    | 0.5 – 1.5            | Mild      | 55 – 81           |
+    | 1.5 – 3.0            | Moderate  | 22 – 54           |
+    | > 3.0                | Strong    | < 22              |
+
+    References:
+        Coyle, E. F., & González-Alonso, J. (2001). Cardiovascular drift
+        during prolonged exercise. *Exercise and Sport Sciences Reviews*,
+        29(2), 88–92.
+
+    Args:
+        drift_rate: Slope of the HR–time linear regression (bpm/min).
+            Negative values (HR decreasing) are treated as 0 (best case).
+
+    Returns:
+        Score in [0, 100].
+
+    """
+    rate = max(drift_rate, 0.0)  # negative drift treated as no-drift
+    return float(np.clip(100.0 * (1.0 - np.tanh(rate / 2.5)), 0.0, 100.0))
+
+
+def vo2max_score(vo2max: float) -> float:
+    """Compute a fitness score from a VO2max estimate (mL/kg/min).
+
+    Maps to [0, 100] using a sigmoid centred at 43 mL/kg/min (average
+    adult, centre of the "Good" ACSM category), calibrated so that:
+
+    | VO2max (mL/kg/min) | ACSM category | Approximate score |
+    | ------------------ | ------------- | ----------------- |
+    | ≥ 58               | Excellent     | ≥ 93              |
+    | 48 – 57            | Very good     | 70 – 92           |
+    | 38 – 47            | Good          | 30 – 69           |
+    | 28 – 37            | Fair          | 8 – 29            |
+    | < 28               | Poor          | < 8               |
+
+    References:
+        American College of Sports Medicine (2022). *ACSM's Guidelines for
+        Exercise Testing and Prescription* (11th ed.). LWW.
+
+    Args:
+        vo2max: VO2max estimate in mL/kg/min. Must be > 0.
+
+    Returns:
+        Score in [0, 100]. Returns 0.0 if ``vo2max`` is not finite or ≤ 0.
+
+    """
+    if not math.isfinite(vo2max) or vo2max <= 0.0:
+        return 0.0
+    return float(np.clip(50.0 + 50.0 * np.tanh((vo2max - 43.0) / 12.0), 0.0, 100.0))
+
+
+def orthostatic_score(hr_response: float, hf_response_pct: float = 0.0) -> float:
+    """Compute a composite autonomic score for the orthostatic (tilt) test.
+
+    The score combines two validated autonomic markers:
+
+    * **ΔHR component (80 %)** — HR increase from supine baseline to
+      stabilised standing position.  The optimal physiological range is 10–25
+      bpm; below 5 bpm indicates an impaired sympathetic response, above 30
+      bpm meets the POTS (Postural Orthostatic Tachycardia Syndrome) criterion.
+    * **HF vagal-withdrawal component (20 %)** — relative drop in HF spectral
+      power on standing.  A drop of −30 % to −60 % reflects normal vagal
+      withdrawal; outside this range the component score is reduced.
+
+    ΔHR calibration:
+
+    | ΔHR (bpm)  | Category             | Approximate score |
+    | ---------- | -------------------- | ----------------- |
+    | < 5        | Severely impaired    | < 20              |
+    | 5 – 10     | Borderline low       | 20 – 65           |
+    | 10 – 25    | Normal (optimal)     | 65 – 100          |
+    | 25 – 30    | Borderline elevated  | 40 – 65           |
+    | > 30       | Elevated (POTS)      | < 30              |
+
+    HF withdrawal calibration:
+
+    | hf_response_pct | Category                  | HF sub-score |
+    | --------------- | ------------------------- | ------------ |
+    | −60 % to −30 %  | Normal vagal withdrawal   | 1.0          |
+    | 0 % to −30 %    | Insufficient withdrawal   | 0 – 1.0      |
+    | > 0 %           | Paradoxical (HF increase) | 0.0          |
+    | < −60 %         | Excessive withdrawal      | 0 – 1.0      |
+
+    References:
+        Brignole, M., et al. (2018). 2018 ESC Guidelines for the diagnosis
+        and management of syncope. *European Heart Journal*, 39(21), 1883–1948.
+
+        Sheldon, R. S., et al. (2015). 2015 Heart Rhythm Society expert
+        consensus statement on the diagnosis and treatment of postural
+        tachycardia syndrome, inappropriate sinus tachycardia, and vasovagal
+        syncope. *Heart Rhythm*, 12(6), e41–e63.
+
+        Task Force of the European Society of Cardiology and the North
+        American Society of Pacing and Electrophysiology (1996). Heart rate
+        variability: standards of measurement, physiological interpretation,
+        and clinical use. *Circulation*, 93(5), 1043–1065.
+
+    Args:
+        hr_response: HR increase from supine to stabilised standing (bpm).
+            Negative values are treated as 0.
+        hf_response_pct: Relative change in HF spectral power from supine to
+            standing, in percent (typically negative — HF decreases on
+            standing). Defaults to 0.0 when not available.
+
+    Returns:
+        Composite autonomic score in [0, 100].
+
+    """
+    # ── ΔHR component (piece-wise, U-shaped) ─────────────────────────────────
+    # Local constants (lowercase to comply with PEP 8 / ruff N806)
+    opt_low: float = 10.0  # lower bound of normal range (bpm)
+    opt_high: float = 25.0  # upper bound of normal range (bpm)
+    opt_ctr: float = 17.5  # midpoint — peak score (bpm)
+    pots: float = 30.0  # POTS threshold (bpm)
+
+    hr = max(hr_response, 0.0)
+
+    if hr < opt_low:
+        # Impaired zone: linear from 0 to 65 over [0, 10]
+        hr_score: float = 65.0 * (hr / opt_low)
+    elif hr <= opt_high:
+        # Normal zone: 65–100, peak at centre
+        deviation = abs(hr - opt_ctr) / (opt_high - opt_low) * 2.0
+        hr_score = 100.0 - 35.0 * deviation
+    elif hr <= pots:
+        # Borderline high: linear from 65 at 25 bpm to 30 at 30 bpm
+        t = (hr - opt_high) / (pots - opt_high)
+        hr_score = 65.0 - 35.0 * t
+    else:
+        # POTS zone: exponential decay from 30 at 30 bpm
+        hr_score = max(0.0, 30.0 * math.exp(-(hr - pots) / 5.0))
+
+    # ── HF vagal-withdrawal component ────────────────────────────────────────
+    # hf_response_pct is negative when HF power drops (normal direction).
+    if hf_response_pct < -60.0:
+        # Excessive withdrawal: linear from 1.0 at −60 % to 0 at −100 %
+        excess = (-hf_response_pct - 60.0) / 40.0
+        hf_sub: float = max(0.0, 1.0 - excess)
+    elif hf_response_pct <= -30.0:
+        # Normal range (−30 % to −60 %): full sub-score
+        hf_sub = 1.0
+    elif hf_response_pct < 0.0:
+        # Insufficient withdrawal: linear from 0 to 1.0
+        hf_sub = -hf_response_pct / 30.0
+    else:
+        # Paradoxical increase (HF went up on standing)
+        hf_sub = 0.0
+
+    # ── Weighted combination ──────────────────────────────────────────────────
+    combined = 0.80 * hr_score + 0.20 * (hf_sub * 100.0)
+    return float(np.clip(combined, 0.0, 100.0))

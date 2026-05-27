@@ -1,11 +1,12 @@
 """Synthetic dashboard and mini-protocol plots for HRV overview.
 
-Eight public functions cover two categories:
+Nine public functions cover two categories:
 
-Global C6 dashboards
+Global / longitudinal dashboards
     * :func:`plot_session_dashboard`    — 2×3 grid: resting HRV + optional protocols.
     * :func:`plot_longitudinal_heatmap` — sessions × metrics normalized colour heatmap.
     * :func:`plot_readiness_evolution`  — readiness score timeline with rolling band.
+    * :func:`plot_score_evolution`      — [0–100] score timeline for any protocol.
 
 Per-protocol mini-dashboards
     * :func:`plot_resting_mini`   — 2×2 resting summary (tachogram, Poincaré, PSD, score).
@@ -527,6 +528,128 @@ def plot_readiness_evolution(
     ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=9)
     ax.set_ylim(0.0, 100.0)
     ax.set_ylabel("Readiness Score (0–100)", fontsize=10)
+    ax.legend(loc="upper left", fontsize=8)
+    ax.grid(alpha=0.20, linestyle=":", axis="y")
+    fig.suptitle(title, fontsize=12, fontweight="bold")
+    plt.tight_layout()
+    return fig
+
+
+def plot_score_evolution(
+    results: list,
+    protocol_name: str = "Protocol",
+    labels: list[str] | None = None,
+    title: str | None = None,
+    figsize: tuple[float, float] = (12, 5),
+) -> Figure:
+    """Plot the [0–100] performance score evolution for any protocol.
+
+    Generic timeline chart that works with any result type carrying a ``.score``
+    attribute (``HRVFeatures``, ``HRRResult``, ``CoherenceResult``,
+    ``DriftResult``, ``VO2maxResult``, ``OrthostaticRecord``, …).
+
+    The chart shares the same zone layout as
+    :func:`plot_readiness_evolution` (red / orange / green bands at 0–33 /
+    33–66 / 66–100) and draws a rolling-average band when at least 5 sessions
+    are available.
+
+    Args:
+        results: List of protocol-result objects in chronological order. Each
+            item must expose a ``.score`` attribute (float, [0–100]) and
+            optionally a ``.date`` attribute used for automatic x-axis labels.
+        protocol_name: Human-readable protocol name used in the y-axis label
+            and default title. Defaults to ``"Protocol"``.
+        labels: Explicit x-axis session labels. Falls back to
+            ``result.date`` or ``"Session N"`` if not provided.
+        title: Figure suptitle. Defaults to
+            ``"<protocol_name> — Score Evolution"``.
+        figsize: Width × height in inches. Defaults to ``(12, 5)``.
+
+    Returns:
+        The :class:`~matplotlib.figure.Figure`.
+
+    Raises:
+        ValueError: If ``results`` is empty or ``labels`` length mismatches.
+
+    """
+    if len(results) == 0:
+        raise ValueError("results must contain at least one item.")
+    n = len(results)
+    if labels is not None and len(labels) != n:
+        raise ValueError(
+            f"labels length ({len(labels)}) must match results length ({n})"
+        )
+    if labels is None:
+        labels = [
+            str(getattr(r, "date", None) or f"Session {i + 1}")
+            for i, r in enumerate(results)
+        ]
+    if title is None:
+        title = f"{protocol_name} — Score Evolution"
+
+    scores = np.array([float(getattr(r, "score", 0.0)) for r in results])
+    xs = list(range(n))
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Zone backgrounds
+    ax.axhspan(0.0, 33.0, color="#fadbd8", alpha=0.35, zorder=0)
+    ax.axhspan(33.0, 66.0, color="#fef9e7", alpha=0.35, zorder=0)
+    ax.axhspan(66.0, 100.0, color="#d5f5e3", alpha=0.35, zorder=0)
+    ax.axhline(33.0, color=_GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
+    ax.axhline(66.0, color=_GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
+
+    # Rolling average band (≥ 5 sessions)
+    if n >= _ROLLING_WIN:
+        kernel = np.ones(_ROLLING_WIN) / _ROLLING_WIN
+        rolling = np.convolve(scores, kernel, mode="valid")
+        rx = list(range(_ROLLING_WIN - 1, n))
+        ax.fill_between(
+            rx,
+            rolling * 0.90,
+            rolling * 1.10,
+            color="#aed6f1",
+            alpha=0.35,
+            zorder=1,
+            label=f"{_ROLLING_WIN}-session rolling band",
+        )
+        ax.plot(
+            rx,
+            rolling,
+            color=_BLUE,
+            linewidth=1.2,
+            linestyle="--",
+            alpha=0.7,
+            zorder=2,
+            label="Rolling mean",
+        )
+
+    # Score line
+    ax.plot(xs, scores, color=_DARK, linewidth=1.8, zorder=3, label="Score")
+
+    # Session dots coloured by zone
+    for x, s in zip(xs, scores, strict=False):
+        dot_color = _GREEN if s >= 66.0 else (_ORANGE if s >= 33.0 else _RED)
+        ax.scatter([x], [s], s=55, color=dot_color, zorder=5)
+        ax.text(
+            x,
+            min(s + 2.0, 97.0),
+            f"{s:.0f}",
+            ha="center",
+            va="bottom",
+            fontsize=7,
+            color=dot_color,
+        )
+
+    # Right-margin zone labels
+    ax.text(n - 0.5, 16.5, "Low", ha="right", va="center", fontsize=8, color=_GRAY)
+    ax.text(n - 0.5, 49.5, "Moderate", ha="right", va="center", fontsize=8, color=_GRAY)
+    ax.text(n - 0.5, 83.0, "Good", ha="right", va="center", fontsize=8, color=_GRAY)
+
+    ax.set_xticks(xs)
+    ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=9)
+    ax.set_ylim(0.0, 100.0)
+    ax.set_ylabel(f"{protocol_name} Score (0–100)", fontsize=10)
     ax.legend(loc="upper left", fontsize=8)
     ax.grid(alpha=0.20, linestyle=":", axis="y")
     fig.suptitle(title, fontsize=12, fontweight="bold")

@@ -4,3 +4,4 @@ main_test.py
 __pycache__
 cardiolab/datasets/raw/
 .env
+local/
