@@ -22,6 +22,7 @@ from cardiolab.visualization.dashboard_plots import (
     plot_longitudinal_heatmap,
     plot_readiness_evolution,
     plot_resting_mini,
+    plot_score_evolution,
     plot_session_dashboard,
     plot_vo2max_mini,
 )
@@ -442,6 +443,125 @@ class TestPlotReadinessEvolution:
         """Raise ValueError when labels length mismatches features."""
         with pytest.raises(ValueError, match="labels length"):
             plot_readiness_evolution([feats], labels=["A", "B"])
+
+
+# ── plot_score_evolution ──────────────────────────────────────────────────────
+
+
+class _ScoreResult:
+    """Minimal stand-in for any protocol result carrying .score and .date."""
+
+    def __init__(self, score: float, date: str | None = None) -> None:
+        self.score = score
+        self.date = date
+
+
+class TestPlotScoreEvolution:
+    """Tests for the generic plot_score_evolution function."""
+
+    def test_returns_figure(self) -> None:
+        """Return a matplotlib Figure."""
+        fig = plot_score_evolution([_ScoreResult(55.0)])
+        assert isinstance(fig, Figure)
+
+    def test_single_axis(self) -> None:
+        """Produce exactly one axes."""
+        fig = plot_score_evolution([_ScoreResult(55.0)])
+        assert len(fig.axes) == 1
+
+    def test_ylim_zero_to_hundred(self) -> None:
+        """Y-axis must span exactly [0, 100]."""
+        fig = plot_score_evolution([_ScoreResult(70.0)])
+        lo, hi = fig.axes[0].get_ylim()
+        assert lo == pytest.approx(0.0)
+        assert hi == pytest.approx(100.0)
+
+    def test_custom_title(self) -> None:
+        """Custom title must be applied as suptitle."""
+        fig = plot_score_evolution([_ScoreResult(50.0)], title="My custom title")
+        assert fig.texts[0].get_text() == "My custom title"
+
+    def test_default_title_uses_protocol_name(self) -> None:
+        """Default title must be '<protocol_name> — Score Evolution'."""
+        fig = plot_score_evolution([_ScoreResult(50.0)], protocol_name="HRR")
+        assert fig.texts[0].get_text() == "HRR — Score Evolution"
+
+    def test_custom_figsize(self) -> None:
+        """Custom figsize must be applied to the figure."""
+        fig = plot_score_evolution([_ScoreResult(50.0)], figsize=(10, 4))
+        w, h = fig.get_size_inches()
+        assert w == pytest.approx(10.0)
+        assert h == pytest.approx(4.0)
+
+    def test_score_line_present(self) -> None:
+        """The figure must contain at least one Line2D (score line)."""
+        results = [_ScoreResult(s) for s in [40.0, 55.0, 70.0]]
+        fig = plot_score_evolution(results)
+        assert len(fig.axes[0].lines) >= 1
+
+    def test_rolling_band_present_when_enough_sessions(self) -> None:
+        """A fill_between band (PolyCollection) must appear when n ≥ _ROLLING_WIN."""
+        from matplotlib.collections import PolyCollection
+
+        results = [_ScoreResult(s) for s in [40.0, 55.0, 70.0]]  # n = 3 = _ROLLING_WIN
+        fig = plot_score_evolution(results)
+        poly = [c for c in fig.axes[0].collections if isinstance(c, PolyCollection)]
+        assert len(poly) >= 1
+
+    def test_no_rolling_band_below_threshold(self) -> None:
+        """No fill_between band when n < _ROLLING_WIN."""
+        from matplotlib.collections import PolyCollection
+
+        results = [_ScoreResult(50.0), _ScoreResult(65.0)]  # n = 2 < _ROLLING_WIN
+        fig = plot_score_evolution(results)
+        poly = [c for c in fig.axes[0].collections if isinstance(c, PolyCollection)]
+        assert len(poly) == 0
+
+    def test_custom_labels(self) -> None:
+        """Custom labels must appear on the x-axis ticks."""
+        results = [_ScoreResult(50.0), _ScoreResult(60.0)]
+        fig = plot_score_evolution(results, labels=["Lun", "Mar"])
+        tick_texts = [t.get_text() for t in fig.axes[0].get_xticklabels()]
+        assert "Lun" in tick_texts
+        assert "Mar" in tick_texts
+
+    def test_fallback_labels_use_date(self) -> None:
+        """When labels is None, result.date must be used as the tick label."""
+        results = [_ScoreResult(50.0, date="2099-01-01")]
+        fig = plot_score_evolution(results)
+        tick_texts = [t.get_text() for t in fig.axes[0].get_xticklabels()]
+        assert "2099-01-01" in tick_texts
+
+    def test_fallback_labels_session_n_when_no_date(self) -> None:
+        """When result.date is None and labels is None, use 'Session N'."""
+        results = [_ScoreResult(50.0, date=None)]
+        fig = plot_score_evolution(results)
+        tick_texts = [t.get_text() for t in fig.axes[0].get_xticklabels()]
+        assert "Session 1" in tick_texts
+
+    def test_works_with_hrr_result(self) -> None:
+        """Must accept HRRResult objects with a .score attribute."""
+        result = HRRResult(date="2099-01-01", hrr_60=22.0, score=75.0)
+        fig = plot_score_evolution([result], protocol_name="HRR")
+        assert isinstance(fig, Figure)
+
+    def test_works_with_coherence_result(self) -> None:
+        """Must accept CoherenceResult objects with a .score attribute."""
+        from cardiolab.protocols.cardiac_coherence import CoherenceResult
+
+        result = CoherenceResult(date="2099-01-01", coherence_score=65.0, score=78.0)
+        fig = plot_score_evolution([result], protocol_name="Cohérence")
+        assert isinstance(fig, Figure)
+
+    def test_value_error_empty(self) -> None:
+        """Raise ValueError when results is empty."""
+        with pytest.raises(ValueError, match="at least one"):
+            plot_score_evolution([])
+
+    def test_value_error_labels_mismatch(self) -> None:
+        """Raise ValueError when labels length mismatches results length."""
+        with pytest.raises(ValueError, match="labels length"):
+            plot_score_evolution([_ScoreResult(50.0)], labels=["A", "B"])
 
 
 # ── plot_resting_mini ─────────────────────────────────────────────────────────
