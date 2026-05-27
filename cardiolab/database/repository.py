@@ -54,8 +54,6 @@ import os
 import re
 from dataclasses import dataclass
 
-import json
-
 from psycopg2 import connect, sql
 from psycopg2.extras import Json
 
@@ -742,6 +740,8 @@ class HRVRepository:
                 ``"hrv_drift"``.
             vo2max_table_name: VO2max estimation table name. Defaults to
                 ``"hrv_vo2max"``.
+            raw_sessions_table_name: Raw RR intervals table name. Defaults to
+                ``"hrv_raw_sessions"``.
 
         Returns:
             A configured ``HRVRepository`` instance (not yet connected).
