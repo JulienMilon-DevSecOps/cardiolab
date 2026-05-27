@@ -507,6 +507,39 @@ def _build_ortho_row(
 
 
 # ======================
+# NUMPY ADAPTER (psycopg2 + NumPy 2.x)
+# ======================
+
+
+def _register_numpy_adapters() -> None:
+    """Register psycopg2 adapters for NumPy scalar types.
+
+    NumPy 2.0 changed the ``repr()`` of scalars: ``repr(np.float64(1.5))``
+    now returns ``"np.float64(1.5)"`` instead of ``"1.5"``.  Without an
+    explicit adapter, psycopg2 falls back to ``str()``/``repr()`` and
+    PostgreSQL interprets ``np.float64`` as a schema name, raising::
+
+        ProgrammingError: schema "np" does not exist
+
+    Calling ``register_adapter`` multiple times with the same type is safe —
+    each call simply overwrites the previous registration.
+
+    This function is a no-op when NumPy is not installed.
+    """
+    try:
+        import numpy as np
+        from psycopg2.extensions import AsIs, register_adapter
+
+        register_adapter(np.float64, lambda v: AsIs(float(v)))
+        register_adapter(np.float32, lambda v: AsIs(float(v)))
+        register_adapter(np.int64,   lambda v: AsIs(int(v)))
+        register_adapter(np.int32,   lambda v: AsIs(int(v)))
+        register_adapter(np.bool_,   lambda v: AsIs(bool(v)))
+    except ImportError:
+        pass  # NumPy non installé — aucune action requise
+
+
+# ======================
 # REPOSITORY
 # ======================
 
@@ -643,8 +676,9 @@ class HRVRepository:
     # ── Connection lifecycle ──────────────────────────────────────────────
 
     def __enter__(self) -> HRVRepository:
-        """Open the database connection."""
+        """Open the database connection and register NumPy type adapters."""
         self._conn = connect(**self._dsn)
+        _register_numpy_adapters()
         return self
 
     def __exit__(self, exc_type, _exc_val, _exc_tb) -> None:
