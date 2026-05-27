@@ -7,6 +7,22 @@ Quick-start::
 
     from cardiolab import RRSeries, resting_hrv, orthostatic_hrv
 
+Submodules
+----------
+cardiolab.features
+    Time-domain, frequency-domain and non-linear HRV metrics.
+cardiolab.protocols
+    Resting, orthostatic, cardiac coherence, HRR, cardiac drift and VO2max
+    protocols — each returns a typed result dataclass.
+cardiolab.analytics
+    Baseline rolling window, readiness scoring, anomaly detection, trends.
+cardiolab.visualization
+    Matplotlib figures: RR signal plots, spectral (PSD, LF/HF, radar,
+    heatmap) and resting evolution charts.  Import separately to avoid
+    loading matplotlib when only the computational pipeline is needed::
+
+        from cardiolab.visualization import plot_psd_welch, plot_hrv_radar
+
 """
 
 from __future__ import annotations

@@ -1,104 +1,129 @@
-# Protocole de cohérence cardiaque 5-5
+# Cardiac Coherence 5-5 Protocol
 
-## Principe physiologique
+## Physiological principle
 
-La cohérence cardiaque est un état physiologique dans lequel la fréquence cardiaque oscille de manière sinusoïdale et régulière, en résonance avec le système nerveux autonome. Elle est induite par une respiration guidée à **6 cycles/min** (inspiration 5 s / expiration 5 s), ce qui génère une oscillation maximale des intervalles RR à **0,1 Hz** — la fréquence de résonance du baroréflexe.
+Cardiac coherence is a physiological state in which heart rate oscillates sinusoidally
+and regularly, resonating with the autonomic nervous system. It is induced by guided
+breathing at **6 cycles/min** (5 s inhale / 5 s exhale), which generates a maximal
+oscillation of RR intervals at **0.1 Hz** — the baroreflex resonance frequency.
 
-À 0,1 Hz, le baroréflexe vagal amplifie les oscillations respiratoires de la pression artérielle et de la FC, produisant le plus grand domaine de puissance spectrale possible dans la bande HF. Ce mécanisme, appelé **résonance cardiovasculaire**, est associé à une activation maximale du nerf vague (activité parasympathique).
+At 0.1 Hz, the vagal baroreflex amplifies respiratory oscillations of blood pressure
+and HR, producing the largest possible spectral power in the HF band. This mechanism,
+called **cardiovascular resonance**, is associated with maximal activation of the vagus
+nerve (parasympathetic activity).
 
-## Comment réaliser le protocole
+## How to perform the protocol
 
-### Conditions de mesure
-- Position **assise** ou **allongée** dans un environnement calme
-- Durée minimale recommandée : **5 minutes** (idéalement 10 min)
-- Éviter toute activité physique dans l'heure précédant la mesure
-- Utiliser une ceinture cardiaque pour l'enregistrement continu des intervalles RR
+### Measurement conditions
 
-### Déroulement
-1. S'installer confortablement et noter l'heure de début
-2. Utiliser un guide de respiration (visuel ou sonore) à **6 cycles/min** :
-   - Inspirer pendant **5 secondes**
-   - Expirer pendant **5 secondes**
-3. Maintenir ce rythme pendant toute la session
-4. Exporter les intervalles RR à la fin de la session
+- **Seated** or **supine** position in a quiet environment.
+- Minimum recommended duration: **5 minutes** (ideally 10 min).
+- Avoid any physical activity in the hour before measurement.
+- Use a chest strap for continuous RR interval recording.
 
-### Enregistrement
+### Procedure
+
+1. Settle comfortably and note the start time.
+2. Use a breathing guide (visual or audio) at **6 cycles/min**:
+   - Inhale for **5 seconds**.
+   - Exhale for **5 seconds**.
+3. Maintain this rhythm throughout the session.
+4. Export the RR intervals at the end of the session.
+
+### Recording
+
 ```python
 from cardiolab.signals.rr import RRSeries
 from cardiolab.protocols.cardiac_coherence import cardiac_coherence
 
-rr = RRSeries.from_csv("session_coherence.csv")
+rr = RRSeries.from_csv("coherence_session.csv")
 result = cardiac_coherence(rr)
-print(f"Score de cohérence : {result.coherence_score:.1f} %")
-print(f"Fréquence de résonance : {result.resonance_freq:.3f} Hz")
+print(f"Coherence score: {result.coherence_score:.1f} %")
+print(f"Resonance frequency: {result.resonance_freq:.3f} Hz")
 ```
 
-## Métriques calculées
+## Computed metrics
 
-| Métrique | Description | Unité |
+| Metric | Description | Unit |
 |---|---|---|
-| `coherence_score` | % de puissance concentré au pic de résonance | % (0–100) |
-| `resonance_freq` | Fréquence du pic dominant dans la bande 0,04–0,26 Hz | Hz |
-| `peak_power` | Densité spectrale au pic de résonance | ms²/Hz |
-| `total_power_resonance` | Puissance totale dans la bande de résonance | ms² |
-| `rmssd` | RMSSD pendant la session | ms |
-| `sdnn` | SDNN pendant la session | ms |
-| `mean_hr` | Fréquence cardiaque moyenne | bpm |
-| `duration` | Durée effective de l'enregistrement | s |
+| `coherence_score` | % of power concentrated at the resonance peak | % (0–100) |
+| `resonance_freq` | Dominant peak frequency in the 0.04–0.26 Hz band | Hz |
+| `peak_power` | Spectral density at the resonance peak | ms²/Hz |
+| `total_power_resonance` | Total power in the resonance band | ms² |
+| `rmssd` | RMSSD during the session | ms |
+| `sdnn` | SDNN during the session | ms |
+| `mean_hr` | Mean heart rate | bpm |
+| `duration` | Effective recording duration | s |
 
-### Score de cohérence
+### Coherence score
 
-Le score est calculé comme :
+The score is computed as:
 
 ```
-coherence_score = (puissance_fenêtre_pic / puissance_totale_résonance) × 100
+coherence_score = (peak_window_power / total_resonance_power) × 100
 ```
 
-où la fenêtre du pic est centrée sur la fréquence dominante avec une demi-largeur de ±0,015 Hz.
+where the peak window is centred on the dominant frequency with a half-width of
+±0.015 Hz.
 
-## Interprétation des résultats
+## Interpreting results
 
-### Score de cohérence
+### Coherence score
 
-| Score (%) | Interprétation | Recommandation |
+| Score (%) | Interpretation | Recommendation |
 |---|---|---|
-| ≥ 60 | **Bonne cohérence** — résonance vagale forte | Maintenir la pratique |
-| 40 – 60 | **Cohérence modérée** — résonance partielle | Améliorer la régularité respiratoire |
-| < 40 | **Faible cohérence** — peu de résonance vagale | Vérifier le guidage et la fréquence respiratoire |
+| ≥ 60 | **Good coherence** — strong vagal resonance | Maintain the practice |
+| 40 – 60 | **Moderate coherence** — partial resonance | Improve breathing regularity |
+| < 40 | **Low coherence** — little vagal resonance | Check the guide and breathing rate |
 
-### Fréquence de résonance
+### Resonance frequency
 
-Pour un protocole 5-5 (6 cycles/min), la fréquence attendue est :
+For a 5-5 protocol (6 cycles/min), the expected frequency is:
 
 ```
-f_résonance = 6 / 60 = 0,100 Hz
+f_resonance = 6 / 60 = 0.100 Hz
 ```
 
-Un pic entre **0,09 et 0,11 Hz** confirme que le sujet suit correctement le guidage respiratoire. Un pic décalé suggère une cadence respiratoire différente de 6 cycles/min.
+A peak between **0.09 and 0.11 Hz** confirms that the subject is correctly following
+the breathing guide. A shifted peak suggests a breathing rate different from 6 cycles/min.
 
-### RMSSD et SDNN
+### RMSSD and SDNN
 
-Un score de cohérence élevé s'accompagne généralement de valeurs RMSSD élevées (activation vagale). Des valeurs RMSSD > 50 ms associées à un score ≥ 60 % indiquent une excellente modulation parasympathique.
+A high coherence score is generally accompanied by high RMSSD values (vagal
+activation). RMSSD > 50 ms combined with a score ≥ 60 % indicates excellent
+parasympathetic modulation.
 
-## Méthode spectrale
+## Spectral method
 
-L'analyse utilise la méthode **AR (Yule-Walker)** d'ordre 16, préférable à Welch pour des sessions courtes (2–5 min) car elle offre une meilleure résolution fréquentielle. Le signal RR est rééchantillonné à **4 Hz** avant estimation spectrale.
+The analysis uses the **AR (Yule-Walker)** method at order 16, which is preferred
+over Welch for short sessions (2–5 min) because it provides better spectral resolution.
+The RR signal is resampled at **4 Hz** before spectral estimation.
 
-Bande d'analyse : **0,04 – 0,26 Hz** (couvre la bande HF et s'étend légèrement en dessous pour capturer des cadences respiratoires lentes).
+Analysis band: **0.04 – 0.26 Hz** (covers the HF band and extends slightly below to
+capture slow breathing rates).
 
-## Limites et précautions
+## Limitations and precautions
 
-- Le score de cohérence est sensible à la **variabilité inter-respiration** : une respiration irrégulière élargit le pic spectral et réduit le score.
-- Une session < 2 minutes (< 120 battements) donne des résultats peu fiables.
-- Certains sujets ont une fréquence de résonance personnelle légèrement différente de 0,1 Hz ; adapter le guidage si nécessaire.
-- La cohérence cardiaque n'est pas un indicateur de santé globale à elle seule — la combiner avec les mesures HRV de repos.
+- The coherence score is sensitive to **inter-breath variability**: irregular breathing
+  widens the spectral peak and reduces the score.
+- A session < 2 minutes (< 120 beats) yields unreliable results.
+- Some subjects have a personal resonance frequency slightly different from 0.1 Hz;
+  adapt the breathing guide if necessary.
+- Cardiac coherence is not a standalone global health indicator — combine it with
+  resting HRV measurements.
 
-## Références
+## References
 
-Cole, C. R., Blackstone, E. H., Pashkow, F. J., Snader, C. E., & Lauer, M. S. (1999). Heart-rate recovery immediately after exercise as a predictor of mortality. *New England Journal of Medicine*, 341(18), 1351–1357.
+Lehrer, P. M., & Gevirtz, R. (2014). Heart rate variability biofeedback: how and why
+does it work? *Frontiers in Psychology*, 5, 756.
+https://doi.org/10.3389/fpsyg.2014.00756
 
-Lehrer, P. M., & Gevirtz, R. (2014). Heart rate variability biofeedback: how and why does it work? *Frontiers in Psychology*, 5, 756. https://doi.org/10.3389/fpsyg.2014.00756
+McCraty, R., & Shaffer, F. (2015). Heart rate variability: new perspectives on
+physiological mechanisms, assessment of self-regulatory capacity, and health risk.
+*Global Advances in Health and Medicine*, 4(1), 46–61.
+https://doi.org/10.7453/gahmj.2014.073
 
-McCraty, R., & Shaffer, F. (2015). Heart rate variability: new perspectives on physiological mechanisms, assessment of self-regulatory capacity, and health risk. *Global Advances in Health and Medicine*, 4(1), 46–61. https://doi.org/10.7453/gahmj.2014.073
-
-Shaffer, F., McCraty, R., & Zerr, C. L. (2014). A healthy heart is not a metronome: an integrative review of the heart's anatomy and heart rate variability. *Frontiers in Psychology*, 5, 1040. https://doi.org/10.3389/fpsyg.2014.01040
+Shaffer, F., McCraty, R., & Zerr, C. L. (2014). A healthy heart is not a metronome:
+an integrative review of the heart's anatomy and heart rate variability.
+*Frontiers in Psychology*, 5, 1040.
+https://doi.org/10.3389/fpsyg.2014.01040
