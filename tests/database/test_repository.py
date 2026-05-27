@@ -1571,7 +1571,9 @@ class TestOrthostaticIntegration:
         yield
         _test_db_cleanup(self._TABLE, self._USER)
 
-    def _make_ortho_result(self, hr_response: float = 18.0, score: float = 75.0) -> MagicMock:
+    def _make_ortho_result(
+        self, hr_response: float = 18.0, score: float = 75.0
+    ) -> MagicMock:
         """Build a minimal OrthostaticResult mock suitable for save_orthostatic."""
         result = _mock_ortho_result()
         result.hr_response = hr_response
