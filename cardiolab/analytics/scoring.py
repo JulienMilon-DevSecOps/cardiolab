@@ -33,6 +33,10 @@ thresholds. They do **not** require a personal baseline and return [0, 100]:
   (Coyle & González-Alonso 2001).
 * :func:`vo2max_score` — maps VO2max estimate (mL/kg/min) to [0, 100] via
   ACSM 2022 fitness categories. Inflection at 43 mL/kg/min (average adult).
+* :func:`orthostatic_score` — composite autonomic score for the postural
+  (tilt) test: 80 % ΔHR component (Brignole et al. 2018 ESC Guidelines;
+  Sheldon et al. 2015 POTS consensus) + 20 % HF vagal-withdrawal component
+  (Task Force ESC/NASPE 1996). Normal ΔHR range: 10–25 bpm.
 """
 
 from __future__ import annotations
@@ -445,3 +449,105 @@ def vo2max_score(vo2max: float) -> float:
     if not math.isfinite(vo2max) or vo2max <= 0.0:
         return 0.0
     return float(np.clip(50.0 + 50.0 * np.tanh((vo2max - 43.0) / 12.0), 0.0, 100.0))
+
+
+def orthostatic_score(hr_response: float, hf_response_pct: float = 0.0) -> float:
+    """Compute a composite autonomic score for the orthostatic (tilt) test.
+
+    The score combines two validated autonomic markers:
+
+    * **ΔHR component (80 %)** — HR increase from supine baseline to
+      stabilised standing position.  The optimal physiological range is 10–25
+      bpm; below 5 bpm indicates an impaired sympathetic response, above 30
+      bpm meets the POTS (Postural Orthostatic Tachycardia Syndrome) criterion.
+    * **HF vagal-withdrawal component (20 %)** — relative drop in HF spectral
+      power on standing.  A drop of −30 % to −60 % reflects normal vagal
+      withdrawal; outside this range the component score is reduced.
+
+    ΔHR calibration:
+
+    | ΔHR (bpm)  | Category             | Approximate score |
+    | ---------- | -------------------- | ----------------- |
+    | < 5        | Severely impaired    | < 20              |
+    | 5 – 10     | Borderline low       | 20 – 65           |
+    | 10 – 25    | Normal (optimal)     | 65 – 100          |
+    | 25 – 30    | Borderline elevated  | 40 – 65           |
+    | > 30       | Elevated (POTS)      | < 30              |
+
+    HF withdrawal calibration:
+
+    | hf_response_pct | Category                  | HF sub-score |
+    | --------------- | ------------------------- | ------------ |
+    | −60 % to −30 %  | Normal vagal withdrawal   | 1.0          |
+    | 0 % to −30 %    | Insufficient withdrawal   | 0 – 1.0      |
+    | > 0 %           | Paradoxical (HF increase) | 0.0          |
+    | < −60 %         | Excessive withdrawal      | 0 – 1.0      |
+
+    References:
+        Brignole, M., et al. (2018). 2018 ESC Guidelines for the diagnosis
+        and management of syncope. *European Heart Journal*, 39(21), 1883–1948.
+
+        Sheldon, R. S., et al. (2015). 2015 Heart Rhythm Society expert
+        consensus statement on the diagnosis and treatment of postural
+        tachycardia syndrome, inappropriate sinus tachycardia, and vasovagal
+        syncope. *Heart Rhythm*, 12(6), e41–e63.
+
+        Task Force of the European Society of Cardiology and the North
+        American Society of Pacing and Electrophysiology (1996). Heart rate
+        variability: standards of measurement, physiological interpretation,
+        and clinical use. *Circulation*, 93(5), 1043–1065.
+
+    Args:
+        hr_response: HR increase from supine to stabilised standing (bpm).
+            Negative values are treated as 0.
+        hf_response_pct: Relative change in HF spectral power from supine to
+            standing, in percent (typically negative — HF decreases on
+            standing). Defaults to 0.0 when not available.
+
+    Returns:
+        Composite autonomic score in [0, 100].
+
+    """
+    # ── ΔHR component (piece-wise, U-shaped) ─────────────────────────────────
+    # Local constants (lowercase to comply with PEP 8 / ruff N806)
+    opt_low: float = 10.0   # lower bound of normal range (bpm)
+    opt_high: float = 25.0  # upper bound of normal range (bpm)
+    opt_ctr: float = 17.5   # midpoint — peak score (bpm)
+    pots: float = 30.0      # POTS threshold (bpm)
+
+    hr = max(hr_response, 0.0)
+
+    if hr < opt_low:
+        # Impaired zone: linear from 0 to 65 over [0, 10]
+        hr_score: float = 65.0 * (hr / opt_low)
+    elif hr <= opt_high:
+        # Normal zone: 65–100, peak at centre
+        deviation = abs(hr - opt_ctr) / (opt_high - opt_low) * 2.0
+        hr_score = 100.0 - 35.0 * deviation
+    elif hr <= pots:
+        # Borderline high: linear from 65 at 25 bpm to 30 at 30 bpm
+        t = (hr - opt_high) / (pots - opt_high)
+        hr_score = 65.0 - 35.0 * t
+    else:
+        # POTS zone: exponential decay from 30 at 30 bpm
+        hr_score = max(0.0, 30.0 * math.exp(-(hr - pots) / 5.0))
+
+    # ── HF vagal-withdrawal component ────────────────────────────────────────
+    # hf_response_pct is negative when HF power drops (normal direction).
+    if hf_response_pct < -60.0:
+        # Excessive withdrawal: linear from 1.0 at −60 % to 0 at −100 %
+        excess = (-hf_response_pct - 60.0) / 40.0
+        hf_sub: float = max(0.0, 1.0 - excess)
+    elif hf_response_pct <= -30.0:
+        # Normal range (−30 % to −60 %): full sub-score
+        hf_sub = 1.0
+    elif hf_response_pct < 0.0:
+        # Insufficient withdrawal: linear from 0 to 1.0
+        hf_sub = -hf_response_pct / 30.0
+    else:
+        # Paradoxical increase (HF went up on standing)
+        hf_sub = 0.0
+
+    # ── Weighted combination ──────────────────────────────────────────────────
+    combined = 0.80 * hr_score + 0.20 * (hf_sub * 100.0)
+    return float(np.clip(combined, 0.0, 100.0))

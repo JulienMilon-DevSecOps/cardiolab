@@ -44,6 +44,7 @@ from cardiolab.visualization.dashboard_plots import (
     plot_longitudinal_heatmap,
     plot_readiness_evolution,
     plot_resting_mini,
+    plot_score_evolution,
     plot_session_dashboard,
     plot_vo2max_mini,
 )
@@ -91,6 +92,7 @@ __all__ = [
     "plot_session_dashboard",
     "plot_longitudinal_heatmap",
     "plot_readiness_evolution",
+    "plot_score_evolution",
     "plot_resting_mini",
     "plot_hrr_mini",
     "plot_drift_mini",

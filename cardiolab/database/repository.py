@@ -196,6 +196,8 @@ _ORTHO_COLUMNS: dict[str, str] = {
     # Single column for all phases: all three calls to resting_hrv() use the
     # same spectral method, so storing it once avoids redundancy.
     "spectral_method": "TEXT",
+    # ── Autonomic score ───────────────────────────────────────────────────
+    "score": "FLOAT DEFAULT 0.0",
 }
 
 _ORTHO_DATA_COLUMNS: list[str] = [
@@ -327,6 +329,9 @@ class OrthostaticRecord:
         hf_hr_pct_change: Relative change in the HF/FC ratio supine → standing (%).
             Formula: (HF/FC_standing − HF/FC_supine) / HF/FC_supine × 100.
         interpretation: Clinical classification of the orthostatic response.
+        score: Composite autonomic score [0–100] computed by
+            :func:`cardiolab.analytics.scoring.orthostatic_score`. Defaults to
+            0.0 for rows imported before the score column was added.
 
     """
 
@@ -344,6 +349,7 @@ class OrthostaticRecord:
     hf_response_pct: float
     hf_hr_pct_change: float
     interpretation: str
+    score: float = 0.0
 
     def to_flat_dict(self) -> dict:
         """Return a flat dict of all fields (one row per session).
@@ -398,6 +404,7 @@ class OrthostaticRecord:
             "hf_response_pct": self.hf_response_pct,
             "hf_hr_pct_change": self.hf_hr_pct_change,
             "interpretation": self.interpretation,
+            "score": self.score,
         }
 
     def to_reporting_row(self) -> dict:
@@ -423,6 +430,7 @@ class OrthostaticRecord:
             "hf_response_pct": self.hf_response_pct,
             "hf_hr_pct_change": self.hf_hr_pct_change,
             "interpretation": self.interpretation,
+            "score": self.score,
         }
 
 
@@ -489,13 +497,14 @@ def _build_ortho_row(
     The tuple order matches ``["user_id", "date"] + _ORTHO_DATA_COLUMNS``
     exactly and must stay in sync with ``_ORTHO_COLUMNS``.
 
-    Column layout (70 data values after user_id + date):
+    Column layout (71 data values after user_id + date):
 
     * supine HRV (19) + supine_duration_sec (1)
     * transition timing (5)
     * transition HRV (19)
     * standing HRV (19) + standing_duration_sec (1)
     * derived metrics (5)
+    * spectral_method (1) + score (1)
 
     Args:
         result: Protocol output from ``orthostatic_hrv()``.
@@ -592,6 +601,8 @@ def _build_ortho_row(
         result.interpretation,
         # spectral_method (1) — same for all phases
         sf.method,
+        # autonomic score (1)
+        result.score,
     )
 
 
@@ -1105,6 +1116,7 @@ class HRVRepository:
         * ``[45..63]`` — standing HRV (19)  ``[64]`` standing_duration_sec
         * ``[65..69]`` — derived metrics (5)
         * ``[70]``     — spectral_method (TEXT)
+        * ``[71]``     — score (FLOAT)
 
         Args:
             user_id: Identifier of the user whose sessions are retrieved.
@@ -1140,7 +1152,7 @@ class HRVRepository:
             # [1..19]  supine HRV (19)    [20] supine_duration_sec
             # [21..25] transition timing   [26..44] transition HRV (19)
             # [45..63] standing HRV (19)  [64] standing_duration_sec
-            # [65..69] derived metrics (5)  [70] spectral_method
+            # [65..69] derived metrics (5)  [70] spectral_method  [71] score
             spectral_method: str = row[70] or "welch"
             supine = _features_from_row(row, offset=1, date=date, duration=row[20])
             supine.method = spectral_method
@@ -1164,6 +1176,7 @@ class HRVRepository:
                     hf_response_pct=row[67],
                     hf_hr_pct_change=row[68],
                     interpretation=row[69],
+                    score=row[71] if row[71] is not None else 0.0,
                 )
             )
 

@@ -122,6 +122,7 @@ def _mock_ortho_result() -> MagicMock:
     result.hf_response_pct = -40.0
     result.hf_hr_pct_change = -65.0
     result.interpretation = "normal"
+    result.score = 0.0
 
     return result
 
@@ -277,9 +278,10 @@ class TestColumnRegistries:
         + derived (hr_response, lf_hf_ratio_change, hf_response_pct,
                    hf_hr_pct_change, interpretation) = 5
         + spectral_method = 1
-        Total = 70
+        + score = 1
+        Total = 71
         """
-        assert len(_ORTHO_DATA_COLUMNS) == 70  # noqa: PLR2004
+        assert len(_ORTHO_DATA_COLUMNS) == 71  # noqa: PLR2004
 
     def test_ortho_data_columns_is_subset_of_ortho_columns(self):
         """Every column in _ORTHO_DATA_COLUMNS must exist in _ORTHO_COLUMNS."""
@@ -393,12 +395,13 @@ class TestBuildOrthoRow:
         assert row[1] == "2026-05-15"
 
     def test_last_element_is_interpretation(self):
-        """Interpretation must be second-to-last; spectral_method is last."""
+        """Row layout: …, interpretation, spectral_method, score (float last)."""
         result = _mock_ortho_result()
         result.interpretation = "elevated_response"
         row = _build_ortho_row(result, user_id="uid", date="2026-05-15")
-        assert row[-2] == "elevated_response"
-        assert isinstance(row[-1], str)  # spectral_method
+        assert row[-3] == "elevated_response"    # interpretation
+        assert isinstance(row[-2], str)           # spectral_method
+        assert isinstance(row[-1], float)         # score
 
     def test_hr_response_in_row(self):
         """hr_response must appear in the row."""
@@ -873,7 +876,7 @@ class TestLoadOrthostatic:
     def _make_ortho_row(self) -> tuple:
         """Build a fake DB row matching the load_orthostatic SELECT order.
 
-        Row layout (71 values):
+        Row layout (72 values):
         [0]      date
         [1..19]  supine HRV (19)
         [20]     supine_duration_sec
@@ -883,6 +886,7 @@ class TestLoadOrthostatic:
         [64]     standing_duration_sec
         [65..69] derived metrics (5)
         [70]     spectral_method
+        [71]     score
         """
         hrv_block = (
             60.0,
@@ -923,6 +927,7 @@ class TestLoadOrthostatic:
             -65.0,
             "normal",  # [65..69] derived
             "welch",  # [70]     spectral_method
+            72.5,  # [71]     score
         )
 
     def test_returns_list_of_orthostatic_records(self):
@@ -1006,17 +1011,49 @@ class TestLoadOrthostatic:
 # ======================
 
 
+def _repo_from_test_env(**kwargs) -> HRVRepository:
+    """Build an HRVRepository from DB_*_TEST environment variables.
+
+    This keeps the test database separate from the production NAS database.
+    Required env vars: DB_HOST_TEST, DB_NAME_TEST, DB_USER_TEST, DB_PASSWORD_TEST.
+    Optional: DB_PORT_TEST (defaults to 5432).
+
+    Usage in .env::
+
+        DB_HOST_TEST=localhost
+        DB_PORT_TEST=5432
+        DB_NAME_TEST=cardiolab_test
+        DB_USER_TEST=cardiolab
+        DB_PASSWORD_TEST=secret
+        RUN_INTEGRATION_TESTS=1
+
+    """
+    return HRVRepository(
+        host=os.environ["DB_HOST_TEST"],
+        database=os.environ["DB_NAME_TEST"],
+        user=os.environ["DB_USER_TEST"],
+        password=os.environ["DB_PASSWORD_TEST"],
+        port=int(os.environ.get("DB_PORT_TEST", "5432")),
+        **kwargs,
+    )
+
+
 @pytest.mark.integration
-@pytest.mark.skip(
-    reason="Requires a running PostgreSQL instance — set up DB_* env vars and remove this skip to run."
+@pytest.mark.skipif(
+    not os.getenv("RUN_INTEGRATION_TESTS"),
+    reason=(
+        "Requires a running PostgreSQL instance. "
+        "Set RUN_INTEGRATION_TESTS=1 (and DB_HOST/DB_NAME/DB_USER/DB_PASSWORD) "
+        "to enable — typically done in .env for local NAS testing."
+    ),
 )
 class TestHRVRepositoryIntegration:
     """Full round-trip tests against a real PostgreSQL database.
 
-    These tests are skipped by default. To run them:
-    1. Start a PostgreSQL server.
-    2. Set DB_HOST, DB_NAME, DB_USER, DB_PASSWORD in your environment.
-    3. Remove the @pytest.mark.skip decorator (or run with -m integration).
+    These tests are skipped automatically when ``RUN_INTEGRATION_TESTS`` is not
+    set in the environment.  In GitLab CI, the variable is absent → tests skip.
+    Locally with the NAS running, add ``RUN_INTEGRATION_TESTS=1`` to your
+    ``.env`` file to enable them.
     """
 
     def test_resting_round_trip(self):
@@ -1039,7 +1076,7 @@ class TestHRVRepositoryIntegration:
             score=68.0,
         )
 
-        with HRVRepository.from_env(table_name="test_hrv") as repo:
+        with _repo_from_test_env(table_name="test_hrv") as repo:
             repo.create_table()
             repo.save_features(features, user_id="integration-test-user")
             loaded = repo.load_features(user_id="integration-test-user")
@@ -1050,7 +1087,7 @@ class TestHRVRepositoryIntegration:
         """Saving the same session twice must not create two rows."""
         features = HRVFeatures(date="2099-01-02", rmssd=60.0, mean_hr=70.0)
 
-        with HRVRepository.from_env(table_name="test_hrv") as repo:
+        with _repo_from_test_env(table_name="test_hrv") as repo:
             repo.create_table()
             repo.save_features(features, user_id="integration-test-user")
             repo.save_features(features, user_id="integration-test-user")

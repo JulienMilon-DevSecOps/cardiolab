@@ -211,6 +211,7 @@ class TestOrthostaticResultToDict:
             "hf_response_pct",
             "hf_hr_pct_change",
             "interpretation",
+            "score",
         }
 
     def test_phases_keys(self, ortho_result):
