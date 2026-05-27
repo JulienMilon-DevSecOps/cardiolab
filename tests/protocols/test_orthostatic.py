@@ -615,6 +615,7 @@ class TestOrthostaticToDict:
             "hf_response_pct",
             "hf_hr_pct_change",
             "interpretation",
+            "score",
         }
         assert set(d.keys()) == expected
 

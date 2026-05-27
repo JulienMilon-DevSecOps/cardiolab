@@ -9,10 +9,15 @@ import pytest
 
 from cardiolab.analytics.baseline import Baseline
 from cardiolab.analytics.scoring import (
+    coherence_score_100,
+    drift_score,
+    hrr_score,
+    orthostatic_score,
     readiness_score_composite,
     readiness_score_multi,
     readiness_score_nonlinear,
     readiness_score_oura,
+    vo2max_score,
 )
 from cardiolab.protocols.resting import HRVFeatures
 
@@ -650,3 +655,229 @@ class TestBaselineNonlinearMethods:
         base = Baseline(history=features, window=7)
         expected = np.median([1.0, 1.1, 1.2, 1.3, 1.4])
         assert base.median_dfa_alpha1() == pytest.approx(expected, rel=1e-6)
+
+
+# ======================
+# Protocol-specific scores (absolute thresholds)
+# ======================
+
+
+class TestHrrScore:
+    """Tests for hrr_score(hrr_60)."""
+
+    def test_returns_float(self):
+        """hrr_score must return a float."""
+        assert isinstance(hrr_score(18.0), float)
+
+    def test_range(self):
+        """Score is always in [0, 100]."""
+        for v in [-10, 0, 10, 18, 25, 35, 50, 100]:
+            s = hrr_score(float(v))
+            assert 0.0 <= s <= 100.0, f"hrr_score({v}) = {s} out of [0, 100]"
+
+    def test_inflection_at_18_bpm(self):
+        """Score at 18 bpm (mid-normal) must be approximately 50."""
+        assert hrr_score(18.0) == pytest.approx(50.0, abs=2.0)
+
+    def test_excellent_hrr(self):
+        """HRR1 ≥ 25 bpm → score well above 50."""
+        assert hrr_score(25.0) > 65.0
+
+    def test_poor_hrr(self):
+        """HRR1 ≤ 12 bpm → score below 50."""
+        assert hrr_score(12.0) < 40.0
+
+    def test_zero_hrr(self):
+        """HRR1 = 0 → score near 0."""
+        assert hrr_score(0.0) < 10.0
+
+    def test_monotone_increasing(self):
+        """hrr_score is monotonically increasing with hrr_60."""
+        values = [0.0, 5.0, 12.0, 18.0, 25.0, 35.0]
+        scores = [hrr_score(v) for v in values]
+        assert all(scores[i] < scores[i + 1] for i in range(len(scores) - 1))
+
+
+class TestCoherenceScore100:
+    """Tests for coherence_score_100(coherence_score)."""
+
+    def test_returns_float(self):
+        """coherence_score_100 must return a float."""
+        assert isinstance(coherence_score_100(50.0), float)
+
+    def test_range(self):
+        """Score is always in [0, 100]."""
+        for v in [0, 10, 30, 50, 60, 75, 90, 100]:
+            s = coherence_score_100(float(v))
+            assert 0.0 <= s <= 100.0
+
+    def test_inflection_at_50_pct(self):
+        """Score at 50 % raw coherence must be approximately 50."""
+        assert coherence_score_100(50.0) == pytest.approx(50.0, abs=2.0)
+
+    def test_high_coherence(self):
+        """Coherence ≥ 60 % → score above 65."""
+        assert coherence_score_100(60.0) >= 65.0
+
+    def test_low_coherence(self):
+        """Coherence ≤ 30 % → score below 40."""
+        assert coherence_score_100(30.0) < 40.0
+
+    def test_monotone_increasing(self):
+        """coherence_score_100 is monotonically increasing."""
+        values = [0.0, 25.0, 40.0, 50.0, 65.0, 80.0, 100.0]
+        scores = [coherence_score_100(v) for v in values]
+        assert all(scores[i] < scores[i + 1] for i in range(len(scores) - 1))
+
+
+class TestDriftScore:
+    """Tests for drift_score(drift_rate)."""
+
+    def test_returns_float(self):
+        """drift_score must return a float."""
+        assert isinstance(drift_score(1.0), float)
+
+    def test_range(self):
+        """Score is always in [0, 100]."""
+        for v in [-1.0, 0.0, 0.5, 1.5, 3.0, 5.0, 10.0]:
+            s = drift_score(v)
+            assert 0.0 <= s <= 100.0, f"drift_score({v}) = {s} out of [0, 100]"
+
+    def test_no_drift_is_max(self):
+        """Zero drift gives the highest score (100)."""
+        assert drift_score(0.0) == pytest.approx(100.0, abs=1.0)
+
+    def test_negative_drift_treated_as_zero(self):
+        """Negative drift_rate is treated as 0 (best case)."""
+        assert drift_score(-2.0) == pytest.approx(drift_score(0.0))
+
+    def test_strong_drift_low_score(self):
+        """Strong drift (≥ 3 bpm/min) → score below 25."""
+        assert drift_score(3.0) < 25.0
+
+    def test_monotone_decreasing(self):
+        """drift_score is monotonically decreasing with drift_rate."""
+        values = [0.0, 0.5, 1.5, 3.0, 5.0]
+        scores = [drift_score(v) for v in values]
+        assert all(scores[i] > scores[i + 1] for i in range(len(scores) - 1))
+
+
+class TestVo2maxScore:
+    """Tests for vo2max_score(vo2max)."""
+
+    def test_returns_float(self):
+        """vo2max_score must return a float."""
+        assert isinstance(vo2max_score(43.0), float)
+
+    def test_range(self):
+        """Score is always in [0, 100]."""
+        for v in [10.0, 25.0, 35.0, 43.0, 50.0, 60.0, 80.0]:
+            s = vo2max_score(v)
+            assert 0.0 <= s <= 100.0
+
+    def test_zero_or_negative_returns_zero(self):
+        """VO2max ≤ 0 returns 0.0."""
+        assert vo2max_score(0.0) == 0.0
+        assert vo2max_score(-5.0) == 0.0
+
+    def test_nan_returns_zero(self):
+        """NaN VO2max returns 0.0."""
+        assert vo2max_score(float("nan")) == 0.0
+
+    def test_inf_returns_zero(self):
+        """Infinite VO2max returns 0.0."""
+        assert vo2max_score(float("inf")) == 0.0
+
+    def test_inflection_at_43(self):
+        """Score at 43 mL/kg/min must be approximately 50."""
+        assert vo2max_score(43.0) == pytest.approx(50.0, abs=2.0)
+
+    def test_excellent_vo2max(self):
+        """VO2max ≥ 58 mL/kg/min → score ≥ 90."""
+        assert vo2max_score(58.0) >= 90.0
+
+    def test_poor_vo2max(self):
+        """VO2max ≤ 28 mL/kg/min → score ≤ 15."""
+        assert vo2max_score(28.0) <= 15.0
+
+    def test_monotone_increasing(self):
+        """vo2max_score is monotonically increasing."""
+        values = [20.0, 30.0, 38.0, 43.0, 50.0, 58.0]
+        scores = [vo2max_score(v) for v in values]
+        assert all(scores[i] < scores[i + 1] for i in range(len(scores) - 1))
+
+
+class TestOrthostaticScore:
+    """Tests for orthostatic_score(hr_response, hf_response_pct)."""
+
+    def test_returns_float(self):
+        """orthostatic_score must return a float."""
+        assert isinstance(orthostatic_score(15.0), float)
+
+    def test_range(self):
+        """Score is always in [0, 100]."""
+        test_cases = [
+            (0.0, 0.0),
+            (5.0, -20.0),
+            (15.0, -40.0),
+            (25.0, -50.0),
+            (35.0, -60.0),
+            (50.0, 0.0),
+            (-5.0, -40.0),  # negative hr_response treated as 0
+        ]
+        for hr, hf in test_cases:
+            s = orthostatic_score(hr, hf)
+            assert 0.0 <= s <= 100.0, (
+                f"orthostatic_score({hr}, {hf}) = {s} out of [0, 100]"
+            )
+
+    def test_optimal_hr_range_high_score(self):
+        """ΔHR in [10, 25] with good HF withdrawal → score above 70."""
+        assert orthostatic_score(17.5, -45.0) > 70.0
+
+    def test_centre_of_normal_range_peak_score(self):
+        """ΔHR = 17.5 bpm (centre of optimal range) gives near-maximum score."""
+        s_centre = orthostatic_score(17.5, -45.0)
+        s_low = orthostatic_score(5.0, -45.0)
+        s_pots = orthostatic_score(35.0, -45.0)
+        assert s_centre > s_low
+        assert s_centre > s_pots
+
+    def test_pots_criterion_low_score(self):
+        """ΔHR ≥ 30 bpm → score below 50."""
+        assert orthostatic_score(30.0, 0.0) < 50.0
+
+    def test_impaired_response_low_score(self):
+        """ΔHR < 5 bpm (severely impaired) → score below 30."""
+        assert orthostatic_score(2.0, 0.0) < 30.0
+
+    def test_negative_hr_response_treated_as_zero(self):
+        """Negative hr_response is treated as 0."""
+        assert orthostatic_score(-10.0) == pytest.approx(orthostatic_score(0.0))
+
+    def test_default_hf_response(self):
+        """Calling with hr_response only (default hf_response_pct=0) does not crash."""
+        s = orthostatic_score(15.0)
+        assert 0.0 <= s <= 100.0
+
+    def test_normal_hf_withdrawal_boosts_score(self):
+        """Normal HF withdrawal (−30 to −60 %) gives higher score than paradoxical increase."""
+        s_normal = orthostatic_score(15.0, -45.0)
+        s_paradox = orthostatic_score(15.0, 10.0)
+        assert s_normal > s_paradox
+
+    def test_hf_component_weight(self):
+        """HF component has 20 % weight: same ΔHR, varying HF → modest score difference."""
+        s_good_hf = orthostatic_score(17.5, -45.0)  # perfect HF
+        s_no_hf = orthostatic_score(17.5, 0.0)  # worst HF
+        diff = abs(s_good_hf - s_no_hf)
+        # The HF sub-score moves from 0 to 100 * 20% = 20 pts max
+        assert diff <= 22.0
+
+    def test_u_shaped_hr_response(self):
+        """Score is highest in the 10–25 bpm range and lower outside it."""
+        s_low = orthostatic_score(3.0, -45.0)
+        s_optimal = orthostatic_score(17.5, -45.0)
+        s_pots = orthostatic_score(32.0, -45.0)
+        assert s_optimal > s_low
+        assert s_optimal > s_pots

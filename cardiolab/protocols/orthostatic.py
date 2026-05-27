@@ -141,6 +141,11 @@ class OrthostaticResult:
             Negative values indicate vagal withdrawal on standing.
             A decline > 80 % reflects strong sympathetic activation.
         interpretation: Clinical classification of the orthostatic response.
+        score: Composite autonomic score on a **[0–100]** scale computed by
+            :func:`cardiolab.analytics.scoring.orthostatic_score`.
+            80 % weighted on ΔHR (Brignole 2018, Sheldon 2015) + 20 % on
+            HF vagal withdrawal (Task Force 1996).  Set by the ETL pipeline
+            before saving; defaults to 0.0 when not yet computed.
 
     """
 
@@ -150,6 +155,7 @@ class OrthostaticResult:
     hf_response_pct: float
     hf_hr_pct_change: float
     interpretation: str
+    score: float = 0.0
 
     def to_dict(self) -> dict:
         """Return a plain-Python dict of the full orthostatic result.
@@ -175,6 +181,7 @@ class OrthostaticResult:
             "hf_response_pct": self.hf_response_pct,
             "hf_hr_pct_change": self.hf_hr_pct_change,
             "interpretation": self.interpretation,
+            "score": self.score,
         }
 
     def to_flat_dict(self) -> dict:
@@ -214,6 +221,7 @@ class OrthostaticResult:
         row["hf_response_pct"] = self.hf_response_pct
         row["hf_hr_pct_change"] = self.hf_hr_pct_change
         row["interpretation"] = self.interpretation
+        row["score"] = self.score
 
         return row
 

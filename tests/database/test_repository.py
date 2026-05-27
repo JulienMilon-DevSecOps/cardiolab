@@ -122,6 +122,7 @@ def _mock_ortho_result() -> MagicMock:
     result.hf_response_pct = -40.0
     result.hf_hr_pct_change = -65.0
     result.interpretation = "normal"
+    result.score = 0.0
 
     return result
 
@@ -277,9 +278,10 @@ class TestColumnRegistries:
         + derived (hr_response, lf_hf_ratio_change, hf_response_pct,
                    hf_hr_pct_change, interpretation) = 5
         + spectral_method = 1
-        Total = 70
+        + score = 1
+        Total = 71
         """
-        assert len(_ORTHO_DATA_COLUMNS) == 70  # noqa: PLR2004
+        assert len(_ORTHO_DATA_COLUMNS) == 71  # noqa: PLR2004
 
     def test_ortho_data_columns_is_subset_of_ortho_columns(self):
         """Every column in _ORTHO_DATA_COLUMNS must exist in _ORTHO_COLUMNS."""
@@ -393,12 +395,13 @@ class TestBuildOrthoRow:
         assert row[1] == "2026-05-15"
 
     def test_last_element_is_interpretation(self):
-        """Interpretation must be second-to-last; spectral_method is last."""
+        """Row layout: …, interpretation, spectral_method, score (float last)."""
         result = _mock_ortho_result()
         result.interpretation = "elevated_response"
         row = _build_ortho_row(result, user_id="uid", date="2026-05-15")
-        assert row[-2] == "elevated_response"
-        assert isinstance(row[-1], str)  # spectral_method
+        assert row[-3] == "elevated_response"  # interpretation
+        assert isinstance(row[-2], str)  # spectral_method
+        assert isinstance(row[-1], float)  # score
 
     def test_hr_response_in_row(self):
         """hr_response must appear in the row."""
@@ -873,7 +876,7 @@ class TestLoadOrthostatic:
     def _make_ortho_row(self) -> tuple:
         """Build a fake DB row matching the load_orthostatic SELECT order.
 
-        Row layout (71 values):
+        Row layout (72 values):
         [0]      date
         [1..19]  supine HRV (19)
         [20]     supine_duration_sec
@@ -883,6 +886,7 @@ class TestLoadOrthostatic:
         [64]     standing_duration_sec
         [65..69] derived metrics (5)
         [70]     spectral_method
+        [71]     score
         """
         hrv_block = (
             60.0,
@@ -923,6 +927,7 @@ class TestLoadOrthostatic:
             -65.0,
             "normal",  # [65..69] derived
             "welch",  # [70]     spectral_method
+            72.5,  # [71]     score
         )
 
     def test_returns_list_of_orthostatic_records(self):
@@ -1006,21 +1011,100 @@ class TestLoadOrthostatic:
 # ======================
 
 
+def _repo_from_test_env(**kwargs) -> HRVRepository:
+    """Build an HRVRepository from DB_*_TEST environment variables.
+
+    This keeps the test database separate from the production NAS database.
+    Required env vars: DB_HOST_TEST, DB_NAME_TEST, DB_USER_TEST, DB_PASSWORD_TEST.
+    Optional: DB_PORT_TEST (defaults to 5432).
+
+    Usage in .env::
+
+        DB_HOST_TEST=localhost
+        DB_PORT_TEST=5432
+        DB_NAME_TEST=cardiolab_test
+        DB_USER_TEST=cardiolab
+        DB_PASSWORD_TEST=secret
+
+    """
+    return HRVRepository(
+        host=os.environ["DB_HOST_TEST"],
+        database=os.environ["DB_NAME_TEST"],
+        user=os.environ["DB_USER_TEST"],
+        password=os.environ["DB_PASSWORD_TEST"],
+        port=int(os.environ.get("DB_PORT_TEST", "5432")),
+        **kwargs,
+    )
+
+
+def _test_db_cleanup(table: str, user: str) -> None:
+    """Delete all rows for *user* from *table* using a direct psycopg2 connection.
+
+    Called in fixture teardowns so the DELETE is always committed, even when
+    the test raised an exception (pytest does not propagate test exceptions
+    into the fixture teardown, but a ``with HRVRepository`` block would roll
+    back if it sees one — using psycopg2 directly avoids that ambiguity).
+    """
+    import psycopg2  # local import: only needed for integration tests
+
+    conn = psycopg2.connect(
+        host=os.environ["DB_HOST_TEST"],
+        dbname=os.environ["DB_NAME_TEST"],
+        user=os.environ["DB_USER_TEST"],
+        password=os.environ["DB_PASSWORD_TEST"],
+        port=int(os.environ.get("DB_PORT_TEST", "5432")),
+    )
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"DELETE FROM {table} WHERE user_id = %s;", (user,))  # noqa: S608
+        conn.commit()
+    finally:
+        conn.close()
+
+
 @pytest.mark.integration
-@pytest.mark.skip(
-    reason="Requires a running PostgreSQL instance — set up DB_* env vars and remove this skip to run."
+@pytest.mark.skipif(
+    not os.getenv("DB_HOST_TEST"),
+    reason=(
+        "Requires a running PostgreSQL test instance. "
+        "Set DB_HOST_TEST (+ DB_NAME_TEST, DB_USER_TEST, DB_PASSWORD_TEST) "
+        "in your .env — skipped automatically in GitLab CI."
+    ),
 )
 class TestHRVRepositoryIntegration:
     """Full round-trip tests against a real PostgreSQL database.
 
-    These tests are skipped by default. To run them:
-    1. Start a PostgreSQL server.
-    2. Set DB_HOST, DB_NAME, DB_USER, DB_PASSWORD in your environment.
-    3. Remove the @pytest.mark.skip decorator (or run with -m integration).
+    Activated automatically when ``DB_HOST_TEST`` is present in the environment
+    (loaded from ``.env`` by ``tests/conftest.py``).  In GitLab CI the variable
+    is absent → tests skip without any CI configuration needed.
+
+    Required ``.env`` keys::
+
+        DB_HOST_TEST=localhost       # host du conteneur Docker
+        DB_PORT_TEST=5432
+        DB_NAME_TEST=cardiolab_test  # base de test isolée
+        DB_USER_TEST=cardiolab
+        DB_PASSWORD_TEST=secret
+
+    Each test uses a dedicated fictional user ID (``_USER``) and cleans up its
+    rows in teardown so no real data is ever touched.
     """
 
+    _USER = "test-integration-user"
+    _TABLE = "_cardiolab_test_hrv"
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        """Create the test table before and delete test-user rows after each test."""
+        with _repo_from_test_env(table_name=self._TABLE) as repo:
+            repo.create_table()
+        yield
+        _test_db_cleanup(self._TABLE, self._USER)
+
+    # ── Tests ────────────────────────────────────────────────────────────────
+
     def test_resting_round_trip(self):
-        """save_features followed by load_features must return identical data."""
+        """save_features → load_features must return the same session."""
         features = HRVFeatures(
             date="2099-01-01",
             rmssd=55.0,
@@ -1039,22 +1123,35 @@ class TestHRVRepositoryIntegration:
             score=68.0,
         )
 
-        with HRVRepository.from_env(table_name="test_hrv") as repo:
-            repo.create_table()
-            repo.save_features(features, user_id="integration-test-user")
-            loaded = repo.load_features(user_id="integration-test-user")
+        with _repo_from_test_env(table_name=self._TABLE) as repo:
+            repo.save_features(features, user_id=self._USER)
+            loaded = repo.load_features(user_id=self._USER)
 
-        assert any(f.date == "2099-01-01" and f.rmssd == 55.0 for f in loaded)
+        match = [f for f in loaded if f.date == "2099-01-01"]
+        assert len(match) == 1
+        assert match[0].rmssd == pytest.approx(55.0)
+        assert match[0].score == pytest.approx(68.0)
 
-    def test_upsert_does_not_duplicate(self):
-        """Saving the same session twice must not create two rows."""
+    def test_resting_upsert_no_duplicate(self):
+        """Saving the same (user, date) twice must produce exactly one row."""
         features = HRVFeatures(date="2099-01-02", rmssd=60.0, mean_hr=70.0)
 
-        with HRVRepository.from_env(table_name="test_hrv") as repo:
-            repo.create_table()
-            repo.save_features(features, user_id="integration-test-user")
-            repo.save_features(features, user_id="integration-test-user")
-            loaded = repo.load_features(user_id="integration-test-user")
+        with _repo_from_test_env(table_name=self._TABLE) as repo:
+            repo.save_features(features, user_id=self._USER)
+            repo.save_features(features, user_id=self._USER)
+            loaded = repo.load_features(user_id=self._USER)
 
         matching = [f for f in loaded if f.date == "2099-01-02"]
         assert len(matching) == 1
+
+    def test_resting_score_persisted(self):
+        """The score field must survive a round-trip unchanged."""
+        features = HRVFeatures(date="2099-01-03", rmssd=70.0, mean_hr=62.0, score=83.5)
+
+        with _repo_from_test_env(table_name=self._TABLE) as repo:
+            repo.save_features(features, user_id=self._USER)
+            loaded = repo.load_features(user_id=self._USER)
+
+        match = next((f for f in loaded if f.date == "2099-01-03"), None)
+        assert match is not None
+        assert match.score == pytest.approx(83.5)

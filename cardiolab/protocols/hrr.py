@@ -38,11 +38,12 @@ References:
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
 
-from cardiolab.signals.rr import RRSeries
+from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
 
 
 def _categorise_hrr1(hrr1: float) -> str:
@@ -95,6 +96,7 @@ class HRRResult:
     hrr_60_category: str = ""
     hrr_120_category: str = ""
     duration: float = 0.0
+    score: float = 0.0
 
     def to_dict(self) -> dict:
         """Return a flat dictionary of all result fields."""
@@ -108,6 +110,7 @@ class HRRResult:
             "hrr_60_category": self.hrr_60_category,
             "hrr_120_category": self.hrr_120_category,
             "duration": self.duration,
+            "score": self.score,
         }
 
 
@@ -155,6 +158,15 @@ def heart_rate_recovery(
     time_s = np.cumsum(rr_ms) / 1000.0
     time_s -= time_s[0]
     duration = float(time_s[-1])
+
+    if duration < 120.0:
+        warnings.warn(
+            f"HRR recording duration ({duration:.0f} s) is below 120 s. "
+            "HRR2 (2-minute recovery) cannot be computed and will be set to 0. "
+            "Extend the recording to at least 120 s for a complete HRR assessment.",
+            PhysiologicalWarning,
+            stacklevel=2,
+        )
 
     # Instantaneous HR from each RR interval (bpm)
     hr_inst = 60_000.0 / rr_ms

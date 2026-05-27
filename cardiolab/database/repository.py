@@ -1,7 +1,10 @@
 """PostgreSQL repository for HRV feature storage and retrieval.
 
-Manages six protocol tables through a single class:
+Manages seven tables through a single class:
 
+* **Raw sessions** (``hrv_raw_sessions``): raw RR intervals in ms for every
+  recorded session. Source of truth that allows reprocessing with different
+  parameters. Linked to protocol tables via ``(user_id, session_date, protocol)``.
 * **Resting** (``hrv_features``): one row per session, 19 HRV indicators.
 * **Orthostatic** (``hrv_orthostatic``): one row per test, 19 HRV indicators
   for three phases (supine / transition / standing).
@@ -52,6 +55,7 @@ import re
 from dataclasses import dataclass
 
 from psycopg2 import connect, sql
+from psycopg2.extras import Json
 
 from cardiolab.protocols.cardiac_coherence import CoherenceResult
 from cardiolab.protocols.cardiac_drift import DriftResult
@@ -59,6 +63,7 @@ from cardiolab.protocols.hrr import HRRResult
 from cardiolab.protocols.orthostatic import OrthostaticResult
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.protocols.vo2max import VO2maxResult
+from cardiolab.signals.rr import RRSeries
 
 # ======================
 # VALIDATION
@@ -191,6 +196,8 @@ _ORTHO_COLUMNS: dict[str, str] = {
     # Single column for all phases: all three calls to resting_hrv() use the
     # same spectral method, so storing it once avoids redundancy.
     "spectral_method": "TEXT",
+    # ── Autonomic score ───────────────────────────────────────────────────
+    "score": "FLOAT DEFAULT 0.0",
 }
 
 _ORTHO_DATA_COLUMNS: list[str] = [
@@ -213,6 +220,7 @@ _COHERENCE_COLUMNS: dict[str, str] = {
     "sdnn": "FLOAT",
     "mean_hr": "FLOAT",
     "duration": "FLOAT",
+    "score": "FLOAT DEFAULT 0.0",
 }
 
 _COHERENCE_DATA_COLUMNS: list[str] = [
@@ -235,6 +243,7 @@ _HRR_COLUMNS: dict[str, str] = {
     "hrr_60_category": "TEXT",
     "hrr_120_category": "TEXT",
     "duration": "FLOAT",
+    "score": "FLOAT DEFAULT 0.0",
 }
 
 _HRR_DATA_COLUMNS: list[str] = [c for c in _HRR_COLUMNS if c not in ("user_id", "date")]
@@ -256,6 +265,7 @@ _DRIFT_COLUMNS: dict[str, str] = {
     "n_windows": "INTEGER",
     "interpretation": "TEXT",
     "duration": "FLOAT",
+    "score": "FLOAT DEFAULT 0.0",
 }
 
 _DRIFT_DATA_COLUMNS: list[str] = [
@@ -278,6 +288,7 @@ _VO2MAX_COLUMNS: dict[str, str] = {
     "rmssd_used": "FLOAT",
     "ln_rmssd_used": "FLOAT",
     "fitness_category": "TEXT",
+    "score": "FLOAT DEFAULT 0.0",
 }
 
 _VO2MAX_DATA_COLUMNS: list[str] = [
@@ -318,6 +329,9 @@ class OrthostaticRecord:
         hf_hr_pct_change: Relative change in the HF/FC ratio supine → standing (%).
             Formula: (HF/FC_standing − HF/FC_supine) / HF/FC_supine × 100.
         interpretation: Clinical classification of the orthostatic response.
+        score: Composite autonomic score [0–100] computed by
+            :func:`cardiolab.analytics.scoring.orthostatic_score`. Defaults to
+            0.0 for rows imported before the score column was added.
 
     """
 
@@ -335,6 +349,89 @@ class OrthostaticRecord:
     hf_response_pct: float
     hf_hr_pct_change: float
     interpretation: str
+    score: float = 0.0
+
+    def to_flat_dict(self) -> dict:
+        """Return a flat dict of all fields (one row per session).
+
+        Mirrors the structure produced by ``OrthostaticResult.to_flat_dict()``
+        so that export functions that iterate over result objects can handle
+        ``OrthostaticRecord`` with the same code path.
+
+        HRV fields are prefixed ``supine_``, ``transition_``, and
+        ``standing_``.  Timing and response metrics are unprefixed.
+
+        Returns:
+            Dictionary with one key per metric, suitable for CSV export.
+
+        """
+
+        def _hrv_fields(prefix: str, features: HRVFeatures) -> dict:
+            return {
+                f"{prefix}_rmssd": features.rmssd,
+                f"{prefix}_ln_rmssd": features.ln_rmssd,
+                f"{prefix}_sdnn": features.sdnn,
+                f"{prefix}_pnn50": features.pnn50,
+                f"{prefix}_mean_hr": features.mean_hr,
+                f"{prefix}_vlf": features.vlf,
+                f"{prefix}_lf": features.lf,
+                f"{prefix}_hf": features.hf,
+                f"{prefix}_lf_hf": features.lf_hf,
+                f"{prefix}_hf_pct": features.hf_pct,
+                f"{prefix}_lf_nu": features.lf_nu,
+                f"{prefix}_hf_nu": features.hf_nu,
+                f"{prefix}_hf_hr": features.hf_hr,
+                f"{prefix}_sd1": features.sd1,
+                f"{prefix}_sd2": features.sd2,
+                f"{prefix}_sd_ratio": features.sd_ratio,
+                f"{prefix}_dfa_alpha1": features.dfa_alpha1,
+                f"{prefix}_apen": features.apen,
+                f"{prefix}_sampen": features.sampen,
+            }
+
+        return {
+            "date": self.date,
+            **_hrv_fields("supine", self.supine),
+            **_hrv_fields("transition", self.transition_features),
+            **_hrv_fields("standing", self.standing),
+            "transition_start_sec": self.transition_start_sec,
+            "transition_end_sec": self.transition_end_sec,
+            "transition_duration_sec": self.transition_duration_sec,
+            "transition_delta_hr": self.transition_delta_hr,
+            "transition_peak_hr": self.transition_peak_hr,
+            "hr_response": self.hr_response,
+            "lf_hf_ratio_change": self.lf_hf_ratio_change,
+            "hf_response_pct": self.hf_response_pct,
+            "hf_hr_pct_change": self.hf_hr_pct_change,
+            "interpretation": self.interpretation,
+            "score": self.score,
+        }
+
+    def to_reporting_row(self) -> dict:
+        """Return a condensed dict for use in reporting tables.
+
+        Produces the same keys as ``table_orthostatic_history`` expects so
+        that ``OrthostaticRecord`` objects can be passed to reporting helpers
+        without conversion.
+
+        Returns:
+            Dictionary with date, key supine/standing metrics, response
+            indicators, and interpretation.
+
+        """
+        return {
+            "date": self.date,
+            "supine_rmssd": self.supine.rmssd,
+            "standing_rmssd": self.standing.rmssd,
+            "supine_hr": self.supine.mean_hr,
+            "standing_hr": self.standing.mean_hr,
+            "hr_response": self.hr_response,
+            "lf_hf_change": self.lf_hf_ratio_change,
+            "hf_response_pct": self.hf_response_pct,
+            "hf_hr_pct_change": self.hf_hr_pct_change,
+            "interpretation": self.interpretation,
+            "score": self.score,
+        }
 
 
 # ======================
@@ -400,13 +497,14 @@ def _build_ortho_row(
     The tuple order matches ``["user_id", "date"] + _ORTHO_DATA_COLUMNS``
     exactly and must stay in sync with ``_ORTHO_COLUMNS``.
 
-    Column layout (70 data values after user_id + date):
+    Column layout (71 data values after user_id + date):
 
     * supine HRV (19) + supine_duration_sec (1)
     * transition timing (5)
     * transition HRV (19)
     * standing HRV (19) + standing_duration_sec (1)
     * derived metrics (5)
+    * spectral_method (1) + score (1)
 
     Args:
         result: Protocol output from ``orthostatic_hrv()``.
@@ -503,7 +601,42 @@ def _build_ortho_row(
         result.interpretation,
         # spectral_method (1) — same for all phases
         sf.method,
+        # autonomic score (1)
+        result.score,
     )
+
+
+# ======================
+# NUMPY ADAPTER (psycopg2 + NumPy 2.x)
+# ======================
+
+
+def _register_numpy_adapters() -> None:
+    """Register psycopg2 adapters for NumPy scalar types.
+
+    NumPy 2.0 changed the ``repr()`` of scalars: ``repr(np.float64(1.5))``
+    now returns ``"np.float64(1.5)"`` instead of ``"1.5"``.  Without an
+    explicit adapter, psycopg2 falls back to ``str()``/``repr()`` and
+    PostgreSQL interprets ``np.float64`` as a schema name, raising::
+
+        ProgrammingError: schema "np" does not exist
+
+    Calling ``register_adapter`` multiple times with the same type is safe —
+    each call simply overwrites the previous registration.
+
+    This function is a no-op when NumPy is not installed.
+    """
+    try:
+        import numpy as np
+        from psycopg2.extensions import AsIs, register_adapter
+
+        register_adapter(np.float64, lambda v: AsIs(float(v)))
+        register_adapter(np.float32, lambda v: AsIs(float(v)))
+        register_adapter(np.int64, lambda v: AsIs(int(v)))
+        register_adapter(np.int32, lambda v: AsIs(int(v)))
+        register_adapter(np.bool_, lambda v: AsIs(bool(v)))
+    except ImportError:
+        pass  # NumPy non installé — aucune action requise
 
 
 # ======================
@@ -555,6 +688,7 @@ class HRVRepository:
         hrr_table_name: str = "hrv_hrr",
         drift_table_name: str = "hrv_drift",
         vo2max_table_name: str = "hrv_vo2max",
+        raw_sessions_table_name: str = "hrv_raw_sessions",
         port: int = 5432,
     ) -> None:
         """Store connection parameters and validate table names."""
@@ -565,6 +699,7 @@ class HRVRepository:
             hrr_table_name,
             drift_table_name,
             vo2max_table_name,
+            raw_sessions_table_name,
         ):
             _validate_identifier(name)
         self._dsn = {
@@ -580,6 +715,7 @@ class HRVRepository:
         self.hrr_table_name = hrr_table_name
         self.drift_table_name = drift_table_name
         self.vo2max_table_name = vo2max_table_name
+        self.raw_sessions_table_name = raw_sessions_table_name
         self._conn = None
 
     # ── Factory ──────────────────────────────────────────────────────────
@@ -593,6 +729,7 @@ class HRVRepository:
         hrr_table_name: str = "hrv_hrr",
         drift_table_name: str = "hrv_drift",
         vo2max_table_name: str = "hrv_vo2max",
+        raw_sessions_table_name: str = "hrv_raw_sessions",
     ) -> HRVRepository:
         """Build a repository from environment variables.
 
@@ -618,6 +755,8 @@ class HRVRepository:
                 ``"hrv_drift"``.
             vo2max_table_name: VO2max estimation table name. Defaults to
                 ``"hrv_vo2max"``.
+            raw_sessions_table_name: Raw RR intervals table name. Defaults to
+                ``"hrv_raw_sessions"``.
 
         Returns:
             A configured ``HRVRepository`` instance (not yet connected).
@@ -638,13 +777,15 @@ class HRVRepository:
             hrr_table_name=hrr_table_name,
             drift_table_name=drift_table_name,
             vo2max_table_name=vo2max_table_name,
+            raw_sessions_table_name=raw_sessions_table_name,
         )
 
     # ── Connection lifecycle ──────────────────────────────────────────────
 
     def __enter__(self) -> HRVRepository:
-        """Open the database connection."""
+        """Open the database connection and register NumPy type adapters."""
         self._conn = connect(**self._dsn)
+        _register_numpy_adapters()
         return self
 
     def __exit__(self, exc_type, _exc_val, _exc_tb) -> None:
@@ -975,6 +1116,7 @@ class HRVRepository:
         * ``[45..63]`` — standing HRV (19)  ``[64]`` standing_duration_sec
         * ``[65..69]`` — derived metrics (5)
         * ``[70]``     — spectral_method (TEXT)
+        * ``[71]``     — score (FLOAT)
 
         Args:
             user_id: Identifier of the user whose sessions are retrieved.
@@ -1010,7 +1152,7 @@ class HRVRepository:
             # [1..19]  supine HRV (19)    [20] supine_duration_sec
             # [21..25] transition timing   [26..44] transition HRV (19)
             # [45..63] standing HRV (19)  [64] standing_duration_sec
-            # [65..69] derived metrics (5)  [70] spectral_method
+            # [65..69] derived metrics (5)  [70] spectral_method  [71] score
             spectral_method: str = row[70] or "welch"
             supine = _features_from_row(row, offset=1, date=date, duration=row[20])
             supine.method = spectral_method
@@ -1034,6 +1176,7 @@ class HRVRepository:
                     hf_response_pct=row[67],
                     hf_hr_pct_change=row[68],
                     interpretation=row[69],
+                    score=row[71] if row[71] is not None else 0.0,
                 )
             )
 
@@ -1115,6 +1258,7 @@ class HRVRepository:
             result.sdnn,
             result.mean_hr,
             result.duration,
+            result.score,
         )
         with self._conn_or_raise().cursor() as cur:
             cur.execute(query, row)
@@ -1155,6 +1299,7 @@ class HRVRepository:
                 sdnn=row[6],
                 mean_hr=row[7],
                 duration=row[8],
+                score=row[9] if row[9] is not None else 0.0,
             )
             for row in rows
         ]
@@ -1235,6 +1380,7 @@ class HRVRepository:
             result.hrr_60_category,
             result.hrr_120_category,
             result.duration,
+            result.score,
         )
         with self._conn_or_raise().cursor() as cur:
             cur.execute(query, row)
@@ -1275,6 +1421,7 @@ class HRVRepository:
                 hrr_60_category=row[6] or "",
                 hrr_120_category=row[7] or "",
                 duration=row[8],
+                score=row[9] if row[9] is not None else 0.0,
             )
             for row in rows
         ]
@@ -1356,6 +1503,7 @@ class HRVRepository:
             result.n_windows,
             result.interpretation,
             result.duration,
+            result.score,
         )
         with self._conn_or_raise().cursor() as cur:
             cur.execute(query, row)
@@ -1397,6 +1545,7 @@ class HRVRepository:
                 n_windows=int(row[7]),
                 interpretation=row[8] or "no_drift",
                 duration=row[9],
+                score=row[10] if row[10] is not None else 0.0,
             )
             for row in rows
         ]
@@ -1477,6 +1626,7 @@ class HRVRepository:
             result.rmssd_used,
             result.ln_rmssd_used,
             result.fitness_category,
+            result.score,
         )
         with self._conn_or_raise().cursor() as cur:
             cur.execute(query, row)
@@ -1517,6 +1667,236 @@ class HRVRepository:
                 rmssd_used=row[6],
                 ln_rmssd_used=row[7],
                 fitness_category=row[8] or "poor",
+                score=row[9] if row[9] is not None else 0.0,
             )
+            for row in rows
+        ]
+
+    # ── Raw sessions — schema ────────────────────────────────────────────
+
+    def create_raw_sessions_table(self) -> None:
+        """Create the raw RR sessions table if it does not already exist.
+
+        The table stores the raw RR interval array (in milliseconds) for every
+        recorded session together with provenance metadata.  It is the
+        **source of truth** for all protocol analyses: having the raw signal
+        allows reprocessing with different parameters (spectral method, clean
+        thresholds, …) without re-importing original files.
+
+        Schema::
+
+            hrv_raw_sessions (
+                id           SERIAL PRIMARY KEY,
+                user_id      TEXT      NOT NULL,
+                session_date DATE      NOT NULL,
+                protocol     TEXT      NOT NULL,
+                rr_intervals FLOAT[]   NOT NULL,   -- ms, one value per beat
+                source_file  TEXT,                  -- original filename
+                device       TEXT DEFAULT 'hrv_elite',
+                duration_sec FLOAT,                 -- total recording duration
+                beat_count   INT,                   -- len(rr_intervals)
+                created_at   TIMESTAMP DEFAULT NOW(),
+                metadata     JSONB     DEFAULT '{}',
+                UNIQUE(user_id, session_date, protocol)
+            )
+
+        The ``UNIQUE(user_id, session_date, protocol)`` constraint mirrors the
+        key used by all protocol tables, enabling natural joins and safe
+        upserts.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the SQL statement is rejected.
+
+        """
+        query = sql.SQL(
+            "CREATE TABLE IF NOT EXISTS {table} (\n"
+            "    id           SERIAL PRIMARY KEY,\n"
+            "    user_id      TEXT      NOT NULL,\n"
+            "    session_date DATE      NOT NULL,\n"
+            "    protocol     TEXT      NOT NULL,\n"
+            "    rr_intervals FLOAT[]   NOT NULL,\n"
+            "    source_file  TEXT,\n"
+            "    device       TEXT      DEFAULT 'hrv_elite',\n"
+            "    duration_sec FLOAT,\n"
+            "    beat_count   INT,\n"
+            "    created_at   TIMESTAMP DEFAULT NOW(),\n"
+            "    metadata     JSONB     DEFAULT '{{}}',\n"
+            "    UNIQUE(user_id, session_date, protocol)\n"
+            ");"
+        ).format(table=sql.Identifier(self.raw_sessions_table_name))
+
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query)
+
+    # ── Raw sessions — write ─────────────────────────────────────────────
+
+    def save_raw_session(
+        self,
+        rr: RRSeries,
+        user_id: str,
+        date: str,
+        protocol: str,
+        source_file: str | None = None,
+        device: str = "hrv_elite",
+        metadata: dict | None = None,
+    ) -> None:
+        """Save raw RR intervals for a session (upsert).
+
+        Stores the full RR interval array in milliseconds alongside provenance
+        metadata.  An existing row for the same ``(user_id, date, protocol)``
+        is overwritten so repeated imports are safe.
+
+        Args:
+            rr: RR interval series to persist.  ``rr.intervals`` is converted
+                to a plain Python list before insertion so that NumPy arrays
+                are handled transparently.
+            user_id: User identifier (UUID or string).
+            date: ISO-format date string (``"YYYY-MM-DD"``).
+            protocol: Protocol name (``"resting"``, ``"orthostatic"``, etc.).
+            source_file: Original filename for traceability. Optional.
+            device: Acquisition device name. Defaults to ``"hrv_elite"``.
+            metadata: Arbitrary key-value pairs serialised as JSONB — e.g.
+                ``{"method": "ar", "hr_max": 185.0}``. Defaults to ``{}``.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        rr_list = [float(v) for v in rr.intervals]
+        meta = Json(metadata or {})
+
+        query = sql.SQL(
+            "INSERT INTO {table} "
+            "(user_id, session_date, protocol, rr_intervals, source_file, "
+            " device, duration_sec, beat_count, metadata)\n"
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)\n"
+            "ON CONFLICT (user_id, session_date, protocol) DO UPDATE SET\n"
+            "    rr_intervals = EXCLUDED.rr_intervals,\n"
+            "    source_file  = EXCLUDED.source_file,\n"
+            "    device       = EXCLUDED.device,\n"
+            "    duration_sec = EXCLUDED.duration_sec,\n"
+            "    beat_count   = EXCLUDED.beat_count,\n"
+            "    metadata     = EXCLUDED.metadata,\n"
+            "    created_at   = NOW();"
+        ).format(table=sql.Identifier(self.raw_sessions_table_name))
+
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(
+                query,
+                (
+                    user_id,
+                    date,
+                    protocol,
+                    rr_list,
+                    source_file,
+                    device,
+                    rr.duration,
+                    len(rr_list),
+                    meta,
+                ),
+            )
+
+    # ── Raw sessions — read ──────────────────────────────────────────────
+
+    def load_raw_session(
+        self,
+        user_id: str,
+        date: str,
+        protocol: str,
+    ) -> RRSeries | None:
+        """Load raw RR intervals for a specific session.
+
+        Args:
+            user_id: User identifier.
+            date: ISO date string (``"YYYY-MM-DD"``).
+            protocol: Protocol name.
+
+        Returns:
+            A :class:`~cardiolab.signals.rr.RRSeries` reconstructed from the
+            stored intervals, or ``None`` if no record exists for the given
+            ``(user_id, date, protocol)`` triplet.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        query = sql.SQL(
+            "SELECT rr_intervals, metadata\n"
+            "FROM {table}\n"
+            "WHERE user_id = %s AND session_date = %s AND protocol = %s;"
+        ).format(table=sql.Identifier(self.raw_sessions_table_name))
+
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (user_id, date, protocol))
+            row = cur.fetchone()
+
+        if row is None:
+            return None
+
+        rr_intervals, metadata = row
+        return RRSeries(
+            intervals=rr_intervals,
+            metadata=metadata if isinstance(metadata, dict) else {},
+        )
+
+    def list_raw_sessions(
+        self,
+        user_id: str,
+        protocol: str | None = None,
+    ) -> list[dict]:
+        """List stored raw sessions for a user.
+
+        Args:
+            user_id: User identifier.
+            protocol: If provided, filter to sessions of that protocol only.
+
+        Returns:
+            List of dicts, one per session, sorted by ascending date.
+            Each dict has keys: ``date``, ``protocol``, ``source_file``,
+            ``device``, ``duration_sec``, ``beat_count``, ``created_at``,
+            ``metadata``.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        if protocol is not None:
+            query = sql.SQL(
+                "SELECT session_date, protocol, source_file, device,\n"
+                "       duration_sec, beat_count, created_at, metadata\n"
+                "FROM {table}\n"
+                "WHERE user_id = %s AND protocol = %s\n"
+                "ORDER BY session_date ASC;"
+            ).format(table=sql.Identifier(self.raw_sessions_table_name))
+            params = (user_id, protocol)
+        else:
+            query = sql.SQL(
+                "SELECT session_date, protocol, source_file, device,\n"
+                "       duration_sec, beat_count, created_at, metadata\n"
+                "FROM {table}\n"
+                "WHERE user_id = %s\n"
+                "ORDER BY session_date ASC, protocol ASC;"
+            ).format(table=sql.Identifier(self.raw_sessions_table_name))
+            params = (user_id,)
+
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+
+        return [
+            {
+                "date": str(row[0]),
+                "protocol": row[1],
+                "source_file": row[2],
+                "device": row[3],
+                "duration_sec": row[4],
+                "beat_count": row[5],
+                "created_at": str(row[6]) if row[6] else None,
+                "metadata": row[7] if isinstance(row[7], dict) else {},
+            }
             for row in rows
         ]
