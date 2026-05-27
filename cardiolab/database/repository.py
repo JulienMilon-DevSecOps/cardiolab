@@ -218,6 +218,7 @@ _COHERENCE_COLUMNS: dict[str, str] = {
     "sdnn": "FLOAT",
     "mean_hr": "FLOAT",
     "duration": "FLOAT",
+    "score": "FLOAT DEFAULT 0.0",
 }
 
 _COHERENCE_DATA_COLUMNS: list[str] = [
@@ -240,6 +241,7 @@ _HRR_COLUMNS: dict[str, str] = {
     "hrr_60_category": "TEXT",
     "hrr_120_category": "TEXT",
     "duration": "FLOAT",
+    "score": "FLOAT DEFAULT 0.0",
 }
 
 _HRR_DATA_COLUMNS: list[str] = [c for c in _HRR_COLUMNS if c not in ("user_id", "date")]
@@ -261,6 +263,7 @@ _DRIFT_COLUMNS: dict[str, str] = {
     "n_windows": "INTEGER",
     "interpretation": "TEXT",
     "duration": "FLOAT",
+    "score": "FLOAT DEFAULT 0.0",
 }
 
 _DRIFT_DATA_COLUMNS: list[str] = [
@@ -283,6 +286,7 @@ _VO2MAX_COLUMNS: dict[str, str] = {
     "rmssd_used": "FLOAT",
     "ln_rmssd_used": "FLOAT",
     "fitness_category": "TEXT",
+    "score": "FLOAT DEFAULT 0.0",
 }
 
 _VO2MAX_DATA_COLUMNS: list[str] = [
@@ -1241,6 +1245,7 @@ class HRVRepository:
             result.sdnn,
             result.mean_hr,
             result.duration,
+            result.score,
         )
         with self._conn_or_raise().cursor() as cur:
             cur.execute(query, row)
@@ -1281,6 +1286,7 @@ class HRVRepository:
                 sdnn=row[6],
                 mean_hr=row[7],
                 duration=row[8],
+                score=row[9] if row[9] is not None else 0.0,
             )
             for row in rows
         ]
@@ -1361,6 +1367,7 @@ class HRVRepository:
             result.hrr_60_category,
             result.hrr_120_category,
             result.duration,
+            result.score,
         )
         with self._conn_or_raise().cursor() as cur:
             cur.execute(query, row)
@@ -1401,6 +1408,7 @@ class HRVRepository:
                 hrr_60_category=row[6] or "",
                 hrr_120_category=row[7] or "",
                 duration=row[8],
+                score=row[9] if row[9] is not None else 0.0,
             )
             for row in rows
         ]
@@ -1482,6 +1490,7 @@ class HRVRepository:
             result.n_windows,
             result.interpretation,
             result.duration,
+            result.score,
         )
         with self._conn_or_raise().cursor() as cur:
             cur.execute(query, row)
@@ -1523,6 +1532,7 @@ class HRVRepository:
                 n_windows=int(row[7]),
                 interpretation=row[8] or "no_drift",
                 duration=row[9],
+                score=row[10] if row[10] is not None else 0.0,
             )
             for row in rows
         ]
@@ -1603,6 +1613,7 @@ class HRVRepository:
             result.rmssd_used,
             result.ln_rmssd_used,
             result.fitness_category,
+            result.score,
         )
         with self._conn_or_raise().cursor() as cur:
             cur.execute(query, row)
@@ -1643,6 +1654,7 @@ class HRVRepository:
                 rmssd_used=row[6],
                 ln_rmssd_used=row[7],
                 fitness_category=row[8] or "poor",
+                score=row[9] if row[9] is not None else 0.0,
             )
             for row in rows
         ]

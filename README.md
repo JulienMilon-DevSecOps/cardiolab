@@ -121,7 +121,7 @@ Heart rate variability is used to assess:
 | Non-linear | ApEn | Approximate Entropy — signal regularity (Pincus 1991) |
 | Non-linear | SampEn | Sample Entropy — improved ApEn, length-independent (Richman & Moorman 2000) |
 | Meta | Duration | Phase duration (s) |
-| Meta | Score | Recovery score (0–1) |
+| Meta | Score | Performance score [0–100] (protocol-specific, see below) |
 
 ### Input validation
 
@@ -645,11 +645,88 @@ See [`docs/reporting/tables.md`](cardiolab/docs/reporting/tables.md) for the ful
 
 ---
 
-## Analytics
+## Analytics & Scoring
+
+All scores are stored in the `score` field of each result dataclass and
+in the corresponding PostgreSQL column. Values are in **[0–100]**.
+
+### Resting HRV — relative baseline score
+
+The resting score is **relative to the personal baseline** (progressive:
+session N scored against sessions 1…N-1). Three complementary functions:
+
+```python
+from cardiolab.analytics import readiness_score_multi, readiness_score_nonlinear, readiness_score_composite
+from cardiolab.analytics import Baseline
+
+baseline = Baseline.from_features(previous_sessions)
+
+score = readiness_score_multi(current_session, baseline)      # RMSSD 35% + HR 20% + DFA α1 25% + trend 20%
+score = readiness_score_nonlinear(current_session, baseline)  # DFA α1 40% + SD1 35% + SD1/SD2 25%
+score = readiness_score_composite(current_session, baseline)  # weighted combination of both
+```
+
+| Score | Interpretation |
+|-------|---------------|
+| > 60 | Above personal baseline — good recovery |
+| 40–60 | Near baseline — normal variability |
+| < 40 | Below baseline — possible fatigue or stress |
+
+### Protocol-specific scores — absolute clinical thresholds
+
+For protocols with established scientific thresholds, the score is computed
+from the primary metric without needing a personal baseline:
+
+```python
+from cardiolab.analytics import hrr_score, coherence_score_100, drift_score, vo2max_score
+```
+
+| Protocol | Function | Primary metric | Reference |
+|----------|---------|---------------|-----------|
+| **HRR** | `hrr_score(hrr_60)` | HRR1 (bpm drop at 60 s) | Cole et al., *NEJM* 1999 |
+| **Coherence** | `coherence_score_100(coherence_score)` | % resonance-band peak power | Lehrer & Gevirtz, *Front. Psychol.* 2014 |
+| **Drift** | `drift_score(drift_rate)` | Drift rate (bpm/min) | Coyle & González-Alonso, *ESSR* 2001 |
+| **VO2max** | `vo2max_score(vo2max)` | VO2max estimate (mL/kg/min) | ACSM Guidelines, 11th ed. 2022 |
+
+**HRR score calibration** (Cole et al. 1999):
+
+| HRR1 (bpm) | Category | Score (~) |
+|------------|---------|-----------|
+| ≥ 25 | Excellent | ≥ 88 |
+| 20–24 | Good | 64–87 |
+| 12–19 | Normal | 14–63 |
+| < 12 | Impaired | < 14 |
+
+**Coherence score calibration** (Lehrer & Gevirtz 2014):
+
+| Coherence (%) | Clinical level | Score (~) |
+|---------------|--------------|-----------|
+| ≥ 60 | Good | ≥ 75 |
+| 40–59 | Moderate | 25–74 |
+| < 40 | Poor | < 25 |
+
+**Drift score calibration** (Coyle & González-Alonso 2001):
+
+| Drift rate (bpm/min) | Category | Score (~) |
+|----------------------|---------|-----------|
+| < 0.5 | No drift | ≥ 82 |
+| 0.5–1.5 | Mild | 55–81 |
+| 1.5–3.0 | Moderate | 22–54 |
+| > 3.0 | Strong | < 22 |
+
+**VO2max score calibration** (ACSM 2022):
+
+| VO2max (mL/kg/min) | Category | Score (~) |
+|--------------------|---------|-----------|
+| ≥ 58 | Excellent | ≥ 93 |
+| 48–57 | Very good | 70–92 |
+| 38–47 | Good | 30–69 |
+| 28–37 | Fair | 8–29 |
+| < 28 | Poor | < 8 |
+
+### Other analytics
 
 * **Baseline** — rolling 7-session RMSSD mean, median, mean HR
-* **Scoring** — Oura-inspired (RMSSD 70 % + HR 30 %) and multi-factor
-  (RMSSD + HR + HF_nu + trend)
 * **Anomaly detection** — three methods: `simple` (% deviation), `zscore`,
   `rolling` (sliding median)
 * **Trend** — linear regression on RMSSD history (`increasing`, `stable`,
@@ -660,7 +737,7 @@ See [`docs/reporting/tables.md`](cardiolab/docs/reporting/tables.md) for the ful
 ## Database
 
 PostgreSQL persistence via `HRVRepository` (context manager, upsert-safe).
-Six dedicated tables, one per protocol:
+**Seven dedicated tables** — six protocol tables + one raw RR intervals table:
 
 ```python
 with HRVRepository.from_env() as repo:
@@ -688,7 +765,17 @@ with HRVRepository.from_env() as repo:
     # VO2max estimation
     repo.create_vo2max_table()
     repo.save_vo2max(vo2max_result, user_id="<uuid>", date="2026-05-19")
+
+    # Raw RR intervals (FLOAT[] — stored before protocol analysis for reprocessing)
+    repo.create_raw_sessions_table()
+    repo.save_raw_session(rr, user_id="<uuid>", date="2026-05-19", protocol="resting",
+                          source_file="2026-05-19 07-52.txt")
+    rr_back = repo.load_raw_session(user_id="<uuid>", date="2026-05-19", protocol="resting")
+    sessions = repo.list_raw_sessions(user_id="<uuid>")           # all protocols
+    sessions = repo.list_raw_sessions(user_id="<uuid>", protocol="hrr")  # one protocol
 ```
+
+Each protocol table includes a `score FLOAT` column (see [Analytics & Scoring](#analytics--scoring)).
 
 See [`example/README.md`](example/README.md) for the full step-by-step setup.
 
@@ -706,8 +793,8 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | `protocols/hrr` | Implemented |
 | `protocols/cardiac_drift` | Implemented |
 | `protocols/vo2max` | Implemented |
-| `analytics/` — baseline, scoring, anomaly, trend | Implemented |
-| `database/` — 6 protocol tables | Implemented |
+| `analytics/` — baseline, scoring (all 6 protocols), anomaly, trend | Implemented |
+| `database/` — 7 tables (6 protocol + raw RR) | Implemented |
 | `io/` — CSV & JSON export for all protocols | Implemented |
 | `sensors_tools/` — Polar | Implemented |
 | `visualization/` | Implemented |
@@ -715,7 +802,7 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | PPG signal support | Planned |
 | Training load model (ATL / CTL / TSB) | Planned |
 
-**Test coverage:** 775+ unit tests, 0 failures.
+**Test coverage:** 1111 unit tests, 0 failures.
 
 ---
 
@@ -785,7 +872,8 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] Resting protocol
 * [x] Orthostatic protocol with automatic phase detection
 * [x] Analytics pipeline (baseline, scoring, anomaly, trend)
-* [x] PostgreSQL persistence layer (6 protocol tables)
+* [x] PostgreSQL persistence layer (7 tables — 6 protocol + raw RR intervals)
+* [x] Score [0–100] for all protocols (resting: baseline-relative; HRR / coherence / drift / VO2max: absolute clinical thresholds)
 * [x] Physiological validation with `PhysiologicalWarning` on `RRSeries`
 * [x] `auto_clean` option in all protocols
 * [x] `to_dict()` export on all result dataclasses

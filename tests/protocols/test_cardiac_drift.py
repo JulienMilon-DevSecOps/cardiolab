@@ -74,6 +74,7 @@ class TestDriftResult:
             "n_windows",
             "interpretation",
             "duration",
+            "score",
         }
         assert set(r.to_dict().keys()) == expected
 

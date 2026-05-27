@@ -96,6 +96,7 @@ class HRRResult:
     hrr_60_category: str = ""
     hrr_120_category: str = ""
     duration: float = 0.0
+    score: float = 0.0
 
     def to_dict(self) -> dict:
         """Return a flat dictionary of all result fields."""
@@ -109,6 +110,7 @@ class HRRResult:
             "hrr_60_category": self.hrr_60_category,
             "hrr_120_category": self.hrr_120_category,
             "duration": self.duration,
+            "score": self.score,
         }
 
 

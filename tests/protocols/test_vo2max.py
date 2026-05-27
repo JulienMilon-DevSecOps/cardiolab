@@ -54,6 +54,7 @@ class TestVO2maxResult:
             "rmssd_used",
             "ln_rmssd_used",
             "fitness_category",
+            "score",
         }
         assert set(r.to_dict().keys()) == expected
 

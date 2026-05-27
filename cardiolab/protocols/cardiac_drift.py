@@ -93,6 +93,7 @@ class DriftResult:
     n_windows: int = 0
     interpretation: str = "no_drift"
     duration: float = 0.0
+    score: float = 0.0
 
     def to_dict(self) -> dict:
         """Return a flat dictionary of all result fields."""
@@ -107,6 +108,7 @@ class DriftResult:
             "n_windows": self.n_windows,
             "interpretation": self.interpretation,
             "duration": self.duration,
+            "score": self.score,
         }
 
 

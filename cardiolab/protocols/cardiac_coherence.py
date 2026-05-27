@@ -55,6 +55,9 @@ class CoherenceResult:
         sdnn: SDNN during the session (ms).
         mean_hr: Mean heart rate during the session (bpm).
         duration: Effective recording duration (s).
+        score: Readiness score on a **[0–100]** scale derived from the
+            coherence score (Lehrer & Gevirtz 2014). Defaults to 0.0.
+            Must be populated by ``coherence_score_100()`` before saving.
 
     """
 
@@ -67,6 +70,7 @@ class CoherenceResult:
     sdnn: float = 0.0
     mean_hr: float = 0.0
     duration: float = 0.0
+    score: float = 0.0
 
     def to_dict(self) -> dict:
         """Return a flat dictionary of all result fields."""
@@ -80,6 +84,7 @@ class CoherenceResult:
             "sdnn": self.sdnn,
             "mean_hr": self.mean_hr,
             "duration": self.duration,
+            "score": self.score,
         }
 
 

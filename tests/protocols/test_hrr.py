@@ -68,6 +68,7 @@ class TestHRRResult:
             "hrr_60_category",
             "hrr_120_category",
             "duration",
+            "score",
         }
         assert set(r.to_dict().keys()) == expected
 
