@@ -55,13 +55,18 @@ cardiolab/
 ├── sensors_tools/    → Polar sensor integration
 ├── database/         → PostgreSQL persistence layer (6 tables)
 ├── io/               → CSV and JSON export for all protocols
+├── reporting/        → tabular reporting (pandas Styler, HTML/Excel export)
+│   ├── _core.py          → shared formatters, colour palettes, gradient builders
+│   ├── resting.py        → table_resting_history, table_resting_session
+│   └── orthostatic.py    → table_orthostatic_comparison, table_orthostatic_history
 ├── scripts/          → CLI import tools
 ├── datasets/         → sample recordings (resting/, orthostatic/)
 ├── docs/             → protocol & feature documentation
 │   ├── protocols/    → resting.md, orthostatic.md, cardiac_coherence.md,
 │   │                   hrr.md, cardiac_drift.md, vo2max.md
 │   ├── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md
-│   └── visualization/→ reading_charts.md — how to read each chart type
+│   ├── visualization/→ reading_charts.md — how to read each chart type
+│   └── reporting/    → tables.md — reporting API reference
 └── visualization/    → signal and HRV plots
     ├── resting_plots.py  → RMSSD & readiness score evolution over time
     └── rr_plots.py       → raw RR: tachogram, distribution, filtered,
@@ -480,6 +485,164 @@ uncertainty band on the evolution chart reflects the typical model error range
 28–37 fair, 38–47 good, 48–57 very good, ≥ 58 excellent) are shown as coloured
 backgrounds in all three charts.
 
+### Dashboards — `dashboard_plots`
+
+```python
+from cardiolab.visualization.dashboard_plots import (
+    # C6 global dashboards
+    plot_session_dashboard,    # 2×3 multi-protocol overview for one session
+    plot_longitudinal_heatmap, # sessions × metrics colour heatmap
+    plot_readiness_evolution,  # daily readiness score line with rolling band
+    # Per-protocol mini-dashboards
+    plot_resting_mini,         # 2×2: tachogram + Poincaré + PSD + score panel
+    plot_hrr_mini,             # 1×2: recovery curve + HRR1 gauge
+    plot_drift_mini,           # 1×2: drift curve + metrics summary
+    plot_vo2max_mini,          # 1×2: model comparison bars + fitness gauge
+    plot_coherence_mini,       # 1×2: AR PSD + RR tachogram
+)
+
+# Multi-protocol session overview
+fig = plot_session_dashboard(
+    rr_resting, features,
+    rr_recovery=rr_post, hrr_result=hrr_res,
+    rr_exercise=rr_ex, drift_result=drift_res,
+    vo2max_result=vo2max_res,
+    title="Session 2026-05-20",
+)
+fig.savefig("session_dashboard.png", dpi=150, bbox_inches="tight")
+
+# Longitudinal heatmap (RMSSD + score + HRR1 + VO2max + drift)
+fig = plot_longitudinal_heatmap(
+    features_list,
+    hrr_results=hrr_list,
+    drift_results=drift_list,
+    vo2max_results=vo2max_list,
+    labels=dates,
+)
+fig.savefig("heatmap.png", dpi=150, bbox_inches="tight")
+
+# Daily readiness score evolution
+fig = plot_readiness_evolution(features_list, labels=dates)
+fig.savefig("readiness.png", dpi=150, bbox_inches="tight")
+
+# Per-protocol mini-dashboards
+fig = plot_resting_mini(rr, features)
+fig = plot_hrr_mini(rr_post, hrr_result)
+fig = plot_drift_mini(rr_exercise, drift_result)
+fig = plot_vo2max_mini(vo2max_result)
+fig = plot_coherence_mini(rr, coherence_result)
+```
+
+`plot_session_dashboard` adapts gracefully: when a protocol result is provided
+without its associated RR series, it falls back to a text summary panel; when
+neither is provided, a "No data" placeholder is shown.
+`plot_longitudinal_heatmap` normalises each metric column to [0, 1] so sessions
+can be compared visually even when metrics have different scales.  Missing data
+cells appear in grey.
+
+---
+
+## Reporting
+
+The `cardiolab.reporting` module produces **ready-to-display pandas Styler tables**
+for Jupyter Notebook, with colour gradients and clinical category highlighting.
+Each function returns a `pd.Styler` that is directly exportable to HTML or Excel.
+
+```python
+from cardiolab.reporting import (
+    # Resting HRV
+    table_resting_history,        # multi-session history — one row per session
+    table_resting_session,        # single-session detail — one row per metric
+    # Orthostatic
+    table_orthostatic_comparison, # supine vs standing side-by-side comparison
+    table_orthostatic_history,    # condensed orthostatic history
+    # HRR
+    table_hrr_history,            # HRR1/HRR2 history with clinical categories
+    # Cardiac drift
+    table_drift_history,          # drift rate, magnitude, R² history
+    # Cardiac coherence
+    table_coherence_history,      # coherence score history with category
+    # VO2max
+    table_vo2max_history,         # all three model estimates history
+    table_vo2max_session,         # single-session detail (model breakdown)
+)
+```
+
+### Resting HRV tables
+
+```python
+# Multi-session history with colour gradients
+styler = table_resting_history(features_list)
+display(styler)
+
+# Optional: restrict columns
+styler = table_resting_history(features_list, cols=["date", "rmssd", "score"])
+
+# Single-session detail (one row per metric, grouped by domain)
+styler = table_resting_session(features)
+display(styler)
+```
+
+`table_resting_history` includes: date · RMSSD · SDNN · mean HR · SD1 · SD2 ·
+SD1/SD2 · DFA α1 · ApEn · SampEn · score.  
+Green gradient = better (RMSSD, SD1, SD2, score, DFA α1).  Red gradient = better low (mean HR).
+
+### Orthostatic HRV tables
+
+```python
+results = [r1, r2, r3]           # list[OrthostaticResult]
+dates   = ["2024-01-01", ...]    # optional — defaults to "Session N"
+
+# Side-by-side supine vs standing with delta columns
+styler = table_orthostatic_comparison(results, dates=dates)
+display(styler)
+
+# Condensed history — key autonomic response indicators
+styler = table_orthostatic_history(results, dates=dates)
+display(styler)
+```
+
+`table_orthostatic_comparison` includes: `supine_*` and `standing_*` columns for
+RMSSD, mean HR, SD1, SD2, SD1/SD2, DFA α1, HF_nu, ApEn, SampEn — plus response
+indicators (`hr_response`, `lf_hf_change`, `hf_response_pct`, `hf_hr_pct_change`)
+and a colour-coded `interpretation` column.
+
+### HRR, drift, coherence, VO2max tables
+
+```python
+# Heart Rate Recovery — HRR1/HRR2 with clinical categories
+styler = table_hrr_history(hrr_results, dates=dates)
+display(styler)
+
+# Cardiac drift — rate (bpm/min), magnitude, R², category
+styler = table_drift_history(drift_results, dates=dates)
+display(styler)
+
+# Cardiac coherence — score gradient 0–100, derived category
+styler = table_coherence_history(coherence_results, dates=dates)
+display(styler)
+
+# VO2max — all three model estimates, ACSM fitness category
+styler = table_vo2max_history(vo2max_results, dates=dates)
+display(styler)
+
+# VO2max single session — model breakdown + inputs
+styler = table_vo2max_session(vo2max_result)
+display(styler)
+```
+
+### Export
+
+```python
+# HTML with colours
+styler.to_html("report.html")
+
+# Excel with colours (requires openpyxl)
+styler.to_excel("report.xlsx", engine="openpyxl")
+```
+
+See [`docs/reporting/tables.md`](cardiolab/docs/reporting/tables.md) for the full API reference.
+
 ---
 
 ## Analytics
@@ -548,10 +711,11 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | `io/` — CSV & JSON export for all protocols | Implemented |
 | `sensors_tools/` — Polar | Implemented |
 | `visualization/` | Implemented |
+| `reporting/` — all 6 protocols (9 functions) | Implemented |
 | PPG signal support | Planned |
 | Training load model (ATL / CTL / TSB) | Planned |
 
-**Test coverage:** 584+ unit tests, 0 failures.
+**Test coverage:** 775+ unit tests, 0 failures.
 
 ---
 
@@ -667,4 +831,19 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] VO2max model comparison bars with ACSM zone bands (`plot_vo2max_comparison`)
 * [x] VO2max evolution across sessions with ±10 % uncertainty band (`plot_vo2max_evolution`)
 * [x] Semi-circular VO2max fitness gauge, poor → excellent (`plot_vo2max_gauge`)
-* [ ] Multi-protocol recovery dashboard — side-by-side session comparison
+* [x] Multi-protocol session dashboard — 2×3 grid of 6 mini-plots (`plot_session_dashboard`)
+* [x] Longitudinal heatmap — sessions × metrics normalised colour map (`plot_longitudinal_heatmap`)
+* [x] Readiness score evolution with rolling band (`plot_readiness_evolution`)
+* [x] Per-protocol mini-dashboards — resting, HRR, drift, VO2max, coherence (`plot_*_mini`)
+
+### Reporting
+* [x] Shared formatting infrastructure — colour palettes, gradient builders (`reporting/_core`)
+* [x] Resting history table with colour gradients (`table_resting_history`)
+* [x] Resting session detail table — one row per metric (`table_resting_session`)
+* [x] Orthostatic supine vs standing comparison table (`table_orthostatic_comparison`)
+* [x] Orthostatic history table — condensed autonomic response view (`table_orthostatic_history`)
+* [x] HRR reporting table — HRR1/HRR2 with clinical categories (`table_hrr_history`)
+* [x] Cardiac drift reporting table — rate, magnitude, R², category (`table_drift_history`)
+* [x] Cardiac coherence reporting table — score gradient + derived category (`table_coherence_history`)
+* [x] VO2max history table — all three model estimates (`table_vo2max_history`)
+* [x] VO2max session detail table — model breakdown + inputs (`table_vo2max_session`)
