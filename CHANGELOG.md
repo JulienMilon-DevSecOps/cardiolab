@@ -5,7 +5,93 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2025-05-28
+## [Unreleased]
+
+### Planned — v0.2.0 Training load (ATL / CTL / TSB)
+
+**DB change:** one new table `training_sessions` — zero modification to the existing 7 tables.
+
+**Protocol consistency rule:** the readiness score feeding TRIMP is drawn from a single primary protocol chosen at setup (`"resting"` or `"orthostatic"`), never mixed. Switching protocol resets the readiness series; the two series are never crossed in baseline or TRIMP computation. When `"orthostatic"` is chosen, the supine-phase HRV (not the ΔHR score) feeds the baseline.
+
+#### Phase 1 — Database
+- New table `training_sessions` (`user_id | date | duration_min | sport_type | trimp | notes`), UNIQUE `(user_id, date)`
+- `HRVRepository.create_training_sessions_table()`, `save_training_session()`, `load_training_sessions()`
+- Integration tests `TestTrainingSessionsIntegration`
+
+#### Phase 2 — TRIMP calculation
+- `analytics/training_load.py`
+  - `trimp_hrv_based(duration_min, readiness_score) → float` — `duration × (1 − readiness/100)`. References: Manzi V et al. (2009)
+  - `trimp_banister(duration_min, hr_mean, hr_max, hr_rest) → float` — classical Banister 1991 formula for sensors providing effort HR
+- `load_readiness_for_date(user_id, date, repo, baseline, protocol: Literal["resting", "orthostatic"]) → float | None` — strict, no cross-protocol fallback
+
+#### Phase 3 — ATL / CTL / TSB
+- `compute_atl(sessions_df, tau=7) → pd.Series` — 7-day EMA (acute fatigue). References: Banister EW et al. (1991); Morton RH et al. (1990)
+- `compute_ctl(sessions_df, tau=42) → pd.Series` — 42-day EMA (chronic fitness)
+- `compute_tsb(ctl, atl) → pd.Series` — TSB = CTL − ATL (form)
+- `class TrainingLoad` with `.from_sessions()` and `.to_dataframe()` — `date | trimp | atl | ctl | tsb`
+- Rest days contribute TRIMP = 0 — ATL decays faster than CTL naturally
+
+#### Phase 4 — Visualization
+- `visualization/training_load_plots.py`
+  - `plot_atl_ctl_tsb()` — dual-axis: CTL + ATL top, TSB zones bottom
+  - `plot_trimp_history()` — TRIMP bars coloured by sport type
+  - `plot_tsb_zones()` — coloured zone bands (overload / optimal / fresh / detraining)
+
+#### Phase 5 — Reporting
+- `reporting/training_load_report.py` — `table_training_load_history()`, `summary_training_load()`
+
+#### Phase 6 — Local scripts
+- `local/main_training_load.py` — log session → TRIMP → save → refresh chart
+- `local/main_training_load_report.py` — training load report over a period
+
+---
+
+### Planned — v0.3.0 Additional sensors
+
+**DB change:** none — new data maps to existing `training_sessions` and `hrv_raw_sessions`.
+
+#### Phase 1 — Garmin
+- `sensors_tools/garmin.py` — `parse_garmin_fit()`, `parse_garmin_csv()`, `extract_training_session_garmin()`
+- Optional dependency: `fitparse` as `[garmin]` extra in `pyproject.toml`
+
+#### Phase 2 — Apple Health
+- `sensors_tools/apple_health.py` — `parse_apple_health_export()`, `extract_hrv_samples()`
+
+#### Phase 3 — HRV4Training
+- `sensors_tools/hrv4training.py` — `parse_hrv4training_csv()`, `to_rrseries()`
+
+#### Phase 4 — Sensor documentation
+- `docs/sensors/polar.md`, `garmin.md`, `apple_health.md`, `hrv4training.md`
+
+---
+
+### Planned — v0.4.0 Statistical intelligence
+
+**DB change:** optional `anomaly_score FLOAT` column on protocol tables via `ALTER TABLE` — not required.
+
+> GMM / HMM and ARIMA excluded: biological variance of HRV makes short-term prediction unreliable; clustering requires data volumes unlikely before 100+ longitudinal sessions.
+
+#### Phase 1 — Multivariate anomaly detection (Mahalanobis)
+- `analytics/anomaly.py` additions — `mahalanobis_distance()`, `is_multivariate_anomaly()`, `anomaly_report()`
+
+#### Phase 2 — Trend analysis
+- `analytics/trends.py` — `linear_trend()`, `detect_sustained_decline()`, `trend_report()`
+
+#### Phase 3 — Statistical visualisation
+- `visualization/statistical_plots.py` — `plot_anomaly_timeline()`, `plot_trend_overlay()`
+
+---
+
+### Out of scope — parallel repositories
+
+| Project | Depends on | Can start |
+|---------|-----------|-----------|
+| `cardioanalysis-api` (FastAPI, new repo) | cardiolab ≥ v0.2.0 via PyPI | After v0.2.0 published |
+| Web interface (new repo) | `cardioanalysis-api` stable | After API v1 stable |
+
+---
+
+## [0.1.0] - 2026-05-28
 
 First release. The package covers the full analysis pipeline from raw RR
 intervals to clinical reporting, across six validated physiological protocols.
