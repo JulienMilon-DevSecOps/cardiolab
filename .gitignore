@@ -5,3 +5,6 @@ __pycache__
 cardiolab/datasets/raw/
 .env
 local/
+dist/
+build/
+*.egg-info/

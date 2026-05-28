@@ -53,7 +53,7 @@ cardiolab/
 │   └── vo2max.py             → VO2max estimation from HRV (Uth, Esco-Flatt)
 ├── analytics/        → baseline, scoring, anomaly detection, trend analysis
 ├── sensors_tools/    → Polar sensor integration
-├── database/         → PostgreSQL persistence layer (6 tables)
+├── database/         → PostgreSQL persistence layer (7 tables)
 ├── io/               → CSV and JSON export for all protocols
 ├── reporting/        → tabular reporting (pandas Styler, HTML/Excel export)
 │   ├── _core.py          → shared formatters, colour palettes, gradient builders
@@ -73,7 +73,7 @@ cardiolab/
                             multi-session comparison, 2×2 summary
 
 example/              → step-by-step usage scripts (01 – 10)
-tests/                → full unit test suite (621 tests)
+tests/                → full unit test suite (1190 tests)
 ```
 
 ---
@@ -802,7 +802,7 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | PPG signal support | Planned |
 | Training load model (ATL / CTL / TSB) | Planned |
 
-**Test coverage:** 1111 unit tests, 0 failures.
+**Test coverage:** 1190 unit tests, 0 failures.
 
 ---
 
@@ -867,13 +867,17 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 
 ## Roadmap
 
-### Core pipeline
+---
+
+### v0.1.0 — Released (2026-05-28)
+
+#### Core pipeline
 * [x] Full HRV implementation (time & frequency domain)
 * [x] Resting protocol
 * [x] Orthostatic protocol with automatic phase detection
 * [x] Analytics pipeline (baseline, scoring, anomaly, trend)
 * [x] PostgreSQL persistence layer (7 tables — 6 protocol + raw RR intervals)
-* [x] Score [0–100] for all protocols (resting: baseline-relative; HRR / coherence / drift / VO2max: absolute clinical thresholds)
+* [x] Score [0–100] for all protocols (resting: baseline-relative; HRR / coherence / drift / VO2max / orthostatic: clinical thresholds)
 * [x] Physiological validation with `PhysiologicalWarning` on `RRSeries`
 * [x] `auto_clean` option in all protocols
 * [x] `to_dict()` export on all result dataclasses
@@ -886,10 +890,8 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] VO2max estimation from HRV (Uth, Esco-Flatt, ln-RMSSD)
 * [x] Protocol documentation (`docs/protocols/`)
 * [x] CSV & JSON export for all protocols
-* [ ] Training load model (ATL / CTL / TSB)
-* [ ] PPG signal support
 
-### Visualization
+#### Visualization
 * [x] Raw RR signal tachogram with HR secondary axis (`plot_rr_tachogram`)
 * [x] RR interval distribution — histogram + Gaussian KDE (`plot_rr_distribution`)
 * [x] Raw vs filtered overlay with artefact highlighting (`plot_rr_filtered`)
@@ -924,7 +926,7 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] Readiness score evolution with rolling band (`plot_readiness_evolution`)
 * [x] Per-protocol mini-dashboards — resting, HRR, drift, VO2max, coherence (`plot_*_mini`)
 
-### Reporting
+#### Reporting
 * [x] Shared formatting infrastructure — colour palettes, gradient builders (`reporting/_core`)
 * [x] Resting history table with colour gradients (`table_resting_history`)
 * [x] Resting session detail table — one row per metric (`table_resting_session`)
@@ -935,3 +937,145 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 * [x] Cardiac coherence reporting table — score gradient + derived category (`table_coherence_history`)
 * [x] VO2max history table — all three model estimates (`table_vo2max_history`)
 * [x] VO2max session detail table — model breakdown + inputs (`table_vo2max_session`)
+
+---
+
+### v0.2.0 — Training load (ATL / CTL / TSB)
+
+**DB change:** one new table `training_sessions` — zero modification to the existing 7 tables.
+
+#### Protocol consistency rule
+
+The readiness score used to compute the TRIMP is drawn from a **single primary protocol** chosen at setup — either `"resting"` or `"orthostatic"` — and never mixed across sessions.
+
+* If `"orthostatic"` is selected, the **supine-phase HRV** (not the orthostatic ΔHR score) feeds the readiness baseline, giving equivalent or better signal quality compared to a standalone resting session.
+* If the user switches protocol, the new series starts fresh; the two series are never crossed in baseline or TRIMP computation.
+
+The TRIMP formula:
+```
+TRIMP = duration_min × (1 − readiness / 100)
+```
+
+| TSB zone | Interpretation |
+|----------|---------------|
+| > +20 | Detraining — load too low |
+| +5 to +20 | Fresh — ready for an intense session |
+| −10 to +5 | Optimal — good form |
+| < −10 | Fatigued — risk of overtraining |
+
+#### Phase 1 — Database
+* [ ] New table `training_sessions`: `user_id | date | duration_min | sport_type | trimp | notes` — UNIQUE `(user_id, date)`
+* [ ] `HRVRepository.create_training_sessions_table(table_name)`
+* [ ] `HRVRepository.save_training_session(user_id, date, duration_min, sport_type, trimp, notes)` — upsert on `(user_id, date)`
+* [ ] `HRVRepository.load_training_sessions(user_id) → list[dict]` — ascending date order
+* [ ] Integration tests `TestTrainingSessionsIntegration`
+
+#### Phase 2 — TRIMP calculation
+* [ ] `analytics/training_load.py`
+  * [ ] `trimp_hrv_based(duration_min, readiness_score) → float`
+  * [ ] `trimp_banister(duration_min, hr_mean, hr_max, hr_rest) → float` — Banister 1991, for sensors providing effort HR
+* [ ] `load_readiness_for_date(user_id, date, repo, baseline, protocol: Literal["resting", "orthostatic"]) → float | None`
+  * Strict: reads only from the declared protocol table, never mixes
+  * `"orthostatic"` → `readiness_score_composite(record.supine, baseline)`
+  * `"resting"` → `readiness_score_composite(features, baseline)`
+  * Returns `None` if no measurement exists for that date (TRIMP not computed)
+* [ ] Unit tests — edge cases: `readiness=0`, `readiness=100`, `duration=0`
+
+#### Phase 3 — ATL / CTL / TSB
+* [ ] `compute_atl(sessions_df, tau=7) → pd.Series` — 7-day EMA (acute fatigue)
+* [ ] `compute_ctl(sessions_df, tau=42) → pd.Series` — 42-day EMA (chronic fitness)
+* [ ] `compute_tsb(ctl, atl) → pd.Series` — TSB = CTL − ATL (form)
+* [ ] `class TrainingLoad` with `.from_sessions(sessions_list)` and `.to_dataframe()` — columns: `date | trimp | atl | ctl | tsb`
+* [ ] Rest days (no session logged) contribute TRIMP = 0 — ATL decays naturally faster than CTL
+* [ ] Unit tests — 60-day series with known values, EMA verified at day 7 and day 42, 0-session and 1-session edge cases
+
+#### Phase 4 — Visualization
+* [ ] `visualization/training_load_plots.py`
+  * [ ] `plot_atl_ctl_tsb(load, title, figsize)` — dual-axis: CTL + ATL top, TSB with coloured zones bottom
+  * [ ] `plot_trimp_history(sessions, title, figsize)` — TRIMP bar chart coloured by sport type
+  * [ ] `plot_tsb_zones(load, title, figsize)` — coloured zone bands (overload / optimal / fresh / detraining)
+* [ ] Visualization tests
+
+#### Phase 5 — Reporting
+* [ ] `reporting/training_load_report.py`
+  * [ ] `table_training_load_history(sessions) → pd.DataFrame`
+  * [ ] `summary_training_load(load) → dict` — current ATL, CTL, TSB, CTL weekly trend
+* [ ] Reporting tests
+
+#### Phase 6 — Local scripts
+* [ ] `local/main_training_load.py` — log session → compute TRIMP → save → refresh ATL/CTL/TSB chart
+* [ ] `local/main_training_load_report.py` — training load report over a chosen period
+
+**References:** Banister EW et al. (1991); Morton RH et al. (1990); Manzi V et al. (2009)
+
+---
+
+### v0.3.0 — Additional sensors
+
+**DB change:** none — new sensor data maps to the existing `training_sessions` and `hrv_raw_sessions` tables.
+
+#### Phase 1 — Garmin
+* [ ] `sensors_tools/garmin.py`
+  * [ ] `parse_garmin_fit(filepath) → RRSeries` — via `fitparse`
+  * [ ] `parse_garmin_csv(filepath) → RRSeries` — Garmin Connect CSV export
+  * [ ] `extract_training_session_garmin(filepath) → dict` — duration + HR mean/max for Banister TRIMP
+* [ ] Tests with synthetic `.fit` and CSV fixtures
+
+#### Phase 2 — Apple Health
+* [ ] `sensors_tools/apple_health.py`
+  * [ ] `parse_apple_health_export(xml_path) → list[RRSeries]`
+  * [ ] `extract_hrv_samples(xml_path) → list[dict]` — timestamped SDNN / RMSSD
+* [ ] Tests with minimal XML fixture
+
+#### Phase 3 — HRV4Training
+* [ ] `sensors_tools/hrv4training.py`
+  * [ ] `parse_hrv4training_csv(filepath) → list[dict]`
+  * [ ] `to_rrseries(row) → RRSeries`
+* [ ] Tests
+
+#### Phase 4 — Sensor documentation
+* [ ] `docs/sensors/polar.md` — HRV Elite export procedure
+* [ ] `docs/sensors/garmin.md` — Garmin Connect `.fit` + CSV export
+* [ ] `docs/sensors/apple_health.md` — Apple Health XML export
+* [ ] `docs/sensors/hrv4training.md` — HRV4Training CSV export
+
+**Optional dependency:** `fitparse` (Garmin `.fit`) — `[garmin]` extra in `pyproject.toml`
+
+---
+
+### v0.4.0 — Statistical intelligence
+
+**DB change:** optional `ALTER TABLE … ADD COLUMN anomaly_score FLOAT` on protocol tables to cache results — not required for core functionality.
+
+> Note: this version is most useful once the database contains sufficient longitudinal data (~100+ sessions). GMM / HMM and ARIMA models are excluded from this version — the biological variance of HRV makes short-term prediction unreliable, and clustering requires data volumes unlikely to be reached before this point.
+
+#### Phase 1 — Multivariate anomaly detection (Mahalanobis)
+* [ ] `analytics/anomaly.py` additions
+  * [ ] `mahalanobis_distance(features_matrix, new_point) → float`
+  * [ ] `is_multivariate_anomaly(features_matrix, new_point, threshold=3.0) → bool`
+  * [ ] `anomaly_report(user_features_history) → pd.DataFrame` — `date | zscore | mahalanobis | is_anomaly`
+* [ ] Tests — point equal to mean → distance = 0; clear outlier → distance > threshold
+
+#### Phase 2 — Trend analysis
+* [ ] `analytics/trends.py`
+  * [ ] `linear_trend(series, window_days) → dict` — slope, r², p-value on sliding window
+  * [ ] `detect_sustained_decline(scores, min_sessions=5, threshold=-0.5) → bool`
+  * [ ] `trend_report(user_scores_history) → pd.DataFrame` — `date | score | slope_7d | slope_30d | trend_label`
+* [ ] Tests — known linear trend → expected slope
+
+#### Phase 3 — Statistical visualisation
+* [ ] `visualization/statistical_plots.py`
+  * [ ] `plot_anomaly_timeline(report, title, figsize)` — score line with anomaly points highlighted
+  * [ ] `plot_trend_overlay(scores, trends, title, figsize)` — raw score + trend line + 95 % CI
+* [ ] Tests
+
+---
+
+### Out of scope — parallel repositories
+
+These projects live in separate GitLab repositories and do not affect cardiolab versioning.
+
+| Project | Repository | Depends on | Can start |
+|---------|-----------|-----------|-----------|
+| `cardioanalysis-api` (FastAPI) | New GitLab repo | cardiolab ≥ v0.2.0 via PyPI | After v0.2.0 published |
+| Web interface | New GitLab repo | `cardioanalysis-api` stable | After API v1 stable |
