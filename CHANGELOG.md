@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.2.0 Documentation — Training load
+
+- `docs/training_load/index.md` — overview and navigation for the training load module
+- `docs/training_load/training_sessions.md` — purpose, DB schema, repository API (`create`, `save`, `load`), daily workflow, custom table name
+- `docs/training_load/atl_ctl_tsb.md` — full model documentation: TRIMP formulas (HRV-based and Banister), protocol consistency rule, ATL/CTL/TSB EMA formulas with tau constants, TSB zones table, rest-day handling, numerical example, data requirements, references (Banister 1975/1991, Morton 1990, Manzi 2009, Plews 2013)
+
+---
+
 ### Added — v0.2.0 Phase 1 — Training sessions (DB layer)
 
 - `database/repository.py` — `_TRAINING_SESSIONS_COLUMNS` column registry for the new `training_sessions` table (`user_id | date | duration_min | sport_type | trimp | notes`, UNIQUE `(user_id, date)`)

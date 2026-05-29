@@ -53,7 +53,7 @@ cardiolab/
 │   └── vo2max.py             → VO2max estimation from HRV (Uth, Esco-Flatt)
 ├── analytics/        → baseline, scoring, anomaly detection, trend analysis
 ├── sensors_tools/    → Polar sensor integration
-├── database/         → PostgreSQL persistence layer (7 tables)
+├── database/         → PostgreSQL persistence layer (8 tables)
 ├── io/               → CSV and JSON export for all protocols
 ├── reporting/        → tabular reporting (pandas Styler, HTML/Excel export)
 │   ├── _core.py          → shared formatters, colour palettes, gradient builders
@@ -66,7 +66,8 @@ cardiolab/
 │   │                   hrr.md, cardiac_drift.md, vo2max.md
 │   ├── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md
 │   ├── visualization/→ reading_charts.md — how to read each chart type
-│   └── reporting/    → tables.md — reporting API reference
+│   ├── reporting/    → tables.md — reporting API reference
+│   └── training_load/→ index.md, training_sessions.md, atl_ctl_tsb.md
 └── visualization/    → signal and HRV plots
     ├── resting_plots.py  → RMSSD & readiness score evolution over time
     └── rr_plots.py       → raw RR: tachogram, distribution, filtered,

@@ -1627,18 +1627,14 @@ class TestTrainingSessionsIntegration:
 
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
-        with _repo_from_test_env(
-            training_sessions_table_name=self._TABLE
-        ) as repo:
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
             repo.create_training_sessions_table()
         yield
         _test_db_cleanup(self._TABLE, self._USER)
 
     def test_save_and_load(self):
         """save_training_session → load_training_sessions must round-trip all fields."""
-        with _repo_from_test_env(
-            training_sessions_table_name=self._TABLE
-        ) as repo:
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
             repo.save_training_session(
                 user_id=self._USER,
                 date="2099-08-01",
@@ -1659,9 +1655,7 @@ class TestTrainingSessionsIntegration:
 
     def test_upsert_overwrites(self):
         """Saving the same (user, date) twice must produce exactly one row with updated values."""
-        with _repo_from_test_env(
-            training_sessions_table_name=self._TABLE
-        ) as repo:
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
             repo.save_training_session(
                 self._USER, "2099-08-02", duration_min=30.0, trimp=20.0
             )
@@ -1678,9 +1672,7 @@ class TestTrainingSessionsIntegration:
     def test_load_sorted_by_date(self):
         """load_training_sessions must return sessions in ascending date order."""
         dates = ["2099-08-05", "2099-08-03", "2099-08-04"]
-        with _repo_from_test_env(
-            training_sessions_table_name=self._TABLE
-        ) as repo:
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
             for d in dates:
                 repo.save_training_session(self._USER, d, duration_min=30.0)
             sessions = repo.load_training_sessions(self._USER)
@@ -1690,9 +1682,7 @@ class TestTrainingSessionsIntegration:
 
     def test_trimp_none_accepted(self):
         """save_training_session must accept trimp=None (TRIMP computed later)."""
-        with _repo_from_test_env(
-            training_sessions_table_name=self._TABLE
-        ) as repo:
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
             repo.save_training_session(
                 self._USER, "2099-08-06", duration_min=50.0, trimp=None
             )
