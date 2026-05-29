@@ -737,7 +737,7 @@ from cardiolab.analytics import hrr_score, coherence_score_100, drift_score, vo2
 ## Database
 
 PostgreSQL persistence via `HRVRepository` (context manager, upsert-safe).
-**Seven dedicated tables** — six protocol tables + one raw RR intervals table:
+**Eight dedicated tables** — six protocol tables + one raw RR intervals table + one training sessions table:
 
 ```python
 with HRVRepository.from_env() as repo:
@@ -773,6 +773,12 @@ with HRVRepository.from_env() as repo:
     rr_back = repo.load_raw_session(user_id="<uuid>", date="2026-05-19", protocol="resting")
     sessions = repo.list_raw_sessions(user_id="<uuid>")           # all protocols
     sessions = repo.list_raw_sessions(user_id="<uuid>", protocol="hrr")  # one protocol
+
+    # Training sessions (ATL/CTL/TSB — v0.2.0)
+    repo.create_training_sessions_table()
+    repo.save_training_session(user_id="<uuid>", date="2026-05-19",
+                               duration_min=45.0, sport_type="running", trimp=38.2)
+    sessions = repo.load_training_sessions(user_id="<uuid>")  # sorted ASC by date
 ```
 
 Each protocol table includes a `score FLOAT` column (see [Analytics & Scoring](#analytics--scoring)).
@@ -794,13 +800,13 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | `protocols/cardiac_drift` | Implemented |
 | `protocols/vo2max` | Implemented |
 | `analytics/` — baseline, scoring (all 6 protocols), anomaly, trend | Implemented |
-| `database/` — 7 tables (6 protocol + raw RR) | Implemented |
+| `database/` — 8 tables (6 protocol + raw RR + training sessions) | Implemented |
 | `io/` — CSV & JSON export for all protocols | Implemented |
 | `sensors_tools/` — Polar | Implemented |
 | `visualization/` | Implemented |
 | `reporting/` — all 6 protocols (9 functions) | Implemented |
 | PPG signal support | Planned |
-| Training load model (ATL / CTL / TSB) | Planned |
+| Training load model (ATL / CTL / TSB) — Phase 1 (DB) done | In progress |
 
 **Test coverage:** 1190 unit tests, 0 failures.
 

@@ -7,16 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.2.0 Phase 1 — Training sessions (DB layer)
+
+- `database/repository.py` — `_TRAINING_SESSIONS_COLUMNS` column registry for the new `training_sessions` table (`user_id | date | duration_min | sport_type | trimp | notes`, UNIQUE `(user_id, date)`)
+- `HRVRepository.create_training_sessions_table()` — idempotent table creation (`CREATE TABLE IF NOT EXISTS`)
+- `HRVRepository.save_training_session(user_id, date, duration_min, sport_type, trimp, notes)` — upsert on `(user_id, date)`; `trimp` nullable (computed later when readiness is available)
+- `HRVRepository.load_training_sessions(user_id) → list[dict]` — sessions sorted ascending by date; keys: `date`, `duration_min`, `sport_type`, `trimp`, `notes`
+- `training_sessions_table_name` parameter added to `HRVRepository.__init__()` and `HRVRepository.from_env()` (default `"hrv_training_sessions"`)
+- Integration tests `TestTrainingSessionsIntegration` (4 tests: round-trip, upsert, date ordering, `trimp=None` accepted)
+
+---
+
 ### Planned — v0.2.0 Training load (ATL / CTL / TSB)
 
 **DB change:** one new table `training_sessions` — zero modification to the existing 7 tables.
 
 **Protocol consistency rule:** the readiness score feeding TRIMP is drawn from a single primary protocol chosen at setup (`"resting"` or `"orthostatic"`), never mixed. Switching protocol resets the readiness series; the two series are never crossed in baseline or TRIMP computation. When `"orthostatic"` is chosen, the supine-phase HRV (not the ΔHR score) feeds the baseline.
-
-#### Phase 1 — Database
-- New table `training_sessions` (`user_id | date | duration_min | sport_type | trimp | notes`), UNIQUE `(user_id, date)`
-- `HRVRepository.create_training_sessions_table()`, `save_training_session()`, `load_training_sessions()`
-- Integration tests `TestTrainingSessionsIntegration`
 
 #### Phase 2 — TRIMP calculation
 - `analytics/training_load.py`
