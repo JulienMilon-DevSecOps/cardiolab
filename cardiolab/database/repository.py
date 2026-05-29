@@ -297,6 +297,24 @@ _VO2MAX_DATA_COLUMNS: list[str] = [
 
 
 # ======================
+# TRAINING SESSIONS — COLUMN REGISTRY
+# ======================
+
+_TRAINING_SESSIONS_COLUMNS: dict[str, str] = {
+    "user_id": "TEXT NOT NULL",
+    "date": "DATE NOT NULL",
+    "duration_min": "FLOAT",
+    "sport_type": "TEXT",
+    "trimp": "FLOAT",
+    "notes": "TEXT",
+}
+
+_TRAINING_SESSIONS_DATA_COLUMNS: list[str] = [
+    c for c in _TRAINING_SESSIONS_COLUMNS if c not in ("user_id", "date")
+]
+
+
+# ======================
 # ORTHOSTATIC RECORD (load return type)
 # ======================
 
@@ -689,6 +707,7 @@ class HRVRepository:
         drift_table_name: str = "hrv_drift",
         vo2max_table_name: str = "hrv_vo2max",
         raw_sessions_table_name: str = "hrv_raw_sessions",
+        training_sessions_table_name: str = "hrv_training_sessions",
         port: int = 5432,
     ) -> None:
         """Store connection parameters and validate table names."""
@@ -700,6 +719,7 @@ class HRVRepository:
             drift_table_name,
             vo2max_table_name,
             raw_sessions_table_name,
+            training_sessions_table_name,
         ):
             _validate_identifier(name)
         self._dsn = {
@@ -716,6 +736,7 @@ class HRVRepository:
         self.drift_table_name = drift_table_name
         self.vo2max_table_name = vo2max_table_name
         self.raw_sessions_table_name = raw_sessions_table_name
+        self.training_sessions_table_name = training_sessions_table_name
         self._conn = None
 
     # ── Factory ──────────────────────────────────────────────────────────
@@ -730,6 +751,7 @@ class HRVRepository:
         drift_table_name: str = "hrv_drift",
         vo2max_table_name: str = "hrv_vo2max",
         raw_sessions_table_name: str = "hrv_raw_sessions",
+        training_sessions_table_name: str = "hrv_training_sessions",
     ) -> HRVRepository:
         """Build a repository from environment variables.
 
@@ -757,6 +779,8 @@ class HRVRepository:
                 ``"hrv_vo2max"``.
             raw_sessions_table_name: Raw RR intervals table name. Defaults to
                 ``"hrv_raw_sessions"``.
+            training_sessions_table_name: Training sessions table name.
+                Defaults to ``"hrv_training_sessions"``.
 
         Returns:
             A configured ``HRVRepository`` instance (not yet connected).
@@ -778,6 +802,7 @@ class HRVRepository:
             drift_table_name=drift_table_name,
             vo2max_table_name=vo2max_table_name,
             raw_sessions_table_name=raw_sessions_table_name,
+            training_sessions_table_name=training_sessions_table_name,
         )
 
     # ── Connection lifecycle ──────────────────────────────────────────────
@@ -1897,6 +1922,137 @@ class HRVRepository:
                 "beat_count": row[5],
                 "created_at": str(row[6]) if row[6] else None,
                 "metadata": row[7] if isinstance(row[7], dict) else {},
+            }
+            for row in rows
+        ]
+
+    # ── Training sessions — schema ────────────────────────────────────────
+
+    def create_training_sessions_table(self) -> None:
+        """Create the training sessions table if it does not already exist.
+
+        Schema::
+
+            user_id      TEXT NOT NULL
+            date         DATE NOT NULL
+            duration_min FLOAT          -- duration of the training session (min)
+            sport_type   TEXT           -- e.g. "course", "vélo", "natation"
+            trimp        FLOAT          -- training impulse (nullable: computed later)
+            notes        TEXT           -- free-text notes (nullable)
+            UNIQUE(user_id, date)
+
+        ATL, CTL and TSB are computed on the fly from this table — they are
+        not stored.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the SQL statement is rejected.
+
+        """
+        columns_sql = ",\n    ".join(
+            f"{k} {v}" for k, v in _TRAINING_SESSIONS_COLUMNS.items()
+        )
+        query = sql.SQL(
+            "CREATE TABLE IF NOT EXISTS {table} (\n"
+            "    id SERIAL PRIMARY KEY,\n"
+            "    {columns},\n"
+            "    UNIQUE(user_id, date)\n"
+            ");"
+        ).format(
+            table=sql.Identifier(self.training_sessions_table_name),
+            columns=sql.SQL(columns_sql),
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query)
+
+    # ── Training sessions — write ─────────────────────────────────────────
+
+    def save_training_session(
+        self,
+        user_id: str,
+        date: str,
+        duration_min: float | None = None,
+        sport_type: str | None = None,
+        trimp: float | None = None,
+        notes: str | None = None,
+    ) -> None:
+        """Insert or update one training session record.
+
+        Uses upsert on ``(user_id, date)``: if a row already exists for that
+        key, all data columns are overwritten.
+
+        Args:
+            user_id: User identifier.
+            date: ISO date string (e.g. ``"2026-05-29"``).
+            duration_min: Duration of the training session in minutes.
+            sport_type: Sport type label (e.g. ``"course"``, ``"vélo"``).
+            trimp: Pre-computed TRIMP value. May be ``None`` when the
+                readiness score for the day is not available yet.
+            notes: Free-text notes about the session.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the insert fails.
+
+        """
+        all_cols = ["user_id", "date"] + _TRAINING_SESSIONS_DATA_COLUMNS
+        col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
+        placeholders = sql.SQL(", ").join(
+            sql.Placeholder() for _ in range(len(all_cols))
+        )
+        update_set = sql.SQL(", ").join(
+            sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
+            for c in _TRAINING_SESSIONS_DATA_COLUMNS
+        )
+        query = sql.SQL(
+            "INSERT INTO {table} ({cols}) VALUES ({vals})\n"
+            "ON CONFLICT (user_id, date) DO UPDATE SET {update};"
+        ).format(
+            table=sql.Identifier(self.training_sessions_table_name),
+            cols=col_identifiers,
+            vals=placeholders,
+            update=update_set,
+        )
+        row = (user_id, date, duration_min, sport_type, trimp, notes)
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, row)
+
+    # ── Training sessions — read ──────────────────────────────────────────
+
+    def load_training_sessions(self, user_id: str) -> list[dict]:
+        """Load all training session records for a user, sorted by date.
+
+        Args:
+            user_id: User identifier.
+
+        Returns:
+            List of dicts, one per session, sorted by ascending date.
+            Each dict has keys: ``date``, ``duration_min``, ``sport_type``,
+            ``trimp``, ``notes``.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        query = sql.SQL(
+            "SELECT date, duration_min, sport_type, trimp, notes\n"
+            "FROM {table}\n"
+            "WHERE user_id = %s\n"
+            "ORDER BY date ASC;"
+        ).format(table=sql.Identifier(self.training_sessions_table_name))
+
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (user_id,))
+            rows = cur.fetchall()
+
+        return [
+            {
+                "date": str(row[0]),
+                "duration_min": row[1],
+                "sport_type": row[2],
+                "trimp": row[3],
+                "notes": row[4],
             }
             for row in rows
         ]

@@ -1615,3 +1615,79 @@ class TestOrthostaticIntegration:
         match = next((r for r in loaded if str(r.date) == "2099-07-03"), None)
         assert match is not None
         assert match.score == pytest.approx(91.0)
+
+
+@pytest.mark.integration
+@_integration_skipif
+class TestTrainingSessionsIntegration:
+    """Full round-trip tests for training sessions against a real DB."""
+
+    _USER = "test-integration-user"
+    _TABLE = "_cardiolab_test_training"
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            repo.create_training_sessions_table()
+        yield
+        _test_db_cleanup(self._TABLE, self._USER)
+
+    def test_save_and_load(self):
+        """save_training_session → load_training_sessions must round-trip all fields."""
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            repo.save_training_session(
+                user_id=self._USER,
+                date="2099-08-01",
+                duration_min=60.0,
+                sport_type="course",
+                trimp=42.5,
+                notes="Sortie longue Z2",
+            )
+            sessions = repo.load_training_sessions(self._USER)
+
+        match = [s for s in sessions if s["date"] == "2099-08-01"]
+        assert len(match) == 1
+        s = match[0]
+        assert s["duration_min"] == pytest.approx(60.0)
+        assert s["sport_type"] == "course"
+        assert s["trimp"] == pytest.approx(42.5)
+        assert s["notes"] == "Sortie longue Z2"
+
+    def test_upsert_overwrites(self):
+        """Saving the same (user, date) twice must produce exactly one row with updated values."""
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            repo.save_training_session(
+                self._USER, "2099-08-02", duration_min=30.0, trimp=20.0
+            )
+            repo.save_training_session(
+                self._USER, "2099-08-02", duration_min=45.0, trimp=31.5
+            )
+            sessions = repo.load_training_sessions(self._USER)
+
+        match = [s for s in sessions if s["date"] == "2099-08-02"]
+        assert len(match) == 1
+        assert match[0]["duration_min"] == pytest.approx(45.0)
+        assert match[0]["trimp"] == pytest.approx(31.5)
+
+    def test_load_sorted_by_date(self):
+        """load_training_sessions must return sessions in ascending date order."""
+        dates = ["2099-08-05", "2099-08-03", "2099-08-04"]
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            for d in dates:
+                repo.save_training_session(self._USER, d, duration_min=30.0)
+            sessions = repo.load_training_sessions(self._USER)
+
+        returned_dates = [s["date"] for s in sessions]
+        assert returned_dates == sorted(returned_dates)
+
+    def test_trimp_none_accepted(self):
+        """save_training_session must accept trimp=None (TRIMP computed later)."""
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            repo.save_training_session(
+                self._USER, "2099-08-06", duration_min=50.0, trimp=None
+            )
+            sessions = repo.load_training_sessions(self._USER)
+
+        match = [s for s in sessions if s["date"] == "2099-08-06"]
+        assert len(match) == 1
+        assert match[0]["trimp"] is None

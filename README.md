@@ -53,7 +53,7 @@ cardiolab/
 │   └── vo2max.py             → VO2max estimation from HRV (Uth, Esco-Flatt)
 ├── analytics/        → baseline, scoring, anomaly detection, trend analysis
 ├── sensors_tools/    → Polar sensor integration
-├── database/         → PostgreSQL persistence layer (7 tables)
+├── database/         → PostgreSQL persistence layer (8 tables)
 ├── io/               → CSV and JSON export for all protocols
 ├── reporting/        → tabular reporting (pandas Styler, HTML/Excel export)
 │   ├── _core.py          → shared formatters, colour palettes, gradient builders
@@ -66,7 +66,8 @@ cardiolab/
 │   │                   hrr.md, cardiac_drift.md, vo2max.md
 │   ├── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md
 │   ├── visualization/→ reading_charts.md — how to read each chart type
-│   └── reporting/    → tables.md — reporting API reference
+│   ├── reporting/    → tables.md — reporting API reference
+│   └── training_load/→ index.md, training_sessions.md, atl_ctl_tsb.md
 └── visualization/    → signal and HRV plots
     ├── resting_plots.py  → RMSSD & readiness score evolution over time
     └── rr_plots.py       → raw RR: tachogram, distribution, filtered,
@@ -737,7 +738,7 @@ from cardiolab.analytics import hrr_score, coherence_score_100, drift_score, vo2
 ## Database
 
 PostgreSQL persistence via `HRVRepository` (context manager, upsert-safe).
-**Seven dedicated tables** — six protocol tables + one raw RR intervals table:
+**Eight dedicated tables** — six protocol tables + one raw RR intervals table + one training sessions table:
 
 ```python
 with HRVRepository.from_env() as repo:
@@ -773,6 +774,12 @@ with HRVRepository.from_env() as repo:
     rr_back = repo.load_raw_session(user_id="<uuid>", date="2026-05-19", protocol="resting")
     sessions = repo.list_raw_sessions(user_id="<uuid>")           # all protocols
     sessions = repo.list_raw_sessions(user_id="<uuid>", protocol="hrr")  # one protocol
+
+    # Training sessions (ATL/CTL/TSB — v0.2.0)
+    repo.create_training_sessions_table()
+    repo.save_training_session(user_id="<uuid>", date="2026-05-19",
+                               duration_min=45.0, sport_type="running", trimp=38.2)
+    sessions = repo.load_training_sessions(user_id="<uuid>")  # sorted ASC by date
 ```
 
 Each protocol table includes a `score FLOAT` column (see [Analytics & Scoring](#analytics--scoring)).
@@ -794,13 +801,13 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | `protocols/cardiac_drift` | Implemented |
 | `protocols/vo2max` | Implemented |
 | `analytics/` — baseline, scoring (all 6 protocols), anomaly, trend | Implemented |
-| `database/` — 7 tables (6 protocol + raw RR) | Implemented |
+| `database/` — 8 tables (6 protocol + raw RR + training sessions) | Implemented |
 | `io/` — CSV & JSON export for all protocols | Implemented |
 | `sensors_tools/` — Polar | Implemented |
 | `visualization/` | Implemented |
 | `reporting/` — all 6 protocols (9 functions) | Implemented |
 | PPG signal support | Planned |
-| Training load model (ATL / CTL / TSB) | Planned |
+| Training load model (ATL / CTL / TSB) — Phase 1 (DB) done | In progress |
 
 **Test coverage:** 1190 unit tests, 0 failures.
 
