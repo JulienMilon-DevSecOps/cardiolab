@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.2.0 Phase 2 — TRIMP calculation
+
+- `analytics/training_load.py` — new module for training load computation
+  - `trimp_hrv_based(duration_min, readiness_score) → float` — primary TRIMP: `duration × (1 − readiness/100)`. Validates input strictly (raises `ValueError` on invalid range). Reference: Manzi V et al. (2009).
+  - `trimp_banister(duration_min, hr_mean, hr_max, hr_rest, sex) → float` — Banister (1991) HR-reserve formula; `b=1.92` (male) / `b=1.67` (female); HRR clamped to [0, 1]. Fallback for HR-sensor data.
+  - `load_readiness_for_date(user_id, date, repo, baseline, protocol) → float | None` — strict single-protocol lookup; `"resting"` reads resting table, `"orthostatic"` reads orthostatic table and uses the **supine phase** RMSSD. Returns `None` when no session found for the date. Never falls back to the other protocol.
+- `analytics/__init__.py` — exports `trimp_hrv_based`, `trimp_banister`, `load_readiness_for_date`
+- Unit tests `TestTrimpHrvBased` (12 tests) and `TestTrimpBanister` (10 tests) in `tests/analytics/test_training_load.py`
+- Integration tests `TestLoadReadinessForDateIntegration` (6 tests: resting round-trip, neutral baseline, date not found, orthostatic round-trip, date not found, protocol isolation)
+
+---
+
 ### Added — v0.2.0 Documentation — Training load
 
 - `docs/training_load/index.md` — overview and navigation for the training load module
