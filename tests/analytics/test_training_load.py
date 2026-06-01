@@ -6,10 +6,15 @@ import math
 import os
 from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
 
 from cardiolab.analytics.baseline import Baseline
 from cardiolab.analytics.training_load import (
+    TrainingLoad,
+    compute_atl,
+    compute_ctl,
+    compute_tsb,
     load_readiness_for_date,
     trimp_banister,
     trimp_hrv_based,
@@ -443,3 +448,240 @@ class TestLoadReadinessForDateIntegration:
             )
 
         assert result is None
+
+
+# ======================
+# UNIT — compute_atl / compute_ctl / compute_tsb
+# ======================
+
+
+def _const_trimp(n: int, value: float = 40.0) -> np.ndarray:
+    return np.full(n, value, dtype=float)
+
+
+@pytest.mark.unit
+class TestComputeAtl:
+    """Unit tests for compute_atl()."""
+
+    def test_zero_trimp_gives_zero_atl(self):
+        """All rest days → ATL stays at 0."""
+        atl = compute_atl(np.zeros(30))
+        assert np.allclose(atl, 0.0)
+
+    def test_atl_rises_then_decays(self):
+        """ATL increases during training block then decays during rest."""
+        trimp = np.concatenate([_const_trimp(14), np.zeros(14)])
+        atl = compute_atl(trimp)
+        assert atl[13] > atl[0]
+        assert atl[-1] < atl[13]
+
+    def test_constant_trimp_converges_to_trimp(self):
+        """Long constant TRIMP series → ATL converges to TRIMP value."""
+        t = 40.0
+        atl = compute_atl(_const_trimp(200, t))
+        assert atl[-1] == pytest.approx(t, rel=0.01)
+
+    def test_length_preserved(self):
+        """Output array has the same length as input."""
+        trimp = np.array([10.0, 20.0, 30.0])
+        assert len(compute_atl(trimp)) == 3
+
+    def test_returns_numpy_array(self):
+        """Return type must be a numpy ndarray."""
+        result = compute_atl(np.array([40.0, 0.0]))
+        assert isinstance(result, np.ndarray)
+
+    def test_custom_tau_decays_slower(self):
+        """Larger tau → slower decay during rest block."""
+        trimp = np.concatenate([_const_trimp(30), np.zeros(20)])
+        atl_fast = compute_atl(trimp, tau=7)
+        atl_slow = compute_atl(trimp, tau=14)
+        assert atl_slow[-1] > atl_fast[-1]
+
+    def test_first_day_atl_equals_trimp_times_k(self):
+        """Day 0 ATL = trimp[0] * k (initial condition is 0)."""
+        t = 50.0
+        k = 1.0 - math.exp(-1.0 / 7)
+        atl = compute_atl(np.array([t]))
+        assert atl[0] == pytest.approx(t * k)
+
+    def test_non_negative_with_positive_trimp(self):
+        """ATL must be ≥ 0 when all TRIMP values are ≥ 0."""
+        trimp = np.random.default_rng(0).uniform(0, 60, 50)
+        assert np.all(compute_atl(trimp) >= 0.0)
+
+
+@pytest.mark.unit
+class TestComputeCtl:
+    """Unit tests for compute_ctl()."""
+
+    def test_zero_trimp_gives_zero_ctl(self):
+        """All rest days → CTL stays at 0."""
+        assert np.allclose(compute_ctl(np.zeros(60)), 0.0)
+
+    def test_ctl_rises_slower_than_atl(self):
+        """Same TRIMP series: CTL must be lower than ATL during early build."""
+        trimp = _const_trimp(20)
+        atl = compute_atl(trimp)
+        ctl = compute_ctl(trimp)
+        assert np.all(ctl[:15] <= atl[:15])
+
+    def test_ctl_decays_slower_than_atl(self):
+        """During rest, CTL must decay slower than ATL (relative drop)."""
+        trimp = np.concatenate([_const_trimp(60), np.zeros(30)])
+        atl = compute_atl(trimp)
+        ctl = compute_ctl(trimp)
+        ctl_drop = (ctl[59] - ctl[-1]) / ctl[59]
+        atl_drop = (atl[59] - atl[-1]) / atl[59]
+        assert atl_drop > ctl_drop
+
+    def test_length_preserved(self):
+        """Output array has the same length as input."""
+        assert len(compute_ctl(np.zeros(10))) == 10
+
+    def test_constant_trimp_converges_to_trimp(self):
+        """Long constant TRIMP series → CTL converges to TRIMP value."""
+        t = 35.0
+        ctl = compute_ctl(_const_trimp(500, t))
+        assert ctl[-1] == pytest.approx(t, rel=0.01)
+
+
+@pytest.mark.unit
+class TestComputeTsb:
+    """Unit tests for compute_tsb()."""
+
+    def test_tsb_equals_ctl_minus_atl(self):
+        """TSB must be exactly CTL − ATL element-wise."""
+        trimp = _const_trimp(20)
+        atl = compute_atl(trimp)
+        ctl = compute_ctl(trimp)
+        assert np.allclose(compute_tsb(ctl, atl), ctl - atl)
+
+    def test_tsb_negative_during_active_training(self):
+        """During a training block ATL > CTL, so TSB < 0."""
+        trimp = _const_trimp(20, 60.0)
+        atl = compute_atl(trimp)
+        ctl = compute_ctl(trimp)
+        assert compute_tsb(ctl, atl)[-1] < 0.0
+
+    def test_tsb_rises_during_rest(self):
+        """TSB must increase (less negative) during a rest period."""
+        trimp = np.concatenate([_const_trimp(30, 50.0), np.zeros(14)])
+        atl = compute_atl(trimp)
+        ctl = compute_ctl(trimp)
+        tsb = compute_tsb(ctl, atl)
+        assert tsb[-1] > tsb[29]
+
+    def test_tsb_zero_when_atl_equals_ctl(self):
+        """When ATL == CTL arrays, TSB must be 0."""
+        arr = np.array([10.0, 20.0])
+        assert np.allclose(compute_tsb(arr, arr), 0.0)
+
+    def test_returns_numpy_array(self):
+        """Return type must be a numpy ndarray."""
+        a = np.array([5.0])
+        assert isinstance(compute_tsb(a, a), np.ndarray)
+
+
+# ======================
+# UNIT — TrainingLoad
+# ======================
+
+
+def _make_session(date: str, trimp: float | None = 40.0) -> dict:
+    return {
+        "date": date,
+        "trimp": trimp,
+        "duration_min": 60.0,
+        "sport_type": "running",
+        "notes": None,
+    }
+
+
+@pytest.mark.unit
+class TestTrainingLoad:
+    """Unit tests for TrainingLoad.from_sessions() and to_dataframe()."""
+
+    def test_from_sessions_empty_returns_empty(self):
+        """Empty session list → empty TrainingLoad."""
+        tl = TrainingLoad.from_sessions([])
+        assert tl.dates == []
+        assert len(tl.trimp) == 0
+
+    def test_from_sessions_single_session(self):
+        """A single session must produce a one-element series."""
+        tl = TrainingLoad.from_sessions([_make_session("2026-01-01", trimp=30.0)])
+        assert len(tl.dates) == 1
+        assert tl.dates[0] == "2026-01-01"
+        assert tl.trimp[0] == pytest.approx(30.0)
+
+    def test_from_sessions_fills_gap_with_zero(self):
+        """Sessions 3 days apart produce 3 rows; the gap day has TRIMP=0."""
+        sessions = [
+            _make_session("2026-01-01", trimp=40.0),
+            _make_session("2026-01-03", trimp=30.0),
+        ]
+        tl = TrainingLoad.from_sessions(sessions)
+        assert len(tl.dates) == 3
+        assert tl.trimp[1] == pytest.approx(0.0)
+
+    def test_from_sessions_none_trimp_treated_as_zero(self):
+        """trimp=None (readiness not yet computed) must be treated as 0."""
+        tl = TrainingLoad.from_sessions([_make_session("2026-01-01", trimp=None)])
+        assert tl.trimp[0] == pytest.approx(0.0)
+
+    def test_from_sessions_dates_are_consecutive(self):
+        """Output dates must form a consecutive daily sequence."""
+        from datetime import date, timedelta
+
+        sessions = [
+            _make_session("2026-03-01", trimp=30.0),
+            _make_session("2026-03-05", trimp=25.0),
+        ]
+        tl = TrainingLoad.from_sessions(sessions)
+        for i, d in enumerate(tl.dates):
+            assert d == str(date(2026, 3, 1) + timedelta(days=i))
+
+    def test_from_sessions_tsb_invariant(self):
+        """TSB must equal CTL − ATL at every position."""
+        sessions = [_make_session(f"2026-01-{d:02d}", trimp=35.0) for d in range(1, 15)]
+        tl = TrainingLoad.from_sessions(sessions)
+        assert np.allclose(tl.tsb, tl.ctl - tl.atl)
+
+    def test_from_sessions_arrays_same_length_as_dates(self):
+        """trimp, atl, ctl, tsb must all have the same length as dates."""
+        sessions = [_make_session("2026-02-01"), _make_session("2026-02-10")]
+        tl = TrainingLoad.from_sessions(sessions)
+        n = len(tl.dates)
+        assert len(tl.trimp) == len(tl.atl) == len(tl.ctl) == len(tl.tsb) == n
+
+    def test_from_sessions_custom_tau_affects_atl(self):
+        """Custom tau_atl must forward to ATL computation (larger tau → lower ATL)."""
+        sessions = [_make_session(f"2026-04-{d:02d}") for d in range(1, 15)]
+        tl_default = TrainingLoad.from_sessions(sessions)
+        tl_slow = TrainingLoad.from_sessions(sessions, tau_atl=14, tau_ctl=84)
+        assert tl_slow.atl[-1] < tl_default.atl[-1]
+
+    def test_to_dataframe_columns(self):
+        """DataFrame must have exactly the five expected columns."""
+        tl = TrainingLoad.from_sessions([_make_session("2026-01-01")])
+        df = tl.to_dataframe()
+        assert list(df.columns) == ["date", "trimp", "atl", "ctl", "tsb"]
+
+    def test_to_dataframe_length_matches_date_range(self):
+        """DataFrame must have one row per day in the date range."""
+        sessions = [_make_session("2026-01-01"), _make_session("2026-01-05")]
+        tl = TrainingLoad.from_sessions(sessions)
+        assert len(tl.to_dataframe()) == 5
+
+    def test_to_dataframe_empty_has_correct_columns(self):
+        """to_dataframe() on empty TrainingLoad must return an empty DataFrame."""
+        df = TrainingLoad().to_dataframe()
+        assert len(df) == 0
+        assert list(df.columns) == ["date", "trimp", "atl", "ctl", "tsb"]
+
+    def test_to_dataframe_tsb_consistent(self):
+        """DataFrame TSB column must equal CTL − ATL."""
+        sessions = [_make_session(f"2026-05-{d:02d}") for d in range(1, 20)]
+        df = TrainingLoad.from_sessions(sessions).to_dataframe()
+        assert np.allclose(df["tsb"].values, df["ctl"].values - df["atl"].values)

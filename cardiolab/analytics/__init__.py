@@ -14,6 +14,10 @@ from cardiolab.analytics.scoring import (
     vo2max_score,
 )
 from cardiolab.analytics.training_load import (
+    TrainingLoad,
+    compute_atl,
+    compute_ctl,
+    compute_tsb,
     load_readiness_for_date,
     trimp_banister,
     trimp_hrv_based,
@@ -36,4 +40,8 @@ __all__ = [
     "trimp_hrv_based",
     "trimp_banister",
     "load_readiness_for_date",
+    "compute_atl",
+    "compute_ctl",
+    "compute_tsb",
+    "TrainingLoad",
 ]

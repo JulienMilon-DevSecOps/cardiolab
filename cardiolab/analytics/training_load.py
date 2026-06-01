@@ -1,4 +1,4 @@
-"""TRIMP computation and readiness loading for the training load model.
+"""TRIMP computation, ATL/CTL/TSB model, and readiness loading.
 
 Two TRIMP formulas are provided:
 
@@ -10,6 +10,15 @@ Two TRIMP formulas are provided:
 * :func:`trimp_banister` — Classical Banister (1991) formula using effort HR
   from a sensor. Fallback when no HRV readiness is available.
 
+ATL / CTL / TSB — Banister impulse-response model:
+
+* :func:`compute_atl` — 7-day EMA of TRIMP (acute fatigue).
+* :func:`compute_ctl` — 42-day EMA of TRIMP (chronic fitness).
+* :func:`compute_tsb` — TSB = CTL − ATL (form / freshness).
+* :class:`TrainingLoad` — end-to-end container: builds a dense daily series
+  from ``load_training_sessions()`` output and exposes the ATL/CTL/TSB
+  arrays plus a pandas DataFrame export.
+
 Loading readiness from the database:
 
 * :func:`load_readiness_for_date` — strict, single-protocol lookup.
@@ -20,7 +29,12 @@ Loading readiness from the database:
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass, field
+from datetime import date as _date
+from datetime import timedelta
 from typing import TYPE_CHECKING, Literal
+
+import numpy as np
 
 from cardiolab.analytics.baseline import Baseline
 from cardiolab.analytics.scoring import readiness_score_oura
@@ -165,3 +179,225 @@ def load_readiness_for_date(
         if str(record.date)[:10] == target:
             return readiness_score_oura(record.supine, baseline)
     return None
+
+
+# ======================
+# EMA — INTERNAL
+# ======================
+
+
+def _ema(trimp: np.ndarray, tau: int) -> np.ndarray:
+    """Exponential moving average with time constant *tau* days.
+
+    ``k = 1 − exp(−1/tau)``.  Each day:
+    ``EMA[i] = trimp[i] * k + EMA[i-1] * (1 − k)``.
+
+    Args:
+        trimp: Dense daily TRIMP array (one value per consecutive day).
+        tau: Time constant in days (7 for ATL, 42 for CTL).
+
+    Returns:
+        Array of the same length as *trimp*.
+
+    """
+    k = 1.0 - math.exp(-1.0 / tau)
+    result = np.zeros(len(trimp))
+    for i, t in enumerate(trimp):
+        prev = result[i - 1] if i > 0 else 0.0
+        result[i] = t * k + prev * (1.0 - k)
+    return result
+
+
+# ======================
+# PUBLIC EMA FUNCTIONS
+# ======================
+
+
+def compute_atl(trimp: np.ndarray, tau: int = 7) -> np.ndarray:
+    """Compute the Acute Training Load (short-term fatigue) via 7-day EMA.
+
+    ATL rises quickly during training blocks and decays fast during rest.
+    It represents accumulated fatigue over the past ~7 days.
+
+    The input must be a **dense** daily array — one TRIMP value per
+    consecutive day, with ``0`` on rest days. Gaps in the series will
+    produce incorrect results.
+
+    Args:
+        trimp: Dense daily TRIMP array, oldest first.
+        tau: Time constant in days. Default 7 (standard ATL).
+
+    Returns:
+        ATL array of the same length as *trimp*. Initial condition: 0.
+
+    References:
+        Banister EW et al. (1975). *Aust J Sports Med*, 7, 57–61.
+        Morton RH et al. (1990). *J Appl Physiol*, 69(3), 1171–1177.
+
+    """
+    return _ema(trimp, tau)
+
+
+def compute_ctl(trimp: np.ndarray, tau: int = 42) -> np.ndarray:
+    """Compute the Chronic Training Load (long-term fitness) via 42-day EMA.
+
+    CTL responds slowly to daily changes, rising over training blocks lasting
+    weeks or months and decaying slowly during detraining. It represents
+    accumulated aerobic adaptation built by consistent training.
+
+    CTL is not meaningful until ~6 weeks of data (one time constant).
+
+    Args:
+        trimp: Dense daily TRIMP array, oldest first.
+        tau: Time constant in days. Default 42 (standard CTL).
+
+    Returns:
+        CTL array of the same length as *trimp*. Initial condition: 0.
+
+    """
+    return _ema(trimp, tau)
+
+
+def compute_tsb(ctl: np.ndarray, atl: np.ndarray) -> np.ndarray:
+    """Compute the Training Stress Balance (form) as CTL − ATL.
+
+    TSB > 0 indicates the athlete is fresh (CTL > ATL — fitness exceeds
+    fatigue).  TSB < 0 indicates accumulated fatigue. The optimal
+    performance window is approximately TSB +5 to +25.
+
+    Args:
+        ctl: Chronic Training Load array.
+        atl: Acute Training Load array. Must be the same length as *ctl*.
+
+    Returns:
+        TSB array of the same length as *ctl*.
+
+    """
+    return ctl - atl
+
+
+# ======================
+# TrainingLoad CLASS
+# ======================
+
+
+@dataclass
+class TrainingLoad:
+    """ATL / CTL / TSB time series computed from a session TRIMP history.
+
+    Attributes:
+        dates: Dense list of ISO date strings (one per consecutive day).
+        trimp: Daily TRIMP values (0 on rest days or when readiness was absent).
+        atl: Acute Training Load — 7-day EMA of TRIMP.
+        ctl: Chronic Training Load — 42-day EMA of TRIMP.
+        tsb: Training Stress Balance — CTL − ATL.
+
+    """
+
+    dates: list[str] = field(default_factory=list)
+    trimp: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
+    atl: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
+    ctl: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
+    tsb: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
+
+    # ======================
+    # FACTORY
+    # ======================
+
+    @classmethod
+    def from_sessions(
+        cls,
+        sessions: list[dict],
+        tau_atl: int = 7,
+        tau_ctl: int = 42,
+    ) -> TrainingLoad:
+        """Build a TrainingLoad from a list of session dicts.
+
+        The expected input is the output of
+        ``HRVRepository.load_training_sessions()`` — a list of dicts with
+        at least ``date`` (``"YYYY-MM-DD"``) and ``trimp`` (float or None)
+        keys, sorted ascending by date.
+
+        Processing steps:
+
+        1. Parse the first and last session dates.
+        2. Build a dense daily date range between them (inclusive).
+        3. Map known TRIMP values to their dates; rest days and sessions
+           with ``trimp=None`` contribute ``0``.
+        4. Compute ATL and CTL via :func:`compute_atl` / :func:`compute_ctl`.
+        5. Compute TSB via :func:`compute_tsb`.
+
+        Args:
+            sessions: List of training session dicts, sorted by date ASC.
+            tau_atl: ATL time constant in days (default 7).
+            tau_ctl: CTL time constant in days (default 42).
+
+        Returns:
+            A populated :class:`TrainingLoad` instance.
+            Returns an empty instance when *sessions* is empty.
+
+        """
+        if not sessions:
+            return cls()
+
+        first = _date.fromisoformat(str(sessions[0]["date"])[:10])
+        last = _date.fromisoformat(str(sessions[-1]["date"])[:10])
+        n = (last - first).days + 1
+
+        trimp_by_date: dict[str, float] = {}
+        for s in sessions:
+            d = str(s["date"])[:10]
+            trimp_by_date[d] = float(s["trimp"]) if s["trimp"] is not None else 0.0
+
+        dates: list[str] = []
+        trimp_array = np.zeros(n)
+        for i in range(n):
+            d = str(first + timedelta(days=i))
+            dates.append(d)
+            trimp_array[i] = trimp_by_date.get(d, 0.0)
+
+        atl = compute_atl(trimp_array, tau=tau_atl)
+        ctl = compute_ctl(trimp_array, tau=tau_ctl)
+        tsb = compute_tsb(ctl, atl)
+
+        return cls(dates=dates, trimp=trimp_array, atl=atl, ctl=ctl, tsb=tsb)
+
+    # ======================
+    # EXPORT
+    # ======================
+
+    def to_dataframe(self):
+        """Return a pandas DataFrame with one row per day.
+
+        Columns: ``date`` (str), ``trimp``, ``atl``, ``ctl``, ``tsb``
+        (all float).
+
+        Returns:
+            A ``pandas.DataFrame`` sorted by ascending date.
+            Returns an empty DataFrame when the instance is empty.
+
+        Raises:
+            ImportError: If pandas is not installed.
+                Install with ``pip install cardiolab[analysis]``.
+
+        """
+        try:
+            import pandas as pd
+        except ImportError as exc:
+            raise ImportError(
+                "pandas is required for to_dataframe(). "
+                "Install it with: pip install cardiolab[analysis]"
+            ) from exc
+
+        if not self.dates:
+            return pd.DataFrame(columns=["date", "trimp", "atl", "ctl", "tsb"])
+
+        return pd.DataFrame(
+            {
+                "date": self.dates,
+                "trimp": self.trimp,
+                "atl": self.atl,
+                "ctl": self.ctl,
+                "tsb": self.tsb,
+            }
+        )
