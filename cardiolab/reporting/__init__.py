@@ -12,6 +12,8 @@ Public API::
         table_coherence_history,
         table_vo2max_history,
         table_vo2max_session,
+        table_training_load_history,
+        summary_training_load,
     )
 """
 
@@ -28,6 +30,10 @@ from cardiolab.reporting.resting import (
     table_resting_history,
     table_resting_session,
 )
+from cardiolab.reporting.training_load_report import (
+    summary_training_load,
+    table_training_load_history,
+)
 from cardiolab.reporting.vo2max import (
     table_vo2max_history,
     table_vo2max_session,
@@ -41,6 +47,8 @@ __all__ = [
     "table_orthostatic_history",
     "table_resting_history",
     "table_resting_session",
+    "table_training_load_history",
+    "summary_training_load",
     "table_vo2max_history",
     "table_vo2max_session",
 ]
