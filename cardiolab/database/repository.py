@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import os
 import re
+import uuid
 from dataclasses import dataclass
 
 from psycopg2 import connect, sql
@@ -309,8 +310,19 @@ _TRAINING_SESSIONS_COLUMNS: dict[str, str] = {
     "notes": "TEXT",
 }
 
+# Columns writable by save_training_session() (excludes activity_id, user_id, date)
 _TRAINING_SESSIONS_DATA_COLUMNS: list[str] = [
     c for c in _TRAINING_SESSIONS_COLUMNS if c not in ("user_id", "date")
+]
+
+# All columns returned by load/find (activity_id first, then data columns)
+_TRAINING_SESSIONS_SELECT_COLUMNS: list[str] = [
+    "activity_id",
+    "date",
+    "duration_min",
+    "sport_type",
+    "trimp",
+    "notes",
 ]
 
 
@@ -1933,16 +1945,19 @@ class HRVRepository:
 
         Schema::
 
+            activity_id  TEXT PRIMARY KEY   -- UUID generated in Python (uuid4)
             user_id      TEXT NOT NULL
             date         DATE NOT NULL
-            duration_min FLOAT          -- duration of the training session (min)
-            sport_type   TEXT           -- e.g. "course", "vélo", "natation"
-            trimp        FLOAT          -- training impulse (nullable: computed later)
-            notes        TEXT           -- free-text notes (nullable)
-            UNIQUE(user_id, date)
+            duration_min FLOAT              -- duration in minutes
+            sport_type   TEXT               -- e.g. "running", "cycling"
+            trimp        FLOAT              -- nullable: computed later if readiness absent
+            notes        TEXT               -- free-text notes
 
-        ATL, CTL and TSB are computed on the fly from this table — they are
-        not stored.
+        Design rationale: one row per **activity**, not per day.  Multiple
+        activities on the same day are each stored as independent rows, each
+        with their own ``activity_id``.  ATL/CTL/TSB aggregation (TRIMP sum
+        per day) is handled by :meth:`TrainingLoad.from_sessions
+        <cardiolab.analytics.training_load.TrainingLoad.from_sessions>`.
 
         Raises:
             RuntimeError: If called outside a ``with`` block.
@@ -1954,9 +1969,8 @@ class HRVRepository:
         )
         query = sql.SQL(
             "CREATE TABLE IF NOT EXISTS {table} (\n"
-            "    id SERIAL PRIMARY KEY,\n"
-            "    {columns},\n"
-            "    UNIQUE(user_id, date)\n"
+            "    activity_id TEXT PRIMARY KEY,\n"
+            "    {columns}\n"
             ");"
         ).format(
             table=sql.Identifier(self.training_sessions_table_name),
@@ -1975,84 +1989,160 @@ class HRVRepository:
         sport_type: str | None = None,
         trimp: float | None = None,
         notes: str | None = None,
-    ) -> None:
-        """Insert or update one training session record.
+    ) -> str:
+        """Insert a new training activity and return its ``activity_id``.
 
-        Uses upsert on ``(user_id, date)``: if a row already exists for that
-        key, all data columns are overwritten.
+        Each call always inserts a **new row** — there is no upsert.  Multiple
+        activities on the same day are each stored independently and identified
+        by their ``activity_id``.  The caller is responsible for not inserting
+        duplicates when that matters (e.g. an interface should confirm before
+        logging a second activity of the same sport on the same day).
 
         Args:
             user_id: User identifier.
             date: ISO date string (e.g. ``"2026-05-29"``).
             duration_min: Duration of the training session in minutes.
-            sport_type: Sport type label (e.g. ``"course"``, ``"vélo"``).
+            sport_type: Sport type label (e.g. ``"running"``, ``"cycling"``).
             trimp: Pre-computed TRIMP value. May be ``None`` when the
                 readiness score for the day is not available yet.
             notes: Free-text notes about the session.
+
+        Returns:
+            The ``activity_id`` (UUID string) of the newly created row.
 
         Raises:
             RuntimeError: If called outside a ``with`` block.
             psycopg2.Error: If the insert fails.
 
         """
-        all_cols = ["user_id", "date"] + _TRAINING_SESSIONS_DATA_COLUMNS
+        activity_id = str(uuid.uuid4())
+        all_cols = ["activity_id", "user_id", "date"] + _TRAINING_SESSIONS_DATA_COLUMNS
         col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
         placeholders = sql.SQL(", ").join(
             sql.Placeholder() for _ in range(len(all_cols))
         )
-        update_set = sql.SQL(", ").join(
-            sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
-            for c in _TRAINING_SESSIONS_DATA_COLUMNS
-        )
         query = sql.SQL(
-            "INSERT INTO {table} ({cols}) VALUES ({vals})\n"
-            "ON CONFLICT (user_id, date) DO UPDATE SET {update};"
+            "INSERT INTO {table} ({cols}) VALUES ({vals});"
         ).format(
             table=sql.Identifier(self.training_sessions_table_name),
             cols=col_identifiers,
             vals=placeholders,
-            update=update_set,
         )
-        row = (user_id, date, duration_min, sport_type, trimp, notes)
+        row = (activity_id, user_id, date, duration_min, sport_type, trimp, notes)
         with self._conn_or_raise().cursor() as cur:
             cur.execute(query, row)
+        return activity_id
+
+    def delete_training_session(self, activity_id: str) -> bool:
+        """Delete a training activity by its unique ``activity_id``.
+
+        Args:
+            activity_id: UUID string identifying the activity to delete.
+
+        Returns:
+            ``True`` if a row was deleted, ``False`` if no matching row existed.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the delete fails.
+
+        """
+        query = sql.SQL(
+            "DELETE FROM {table} WHERE activity_id = %s;"
+        ).format(table=sql.Identifier(self.training_sessions_table_name))
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (activity_id,))
+            return cur.rowcount == 1
 
     # ── Training sessions — read ──────────────────────────────────────────
 
     def load_training_sessions(self, user_id: str) -> list[dict]:
-        """Load all training session records for a user, sorted by date.
+        """Load all training activities for a user, sorted by date then activity_id.
 
         Args:
             user_id: User identifier.
 
         Returns:
-            List of dicts, one per session, sorted by ascending date.
-            Each dict has keys: ``date``, ``duration_min``, ``sport_type``,
-            ``trimp``, ``notes``.
+            List of dicts, one per activity, sorted ascending by date.
+            Each dict has keys: ``activity_id``, ``date``, ``duration_min``,
+            ``sport_type``, ``trimp``, ``notes``.
+            Multiple activities on the same day appear as distinct rows.
 
         Raises:
             RuntimeError: If called outside a ``with`` block.
             psycopg2.Error: If the query fails.
 
         """
+        sel = sql.SQL(", ").join(
+            sql.Identifier(c) for c in _TRAINING_SESSIONS_SELECT_COLUMNS
+        )
         query = sql.SQL(
-            "SELECT date, duration_min, sport_type, trimp, notes\n"
+            "SELECT {sel}\n"
             "FROM {table}\n"
             "WHERE user_id = %s\n"
-            "ORDER BY date ASC;"
-        ).format(table=sql.Identifier(self.training_sessions_table_name))
-
+            "ORDER BY date ASC, activity_id ASC;"
+        ).format(
+            sel=sel,
+            table=sql.Identifier(self.training_sessions_table_name),
+        )
         with self._conn_or_raise().cursor() as cur:
             cur.execute(query, (user_id,))
             rows = cur.fetchall()
-
         return [
-            {
-                "date": str(row[0]),
-                "duration_min": row[1],
-                "sport_type": row[2],
-                "trimp": row[3],
-                "notes": row[4],
-            }
+            dict(zip(_TRAINING_SESSIONS_SELECT_COLUMNS, row, strict=False))
+            | {"date": str(row[1])}
+            for row in rows
+        ]
+
+    def find_training_sessions(
+        self,
+        user_id: str,
+        date: str,
+        sport_type: str | None = None,
+    ) -> list[dict]:
+        """Find activities for a user on a given date, optionally filtered by sport.
+
+        Intended for the delete workflow: look up which activities exist before
+        asking the user to confirm or choose by ``activity_id``.
+
+        Args:
+            user_id: User identifier.
+            date: ISO date string (``"YYYY-MM-DD"``).
+            sport_type: Optional sport filter.  When ``None``, all activities
+                on the date are returned regardless of sport type.
+
+        Returns:
+            List of matching activity dicts (same keys as
+            :meth:`load_training_sessions`), ordered by sport_type then
+            activity_id.  Empty list when nothing matches.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        sel = sql.SQL(", ").join(
+            sql.Identifier(c) for c in _TRAINING_SESSIONS_SELECT_COLUMNS
+        )
+        if sport_type is not None:
+            query = sql.SQL(
+                "SELECT {sel} FROM {table}\n"
+                "WHERE user_id = %s AND date = %s AND sport_type = %s\n"
+                "ORDER BY sport_type ASC, activity_id ASC;"
+            ).format(sel=sel, table=sql.Identifier(self.training_sessions_table_name))
+            params: tuple = (user_id, date, sport_type)
+        else:
+            query = sql.SQL(
+                "SELECT {sel} FROM {table}\n"
+                "WHERE user_id = %s AND date = %s\n"
+                "ORDER BY sport_type ASC, activity_id ASC;"
+            ).format(sel=sel, table=sql.Identifier(self.training_sessions_table_name))
+            params = (user_id, date)
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+        return [
+            dict(zip(_TRAINING_SESSIONS_SELECT_COLUMNS, row, strict=False))
+            | {"date": str(row[1])}
             for row in rows
         ]

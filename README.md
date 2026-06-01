@@ -779,10 +779,19 @@ with HRVRepository.from_env() as repo:
     sessions = repo.list_raw_sessions(user_id="<uuid>", protocol="hrr")  # one protocol
 
     # Training sessions (ATL/CTL/TSB — v0.2.0)
+    # One row per activity — multiple activities per day allowed
     repo.create_training_sessions_table()
+    aid = repo.save_training_session(user_id="<uuid>", date="2026-05-19",
+                                     duration_min=45.0, sport_type="running", trimp=38.2)
+    # aid is a UUID string (activity_id) — keep it to delete later if needed
     repo.save_training_session(user_id="<uuid>", date="2026-05-19",
-                               duration_min=45.0, sport_type="running", trimp=38.2)
-    sessions = repo.load_training_sessions(user_id="<uuid>")  # sorted ASC by date
+                               duration_min=30.0, sport_type="strength", trimp=12.5)
+    sessions = repo.load_training_sessions(user_id="<uuid>")  # sorted ASC by date, includes activity_id
+    # Lookup activities for a date (for interactive deletion)
+    matches = repo.find_training_sessions(user_id="<uuid>", date="2026-05-19")
+    matches = repo.find_training_sessions(user_id="<uuid>", date="2026-05-19", sport_type="running")
+    # Delete a specific activity by its UUID
+    deleted = repo.delete_training_session(activity_id=aid)  # True if deleted
 ```
 
 Each protocol table includes a `score FLOAT` column (see [Analytics & Scoring](#analytics--scoring)).
@@ -804,13 +813,13 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | `protocols/cardiac_drift` | Implemented |
 | `protocols/vo2max` | Implemented |
 | `analytics/` — baseline, scoring (all 6 protocols), anomaly, trend | Implemented |
-| `database/` — 8 tables (6 protocol + raw RR + training sessions) | Implemented |
+| `database/` — 8 tables (6 protocol + raw RR + training sessions, multi-activity) | Implemented |
 | `io/` — CSV & JSON export for all protocols | Implemented |
 | `sensors_tools/` — Polar | Implemented |
 | `visualization/` | Implemented |
 | `reporting/` — all 6 protocols (9 functions) + training load (2 functions) | Implemented |
 | PPG signal support | Planned |
-| Training load — Phases 1-5 (DB / TRIMP / ATL-CTL-TSB / Viz / Reporting) | In progress |
+| Training load — Phases 1-6 (DB / TRIMP / ATL-CTL-TSB / Viz / Reporting / Scripts) | In progress |
 
 **Test coverage:** 1235 unit tests, 0 failures.
 
@@ -974,9 +983,9 @@ TRIMP = duration_min × (1 − readiness / 100)
 | < −10 | Fatigued — risk of overtraining |
 
 #### Phase 1 — Database ✅
-* [x] New table `training_sessions`: `user_id | date | duration_min | sport_type | trimp | notes` — UNIQUE `(user_id, date)`
-* [x] `HRVRepository.create_training_sessions_table()`, `save_training_session()`, `load_training_sessions()`
-* [x] Integration tests `TestTrainingSessionsIntegration` (4 tests)
+* [x] New table `training_sessions`: `activity_id TEXT PK | user_id | date | duration_min | sport_type | trimp | notes` — one row per activity, multiple activities per day allowed
+* [x] `HRVRepository.create_training_sessions_table()`, `save_training_session() → str` (returns `activity_id`), `load_training_sessions()`, `find_training_sessions()`, `delete_training_session()`
+* [x] Integration tests `TestTrainingSessionsIntegration` (11 tests)
 
 #### Phase 2 — TRIMP calculation ✅
 * [x] `analytics/training_load.py`
@@ -1005,9 +1014,13 @@ TRIMP = duration_min × (1 − readiness / 100)
   * [x] `summary_training_load(training_load) → dict` — atl, ctl, tsb, tsb_zone, ctl_trend
 * [x] 45 tests in `tests/reporting/test_training_load_report.py`
 
-#### Phase 6 — Local scripts
-* [ ] `local/main_training_load.py` — log session → compute TRIMP → save → refresh ATL/CTL/TSB chart
-* [ ] `local/main_training_load_report.py` — training load report over a chosen period
+#### Phase 6 — Local scripts ✅
+* [x] `local/main_training_load.py` — log session → TRIMP → save → ATL/CTL/TSB plots
+  * TRIMP methods: `hrv` (day's readiness), `banister` (HR sensor), `manual` (readiness typed in)
+  * Options: `--protocol resting|orthostatic`, `--date`, `--sport`, `--dry-run`, `--save-plot`
+  * Interactive `--delete` mode: lookup by (user, date, optional sport); numbered menu when multiple activities
+* [x] `local/main_training_load_report.py` — HTML ATL/CTL/TSB report over a period
+  * Period filter: `--from / --to` or `--last N` days; KPI summary + table + 3 base64-embedded plots; `--open`
 
 **References:** Banister EW et al. (1991); Morton RH et al. (1990); Manzi V et al. (2009)
 
