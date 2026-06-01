@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.2.0 Phase 4 — Visualisation ATL / CTL / TSB
+
+- `visualization/training_load_plots.py` — new module:
+  - `plot_atl_ctl_tsb(training_load, title, figsize) → Figure` — 2-panel figure: ATL (red) + CTL (blue) with shaded fill on top; TSB (purple) with 5 coloured zone bands and zero-reference line on bottom. Raises `ValueError` on empty input.
+  - `plot_trimp_history(training_load, sessions, sport_colors, title, figsize) → Figure` — daily TRIMP bar chart coloured by sport type (optional sessions lookup); 7-day rolling mean line when ≥ 7 days of data; built-in palette for running/cycling/swimming/strength/trail/rowing; fallback colour for unknown types.
+  - `plot_tsb_zones(training_load, title, figsize) → Figure` — TSB line with 5 physiological zone backgrounds (Fresh / Optimal / Neutral / Accumulated fatigue / Overload) from Coggan 2003 / Plews 2013; fill between TSB and zero.
+- `visualization/__init__.py` — exports `plot_atl_ctl_tsb`, `plot_trimp_history`, `plot_tsb_zones`
+- Unit tests `TestPlotAtlCtlTsb` (8), `TestPlotTrimpHistory` (10), `TestPlotTsbZones` (9) in `tests/visualization/test_training_load_plots.py`
+
+---
+
 ### Added — v0.2.0 Phase 3 — ATL / CTL / TSB model
 
 - `analytics/training_load.py` — additions to the training load module:

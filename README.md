@@ -807,7 +807,7 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | `visualization/` | Implemented |
 | `reporting/` — all 6 protocols (9 functions) | Implemented |
 | PPG signal support | Planned |
-| Training load — Phase 1 (DB) + Phase 2 (TRIMP) + Phase 3 (ATL/CTL/TSB) | In progress |
+| Training load — Phases 1-4 (DB / TRIMP / ATL-CTL-TSB / Viz) | In progress |
 
 **Test coverage:** 1190 unit tests, 0 failures.
 

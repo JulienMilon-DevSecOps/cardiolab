@@ -2,6 +2,9 @@
 
 Modules
 -------
+training_load_plots
+    ATL/CTL/TSB training load: dual-axis ATL/CTL/TSB chart, TRIMP bar history
+    coloured by sport type, and TSB zone chart with physiological band backgrounds.
 resting_plots
     RMSSD and readiness score evolution over time (resting HRV sessions).
 rr_plots
@@ -32,6 +35,11 @@ dashboard_plots
     mini-dashboards (resting, HRR, drift, VO2max, coherence).
 """
 
+from cardiolab.visualization.training_load_plots import (
+    plot_atl_ctl_tsb,
+    plot_trimp_history,
+    plot_tsb_zones,
+)
 from cardiolab.visualization.coherence_plots import (
     plot_coherence_psd,
     plot_coherence_score_evolution,
@@ -88,6 +96,10 @@ from cardiolab.visualization.vo2max_plots import (
 )
 
 __all__ = [
+    # training_load_plots
+    "plot_atl_ctl_tsb",
+    "plot_trimp_history",
+    "plot_tsb_zones",
     # dashboard_plots
     "plot_session_dashboard",
     "plot_longitudinal_heatmap",
