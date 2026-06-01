@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.2.0 Phase 3 — ATL / CTL / TSB model
+
+- `analytics/training_load.py` — additions to the training load module:
+  - `compute_atl(trimp, tau=7) → np.ndarray` — 7-day EMA of TRIMP (acute fatigue). Initial condition: 0. Converges to TRIMP at steady state.
+  - `compute_ctl(trimp, tau=42) → np.ndarray` — 42-day EMA of TRIMP (chronic fitness). Decays ~6× slower than ATL.
+  - `compute_tsb(ctl, atl) → np.ndarray` — TSB = CTL − ATL (form / freshness). Negative = accumulated fatigue.
+  - `class TrainingLoad` — end-to-end container built from session dicts:
+    - `from_sessions(sessions, tau_atl=7, tau_ctl=42) → TrainingLoad` — builds a dense daily date range from the first to last session; gaps filled with TRIMP=0; `trimp=None` treated as 0.
+    - `to_dataframe() → pd.DataFrame` — columns: `date | trimp | atl | ctl | tsb` (requires `pip install cardiolab[analysis]`).
+- `analytics/__init__.py` — exports `compute_atl`, `compute_ctl`, `compute_tsb`, `TrainingLoad`
+- Unit tests `TestComputeAtl` (8), `TestComputeCtl` (5), `TestComputeTsb` (5), `TestTrainingLoad` (12) in `tests/analytics/test_training_load.py`
+
+---
+
 ### Added — v0.2.0 Phase 2 — TRIMP calculation
 
 - `analytics/training_load.py` — new module for training load computation
