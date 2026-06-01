@@ -35,11 +35,6 @@ dashboard_plots
     mini-dashboards (resting, HRR, drift, VO2max, coherence).
 """
 
-from cardiolab.visualization.training_load_plots import (
-    plot_atl_ctl_tsb,
-    plot_trimp_history,
-    plot_tsb_zones,
-)
 from cardiolab.visualization.coherence_plots import (
     plot_coherence_psd,
     plot_coherence_score_evolution,
@@ -88,6 +83,11 @@ from cardiolab.visualization.spectral_plots import (
     plot_psd_comparison,
     plot_psd_welch,
     plot_spectral_heatmap,
+)
+from cardiolab.visualization.training_load_plots import (
+    plot_atl_ctl_tsb,
+    plot_trimp_history,
+    plot_tsb_zones,
 )
 from cardiolab.visualization.vo2max_plots import (
     plot_vo2max_comparison,
