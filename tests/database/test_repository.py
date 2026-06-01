@@ -1044,6 +1044,30 @@ def _repo_from_test_env(**kwargs) -> HRVRepository:
     )
 
 
+def _test_table_drop(table: str) -> None:
+    """Drop *table* unconditionally using a direct psycopg2 connection.
+
+    Used by fixtures that need to force a full schema refresh (e.g. after a
+    schema migration). ``DROP TABLE IF EXISTS`` is safe: it is a no-op when
+    the table does not yet exist.
+    """
+    import psycopg2  # local import: only needed for integration tests
+
+    conn = psycopg2.connect(
+        host=os.environ["DB_HOST_TEST"],
+        dbname=os.environ["DB_NAME_TEST"],
+        user=os.environ["DB_USER_TEST"],
+        password=os.environ["DB_PASSWORD_TEST"],
+        port=int(os.environ.get("DB_PORT_TEST", "5432")),
+    )
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"DROP TABLE IF EXISTS {table};")  # noqa: S608
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _test_db_cleanup(table: str, user: str) -> None:
     """Delete all rows for *user* from *table* using a direct psycopg2 connection.
 
@@ -1627,6 +1651,9 @@ class TestTrainingSessionsIntegration:
 
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
+        # Drop before create to force a schema refresh when the table schema
+        # has changed (CREATE TABLE IF NOT EXISTS is a no-op on existing tables).
+        _test_table_drop(self._TABLE)
         with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
             repo.create_training_sessions_table()
         yield
