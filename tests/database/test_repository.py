@@ -1635,7 +1635,9 @@ class TestTrainingSessionsIntegration:
     def test_save_returns_activity_id(self):
         """save_training_session must return a non-empty UUID string."""
         with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
-            aid = repo.save_training_session(self._USER, "2099-08-01", duration_min=60.0)
+            aid = repo.save_training_session(
+                self._USER, "2099-08-01", duration_min=60.0
+            )
         assert isinstance(aid, str)
         assert len(aid) == 36  # UUID canonical form
 
@@ -1665,10 +1667,18 @@ class TestTrainingSessionsIntegration:
         """Two activities on the same day must produce two distinct rows."""
         with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
             aid1 = repo.save_training_session(
-                self._USER, "2099-08-02", duration_min=30.0, sport_type="running", trimp=20.0
+                self._USER,
+                "2099-08-02",
+                duration_min=30.0,
+                sport_type="running",
+                trimp=20.0,
             )
             aid2 = repo.save_training_session(
-                self._USER, "2099-08-02", duration_min=45.0, sport_type="cycling", trimp=31.5
+                self._USER,
+                "2099-08-02",
+                duration_min=45.0,
+                sport_type="cycling",
+                trimp=31.5,
             )
             sessions = repo.load_training_sessions(self._USER)
 
@@ -1704,7 +1714,9 @@ class TestTrainingSessionsIntegration:
     def test_delete_activity(self):
         """delete_training_session must remove the row and return True."""
         with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
-            aid = repo.save_training_session(self._USER, "2099-08-07", duration_min=40.0)
+            aid = repo.save_training_session(
+                self._USER, "2099-08-07", duration_min=40.0
+            )
             deleted = repo.delete_training_session(aid)
             sessions = repo.load_training_sessions(self._USER)
 
@@ -1730,15 +1742,23 @@ class TestTrainingSessionsIntegration:
     def test_delete_nonexistent_returns_false(self):
         """Deleting a non-existent activity_id must return False."""
         with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
-            result = repo.delete_training_session("00000000-0000-0000-0000-000000000000")
+            result = repo.delete_training_session(
+                "00000000-0000-0000-0000-000000000000"
+            )
         assert result is False
 
     def test_find_by_date(self):
         """find_training_sessions returns all activities on a given date."""
         with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
-            repo.save_training_session(self._USER, "2099-08-09", duration_min=30.0, sport_type="running")
-            repo.save_training_session(self._USER, "2099-08-09", duration_min=45.0, sport_type="cycling")
-            repo.save_training_session(self._USER, "2099-08-10", duration_min=60.0, sport_type="running")
+            repo.save_training_session(
+                self._USER, "2099-08-09", duration_min=30.0, sport_type="running"
+            )
+            repo.save_training_session(
+                self._USER, "2099-08-09", duration_min=45.0, sport_type="cycling"
+            )
+            repo.save_training_session(
+                self._USER, "2099-08-10", duration_min=60.0, sport_type="running"
+            )
             results = repo.find_training_sessions(self._USER, "2099-08-09")
 
         assert len(results) == 2
@@ -1747,9 +1767,15 @@ class TestTrainingSessionsIntegration:
     def test_find_by_date_and_sport(self):
         """find_training_sessions with sport_type filters to matching activities only."""
         with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
-            repo.save_training_session(self._USER, "2099-08-11", duration_min=30.0, sport_type="running")
-            repo.save_training_session(self._USER, "2099-08-11", duration_min=45.0, sport_type="cycling")
-            results = repo.find_training_sessions(self._USER, "2099-08-11", sport_type="running")
+            repo.save_training_session(
+                self._USER, "2099-08-11", duration_min=30.0, sport_type="running"
+            )
+            repo.save_training_session(
+                self._USER, "2099-08-11", duration_min=45.0, sport_type="cycling"
+            )
+            results = repo.find_training_sessions(
+                self._USER, "2099-08-11", sport_type="running"
+            )
 
         assert len(results) == 1
         assert results[0]["sport_type"] == "running"

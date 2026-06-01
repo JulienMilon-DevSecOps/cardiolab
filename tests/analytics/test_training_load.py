@@ -710,10 +710,12 @@ class TestTrainingLoad:
     def test_two_activities_same_day_atl_higher_than_single(self):
         """Summing two activities on one day produces higher ATL than one alone."""
         single = TrainingLoad.from_sessions([_make_session("2026-06-01", trimp=30.0)])
-        double = TrainingLoad.from_sessions([
-            _make_session("2026-06-01", trimp=30.0),
-            _make_session("2026-06-01", trimp=20.0),
-        ])
+        double = TrainingLoad.from_sessions(
+            [
+                _make_session("2026-06-01", trimp=30.0),
+                _make_session("2026-06-01", trimp=20.0),
+            ]
+        )
         assert double.atl[-1] > single.atl[-1]
 
     def test_null_trimp_activity_contributes_zero_to_sum(self):

@@ -2021,9 +2021,7 @@ class HRVRepository:
         placeholders = sql.SQL(", ").join(
             sql.Placeholder() for _ in range(len(all_cols))
         )
-        query = sql.SQL(
-            "INSERT INTO {table} ({cols}) VALUES ({vals});"
-        ).format(
+        query = sql.SQL("INSERT INTO {table} ({cols}) VALUES ({vals});").format(
             table=sql.Identifier(self.training_sessions_table_name),
             cols=col_identifiers,
             vals=placeholders,
@@ -2047,9 +2045,9 @@ class HRVRepository:
             psycopg2.Error: If the delete fails.
 
         """
-        query = sql.SQL(
-            "DELETE FROM {table} WHERE activity_id = %s;"
-        ).format(table=sql.Identifier(self.training_sessions_table_name))
+        query = sql.SQL("DELETE FROM {table} WHERE activity_id = %s;").format(
+            table=sql.Identifier(self.training_sessions_table_name)
+        )
         with self._conn_or_raise().cursor() as cur:
             cur.execute(query, (activity_id,))
             return cur.rowcount == 1
