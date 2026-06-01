@@ -566,6 +566,9 @@ from cardiolab.reporting import (
     # VO2max
     table_vo2max_history,         # all three model estimates history
     table_vo2max_session,         # single-session detail (model breakdown)
+    # Training load
+    table_training_load_history,  # daily ATL/CTL/TSB history with zone colours
+    summary_training_load,        # dict: atl, ctl, tsb, tsb_zone, ctl_trend
 )
 ```
 
@@ -805,11 +808,11 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | `io/` — CSV & JSON export for all protocols | Implemented |
 | `sensors_tools/` — Polar | Implemented |
 | `visualization/` | Implemented |
-| `reporting/` — all 6 protocols (9 functions) | Implemented |
+| `reporting/` — all 6 protocols (9 functions) + training load (2 functions) | Implemented |
 | PPG signal support | Planned |
-| Training load — Phases 1-4 (DB / TRIMP / ATL-CTL-TSB / Viz) | In progress |
+| Training load — Phases 1-5 (DB / TRIMP / ATL-CTL-TSB / Viz / Reporting) | In progress |
 
-**Test coverage:** 1190 unit tests, 0 failures.
+**Test coverage:** 1235 unit tests, 0 failures.
 
 ---
 
@@ -970,44 +973,37 @@ TRIMP = duration_min × (1 − readiness / 100)
 | −10 to +5 | Optimal — good form |
 | < −10 | Fatigued — risk of overtraining |
 
-#### Phase 1 — Database
-* [ ] New table `training_sessions`: `user_id | date | duration_min | sport_type | trimp | notes` — UNIQUE `(user_id, date)`
-* [ ] `HRVRepository.create_training_sessions_table(table_name)`
-* [ ] `HRVRepository.save_training_session(user_id, date, duration_min, sport_type, trimp, notes)` — upsert on `(user_id, date)`
-* [ ] `HRVRepository.load_training_sessions(user_id) → list[dict]` — ascending date order
-* [ ] Integration tests `TestTrainingSessionsIntegration`
+#### Phase 1 — Database ✅
+* [x] New table `training_sessions`: `user_id | date | duration_min | sport_type | trimp | notes` — UNIQUE `(user_id, date)`
+* [x] `HRVRepository.create_training_sessions_table()`, `save_training_session()`, `load_training_sessions()`
+* [x] Integration tests `TestTrainingSessionsIntegration` (4 tests)
 
-#### Phase 2 — TRIMP calculation
-* [ ] `analytics/training_load.py`
-  * [ ] `trimp_hrv_based(duration_min, readiness_score) → float`
-  * [ ] `trimp_banister(duration_min, hr_mean, hr_max, hr_rest) → float` — Banister 1991, for sensors providing effort HR
-* [ ] `load_readiness_for_date(user_id, date, repo, baseline, protocol: Literal["resting", "orthostatic"]) → float | None`
-  * Strict: reads only from the declared protocol table, never mixes
-  * `"orthostatic"` → `readiness_score_composite(record.supine, baseline)`
-  * `"resting"` → `readiness_score_composite(features, baseline)`
-  * Returns `None` if no measurement exists for that date (TRIMP not computed)
-* [ ] Unit tests — edge cases: `readiness=0`, `readiness=100`, `duration=0`
+#### Phase 2 — TRIMP calculation ✅
+* [x] `analytics/training_load.py`
+  * [x] `trimp_hrv_based(duration_min, readiness_score) → float`
+  * [x] `trimp_banister(duration_min, hr_mean, hr_max, hr_rest, sex) → float`
+  * [x] `load_readiness_for_date(user_id, date, repo, baseline, protocol) → float | None`
+* [x] Unit tests `TestTrimpHrvBased` (12), `TestTrimpBanister` (10) + integration tests (6)
 
-#### Phase 3 — ATL / CTL / TSB
-* [ ] `compute_atl(sessions_df, tau=7) → pd.Series` — 7-day EMA (acute fatigue)
-* [ ] `compute_ctl(sessions_df, tau=42) → pd.Series` — 42-day EMA (chronic fitness)
-* [ ] `compute_tsb(ctl, atl) → pd.Series` — TSB = CTL − ATL (form)
-* [ ] `class TrainingLoad` with `.from_sessions(sessions_list)` and `.to_dataframe()` — columns: `date | trimp | atl | ctl | tsb`
-* [ ] Rest days (no session logged) contribute TRIMP = 0 — ATL decays naturally faster than CTL
-* [ ] Unit tests — 60-day series with known values, EMA verified at day 7 and day 42, 0-session and 1-session edge cases
+#### Phase 3 — ATL / CTL / TSB ✅
+* [x] `compute_atl(trimp, tau=7) → np.ndarray` — 7-day EMA (acute fatigue)
+* [x] `compute_ctl(trimp, tau=42) → np.ndarray` — 42-day EMA (chronic fitness)
+* [x] `compute_tsb(ctl, atl) → np.ndarray` — TSB = CTL − ATL (form)
+* [x] `class TrainingLoad` with `.from_sessions()` and `.to_dataframe()`; gaps filled with TRIMP=0
+* [x] Unit tests `TestComputeAtl` (8), `TestComputeCtl` (5), `TestComputeTsb` (5), `TestTrainingLoad` (12)
 
-#### Phase 4 — Visualization
-* [ ] `visualization/training_load_plots.py`
-  * [ ] `plot_atl_ctl_tsb(load, title, figsize)` — dual-axis: CTL + ATL top, TSB with coloured zones bottom
-  * [ ] `plot_trimp_history(sessions, title, figsize)` — TRIMP bar chart coloured by sport type
-  * [ ] `plot_tsb_zones(load, title, figsize)` — coloured zone bands (overload / optimal / fresh / detraining)
-* [ ] Visualization tests
+#### Phase 4 — Visualization ✅
+* [x] `visualization/training_load_plots.py`
+  * [x] `plot_atl_ctl_tsb()` — dual-axis: CTL + ATL top, TSB with coloured zones bottom
+  * [x] `plot_trimp_history()` — TRIMP bar chart coloured by sport type
+  * [x] `plot_tsb_zones()` — coloured zone bands (overload / optimal / fresh / detraining)
+* [x] 27 visualization tests
 
-#### Phase 5 — Reporting
-* [ ] `reporting/training_load_report.py`
-  * [ ] `table_training_load_history(sessions) → pd.DataFrame`
-  * [ ] `summary_training_load(load) → dict` — current ATL, CTL, TSB, CTL weekly trend
-* [ ] Reporting tests
+#### Phase 5 — Reporting ✅
+* [x] `reporting/training_load_report.py`
+  * [x] `table_training_load_history(training_load, caption_text) → pd.Styler` — daily ATL/CTL/TSB history; TSB zone highlighted; CTL green gradient; ATL red gradient
+  * [x] `summary_training_load(training_load) → dict` — atl, ctl, tsb, tsb_zone, ctl_trend
+* [x] 45 tests in `tests/reporting/test_training_load_report.py`
 
 #### Phase 6 — Local scripts
 * [ ] `local/main_training_load.py` — log session → compute TRIMP → save → refresh ATL/CTL/TSB chart

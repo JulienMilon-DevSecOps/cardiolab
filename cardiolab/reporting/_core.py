@@ -53,6 +53,14 @@ _COH_CAT_COLORS: dict[str, str] = {
     "high": "#d5f5e3",
 }
 
+_TSB_ZONE_COLORS: dict[str, str] = {
+    "fresh_detraining": "#d6eaf8",
+    "optimal": "#d5f5e3",
+    "neutral": "#fef9e7",
+    "accumulated_fatigue": "#fdebd0",
+    "overload": "#fadbd8",
+}
+
 
 # ── Value formatters ──────────────────────────────────────────────────────────
 

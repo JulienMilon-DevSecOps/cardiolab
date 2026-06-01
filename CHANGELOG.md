@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.2.0 Phase 5 — Reporting Training load
+
+- `reporting/training_load_report.py` — new module:
+  - `table_training_load_history(training_load, caption_text) → pd.Styler` — dense daily ATL/CTL/TSB history table (one row per day); columns: `date | trimp | atl | ctl | tsb | tsb_zone`; CTL gradient green (high fitness = good); ATL gradient red (high fatigue = bad); `tsb_zone` cell coloured by physiological band using `_TSB_ZONE_COLORS`. Raises `ValueError` on empty input.
+  - `summary_training_load(training_load) → dict` — scalar summary of the latest state; keys: `atl`, `ctl`, `tsb` (rounded to 2 d.p.), `tsb_zone` (string label), `ctl_trend` (`"increasing"` / `"stable"` / `"decreasing"` from 7-day CTL delta; default threshold 1.0 AU).
+- `reporting/_core.py` — added `_TSB_ZONE_COLORS` palette (fresh_detraining / optimal / neutral / accumulated_fatigue / overload) matching the zone colour scheme in `training_load_plots.py`.
+- `reporting/__init__.py` — exports `table_training_load_history`, `summary_training_load`
+- Unit tests `TestTsbZoneLabel` (12), `TestCtlTrend` (6), `TestTableTrainingLoadHistory` (15), `TestSummaryTrainingLoad` (12) in `tests/reporting/test_training_load_report.py`
+
+---
+
 ### Added — v0.2.0 Phase 4 — Visualisation ATL / CTL / TSB
 
 - `visualization/training_load_plots.py` — new module:
@@ -87,9 +98,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `plot_atl_ctl_tsb()` — dual-axis: CTL + ATL top, TSB zones bottom
   - `plot_trimp_history()` — TRIMP bars coloured by sport type
   - `plot_tsb_zones()` — coloured zone bands (overload / optimal / fresh / detraining)
-
-#### Phase 5 — Reporting
-- `reporting/training_load_report.py` — `table_training_load_history()`, `summary_training_load()`
 
 #### Phase 6 — Local scripts
 - `local/main_training_load.py` — log session → TRIMP → save → refresh chart
