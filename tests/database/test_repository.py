@@ -126,8 +126,10 @@ def _mock_ortho_result() -> MagicMock:
     result.phases = phases
     result.hr_response = 20.0
     result.lf_hf_ratio_change = 1.5
-    result.hf_response_pct = -40.0
-    result.hf_hr_pct_change = -65.0
+    result.hf_response_pct = 40.0
+    result.hf_hr_pct_change = 65.0
+    result.lf_hr_pct_change = 30.0
+    result.delta_rmssd = 12.0
     result.interpretation = "normal"
     result.score = 0.0
 
@@ -1127,6 +1129,7 @@ class TestHRVRepositoryIntegration:
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
         """Create the test table before and delete test-user rows after each test."""
+        _test_table_drop(self._TABLE)
         with _repo_from_test_env(table_name=self._TABLE) as repo:
             repo.create_table()
         yield
@@ -1212,6 +1215,7 @@ class TestCoherenceIntegration:
 
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
+        _test_table_drop(self._TABLE)
         with _repo_from_test_env(coherence_table_name=self._TABLE) as repo:
             repo.create_coherence_table()
         yield
@@ -1276,6 +1280,7 @@ class TestHRRIntegration:
 
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
+        _test_table_drop(self._TABLE)
         with _repo_from_test_env(hrr_table_name=self._TABLE) as repo:
             repo.create_hrr_table()
         yield
@@ -1361,6 +1366,7 @@ class TestDriftIntegration:
 
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
+        _test_table_drop(self._TABLE)
         with _repo_from_test_env(drift_table_name=self._TABLE) as repo:
             repo.create_drift_table()
         yield
@@ -1432,6 +1438,7 @@ class TestVO2maxIntegration:
 
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
+        _test_table_drop(self._TABLE)
         with _repo_from_test_env(vo2max_table_name=self._TABLE) as repo:
             repo.create_vo2max_table()
         yield
@@ -1513,6 +1520,7 @@ class TestRawSessionsIntegration:
 
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
+        _test_table_drop(self._TABLE)
         with _repo_from_test_env(raw_sessions_table_name=self._TABLE) as repo:
             repo.create_raw_sessions_table()
         yield
@@ -1590,6 +1598,7 @@ class TestOrthostaticIntegration:
 
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
+        _test_table_drop(self._TABLE)
         with _repo_from_test_env(ortho_table_name=self._TABLE) as repo:
             repo.create_orthostatic_table()
         yield

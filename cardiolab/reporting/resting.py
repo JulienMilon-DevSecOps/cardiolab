@@ -72,7 +72,10 @@ def table_resting_history(
     rows = [f.to_dict() if hasattr(f, "to_dict") else vars(f) for f in features_list]
     df = pd.DataFrame(rows)
 
-    # Keep only requested columns that exist in the DataFrame
+    if cols is not _HISTORY_COLS:
+        unknown = set(cols) - set(df.columns)
+        if unknown:
+            raise ValueError(f"Unknown column(s): {sorted(unknown)}")
     cols = [c for c in cols if c in df.columns]
     df = df[cols]
 

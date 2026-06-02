@@ -192,6 +192,8 @@ _ORTHO_COLUMNS: dict[str, str] = {
     "lf_hf_ratio_change": "FLOAT",
     "hf_response_pct": "FLOAT",
     "hf_hr_pct_change": "FLOAT",
+    "lf_hr_pct_change": "FLOAT",
+    "delta_rmssd": "FLOAT",
     "interpretation": "TEXT",
     # ── Methodological metadata ───────────────────────────────────────────
     # Single column for all phases: all three calls to resting_hrv() use the
@@ -378,6 +380,8 @@ class OrthostaticRecord:
     lf_hf_ratio_change: float
     hf_response_pct: float
     hf_hr_pct_change: float
+    lf_hr_pct_change: float
+    delta_rmssd: float
     interpretation: str
     score: float = 0.0
 
@@ -433,6 +437,8 @@ class OrthostaticRecord:
             "lf_hf_ratio_change": self.lf_hf_ratio_change,
             "hf_response_pct": self.hf_response_pct,
             "hf_hr_pct_change": self.hf_hr_pct_change,
+            "lf_hr_pct_change": self.lf_hr_pct_change,
+            "delta_rmssd": self.delta_rmssd,
             "interpretation": self.interpretation,
             "score": self.score,
         }
@@ -459,6 +465,8 @@ class OrthostaticRecord:
             "lf_hf_change": self.lf_hf_ratio_change,
             "hf_response_pct": self.hf_response_pct,
             "hf_hr_pct_change": self.hf_hr_pct_change,
+            "lf_hr_pct_change": self.lf_hr_pct_change,
+            "delta_rmssd": self.delta_rmssd,
             "interpretation": self.interpretation,
             "score": self.score,
         }
@@ -623,11 +631,13 @@ def _build_ortho_row(
         stf.sampen,
         # standing_duration_sec (1)
         p.standing.duration_sec,
-        # derived (5)
+        # derived (7)
         result.hr_response,
         result.lf_hf_ratio_change,
         result.hf_response_pct,
         result.hf_hr_pct_change,
+        result.lf_hr_pct_change,
+        result.delta_rmssd,
         result.interpretation,
         # spectral_method (1) — same for all phases
         sf.method,
@@ -1182,38 +1192,39 @@ class HRVRepository:
             cur.execute(query, (user_id,))
             rows = cur.fetchall()
 
+        col_names = ["date"] + _ORTHO_DATA_COLUMNS
         records = []
-        for row in rows:
-            date = str(row[0])
-            # Row layout mirrors _ORTHO_DATA_COLUMNS — offsets start at 1 (skip date).
-            # [1..19]  supine HRV (19)    [20] supine_duration_sec
-            # [21..25] transition timing   [26..44] transition HRV (19)
-            # [45..63] standing HRV (19)  [64] standing_duration_sec
-            # [65..69] derived metrics (5)  [70] spectral_method  [71] score
-            spectral_method: str = row[70] or "welch"
-            supine = _features_from_row(row, offset=1, date=date, duration=row[20])
+        for raw in rows:
+            r = dict(zip(col_names, raw))
+            date = str(r["date"])
+            # HRV phase offsets are positional (unchanged by adding derived cols at end):
+            # raw[1..19] supine HRV, raw[26..44] transition HRV, raw[45..63] standing HRV
+            spectral_method: str = r.get("spectral_method") or "welch"
+            supine = _features_from_row(raw, offset=1, date=date, duration=r["supine_duration_sec"])
             supine.method = spectral_method
-            transition = _features_from_row(row, offset=26, date=date)
+            transition = _features_from_row(raw, offset=26, date=date)
             transition.method = spectral_method
-            standing = _features_from_row(row, offset=45, date=date, duration=row[64])
+            standing = _features_from_row(raw, offset=45, date=date, duration=r["standing_duration_sec"])
             standing.method = spectral_method
             records.append(
                 OrthostaticRecord(
                     date=date,
                     supine=supine,
-                    transition_start_sec=row[21],
-                    transition_end_sec=row[22],
-                    transition_duration_sec=row[23],
-                    transition_delta_hr=row[24],
-                    transition_peak_hr=row[25],
+                    transition_start_sec=r["transition_start_sec"],
+                    transition_end_sec=r["transition_end_sec"],
+                    transition_duration_sec=r["transition_duration_sec"],
+                    transition_delta_hr=r["transition_delta_hr"],
+                    transition_peak_hr=r["transition_peak_hr"],
                     transition_features=transition,
                     standing=standing,
-                    hr_response=row[65],
-                    lf_hf_ratio_change=row[66],
-                    hf_response_pct=row[67],
-                    hf_hr_pct_change=row[68],
-                    interpretation=row[69],
-                    score=row[71] if row[71] is not None else 0.0,
+                    hr_response=r["hr_response"],
+                    lf_hf_ratio_change=r["lf_hf_ratio_change"],
+                    hf_response_pct=r["hf_response_pct"],
+                    hf_hr_pct_change=r["hf_hr_pct_change"],
+                    lf_hr_pct_change=r["lf_hr_pct_change"],
+                    delta_rmssd=r["delta_rmssd"],
+                    interpretation=r["interpretation"],
+                    score=r.get("score") or 0.0,
                 )
             )
 

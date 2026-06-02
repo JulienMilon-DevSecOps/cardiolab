@@ -14,6 +14,9 @@ Public API::
         table_vo2max_session,
         table_training_load_history,
         summary_training_load,
+        LABELS_EN,
+        LABELS_FR,
+        lbl,
     )
 """
 

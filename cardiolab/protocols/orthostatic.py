@@ -138,8 +138,20 @@ class OrthostaticResult:
         hf_hr_pct_change: Relative change in the HF/FC ratio from supine to
             standing, expressed as a percentage.
             Formula: (HF/FC_supine − HF/FC_standing) / HF/FC_supine × 100.
-            Negative values indicate vagal withdrawal on standing.
-            A decline > 80 % reflects strong sympathetic activation.
+            **Positive** values indicate vagal withdrawal (normal on standing).
+            Values > 40 % reflect a healthy autonomic response; < 20 % may
+            indicate fatigue or reduced vagal reserve.
+        lf_hr_pct_change: Relative change in the LF/FC ratio from supine to
+            standing, expressed as a percentage.
+            Formula: (LF/FC_standing − LF/FC_supine) / LF/FC_supine × 100.
+            **Positive** values indicate sympathetic activation (normal on
+            standing).  Values < 10 % suggest a blunted sympathetic response,
+            which may reflect chronic fatigue or autonomic exhaustion.
+        delta_rmssd: Absolute RMSSD change from supine to standing (ms).
+            Formula: RMSSD_supine − RMSSD_standing.
+            **Positive** values reflect vagal withdrawal (normal on standing).
+            Values < 10 ms indicate reduced vagal reactivity; ≤ 0 ms is
+            abnormal (RMSSD does not decrease on standing).
         interpretation: Clinical classification of the orthostatic response.
         score: Composite autonomic score on a **[0–100]** scale computed by
             :func:`cardiolab.analytics.scoring.orthostatic_score`.
@@ -154,6 +166,8 @@ class OrthostaticResult:
     lf_hf_ratio_change: float
     hf_response_pct: float
     hf_hr_pct_change: float
+    lf_hr_pct_change: float
+    delta_rmssd: float
     interpretation: str
     score: float = 0.0
 
@@ -180,6 +194,8 @@ class OrthostaticResult:
             "lf_hf_ratio_change": self.lf_hf_ratio_change,
             "hf_response_pct": self.hf_response_pct,
             "hf_hr_pct_change": self.hf_hr_pct_change,
+            "lf_hr_pct_change": self.lf_hr_pct_change,
+            "delta_rmssd": self.delta_rmssd,
             "interpretation": self.interpretation,
             "score": self.score,
         }
@@ -220,6 +236,8 @@ class OrthostaticResult:
         row["lf_hf_ratio_change"] = self.lf_hf_ratio_change
         row["hf_response_pct"] = self.hf_response_pct
         row["hf_hr_pct_change"] = self.hf_hr_pct_change
+        row["lf_hr_pct_change"] = self.lf_hr_pct_change
+        row["delta_rmssd"] = self.delta_rmssd
         row["interpretation"] = self.interpretation
         row["score"] = self.score
 
@@ -343,6 +361,16 @@ def orthostatic_hrv(
         else float("nan")
     )
 
+    supine_lf_hr = supine_f.lf / supine_f.mean_hr if supine_f.mean_hr > 0 else 0.0
+    standing_lf_hr = standing_f.lf / standing_f.mean_hr if standing_f.mean_hr > 0 else 0.0
+    lf_hr_pct_change = (
+        (standing_lf_hr - supine_lf_hr) / supine_lf_hr * 100.0
+        if supine_lf_hr > 0
+        else float("nan")
+    )
+
+    delta_rmssd = supine_f.rmssd - standing_f.rmssd
+
     interpretation = _interpret_response(hr_response, hf_response_pct)
 
     return OrthostaticResult(
@@ -351,6 +379,8 @@ def orthostatic_hrv(
         lf_hf_ratio_change=lf_hf_ratio_change,
         hf_response_pct=hf_response_pct,
         hf_hr_pct_change=hf_hr_pct_change,
+        lf_hr_pct_change=lf_hr_pct_change,
+        delta_rmssd=delta_rmssd,
         interpretation=interpretation,
     )
 

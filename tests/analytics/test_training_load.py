@@ -265,6 +265,25 @@ def _test_db_cleanup(table: str, user: str) -> None:
         conn.close()
 
 
+def _test_table_drop(table: str) -> None:
+    """Drop *table* unconditionally — forces schema refresh on CREATE IF NOT EXISTS."""
+    import psycopg2  # noqa: PLC0415
+
+    conn = psycopg2.connect(
+        host=os.environ["DB_HOST_TEST"],
+        dbname=os.environ["DB_NAME_TEST"],
+        user=os.environ["DB_USER_TEST"],
+        password=os.environ["DB_PASSWORD_TEST"],
+        port=int(os.environ.get("DB_PORT_TEST", "5432")),
+    )
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"DROP TABLE IF EXISTS {table};")  # noqa: S608
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _mock_ortho_result(rmssd: float = 60.0, mean_hr: float = 70.0) -> MagicMock:
     """Build a minimal OrthostaticResult mock suitable for save_orthostatic."""
     feat = MagicMock()
@@ -315,7 +334,9 @@ def _mock_ortho_result(rmssd: float = 60.0, mean_hr: float = 70.0) -> MagicMock:
     result.hr_response = 18.0
     result.lf_hf_ratio_change = 1.5
     result.hf_response_pct = -40.0
-    result.hf_hr_pct_change = -65.0
+    result.hf_hr_pct_change = 65.0
+    result.lf_hr_pct_change = 35.0
+    result.delta_rmssd = 12.0
     result.interpretation = "normal"
     result.score = 75.0
     return result
@@ -338,6 +359,8 @@ class TestLoadReadinessForDateIntegration:
 
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
+        _test_table_drop(self._RESTING_TABLE)
+        _test_table_drop(self._ORTHO_TABLE)
         with _repo_from_test_env(
             table_name=self._RESTING_TABLE,
             ortho_table_name=self._ORTHO_TABLE,
