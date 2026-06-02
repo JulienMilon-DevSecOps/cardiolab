@@ -8,7 +8,7 @@ Two ready-to-use dictionaries are provided:
 Pass either dict as the ``labels`` keyword argument to any reporting table
 function or visualization plot function::
 
-    from cardiolab.reporting.labels import LABELS_FR
+    from cardiolab.labels import LABELS_FR
     table_resting_history(results, labels=LABELS_FR)
     plot_resting_evolution(results, labels=LABELS_FR)
 

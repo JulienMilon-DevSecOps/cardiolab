@@ -132,7 +132,7 @@ class TestTableRestingHistory:
         """Default caption contains expected keywords."""
         styler = table_resting_history(two_features)
         text = styler.caption.lower()
-        assert "rouge" in text or "historique" in text
+        assert "red" in text or "resting" in text
 
     def test_rmssd_values_in_data(self, two_features: list[HRVFeatures]) -> None:
         """RMSSD values are stored correctly per session."""

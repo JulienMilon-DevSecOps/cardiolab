@@ -16,6 +16,7 @@ import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.patches import Wedge
 
+from cardiolab.labels import lbl
 from cardiolab.protocols.hrr import HRRResult
 from cardiolab.signals.rr import RRSeries
 
@@ -164,7 +165,8 @@ def plot_hrr_curve(
 def plot_hrr_comparison(
     rr_list: list[RRSeries],
     results: list[HRRResult],
-    labels: list[str] | None = None,
+    session_labels: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     fs: float = _HRR_INTERP_FS,
     title: str = "Heart Rate Recovery — Session Comparison",
     figsize: tuple[float, float] = (12, 6),
@@ -196,11 +198,11 @@ def plot_hrr_comparison(
     _validate_rr_results(rr_list, results)
     n = len(results)
 
-    if labels is not None and len(labels) != n:
+    if session_labels is not None and len(session_labels) != n:
         raise ValueError(
-            f"labels length ({len(labels)}) must match results length ({n})"
+            f"session_labels length ({len(session_labels)}) must match results length ({n})"
         )
-    labels = labels or _default_labels(results)
+    session_labels = session_labels or _default_labels(results)
 
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -215,7 +217,7 @@ def plot_hrr_comparison(
     ax.text(60.5, 1.5, "60 s", fontsize=7, color=_GRAY)
 
     max_t = 0.0
-    for idx, (rr, res, lbl) in enumerate(zip(rr_list, results, labels, strict=False)):
+    for idx, (rr, res, session_lbl) in enumerate(zip(rr_list, results, session_labels, strict=False)):
         color = _PALETTE[idx % len(_PALETTE)]
         time_s, hr_interp = _hrr_time_series(rr, fs)
         hr_drop = res.hr_peak - hr_interp
@@ -226,7 +228,7 @@ def plot_hrr_comparison(
             hr_drop,
             color=color,
             linewidth=1.6,
-            label=f"{lbl}  HRR1={res.hrr_60:.0f} ({cat})",
+            label=f"{session_lbl}  HRR1={res.hrr_60:.0f} ({cat})",
             zorder=4,
         )
         # Marker at 60 s
@@ -250,7 +252,7 @@ def plot_hrr_comparison(
     ax.set_xlim(left=0.0)
     ax.set_ylim(bottom=0.0)
     ax.set_xlabel("Time post-peak (s)", fontsize=10)
-    ax.set_ylabel("HR drop from peak (bpm)", fontsize=10)
+    ax.set_ylabel(lbl(labels, "hrr_60", "HR drop from peak (bpm)"), fontsize=10)
     ax.legend(loc="upper left", fontsize=8)
     ax.grid(alpha=0.20, linestyle=":", axis="both")
     fig.suptitle(title, fontsize=13, fontweight="bold", y=1.01)

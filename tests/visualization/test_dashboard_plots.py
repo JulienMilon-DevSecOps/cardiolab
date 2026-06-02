@@ -336,7 +336,7 @@ class TestPlotLongitudinalHeatmap:
     def test_custom_labels(self, feats: HRVFeatures) -> None:
         """Display custom session labels on y-axis ticks."""
         feats_list = [feats, _make_features(score=70.0)]
-        fig = plot_longitudinal_heatmap(feats_list, labels=["Day A", "Day B"])
+        fig = plot_longitudinal_heatmap(feats_list, session_labels=["Day A", "Day B"])
         tick_texts = [t.get_text() for t in fig.axes[0].get_yticklabels()]
         assert "Day A" in tick_texts
         assert "Day B" in tick_texts
@@ -412,7 +412,7 @@ class TestPlotReadinessEvolution:
         """Display custom labels on x-axis ticks."""
         feats_list = [_make_features(score=50.0), _make_features(score=65.0)]
         labels = ["Mon", "Tue"]
-        fig = plot_readiness_evolution(feats_list, labels=labels)
+        fig = plot_readiness_evolution(feats_list, session_labels=labels)
         tick_texts = [t.get_text() for t in fig.axes[0].get_xticklabels()]
         assert "Mon" in tick_texts
         assert "Tue" in tick_texts
@@ -442,7 +442,7 @@ class TestPlotReadinessEvolution:
     def test_value_error_labels_mismatch(self, feats: HRVFeatures) -> None:
         """Raise ValueError when labels length mismatches features."""
         with pytest.raises(ValueError, match="labels length"):
-            plot_readiness_evolution([feats], labels=["A", "B"])
+            plot_readiness_evolution([feats], session_labels=["A", "B"])
 
 
 # ── plot_score_evolution ──────────────────────────────────────────────────────
@@ -520,7 +520,7 @@ class TestPlotScoreEvolution:
     def test_custom_labels(self) -> None:
         """Custom labels must appear on the x-axis ticks."""
         results = [_ScoreResult(50.0), _ScoreResult(60.0)]
-        fig = plot_score_evolution(results, labels=["Lun", "Mar"])
+        fig = plot_score_evolution(results, session_labels=["Lun", "Mar"])
         tick_texts = [t.get_text() for t in fig.axes[0].get_xticklabels()]
         assert "Lun" in tick_texts
         assert "Mar" in tick_texts
@@ -561,7 +561,7 @@ class TestPlotScoreEvolution:
     def test_value_error_labels_mismatch(self) -> None:
         """Raise ValueError when labels length mismatches results length."""
         with pytest.raises(ValueError, match="labels length"):
-            plot_score_evolution([_ScoreResult(50.0)], labels=["A", "B"])
+            plot_score_evolution([_ScoreResult(50.0)], session_labels=["A", "B"])
 
 
 # ── plot_resting_mini ─────────────────────────────────────────────────────────

@@ -144,3 +144,39 @@ def highlight_category(
 def caption(styler: pd.Styler, text: str) -> pd.Styler:
     """Set the table caption."""
     return styler.set_caption(text)
+
+
+def apply_labels(styler: pd.Styler, labels: dict[str, str] | None) -> pd.Styler:
+    """Rename columns using *labels*, applied after all styling.
+
+    Supports both flat and MultiIndex column structures:
+
+    * **Flat**: each column name is looked up directly in *labels*.
+    * **MultiIndex**: the short name (level 1) is looked up; the phase group
+      (level 0) is looked up via the ``"_phase_<group>"`` key.
+
+    Missing keys are kept as-is, so partial overrides are safe.
+
+    Args:
+        styler: A fully styled :class:`~pandas.io.formats.style.Styler`.
+        labels: Translation dict such as ``LABELS_EN`` or ``LABELS_FR``.
+            Pass ``None`` to return *styler* unchanged.
+
+    Returns:
+        The same *styler* with display column names updated.
+    """
+    if labels is None:
+        return styler
+
+    cols = styler.data.columns
+    if isinstance(cols, pd.MultiIndex):
+        new_cols = []
+        for group, metric in cols:
+            new_group = labels.get(f"_phase_{group}", group)
+            new_metric = labels.get(metric, metric)
+            new_cols.append((new_group, new_metric))
+        styler.data.columns = pd.MultiIndex.from_tuples(new_cols)
+    else:
+        styler.data.columns = [labels.get(str(c), str(c)) for c in cols]
+
+    return styler

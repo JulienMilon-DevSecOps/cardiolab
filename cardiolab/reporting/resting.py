@@ -14,6 +14,7 @@ import pandas as pd
 
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.reporting._core import (
+    apply_labels,
     caption,
     fmt_float,
     fmt_nan,
@@ -44,7 +45,8 @@ _HISTORY_COLS: list[str] = [
 def table_resting_history(
     features_list: list[HRVFeatures],
     cols: list[str] | None = None,
-    caption_text: str = "Historique repos — rouge = bas · vert = élevé",
+    labels: dict[str, str] | None = None,
+    caption_text: str = "Resting HRV history — red = low · green = high",
 ) -> pd.Styler:
     """Build a multi-session history table for resting HRV.
 
@@ -96,6 +98,7 @@ def table_resting_history(
     styler = gradient_good(styler, ["apen"], vmin=0.5, vmax=1.8)
     styler = gradient_good(styler, ["sampen"], vmin=0.5, vmax=2.0)
     styler = gradient_bad(styler, ["mean_hr"])
+    styler = apply_labels(styler, labels)
     return caption(styler, caption_text)
 
 

@@ -17,6 +17,7 @@ import pandas as pd
 from cardiolab.protocols.vo2max import VO2maxResult
 from cardiolab.reporting._core import (
     _VO2_CAT_COLORS,
+    apply_labels,
     caption,
     fmt_float,
     fmt_nan,
@@ -28,7 +29,8 @@ from cardiolab.reporting._core import (
 def table_vo2max_history(
     results: list[VO2maxResult],
     dates: list[str] | None = None,
-    caption_text: str = "Historique VO2max — vert = élevé · ACSM 2022",
+    labels: dict[str, str] | None = None,
+    caption_text: str = "VO2max history — green = high · ACSM 2022",
 ) -> pd.Styler:
     """Build a multi-session VO2max history table.
 
@@ -55,7 +57,7 @@ def table_vo2max_history(
     n = len(results)
     if dates is not None and len(dates) != n:
         raise ValueError(f"dates length ({len(dates)}) must match results length ({n})")
-    labels = [
+    date_labels = [
         (r.date or (dates[i] if dates else f"Session {i + 1}"))
         for i, r in enumerate(results)
     ]
@@ -65,10 +67,10 @@ def table_vo2max_history(
     float2 = fmt_float(2)
 
     rows = []
-    for label, r in zip(labels, results, strict=False):
+    for date_label, r in zip(date_labels, results, strict=False):
         rows.append(
             {
-                "date": label,
+                "date": date_label,
                 "vo2max_uth": r.vo2max_uth,
                 "vo2max_esco_flatt": r.vo2max_esco_flatt,
                 "vo2max_ln_rmssd": r.vo2max_ln_rmssd,
@@ -99,6 +101,7 @@ def table_vo2max_history(
     styler = df.style.format(fmt, na_rep="n/a")
     styler = gradient_good(styler, vo2_cols, vmin=20, vmax=65)
     styler = highlight_category(styler, "fitness_category", _VO2_CAT_COLORS)
+    styler = apply_labels(styler, labels)
 
     return caption(styler, caption_text)
 

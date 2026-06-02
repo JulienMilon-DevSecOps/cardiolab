@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 
+from cardiolab.labels import lbl
 from cardiolab.protocols.resting import HRVFeatures
 
 # ── Colour palette ────────────────────────────────────────────────────────────
@@ -33,7 +34,8 @@ _SCORE_ZONES = [
 def plot_resting_evolution(
     features_list: list[HRVFeatures],
     scores: list[float],
-    labels: list[str] | None = None,
+    session_labels: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     title: str = "RMSSD and Readiness Score Evolution",
     figsize: tuple[float, float] = (12, 7),
 ) -> Figure:
@@ -77,14 +79,14 @@ def plot_resting_evolution(
             f"scores length ({len(scores)}) must match features_list length "
             f"({len(features_list)})"
         )
-    if labels is not None and len(labels) != len(features_list):
+    if session_labels is not None and len(session_labels) != len(features_list):
         raise ValueError(
-            f"labels length ({len(labels)}) must match features_list length "
+            f"session_labels length ({len(session_labels)}) must match features_list length "
             f"({len(features_list)})"
         )
 
     n = len(features_list)
-    labels = labels or _default_labels(features_list)
+    session_labels = session_labels or _default_labels(features_list)
     x = np.arange(n)
     rmssd = np.array([f.rmssd for f in features_list])
     scores_arr = np.array(scores, dtype=float)
@@ -110,7 +112,7 @@ def plot_resting_evolution(
         alpha=0.8,
         label=f"Mean {mean_rmssd:.1f} ms",
     )
-    ax_rmssd.set_ylabel("RMSSD (ms)", fontsize=10)
+    ax_rmssd.set_ylabel(lbl(labels, "rmssd", "RMSSD (ms)"), fontsize=10)
     ax_rmssd.legend(loc="upper left", fontsize=8)
     ax_rmssd.grid(alpha=0.20, linestyle=":")
 
@@ -126,9 +128,9 @@ def plot_resting_evolution(
         zorder=4,
     )
     ax_score.set_ylim(0, 105)
-    ax_score.set_ylabel("Readiness score", fontsize=10)
+    ax_score.set_ylabel(lbl(labels, "score", "Readiness score"), fontsize=10)
     ax_score.set_xticks(x)
-    ax_score.set_xticklabels(labels, rotation=40, ha="right", fontsize=9)
+    ax_score.set_xticklabels(session_labels, rotation=40, ha="right", fontsize=9)
     ax_score.grid(alpha=0.20, linestyle=":", axis="y")
 
     fig.suptitle(title, fontsize=13, fontweight="bold", y=1.01)
@@ -140,7 +142,8 @@ def plot_resting_evolution_rolling(
     features_list: list[HRVFeatures],
     scores: list[float],
     rolling_rmssd: list[float | None],
-    labels: list[str] | None = None,
+    session_labels: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     title: str = "RMSSD Evolution — with Rolling Median",
     figsize: tuple[float, float] = (12, 7),
 ) -> Figure:
@@ -185,14 +188,14 @@ def plot_resting_evolution_rolling(
                 f"{param_name} length ({len(param_val)}) must match "
                 f"features_list length ({len(features_list)})"
             )
-    if labels is not None and len(labels) != len(features_list):
+    if session_labels is not None and len(session_labels) != len(features_list):
         raise ValueError(
-            f"labels length ({len(labels)}) must match features_list length "
+            f"session_labels length ({len(session_labels)}) must match features_list length "
             f"({len(features_list)})"
         )
 
     n = len(features_list)
-    labels = labels or _default_labels(features_list)
+    session_labels = session_labels or _default_labels(features_list)
     x = np.arange(n)
     rmssd = np.array([f.rmssd for f in features_list])
     scores_arr = np.array(scores, dtype=float)
@@ -227,7 +230,7 @@ def plot_resting_evolution_rolling(
         label="Rolling median",
         zorder=3,
     )
-    ax_rmssd.set_ylabel("RMSSD (ms)", fontsize=10)
+    ax_rmssd.set_ylabel(lbl(labels, "rmssd", "RMSSD (ms)"), fontsize=10)
     ax_rmssd.legend(loc="upper left", fontsize=8)
     ax_rmssd.grid(alpha=0.20, linestyle=":")
 
@@ -243,9 +246,9 @@ def plot_resting_evolution_rolling(
         zorder=4,
     )
     ax_score.set_ylim(0, 105)
-    ax_score.set_ylabel("Readiness score", fontsize=10)
+    ax_score.set_ylabel(lbl(labels, "score", "Readiness score"), fontsize=10)
     ax_score.set_xticks(x)
-    ax_score.set_xticklabels(labels, rotation=40, ha="right", fontsize=9)
+    ax_score.set_xticklabels(session_labels, rotation=40, ha="right", fontsize=9)
     ax_score.grid(alpha=0.20, linestyle=":", axis="y")
 
     fig.suptitle(title, fontsize=13, fontweight="bold", y=1.01)

@@ -20,6 +20,7 @@ import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.patches import Wedge
 
+from cardiolab.labels import lbl
 from cardiolab.protocols.vo2max import VO2maxResult
 
 # ── ACSM fitness thresholds (mL/kg/min) ──────────────────────────────────────
@@ -76,6 +77,7 @@ _GRAY = "#95a5a6"
 
 def plot_vo2max_comparison(
     result: VO2maxResult,
+    labels: dict[str, str] | None = None,
     title: str = "VO2max Estimates — Model Comparison",
     figsize: tuple[float, float] = (10, 5),
 ) -> Figure:
@@ -107,7 +109,7 @@ def plot_vo2max_comparison(
     models.append(("Esco-Flatt", result.vo2max_esco_flatt))
     models.append(("ln-RMSSD", result.vo2max_ln_rmssd))
 
-    labels = [m[0] for m in models]
+    model_names = [m[0] for m in models]
     values = [m[1] for m in models]
     colors = [_MODEL_COLORS[m[0]] for m in models]
 
@@ -183,9 +185,9 @@ def plot_vo2max_comparison(
     )
 
     ax.set_xticks(xs)
-    ax.set_xticklabels(labels, fontsize=10)
+    ax.set_xticklabels(model_names, fontsize=10)
     ax.set_ylim(0.0, y_max)
-    ax.set_ylabel("VO2max (mL/kg/min)", fontsize=10)
+    ax.set_ylabel(lbl(labels, "vo2max_uth", "VO2max (mL/kg/min)"), fontsize=10)
     ax.grid(alpha=0.20, linestyle=":", axis="y")
     fig.suptitle(title, fontsize=12, fontweight="bold")
     plt.tight_layout()
@@ -194,7 +196,8 @@ def plot_vo2max_comparison(
 
 def plot_vo2max_evolution(
     results: list[VO2maxResult],
-    labels: list[str] | None = None,
+    session_labels: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     title: str = "VO2max Evolution",
     figsize: tuple[float, float] = (12, 5),
 ) -> Figure:
@@ -223,11 +226,11 @@ def plot_vo2max_evolution(
     _validate_results_list(results)
     n = len(results)
 
-    if labels is not None and len(labels) != n:
+    if session_labels is not None and len(session_labels) != n:
         raise ValueError(
-            f"labels length ({len(labels)}) must match results length ({n})"
+            f"session_labels length ({len(session_labels)}) must match results length ({n})"
         )
-    labels = labels or _default_labels(results)
+    session_labels = session_labels or _default_labels(results)
 
     best = np.array([_best_estimate(r) for r in results])
     categories = [r.fitness_category for r in results]
@@ -290,9 +293,9 @@ def plot_vo2max_evolution(
             )
 
     ax.set_xticks(xs)
-    ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=9)
+    ax.set_xticklabels(session_labels, rotation=30, ha="right", fontsize=9)
     ax.set_ylim(0.0, y_max)
-    ax.set_ylabel("VO2max (mL/kg/min)", fontsize=10)
+    ax.set_ylabel(lbl(labels, "vo2max_uth", "VO2max (mL/kg/min)"), fontsize=10)
     ax.legend(loc="upper left", fontsize=8)
     ax.grid(alpha=0.20, linestyle=":", axis="y")
     fig.suptitle(title, fontsize=12, fontweight="bold")

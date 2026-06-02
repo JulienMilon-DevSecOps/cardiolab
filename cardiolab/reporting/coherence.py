@@ -13,6 +13,7 @@ import pandas as pd
 from cardiolab.protocols.cardiac_coherence import CoherenceResult
 from cardiolab.reporting._core import (
     _COH_CAT_COLORS,
+    apply_labels,
     caption,
     fmt_float,
     gradient_bad,
@@ -37,7 +38,8 @@ def _coherence_category(score: float) -> str:
 def table_coherence_history(
     results: list[CoherenceResult],
     dates: list[str] | None = None,
-    caption_text: str = "Historique cohérence cardiaque — vert ≥ 60 % · rouge < 40 %",
+    labels: dict[str, str] | None = None,
+    caption_text: str = "Cardiac coherence history — green ≥ 60 % · red < 40 %",
 ) -> pd.Styler:
     """Build a multi-session cardiac coherence history table.
 
@@ -66,7 +68,7 @@ def table_coherence_history(
     n = len(results)
     if dates is not None and len(dates) != n:
         raise ValueError(f"dates length ({len(dates)}) must match results length ({n})")
-    labels = [
+    date_labels = [
         (r.date or (dates[i] if dates else f"Session {i + 1}"))
         for i, r in enumerate(results)
     ]
@@ -75,10 +77,10 @@ def table_coherence_history(
     float1 = fmt_float(1)
 
     rows = []
-    for label, r in zip(labels, results, strict=False):
+    for date_label, r in zip(date_labels, results, strict=False):
         rows.append(
             {
-                "date": label,
+                "date": date_label,
                 "coherence_score": r.coherence_score,
                 "category": _coherence_category(r.coherence_score),
                 "resonance_freq": r.resonance_freq,
@@ -111,6 +113,7 @@ def table_coherence_history(
     styler = gradient_good(styler, ["rmssd"])
     styler = gradient_bad(styler, ["mean_hr"])
     styler = highlight_category(styler, "category", _COH_CAT_COLORS)
+    styler = apply_labels(styler, labels)
 
     return caption(styler, caption_text)
 

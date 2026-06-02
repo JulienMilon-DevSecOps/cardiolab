@@ -16,6 +16,7 @@ import pandas as pd
 from cardiolab.protocols.orthostatic import OrthostaticResult
 from cardiolab.reporting._core import (
     _ORTHO_CAT_COLORS,
+    apply_labels,
     caption,
     fmt_float,
     fmt_nan,
@@ -75,6 +76,7 @@ def table_orthostatic_comparison(
     results: list,
     dates: list[str] | None = None,
     cols: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     caption_text: str = "Supine / Transition / Standing — red = low · green = high",
 ) -> pd.Styler:
     """Build a three-phase comparison table: supine, transition, and standing.
@@ -185,6 +187,7 @@ def table_orthostatic_comparison(
     styler = gradient_bad(styler, [c for c in df.columns if c == ("Autonomic response", "hr_response")], vmin=0, vmax=30)
     styler = gradient_bad(styler, [c for c in df.columns if c == ("Transition", "peak_hr")], vmin=60, vmax=120)
     styler = highlight_category(styler, ("Autonomic response", "interpretation"), _ORTHO_CAT_COLORS)
+    styler = apply_labels(styler, labels)
 
     return caption(styler, caption_text)
 
@@ -208,6 +211,7 @@ def table_orthostatic_history(
     results: list,
     dates: list[str] | None = None,
     cols: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     caption_text: str = "Orthostatic history — autonomic response per session",
 ) -> pd.Styler:
     """Build a condensed multi-session orthostatic history table.
@@ -294,6 +298,7 @@ def table_orthostatic_history(
     styler = gradient_bad(styler, ["supine_hr", "standing_hr"])
     styler = gradient_bad(styler, ["hr_response"], vmin=0, vmax=30)
     styler = highlight_category(styler, "interpretation", _ORTHO_CAT_COLORS)
+    styler = apply_labels(styler, labels)
 
     return caption(styler, caption_text)
 

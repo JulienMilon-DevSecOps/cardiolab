@@ -250,7 +250,7 @@ class TestPlotDriftZones:
     ) -> None:
         """Display custom labels on x-axis ticks."""
         labels = ["Session A", "Session B"]
-        fig = plot_drift_zones([result_mild, result_no_drift], labels=labels)
+        fig = plot_drift_zones([result_mild, result_no_drift], session_labels=labels)
         tick_texts = [t.get_text() for t in fig.axes[0].get_xticklabels()]
         assert "Session A" in tick_texts
         assert "Session B" in tick_texts
@@ -298,7 +298,7 @@ class TestPlotDriftZones:
     def test_value_error_labels_mismatch(self, result_mild: DriftResult) -> None:
         """Raise ValueError when labels length mismatches results."""
         with pytest.raises(ValueError, match="labels length"):
-            plot_drift_zones([result_mild], labels=["A", "B"])
+            plot_drift_zones([result_mild], session_labels=["A", "B"])
 
     def test_all_four_categories(
         self,

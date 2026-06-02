@@ -13,6 +13,7 @@ import pandas as pd
 from cardiolab.protocols.cardiac_drift import DriftResult
 from cardiolab.reporting._core import (
     _DRIFT_CAT_COLORS,
+    apply_labels,
     caption,
     fmt_float,
     gradient_bad,
@@ -24,7 +25,8 @@ from cardiolab.reporting._core import (
 def table_drift_history(
     results: list[DriftResult],
     dates: list[str] | None = None,
-    caption_text: str = "Historique dérive cardiaque — vert = stable · rouge = forte dérive",
+    labels: dict[str, str] | None = None,
+    caption_text: str = "Cardiac drift history — green = stable · red = strong drift",
 ) -> pd.Styler:
     """Build a multi-session cardiac drift history table.
 
@@ -51,7 +53,7 @@ def table_drift_history(
     n = len(results)
     if dates is not None and len(dates) != n:
         raise ValueError(f"dates length ({len(dates)}) must match results length ({n})")
-    labels = [
+    date_labels = [
         (r.date or (dates[i] if dates else f"Session {i + 1}"))
         for i, r in enumerate(results)
     ]
@@ -60,10 +62,10 @@ def table_drift_history(
     float1 = fmt_float(1)
 
     rows = []
-    for label, r in zip(labels, results, strict=False):
+    for date_label, r in zip(date_labels, results, strict=False):
         rows.append(
             {
-                "date": label,
+                "date": date_label,
                 "drift_rate": r.drift_rate,
                 "drift_magnitude": r.drift_magnitude,
                 "r_squared": r.r_squared,
@@ -91,6 +93,7 @@ def table_drift_history(
     styler = gradient_bad(styler, ["drift_magnitude"], vmin=0, vmax=15)
     styler = gradient_good(styler, ["r_squared"], vmin=0, vmax=1)
     styler = highlight_category(styler, "interpretation", _DRIFT_CAT_COLORS)
+    styler = apply_labels(styler, labels)
 
     return caption(styler, caption_text)
 
