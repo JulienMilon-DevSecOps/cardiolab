@@ -1195,16 +1195,20 @@ class HRVRepository:
         col_names = ["date"] + _ORTHO_DATA_COLUMNS
         records = []
         for raw in rows:
-            r = dict(zip(col_names, raw))
+            r = dict(zip(col_names, raw, strict=False))
             date = str(r["date"])
             # HRV phase offsets are positional (unchanged by adding derived cols at end):
             # raw[1..19] supine HRV, raw[26..44] transition HRV, raw[45..63] standing HRV
             spectral_method: str = r.get("spectral_method") or "welch"
-            supine = _features_from_row(raw, offset=1, date=date, duration=r["supine_duration_sec"])
+            supine = _features_from_row(
+                raw, offset=1, date=date, duration=r["supine_duration_sec"]
+            )
             supine.method = spectral_method
             transition = _features_from_row(raw, offset=26, date=date)
             transition.method = spectral_method
-            standing = _features_from_row(raw, offset=45, date=date, duration=r["standing_duration_sec"])
+            standing = _features_from_row(
+                raw, offset=45, date=date, duration=r["standing_duration_sec"]
+            )
             standing.method = spectral_method
             records.append(
                 OrthostaticRecord(

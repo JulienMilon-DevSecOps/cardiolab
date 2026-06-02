@@ -41,6 +41,8 @@ def table_hrr_history(
         dates: Session labels. Falls back to ``"Session N"`` when ``None``.
             Ignored when :attr:`~cardiolab.protocols.hrr.HRRResult.date` is
             already set on each result.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         caption_text: Caption shown below the table.
 
     Returns:

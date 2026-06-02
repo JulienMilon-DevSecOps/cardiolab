@@ -53,9 +53,10 @@ def plot_resting_evolution(
             in chronological order.
         scores: Readiness score (0–100) for each session.  Must have the same
             length as ``features_list``.
-        labels: X-axis session labels.  Falls back to the ``date`` attribute
-            of each :class:`~cardiolab.protocols.resting.HRVFeatures` or to
-            ``"Session N"`` when no date is set.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Overall figure title.
         figsize: Width × height of the figure in inches.
 
@@ -160,8 +161,10 @@ def plot_resting_evolution_rolling(
         rolling_rmssd: Rolling RMSSD median per session.  A ``None`` value
             (e.g. for the first session when no prior baseline exists) is
             plotted as a gap.  Must have the same length as ``features_list``.
-        labels: X-axis session labels.  Defaults to date strings or
-            ``"Session N"``.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Overall figure title.
         figsize: Width × height of the figure in inches.
 

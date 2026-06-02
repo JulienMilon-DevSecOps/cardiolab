@@ -208,7 +208,12 @@ class TestTableOrthostaticComparison:
     def test_hr_response_value(self, one_result: OrthostaticResult) -> None:
         """HR response value is stored correctly."""
         styler = table_orthostatic_comparison([one_result])
-        assert pytest.approx(styler.data[("Autonomic response", "hr_response")].iloc[0], rel=1e-3) == 15.0
+        assert (
+            pytest.approx(
+                styler.data[("Autonomic response", "hr_response")].iloc[0], rel=1e-3
+            )
+            == 15.0
+        )
 
     def test_interpretation_value(self, one_result: OrthostaticResult) -> None:
         """Interpretation string is stored correctly."""
@@ -236,7 +241,12 @@ class TestTableOrthostaticComparison:
     def test_lf_hf_change_value(self, one_result: OrthostaticResult) -> None:
         """LF/HF change value is stored correctly."""
         styler = table_orthostatic_comparison([one_result])
-        assert pytest.approx(styler.data[("Autonomic response", "lf_hf_change")].iloc[0], rel=1e-3) == 1.4
+        assert (
+            pytest.approx(
+                styler.data[("Autonomic response", "lf_hf_change")].iloc[0], rel=1e-3
+            )
+            == 1.4
+        )
 
     def test_interpretation_categories(
         self, two_results: list[OrthostaticResult]

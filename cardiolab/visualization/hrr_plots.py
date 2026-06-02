@@ -181,7 +181,10 @@ def plot_hrr_comparison(
         rr_list: Post-exercise :class:`~cardiolab.signals.rr.RRSeries` per session.
         results: :class:`~cardiolab.protocols.hrr.HRRResult` per session.
             Must have the same length as ``rr_list``.
-        labels: Session labels. Falls back to ``result.date`` or ``"Session N"``.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         fs: Resampling frequency in Hz. Defaults to 4.0.
         title: Figure title.
         figsize: Width × height of the figure in inches.
@@ -217,7 +220,9 @@ def plot_hrr_comparison(
     ax.text(60.5, 1.5, "60 s", fontsize=7, color=_GRAY)
 
     max_t = 0.0
-    for idx, (rr, res, session_lbl) in enumerate(zip(rr_list, results, session_labels, strict=False)):
+    for idx, (rr, res, session_lbl) in enumerate(
+        zip(rr_list, results, session_labels, strict=False)
+    ):
         color = _PALETTE[idx % len(_PALETTE)]
         time_s, hr_interp = _hrr_time_series(rr, fs)
         hr_drop = res.hr_peak - hr_interp

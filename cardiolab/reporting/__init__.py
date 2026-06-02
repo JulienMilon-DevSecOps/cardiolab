@@ -22,8 +22,8 @@ Public API::
 
 from __future__ import annotations
 
-from cardiolab.reporting.coherence import table_coherence_history
 from cardiolab.labels import LABELS_EN, LABELS_FR, lbl
+from cardiolab.reporting.coherence import table_coherence_history
 from cardiolab.reporting.drift import table_drift_history
 from cardiolab.reporting.hrr import table_hrr_history
 from cardiolab.reporting.orthostatic import (

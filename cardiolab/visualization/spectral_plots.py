@@ -343,7 +343,10 @@ def plot_lf_hf_evolution(
     Args:
         features_list: List of :class:`~cardiolab.protocols.resting.HRVFeatures`
             objects, one per session, in chronological order.
-        labels: Session labels.  Falls back to ``"Session N"`` if not provided.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         figsize: Width × height in inches.
 
@@ -584,6 +587,10 @@ def plot_spectral_heatmap(
         features_list: List of
             :class:`~cardiolab.protocols.resting.HRVFeatures`, one per session.
         labels: Session labels.  Falls back to date strings or ``"Session N"``.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         normalize: Whether to apply per-column min-max normalisation.
         figsize: ``(width, height_per_session)`` — total height is

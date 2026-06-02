@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import pandas as pd
 
-from cardiolab.protocols.orthostatic import OrthostaticResult
 from cardiolab.reporting._core import (
     _ORTHO_CAT_COLORS,
     apply_labels,
@@ -68,7 +67,7 @@ def _to_multiindex_col(col: str) -> tuple[str, str]:
     """Map a flat column name to a (phase_group, short_name) tuple."""
     for prefix, group in _PHASE_PREFIX:
         if col.startswith(prefix):
-            return (group, col[len(prefix):])
+            return (group, col[len(prefix) :])
     return ("Autonomic response", col)
 
 
@@ -94,6 +93,8 @@ def table_orthostatic_comparison(
         cols: Subset of flat column names to display (e.g. ``"supine_rmssd"``,
             ``"hr_response"``). Defaults to all metrics. Unknown names raise
             :class:`ValueError`.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         caption_text: Caption shown below the table.
 
     Returns:
@@ -115,13 +116,21 @@ def table_orthostatic_comparison(
 
     rows = []
     for i, r in enumerate(results):
-        label = (dates[i] if dates else None) or getattr(r, "date", None) or f"Session {i + 1}"
+        label = (
+            (dates[i] if dates else None)
+            or getattr(r, "date", None)
+            or f"Session {i + 1}"
+        )
         row: dict[str, object] = {"date": label}
 
         # Duck-type OrthostaticResult (has .phases) or OrthostaticRecord (flat attrs)
         if hasattr(r, "phases"):
             p = r.phases
-            sup_f, trans_f, sta_f = p.supine.features, p.transition.features, p.standing.features
+            sup_f, trans_f, sta_f = (
+                p.supine.features,
+                p.transition.features,
+                p.standing.features,
+            )
             trans_delta_hr: float = p.transition.delta_hr
             trans_peak_hr: float = p.transition.peak_hr
         else:
@@ -176,17 +185,46 @@ def table_orthostatic_comparison(
     styler = df.style.format(fmt, na_rep="n/a")
 
     # Gradients — use MultiIndex tuples directly
-    supine_good = [c for c in df.columns if c[0] == "Supine" and c[1] in ("rmssd", "sd1", "sd2", "hf_nu")]
-    trans_good = [c for c in df.columns if c[0] == "Transition" and c[1] in ("rmssd", "sd1", "hf_nu")]
-    standing_good = [c for c in df.columns if c[0] == "Standing" and c[1] in ("rmssd", "sd1", "sd2", "hf_nu")]
-    resp_good = [c for c in df.columns if c[0] == "Autonomic response" and c[1] in ("delta_rmssd", "hf_hr_pct_change", "lf_hr_pct_change")]
+    supine_good = [
+        c
+        for c in df.columns
+        if c[0] == "Supine" and c[1] in ("rmssd", "sd1", "sd2", "hf_nu")
+    ]
+    trans_good = [
+        c
+        for c in df.columns
+        if c[0] == "Transition" and c[1] in ("rmssd", "sd1", "hf_nu")
+    ]
+    standing_good = [
+        c
+        for c in df.columns
+        if c[0] == "Standing" and c[1] in ("rmssd", "sd1", "sd2", "hf_nu")
+    ]
+    resp_good = [
+        c
+        for c in df.columns
+        if c[0] == "Autonomic response"
+        and c[1] in ("delta_rmssd", "hf_hr_pct_change", "lf_hr_pct_change")
+    ]
     styler = gradient_good(styler, supine_good)
     styler = gradient_good(styler, trans_good)
     styler = gradient_good(styler, standing_good)
     styler = gradient_good(styler, resp_good)
-    styler = gradient_bad(styler, [c for c in df.columns if c == ("Autonomic response", "hr_response")], vmin=0, vmax=30)
-    styler = gradient_bad(styler, [c for c in df.columns if c == ("Transition", "peak_hr")], vmin=60, vmax=120)
-    styler = highlight_category(styler, ("Autonomic response", "interpretation"), _ORTHO_CAT_COLORS)
+    styler = gradient_bad(
+        styler,
+        [c for c in df.columns if c == ("Autonomic response", "hr_response")],
+        vmin=0,
+        vmax=30,
+    )
+    styler = gradient_bad(
+        styler,
+        [c for c in df.columns if c == ("Transition", "peak_hr")],
+        vmin=60,
+        vmax=120,
+    )
+    styler = highlight_category(
+        styler, ("Autonomic response", "interpretation"), _ORTHO_CAT_COLORS
+    )
     styler = apply_labels(styler, labels)
 
     return caption(styler, caption_text)
@@ -227,6 +265,8 @@ def table_orthostatic_history(
         dates: Session labels. Falls back to ``r.date`` or ``"Session N"``.
         cols: Subset of columns to display. Defaults to the standard
             selection. Unknown names raise :class:`ValueError`.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         caption_text: Caption shown below the table.
 
     Returns:
@@ -294,7 +334,9 @@ def table_orthostatic_history(
 
     styler = df.style.format(fmt, na_rep="n/a")
     styler = gradient_good(styler, ["supine_rmssd", "standing_rmssd"])
-    styler = gradient_good(styler, ["delta_rmssd", "hf_hr_pct_change", "lf_hr_pct_change"])
+    styler = gradient_good(
+        styler, ["delta_rmssd", "hf_hr_pct_change", "lf_hr_pct_change"]
+    )
     styler = gradient_bad(styler, ["supine_hr", "standing_hr"])
     styler = gradient_bad(styler, ["hr_response"], vmin=0, vmax=30)
     styler = highlight_category(styler, "interpretation", _ORTHO_CAT_COLORS)

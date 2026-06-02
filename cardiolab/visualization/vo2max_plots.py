@@ -90,6 +90,8 @@ def plot_vo2max_comparison(
     Args:
         result: :class:`~cardiolab.protocols.vo2max.VO2maxResult` from
             :func:`~cardiolab.protocols.vo2max.vo2max_from_hrv`.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         figsize: Width × height of the figure in inches.
 
@@ -211,7 +213,10 @@ def plot_vo2max_evolution(
     Args:
         results: :class:`~cardiolab.protocols.vo2max.VO2maxResult` list in
             chronological order.
-        labels: Session labels. Falls back to ``result.date`` or ``"Session N"``.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         figsize: Width × height of the figure in inches.
 
@@ -380,7 +385,7 @@ def plot_vo2max_gauge(
         _VO2MAX_MAX_GAUGE,
     ]
     tick_lbls = ["0", "28", "38", "48", "58", "70"]
-    for val, lbl in zip(tick_vals, tick_lbls, strict=True):
+    for val, tick_label in zip(tick_vals, tick_lbls, strict=True):
         a_rad = math.radians(_angle_from_vo2max(val))
         xi = _GAUGE_R_TICK_IN * math.cos(a_rad)
         yi = _GAUGE_R_TICK_IN * math.sin(a_rad)
@@ -389,7 +394,7 @@ def plot_vo2max_gauge(
         ax.plot([xi, xo], [yi, yo], color=_DARK, linewidth=0.8, zorder=4)
         xl = _GAUGE_R_LABEL * math.cos(a_rad)
         yl = _GAUGE_R_LABEL * math.sin(a_rad)
-        ax.text(xl, yl, lbl, ha="center", va="center", fontsize=7, color=_DARK)
+        ax.text(xl, yl, tick_label, ha="center", va="center", fontsize=7, color=_DARK)
 
     # Zone labels inside sectors
     zone_r = (_GAUGE_R_OUTER + _GAUGE_R_INNER) / 2.0

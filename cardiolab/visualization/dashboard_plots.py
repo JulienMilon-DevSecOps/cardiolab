@@ -27,10 +27,10 @@ from matplotlib.patches import Wedge
 from scipy.signal import welch
 
 from cardiolab.features.frequency_domain import _ar_psd, _interpolate
+from cardiolab.labels import lbl
 from cardiolab.protocols.cardiac_coherence import CoherenceResult
 from cardiolab.protocols.cardiac_drift import DriftResult
 from cardiolab.protocols.hrr import HRRResult
-from cardiolab.labels import lbl
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.protocols.vo2max import VO2maxResult
 from cardiolab.signals.rr import RRSeries
@@ -265,8 +265,10 @@ def plot_longitudinal_heatmap(
             :class:`~cardiolab.protocols.vo2max.VO2maxResult`.
         coherence_results: Optional list of
             :class:`~cardiolab.protocols.cardiac_coherence.CoherenceResult`.
-        labels: Session labels. Falls back to ``features[i].date`` or
-            ``"Session N"``.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure suptitle.
         figsize: Width × height in inches.
 
@@ -430,8 +432,10 @@ def plot_readiness_evolution(
     Args:
         features: List of :class:`~cardiolab.protocols.resting.HRVFeatures` in
             chronological order.
-        labels: Session labels. Falls back to ``features[i].date`` or
-            ``"Session N"``.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure suptitle.
         figsize: Width × height in inches.
 
@@ -563,8 +567,10 @@ def plot_score_evolution(
             optionally a ``.date`` attribute used for automatic x-axis labels.
         protocol_name: Human-readable protocol name used in the y-axis label
             and default title. Defaults to ``"Protocol"``.
-        labels: Explicit x-axis session labels. Falls back to
-            ``result.date`` or ``"Session N"`` if not provided.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure suptitle. Defaults to
             ``"<protocol_name> — Score Evolution"``.
         figsize: Width × height in inches. Defaults to ``(12, 5)``.

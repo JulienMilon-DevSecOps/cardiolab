@@ -210,8 +210,10 @@ def plot_coherence_score_evolution(
     Args:
         results: List of :class:`~cardiolab.protocols.cardiac_coherence.CoherenceResult`
             in chronological order.
-        labels: X-axis session labels.  Falls back to the ``date`` attribute of
-            each result or to ``"Session N"`` when no date is set.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         figsize: Width × height of the figure in inches.
 

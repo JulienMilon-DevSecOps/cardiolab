@@ -39,6 +39,8 @@ def table_drift_history(
             in chronological order.
         dates: Session labels. Falls back to the result ``date`` attribute or
             ``"Session N"`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         caption_text: Caption shown below the table.
 
     Returns:

@@ -203,7 +203,10 @@ def plot_drift_zones(
     Args:
         results: :class:`~cardiolab.protocols.cardiac_drift.DriftResult` list
             in chronological order.
-        labels: Session labels. Falls back to ``result.date`` or ``"Session N"``.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         figsize: Width × height of the figure in inches.
 

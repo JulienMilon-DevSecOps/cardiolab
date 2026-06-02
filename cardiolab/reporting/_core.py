@@ -147,15 +147,20 @@ def caption(styler: pd.Styler, text: str) -> pd.Styler:
 
 
 def apply_labels(styler: pd.Styler, labels: dict[str, str] | None) -> pd.Styler:
-    """Rename columns using *labels*, applied after all styling.
+    """Rename column headers using *labels* for display, without altering underlying data.
+
+    Uses :meth:`~pandas.io.formats.style.Styler.format_index` so that style
+    instructions (gradients, highlights) remain valid — they reference internal
+    column names which are never touched.
 
     Supports both flat and MultiIndex column structures:
 
     * **Flat**: each column name is looked up directly in *labels*.
-    * **MultiIndex**: the short name (level 1) is looked up; the phase group
-      (level 0) is looked up via the ``"_phase_<group>"`` key.
+    * **MultiIndex**: the short name (level 1) and the phase group (level 0,
+      via the ``"_phase_<group>"`` key) are both translated independently.
 
-    Missing keys are kept as-is, so partial overrides are safe.
+    Missing keys fall back to the original column name, so partial overrides
+    are safe.
 
     Args:
         styler: A fully styled :class:`~pandas.io.formats.style.Styler`.
@@ -163,20 +168,21 @@ def apply_labels(styler: pd.Styler, labels: dict[str, str] | None) -> pd.Styler:
             Pass ``None`` to return *styler* unchanged.
 
     Returns:
-        The same *styler* with display column names updated.
+        The same *styler* with display column headers updated.
+
     """
     if labels is None:
         return styler
 
     cols = styler.data.columns
     if isinstance(cols, pd.MultiIndex):
-        new_cols = []
-        for group, metric in cols:
-            new_group = labels.get(f"_phase_{group}", group)
-            new_metric = labels.get(metric, metric)
-            new_cols.append((new_group, new_metric))
-        styler.data.columns = pd.MultiIndex.from_tuples(new_cols)
+        styler = styler.format_index(
+            lambda v: labels.get(f"_phase_{v}", v), axis=1, level=0
+        )
+        styler = styler.format_index(
+            lambda v: labels.get(str(v), str(v)), axis=1, level=1
+        )
     else:
-        styler.data.columns = [labels.get(str(c), str(c)) for c in cols]
+        styler = styler.format_index(lambda v: labels.get(str(v), str(v)), axis=1)
 
     return styler

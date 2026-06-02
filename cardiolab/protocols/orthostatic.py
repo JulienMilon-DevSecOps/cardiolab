@@ -362,7 +362,9 @@ def orthostatic_hrv(
     )
 
     supine_lf_hr = supine_f.lf / supine_f.mean_hr if supine_f.mean_hr > 0 else 0.0
-    standing_lf_hr = standing_f.lf / standing_f.mean_hr if standing_f.mean_hr > 0 else 0.0
+    standing_lf_hr = (
+        standing_f.lf / standing_f.mean_hr if standing_f.mean_hr > 0 else 0.0
+    )
     lf_hr_pct_change = (
         (standing_lf_hr - supine_lf_hr) / supine_lf_hr * 100.0
         if supine_lf_hr > 0

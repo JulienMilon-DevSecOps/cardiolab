@@ -266,7 +266,9 @@ class TestPlotVo2maxEvolution:
     ) -> None:
         """Display custom labels on x-axis ticks."""
         labels = ["Session A", "Session B"]
-        fig = plot_vo2max_evolution([result_good, result_excellent], session_labels=labels)
+        fig = plot_vo2max_evolution(
+            [result_good, result_excellent], session_labels=labels
+        )
         tick_texts = [t.get_text() for t in fig.axes[0].get_xticklabels()]
         assert "Session A" in tick_texts
         assert "Session B" in tick_texts

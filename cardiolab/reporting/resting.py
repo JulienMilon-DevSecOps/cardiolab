@@ -58,6 +58,8 @@ def table_resting_history(
             in chronological order.
         cols: Column names to include. Defaults to the standard selection
             (date, RMSSD, SDNN, mean HR, SD1/SD2, DFA α1, ApEn, SampEn, score).
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         caption_text: Caption shown below the table.
 
     Returns:
