@@ -254,10 +254,12 @@ def baseline_7days(normal_hrv_features, excellent_hrv_features, poor_hrv_feature
 @pytest.fixture
 def baseline_30days():
     """Baseline with 30 days of data."""
+    from datetime import date as _date, timedelta
+
     features = []
+    start = _date(2026, 4, 1)
     for i in range(30):
-        # Create 30 days with gradual variation
-        date = f"2026-04-{13 + (i % 30):02d}T10:00:00"
+        date = f"{start + timedelta(days=i)}T10:00:00"
         # Simulate gradual improvement (RMSSD increases)
         rmssd_value = 50.0 + i
         feature = HRVFeatures(
