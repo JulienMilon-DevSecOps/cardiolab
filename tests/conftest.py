@@ -254,7 +254,8 @@ def baseline_7days(normal_hrv_features, excellent_hrv_features, poor_hrv_feature
 @pytest.fixture
 def baseline_30days():
     """Baseline with 30 days of data."""
-    from datetime import date as _date, timedelta
+    from datetime import date as _date
+    from datetime import timedelta
 
     features = []
     start = _date(2026, 4, 1)
