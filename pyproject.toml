@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cardiolab"
-version = "0.2.2"
+version = "0.2.3"
 description = "HRV analysis toolkit — scientific core of the cardioanalysis platform"
 authors = [{name = "Julien MILON", email = "julienmilon.devsecops@gmail.com"}]
 readme = "README.md"
@@ -68,14 +68,13 @@ database = [
 packages = ["cardiolab"]
 
 [tool.hatch.build.targets.sdist]
-exclude = [
-    "tests/",
-    "docs/",
-    "output/",
-    "example/",
-    "local/",
-    "*.ipynb",
-    ".gitlab-ci.yml",
+include = [
+    "/cardiolab",
+    "/tests",
+    "/docs",
+    "CHANGELOG.md",
+    "README.md",
+    "pyproject.toml",
 ]
 
 [tool.ruff]
