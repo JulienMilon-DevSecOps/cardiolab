@@ -46,10 +46,11 @@ _GRAY = "#95a5a6"
 # ── Coherence score interpretation bands ─────────────────────────────────────
 
 _COHERENCE_ZONES = [
-    (_SCORE_GOOD, 100, "#d5f5e3", "Good"),
-    (_SCORE_MODERATE, _SCORE_GOOD, "#fef9e7", "Moderate"),
-    (0, _SCORE_MODERATE, "#fadbd8", "Low"),
+    (_SCORE_GOOD, 100, "#d5f5e3", "Good coherence"),
+    (_SCORE_MODERATE, _SCORE_GOOD, "#fef9e7", "Moderate coherence"),
+    (0, _SCORE_MODERATE, "#fadbd8", "Low coherence"),
 ]
+_COHERENCE_ZONE_KEYS = ["zone_coh_good", "zone_coh_moderate", "zone_coh_low"]
 
 
 # ── Public functions ──────────────────────────────────────────────────────────
@@ -279,8 +280,8 @@ def plot_coherence_score_evolution(
     from matplotlib.patches import Patch
 
     legend_patches = [
-        Patch(facecolor=color, alpha=0.6, label=label)
-        for _, _, color, label in _COHERENCE_ZONES
+        Patch(facecolor=color, alpha=0.6, label=lbl(labels, zone_key, label))
+        for (_, _, color, label), zone_key in zip(_COHERENCE_ZONES, _COHERENCE_ZONE_KEYS, strict=True)
     ]
     ax.legend(handles=legend_patches, loc="upper left", fontsize=8)
 

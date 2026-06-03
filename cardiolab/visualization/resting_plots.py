@@ -26,6 +26,12 @@ _SCORE_ZONES = [
     (40, 60, "#fdebd0", "Moderate fatigue"),
     (0, 40, "#fadbd8", "Fatigued"),
 ]
+_SCORE_ZONE_KEYS = [
+    "zone_score_very_good",
+    "zone_score_normal",
+    "zone_score_moderate_fatigue",
+    "zone_score_fatigued",
+]
 
 
 # ── Public functions ──────────────────────────────────────────────────────────
@@ -118,7 +124,7 @@ def plot_resting_evolution(
     ax_rmssd.grid(alpha=0.20, linestyle=":")
 
     # ── Bottom: readiness score ───────────────────────────────────────────────
-    _draw_score_bands(ax_score)
+    _draw_score_bands(ax_score, labels)
     ax_score.plot(
         x,
         scores_arr,
@@ -238,7 +244,7 @@ def plot_resting_evolution_rolling(
     ax_rmssd.grid(alpha=0.20, linestyle=":")
 
     # ── Bottom: readiness score ───────────────────────────────────────────────
-    _draw_score_bands(ax_score)
+    _draw_score_bands(ax_score, labels)
     ax_score.plot(
         x,
         scores_arr,
@@ -286,9 +292,10 @@ def _default_labels(features_list: list[HRVFeatures]) -> list[str]:
     ]
 
 
-def _draw_score_bands(ax: plt.Axes) -> None:
+def _draw_score_bands(ax: plt.Axes, labels: dict | None = None) -> None:
     """Fill horizontal coloured bands on a readiness score axis."""
-    for low, high, color, _ in _SCORE_ZONES:
-        ax.axhspan(low, high, color=color, alpha=0.45, zorder=0)
+    for (low, high, color, default_label), zone_key in zip(_SCORE_ZONES, _SCORE_ZONE_KEYS, strict=True):
+        ax.axhspan(low, high, color=color, alpha=0.45, zorder=0,
+                   label=lbl(labels, zone_key, default_label))
     for threshold in (40, 60, 80):
         ax.axhline(threshold, color=_GRAY, linewidth=0.6, linestyle=":", alpha=0.7)

@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — v0.2.0 Pre-release improvements
+
+#### Bilingual label system — `cardiolab/labels.py`
+
+A new shared module provides human-readable display strings for all metrics, clinical
+zones, and protocol names, usable by both reporting and visualization layers:
+
+- `LABELS_EN` — English labels (default in the package).
+- `LABELS_FR` — French labels, intended for `local/` scripts.
+- `lbl(labels, key, default)` — lookup helper with safe fallback.
+- **Metrics covered:** all HRV time-domain, frequency-domain, non-linear, orthostatic
+  response, coherence, HRR, drift, VO2max, training load, and protocol name keys.
+- **Clinical zones covered:** readiness score bands, coherence zones, HRR zones, drift
+  zones, VO2max zones, TSB zones — all translatable via `zone_*` keys.
+- All 8 reporting functions (`table_*_history`) and all visualization functions accept a
+  `labels: dict[str, str] | None = None` parameter; session-axis labels are now passed via
+  the distinct `session_labels` parameter.
+- `apply_labels()` in `reporting/_core.py` uses `Styler.format_index()` to rename column
+  headers for display without touching the underlying data or breaking gradient styles.
+
+#### Orthostatic protocol — enriched metrics and new visualisation
+
+- `OrthostaticResult` gains two new computed fields:
+  - `lf_hr_pct_change` — LF/FC relative change supine → standing (%), positive = normal
+    sympathetic activation; < 10 % signals blunted response (chronic fatigue marker).
+  - `delta_rmssd` — absolute RMSSD drop supine → standing (ms), complementary to
+    `hf_hr_pct_change`; useful for day-to-day within-individual tracking.
+- `table_orthostatic_comparison` completely redesigned:
+  - Three-phase MultiIndex layout: **Supine | Transition | Standing | Autonomic response**
+  - Each phase shows the same HRV indicators as a resting session table.
+  - Phase group names are translatable via `_phase_*` keys in the labels dict.
+  - `cols` parameter to select or exclude specific flat column names.
+- `table_orthostatic_history` enriched with `delta_rmssd`, `hf_hr_pct_change`,
+  `lf_hr_pct_change`; filterable via `cols`.
+- `visualization/orthostatic_plots.py` — new module with:
+  - `plot_orthostatic_phases_evolution(results, ...)` — 4-panel plot showing RMSSD/HR per
+    phase across sessions, plus autonomic response magnitudes (ΔHR, ΔRMSSD) and balance
+    indicators (HF/HR%, LF/HR%) as a function of time.
+- DB: `hrv_orthostatic` gains two columns (`lf_hr_pct_change`, `delta_rmssd`); existing
+  tables must be recreated (`DROP TABLE hrv_orthostatic; python local/main_init_db.py`).
+- `load_orthostatic()` refactored from positional column offsets to named dict access.
+- Documentation on all three new orthostatic response metrics:
+  - `hf_hr_pct_change` (> 40 % = healthy vagal withdrawal),
+  - `lf_hr_pct_change` (> 30 % = healthy sympathetic activation),
+  - `delta_rmssd` (> 15 ms = good vagal reactivity).
+
+#### File-based report/visualisation scripts
+
+- `local/main_report_files.py` — read `.txt` files → HTML report without database:
+  - `--protocol` is now **optional** (default: all protocols with available files).
+  - Without `--protocol`, produces a single multi-section HTML report
+    (`<user>_rapport_complet_<ts>.html`).
+  - All tables rendered with `LABELS_FR`.
+- `local/main_visualize_files.py` — read `.txt` files → PNG plots without database:
+  - Corrected 4 silent bugs: missing `scores` arg for resting, missing `rr_list` for HRR
+    comparison, wrong argument type for VO2max comparison, missing `rolling_rmssd` for
+    rolling evolution.
+  - `_process_files()` now also returns `rr_list` (RRSeries per session).
+  - All plots rendered with `LABELS_FR`.
+
+#### `training_load_report.py` — labels support
+
+- `table_training_load_history()` accepts `labels` dict; ATL/CTL/TSB column headers are
+  now translatable.
+
+#### Robustness — test fixtures
+
+- `_test_table_drop()` added to **all** integration test fixtures — forces DROP+recreate
+  before each test class to prevent schema drift failures when column structures change.
+
+---
+
 ### Changed — v0.2.0 Multi-activity schema refactor (training_sessions)
 
 **Why this change?**

@@ -36,6 +36,7 @@ _DRIFT_ZONES: list[tuple[float, float, str, str]] = [
     (_DRIFT_MILD_THRESHOLD, _DRIFT_MOD_THRESHOLD, "#fdebd0", "Moderate  (1.5–3.0)"),
     (_DRIFT_MOD_THRESHOLD, _DRIFT_MAX_AXIS, "#fadbd8", "Strong    (> 3.0)"),
 ]
+_DRIFT_ZONE_KEYS = ["zone_drift_no_drift", "zone_drift_mild", "zone_drift_moderate", "zone_drift_strong"]
 
 # ── Category colours ──────────────────────────────────────────────────────────
 

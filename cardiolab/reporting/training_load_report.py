@@ -15,6 +15,7 @@ import pandas as pd
 from cardiolab.analytics.training_load import TrainingLoad
 from cardiolab.reporting._core import (
     _TSB_ZONE_COLORS,
+    apply_labels,
     caption,
     fmt_float,
     gradient_bad,
@@ -60,7 +61,8 @@ def _ctl_trend(
 
 def table_training_load_history(
     training_load: TrainingLoad,
-    caption_text: str = "Historique Training Load — ATL / CTL / TSB",
+    labels: dict[str, str] | None = None,
+    caption_text: str = "Training load history — ATL / CTL / TSB",
 ) -> pd.Styler:
     """Build a daily ATL / CTL / TSB history table.
 
@@ -71,6 +73,8 @@ def table_training_load_history(
     Args:
         training_load: A populated
             :class:`~cardiolab.analytics.training_load.TrainingLoad` instance.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         caption_text: Caption shown below the table.
 
     Returns:
@@ -110,6 +114,7 @@ def table_training_load_history(
     styler = gradient_good(styler, ["ctl"], vmin=0)
     styler = gradient_bad(styler, ["atl"], vmin=0)
     styler = highlight_category(styler, "tsb_zone", _TSB_ZONE_COLORS)
+    styler = apply_labels(styler, labels)
 
     return caption(styler, caption_text)
 

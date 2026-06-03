@@ -527,9 +527,9 @@ def plot_readiness_evolution(
         )
 
     # Right-margin zone labels
-    ax.text(n - 0.5, 16.5, "Low", ha="right", va="center", fontsize=8, color=_GRAY)
-    ax.text(n - 0.5, 49.5, "Moderate", ha="right", va="center", fontsize=8, color=_GRAY)
-    ax.text(n - 0.5, 83.0, "Good", ha="right", va="center", fontsize=8, color=_GRAY)
+    ax.text(n - 0.5, 16.5, lbl(labels, "zone_score_low", "Low"), ha="right", va="center", fontsize=8, color=_GRAY)
+    ax.text(n - 0.5, 49.5, lbl(labels, "zone_score_moderate", "Moderate"), ha="right", va="center", fontsize=8, color=_GRAY)
+    ax.text(n - 0.5, 83.0, lbl(labels, "zone_score_good", "Good"), ha="right", va="center", fontsize=8, color=_GRAY)
 
     ax.set_xticks(xs)
     ax.set_xticklabels(session_labels, rotation=30, ha="right", fontsize=9)
@@ -652,9 +652,9 @@ def plot_score_evolution(
         )
 
     # Right-margin zone labels
-    ax.text(n - 0.5, 16.5, "Low", ha="right", va="center", fontsize=8, color=_GRAY)
-    ax.text(n - 0.5, 49.5, "Moderate", ha="right", va="center", fontsize=8, color=_GRAY)
-    ax.text(n - 0.5, 83.0, "Good", ha="right", va="center", fontsize=8, color=_GRAY)
+    ax.text(n - 0.5, 16.5, lbl(labels, "zone_score_low", "Low"), ha="right", va="center", fontsize=8, color=_GRAY)
+    ax.text(n - 0.5, 49.5, lbl(labels, "zone_score_moderate", "Moderate"), ha="right", va="center", fontsize=8, color=_GRAY)
+    ax.text(n - 0.5, 83.0, lbl(labels, "zone_score_good", "Good"), ha="right", va="center", fontsize=8, color=_GRAY)
 
     ax.set_xticks(xs)
     ax.set_xticklabels(session_labels, rotation=30, ha="right", fontsize=9)

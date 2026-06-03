@@ -74,6 +74,7 @@ _HRR_ZONES: list[tuple[float, float, str, str]] = [
     (_HRR_GOOD_BPM, _HRR_EXCELLENT_BPM, "#d6eaf8", "Good     (20–24)"),
     (_HRR_EXCELLENT_BPM, _HRR_MAX_GAUGE_BPM, "#d5f5e3", "Excellent (≥ 25)"),
 ]
+_HRR_ZONE_KEYS = ["zone_hrr_impaired", "zone_hrr_normal", "zone_hrr_good", "zone_hrr_excellent"]
 
 
 # ── Public functions ──────────────────────────────────────────────────────────
@@ -242,12 +243,12 @@ def plot_hrr_comparison(
         max_t = max(max_t, float(time_s[-1]))
 
     # Zone labels on the right margin
-    for low, high, _, zone_label in _HRR_ZONES:
+    for (low, high, _, zone_label), zone_key in zip(_HRR_ZONES, _HRR_ZONE_KEYS, strict=True):
         mid = (low + high) / 2.0
         ax.text(
             max_t * 0.99,
             mid,
-            zone_label,
+            lbl(labels, zone_key, zone_label),
             ha="right",
             va="center",
             fontsize=7,
@@ -267,6 +268,7 @@ def plot_hrr_comparison(
 
 def plot_hrr_gauge(
     result: HRRResult,
+    labels: dict[str, str] | None = None,
     title: str = "HRR1 Gauge",
     figsize: tuple[float, float] = (6, 4),
 ) -> Figure:
@@ -279,6 +281,8 @@ def plot_hrr_gauge(
     Args:
         result: :class:`~cardiolab.protocols.hrr.HRRResult` from
             :func:`~cardiolab.protocols.hrr.heart_rate_recovery`.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         figsize: Width × height of the figure in inches.
 
@@ -348,13 +352,13 @@ def plot_hrr_gauge(
 
     # ── Zone labels (inside sectors) ─────────────────────────────────────────
     zone_label_r = (_GAUGE_R_OUTER + _GAUGE_R_INNER) / 2.0
-    for low, high, _, zone_label in _HRR_ZONES:
+    for (low, high, _, zone_label), zone_key in zip(_HRR_ZONES, _HRR_ZONE_KEYS, strict=True):
         mid_val = (low + high) / 2.0
         angle_rad = math.radians(_angle_from_hrr(mid_val))
         xl = zone_label_r * math.cos(angle_rad)
         yl = zone_label_r * math.sin(angle_rad)
         # Remove the threshold range from the label (just keep the word)
-        word = zone_label.split()[0]
+        word = lbl(labels, zone_key, zone_label).split()[0]
         ax.text(
             xl,
             yl,

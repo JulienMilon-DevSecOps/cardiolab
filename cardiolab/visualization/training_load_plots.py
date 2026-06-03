@@ -9,6 +9,8 @@ import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
+from cardiolab.labels import lbl
+
 if TYPE_CHECKING:
     from cardiolab.analytics.training_load import TrainingLoad
 
@@ -30,6 +32,10 @@ _TSB_ZONES = [
     (-10.0, 5.0, "#fef9e7", "Neutral"),
     (-30.0, -10.0, "#fdebd0", "Accumulated fatigue"),
     (-60.0, -30.0, "#fadbd8", "Overload"),
+]
+_TSB_ZONE_KEYS = [
+    "zone_tsb_fresh", "zone_tsb_optimal", "zone_tsb_neutral",
+    "zone_tsb_fatigue", "zone_tsb_overload",
 ]
 
 # ── Default sport-type colour map ─────────────────────────────────────────────
@@ -80,6 +86,7 @@ def _x_ticks(dates: list[str], max_labels: int = 15) -> tuple[np.ndarray, list[s
 
 def plot_atl_ctl_tsb(
     training_load: TrainingLoad,
+    labels: dict[str, str] | None = None,
     title: str = "Training Load — ATL / CTL / TSB",
     figsize: tuple[float, float] = (13, 7),
 ) -> Figure:
@@ -97,6 +104,8 @@ def plot_atl_ctl_tsb(
     Args:
         training_load: A populated :class:`~cardiolab.analytics.training_load.TrainingLoad`
             instance.  Must contain at least one day of data.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         figsize: Width × height in inches.
 
@@ -118,14 +127,14 @@ def plot_atl_ctl_tsb(
     fig, (ax_top, ax_bot) = plt.subplots(2, 1, figsize=figsize, sharex=True)
 
     # ── Top: ATL + CTL ────────────────────────────────────────────────────────
-    ax_top.plot(x, atl, color=_ATL_COLOR, linewidth=1.8, label="ATL (fatigue τ=7)")
-    ax_top.plot(x, ctl, color=_CTL_COLOR, linewidth=1.8, label="CTL (fitness τ=42)")
+    ax_top.plot(x, atl, color=_ATL_COLOR, linewidth=1.8, label=lbl(labels, "atl", "ATL (fatigue τ=7)"))
+    ax_top.plot(x, ctl, color=_CTL_COLOR, linewidth=1.8, label=lbl(labels, "ctl", "CTL (fitness τ=42)"))
 
     # Shaded area between ATL and CTL
     ax_top.fill_between(x, atl, ctl, where=(atl >= ctl), alpha=0.15, color=_ATL_COLOR)
     ax_top.fill_between(x, atl, ctl, where=(ctl > atl), alpha=0.15, color=_CTL_COLOR)
 
-    ax_top.set_ylabel("Load (a.u.)", fontsize=10)
+    ax_top.set_ylabel(lbl(labels, "atl", "Load (a.u.)"), fontsize=10)
     ax_top.legend(loc="upper left", fontsize=8)
     ax_top.grid(alpha=0.20, linestyle=":")
 
@@ -133,7 +142,7 @@ def plot_atl_ctl_tsb(
     tsb_min = min(float(np.min(tsb)), -35.0)
     tsb_max = max(float(np.max(tsb)), 30.0)
 
-    for low, high, color, label in _TSB_ZONES:
+    for (low, high, color, label), zone_key in zip(_TSB_ZONES, _TSB_ZONE_KEYS, strict=True):
         if high >= tsb_min and low <= tsb_max:
             ax_bot.axhspan(
                 max(low, tsb_min - 5),
@@ -141,12 +150,12 @@ def plot_atl_ctl_tsb(
                 color=color,
                 alpha=0.55,
                 zorder=0,
-                label=label,
+                label=lbl(labels, zone_key, label),
             )
 
     ax_bot.axhline(0, color=_GRAY, linewidth=0.9, linestyle="--", alpha=0.8)
-    ax_bot.plot(x, tsb, color=_TSB_COLOR, linewidth=1.8, zorder=4, label="TSB (form)")
-    ax_bot.set_ylabel("TSB", fontsize=10)
+    ax_bot.plot(x, tsb, color=_TSB_COLOR, linewidth=1.8, zorder=4, label=lbl(labels, "tsb", "TSB (form)"))
+    ax_bot.set_ylabel(lbl(labels, "tsb", "TSB"), fontsize=10)
     ax_bot.legend(loc="upper left", fontsize=8, ncol=2)
     ax_bot.grid(alpha=0.15, linestyle=":", axis="y")
 
@@ -163,6 +172,7 @@ def plot_trimp_history(
     training_load: TrainingLoad,
     sessions: list[dict] | None = None,
     sport_colors: dict[str, str] | None = None,
+    labels: dict[str, str] | None = None,
     title: str = "TRIMP History",
     figsize: tuple[float, float] = (13, 5),
 ) -> Figure:
@@ -179,6 +189,8 @@ def plot_trimp_history(
             default TRIMP colour.
         sport_colors: Optional mapping of sport-type label → hex colour.
             Unknown sport types fall back to :data:`_TRIMP_COLOR`.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         figsize: Width × height in inches.
 
@@ -223,7 +235,7 @@ def plot_trimp_history(
         )
         ax.legend(fontsize=8)
 
-    ax.set_ylabel("TRIMP", fontsize=10)
+    ax.set_ylabel(lbl(labels, "trimp", "TRIMP"), fontsize=10)
     ax.grid(alpha=0.20, linestyle=":", axis="y")
 
     tick_idx, tick_labels = _x_ticks(dates)
@@ -251,6 +263,7 @@ def plot_trimp_history(
 
 def plot_tsb_zones(
     training_load: TrainingLoad,
+    labels: dict[str, str] | None = None,
     title: str = "Training Stress Balance — TSB Zones",
     figsize: tuple[float, float] = (13, 5),
 ) -> Figure:
@@ -266,6 +279,8 @@ def plot_tsb_zones(
 
     Args:
         training_load: A populated :class:`~cardiolab.analytics.training_load.TrainingLoad`.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         figsize: Width × height in inches.
 
@@ -289,12 +304,12 @@ def plot_tsb_zones(
     fig, ax = plt.subplots(figsize=figsize)
 
     legend_patches = []
-    for low, high, color, label in _TSB_ZONES:
+    for (low, high, color, label), zone_key in zip(_TSB_ZONES, _TSB_ZONE_KEYS, strict=True):
         clipped_low = max(low, tsb_min - pad)
         clipped_high = min(high, tsb_max + pad)
         if clipped_high > clipped_low:
             ax.axhspan(clipped_low, clipped_high, color=color, alpha=0.55, zorder=0)
-            legend_patches.append(Patch(facecolor=color, alpha=0.55, label=label))
+            legend_patches.append(Patch(facecolor=color, alpha=0.55, label=lbl(labels, zone_key, label)))
 
     ax.axhline(0, color=_GRAY, linewidth=1.0, linestyle="--", alpha=0.8)
     ax.axhline(-10, color=_GRAY, linewidth=0.5, linestyle=":", alpha=0.6)
@@ -306,7 +321,7 @@ def plot_tsb_zones(
     ax.fill_between(x, tsb, 0, where=(tsb >= 0), alpha=0.15, color=_CTL_COLOR)
     ax.fill_between(x, tsb, 0, where=(tsb < 0), alpha=0.15, color=_ATL_COLOR)
 
-    ax.set_ylabel("TSB (form)", fontsize=10)
+    ax.set_ylabel(lbl(labels, "tsb", "TSB (form)"), fontsize=10)
     ax.set_ylim(tsb_min - pad, tsb_max + pad)
     ax.grid(alpha=0.15, linestyle=":", axis="y")
 
