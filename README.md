@@ -1017,6 +1017,14 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 
 ---
 
+### v0.2.3 — Packaging fix (2026-06-03)
+
+No functional changes. Fixed the PyPI sdist size (was 113 MB, exceeding the 100 MB upload
+limit) by adding an explicit `[tool.hatch.build.targets.sdist]` inclusion list in
+`pyproject.toml`. Versions 0.2.1 and 0.2.2 were intermediate attempts at the same fix.
+
+---
+
 ### v0.2.0 — Training load (ATL / CTL / TSB)
 
 **DB change:** one new table `training_sessions` — zero modification to the existing 7 tables.
