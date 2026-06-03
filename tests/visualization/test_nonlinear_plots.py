@@ -264,7 +264,7 @@ class TestPlotSd1Sd2Evolution:
     def test_custom_labels(self, features_multi: list[HRVFeatures]) -> None:
         """Custom labels: function returns a Figure without raising."""
         labels = ["D1", "D2", "D3"]
-        fig = plot_sd1_sd2_evolution(features_multi, labels=labels)
+        fig = plot_sd1_sd2_evolution(features_multi, session_labels=labels)
         assert isinstance(fig, Figure)
 
     def test_custom_figsize(self, features_single: list[HRVFeatures]) -> None:
@@ -302,7 +302,7 @@ class TestPlotSd1Sd2Evolution:
     ) -> None:
         """Labels list with wrong length raises ValueError."""
         with pytest.raises(ValueError, match="labels length"):
-            plot_sd1_sd2_evolution(features_multi, labels=["only one"])
+            plot_sd1_sd2_evolution(features_multi, session_labels=["only one"])
 
     def test_default_labels_from_date(self, features_multi: list[HRVFeatures]) -> None:
         """X-axis labels default to the date attribute of each HRVFeatures."""

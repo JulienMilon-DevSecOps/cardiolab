@@ -424,7 +424,7 @@ fig = plot_poincare_comparison(result.phases.supine.rr, result.phases.standing.r
 fig.savefig("poincare_ortho.png", dpi=150, bbox_inches="tight")
 
 # Evolution over multiple sessions
-fig = plot_sd1_sd2_evolution(features_list, session_labels=dates)
+fig = plot_sd1_sd2_evolution(features_list, session_labels=dates)  # session dates on x-axis
 fig.savefig("sd1_sd2.png", dpi=150, bbox_inches="tight")
 
 # DFA α1 log-log fluctuation plot

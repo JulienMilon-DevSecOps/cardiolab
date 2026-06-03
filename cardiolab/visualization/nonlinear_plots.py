@@ -183,7 +183,7 @@ def plot_poincare_comparison(
 
 def plot_sd1_sd2_evolution(
     features_list: list[HRVFeatures],
-    labels: list[str] | None = None,
+    session_labels: list[str] | None = None,
     title: str = "SD1 / SD2 Evolution",
     figsize: tuple[float, float] = (12, 5),
 ) -> Figure:
@@ -203,8 +203,8 @@ def plot_sd1_sd2_evolution(
     Args:
         features_list: List of :class:`~cardiolab.protocols.resting.HRVFeatures`
             in chronological order.
-        labels: X-axis session labels.  Falls back to the ``date`` attribute of
-            each :class:`~cardiolab.protocols.resting.HRVFeatures` or to
+        session_labels: X-axis session labels. Falls back to the ``date`` attribute
+            of each :class:`~cardiolab.protocols.resting.HRVFeatures` or to
             ``"Session N"`` when no date is set.
         title: Figure title.
         figsize: Width × height of the figure in inches.
@@ -216,18 +216,18 @@ def plot_sd1_sd2_evolution(
         TypeError: If ``features_list`` is not a list or contains non-HRVFeatures
             elements.
         ValueError: If ``features_list`` is empty.
-        ValueError: If ``labels`` length does not match ``features_list``.
+        ValueError: If ``session_labels`` length does not match ``features_list``.
 
     """
     _validate_features_list(features_list)
     n = len(features_list)
 
-    if labels is not None and len(labels) != n:
+    if session_labels is not None and len(session_labels) != n:
         raise ValueError(
-            f"labels length ({len(labels)}) must match features_list length ({n})"
+            f"session_labels length ({len(session_labels)}) must match features_list length ({n})"
         )
 
-    labels = labels or _default_labels(features_list)
+    session_labels = session_labels or _default_labels(features_list)
     x = np.arange(n)
 
     sd1_arr = np.array([f.sd1 for f in features_list], dtype=float)
@@ -285,7 +285,7 @@ def plot_sd1_sd2_evolution(
 
     # Shared x-axis
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=40, ha="right", fontsize=9)
+    ax.set_xticklabels(session_labels, rotation=40, ha="right", fontsize=9)
 
     # Combined legend
     handles_left, labels_left = ax.get_legend_handles_labels()
