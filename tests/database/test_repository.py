@@ -285,12 +285,13 @@ class TestColumnRegistries:
         + supine_duration_sec, standing_duration_sec = 2
         + transition timing (start, end, duration, delta_hr, peak_hr) = 5
         + derived (hr_response, lf_hf_ratio_change, hf_response_pct,
-                   hf_hr_pct_change, interpretation) = 5
+                   hf_hr_pct_change, lf_hr_pct_change, delta_rmssd,
+                   interpretation) = 7
         + spectral_method = 1
         + score = 1
-        Total = 71
+        Total = 73
         """
-        assert len(_ORTHO_DATA_COLUMNS) == 71  # noqa: PLR2004
+        assert len(_ORTHO_DATA_COLUMNS) == 73  # noqa: PLR2004
 
     def test_ortho_data_columns_is_subset_of_ortho_columns(self):
         """Every column in _ORTHO_DATA_COLUMNS must exist in _ORTHO_COLUMNS."""
@@ -450,7 +451,9 @@ class TestOrthostaticRecord:
             hr_response=20.0,
             lf_hf_ratio_change=1.5,
             hf_response_pct=-40.0,
-            hf_hr_pct_change=-65.0,
+            hf_hr_pct_change=65.0,
+            lf_hr_pct_change=30.0,
+            delta_rmssd=12.0,
             interpretation="normal",
         )
         assert rec.date == "2026-05-15"
@@ -472,6 +475,8 @@ class TestOrthostaticRecord:
             lf_hf_ratio_change=0.0,
             hf_response_pct=0.0,
             hf_hr_pct_change=0.0,
+            lf_hr_pct_change=0.0,
+            delta_rmssd=0.0,
             interpretation="normal",
         )
         assert isinstance(rec.supine, HRVFeatures)
@@ -493,6 +498,8 @@ class TestOrthostaticRecord:
             lf_hf_ratio_change=0.0,
             hf_response_pct=0.0,
             hf_hr_pct_change=0.0,
+            lf_hr_pct_change=0.0,
+            delta_rmssd=0.0,
             interpretation="normal",
         )
         assert rec.supine.sdnn == 80.0
@@ -885,7 +892,7 @@ class TestLoadOrthostatic:
     def _make_ortho_row(self) -> tuple:
         """Build a fake DB row matching the load_orthostatic SELECT order.
 
-        Row layout (72 values):
+        Row layout (74 values):
         [0]      date
         [1..19]  supine HRV (19)
         [20]     supine_duration_sec
@@ -893,9 +900,9 @@ class TestLoadOrthostatic:
         [26..44] transition HRV (19)
         [45..63] standing HRV (19)
         [64]     standing_duration_sec
-        [65..69] derived metrics (5)
-        [70]     spectral_method
-        [71]     score
+        [65..71] derived metrics (7)
+        [72]     spectral_method
+        [73]     score
         """
         hrv_block = (
             60.0,
@@ -933,10 +940,12 @@ class TestLoadOrthostatic:
             20.0,
             1.5,
             -40.0,
-            -65.0,
-            "normal",  # [65..69] derived
-            "welch",  # [70]     spectral_method
-            72.5,  # [71]     score
+            65.0,
+            30.0,
+            12.0,
+            "normal",  # [65..71] derived
+            "welch",  # [72]     spectral_method
+            72.5,  # [73]     score
         )
 
     def test_returns_list_of_orthostatic_records(self):
