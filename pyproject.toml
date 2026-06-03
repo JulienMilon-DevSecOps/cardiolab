@@ -132,6 +132,15 @@ markers = [
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
+    # Synthetic test recordings are intentionally short — the warning is expected.
+    "ignore::cardiolab.signals.rr.PhysiologicalWarning",
+    "ignore:Recording duration:cardiolab.signals.rr.PhysiologicalWarning",
+    "ignore:interval.*below 300 ms:cardiolab.signals.rr.PhysiologicalWarning",
+    "ignore:interval.*above 2000 ms:cardiolab.signals.rr.PhysiologicalWarning",
+    # Matplotlib opens many figures in visualization test suites.
+    "ignore:More than 20 figures:RuntimeWarning",
+    # Complex multi-panel figures sometimes exceed tight_layout margins.
+    "ignore:Tight layout not applied:UserWarning",
 ]
 
 [tool.coverage.run]

@@ -5,8 +5,14 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+
+from cardiolab.analytics.baseline import Baseline
+from cardiolab.protocols.resting import HRVFeatures
+from cardiolab.signals.ecg import ECGSignal
+from cardiolab.signals.rr import RRSeries
 
 # ── Chargement .env ──────────────────────────────────────────────────────────
 # Charge les variables d'environnement depuis le .env situé à la racine du
@@ -20,10 +26,18 @@ try:
 except ImportError:
     pass  # python-dotenv facultatif — CI n'en a pas besoin
 
-from cardiolab.analytics.baseline import Baseline
-from cardiolab.protocols.resting import HRVFeatures
-from cardiolab.signals.ecg import ECGSignal
-from cardiolab.signals.rr import RRSeries
+
+# ── Matplotlib cleanup ────────────────────────────────────────────────────────
+# Close all figures after every test to prevent the "More than 20 figures"
+# RuntimeWarning that fires when the test suite creates hundreds of plots.
+
+
+@pytest.fixture(autouse=True)
+def close_matplotlib_figures():
+    """Close all open matplotlib figures after each test."""
+    yield
+    plt.close("all")
+
 
 # ======================
 # RRSeries FIXTURES
