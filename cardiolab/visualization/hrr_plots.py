@@ -74,7 +74,12 @@ _HRR_ZONES: list[tuple[float, float, str, str]] = [
     (_HRR_GOOD_BPM, _HRR_EXCELLENT_BPM, "#d6eaf8", "Good     (20–24)"),
     (_HRR_EXCELLENT_BPM, _HRR_MAX_GAUGE_BPM, "#d5f5e3", "Excellent (≥ 25)"),
 ]
-_HRR_ZONE_KEYS = ["zone_hrr_impaired", "zone_hrr_normal", "zone_hrr_good", "zone_hrr_excellent"]
+_HRR_ZONE_KEYS = [
+    "zone_hrr_impaired",
+    "zone_hrr_normal",
+    "zone_hrr_good",
+    "zone_hrr_excellent",
+]
 
 
 # ── Public functions ──────────────────────────────────────────────────────────
@@ -243,7 +248,9 @@ def plot_hrr_comparison(
         max_t = max(max_t, float(time_s[-1]))
 
     # Zone labels on the right margin
-    for (low, high, _, zone_label), zone_key in zip(_HRR_ZONES, _HRR_ZONE_KEYS, strict=True):
+    for (low, high, _, zone_label), zone_key in zip(
+        _HRR_ZONES, _HRR_ZONE_KEYS, strict=True
+    ):
         mid = (low + high) / 2.0
         ax.text(
             max_t * 0.99,
@@ -352,7 +359,9 @@ def plot_hrr_gauge(
 
     # ── Zone labels (inside sectors) ─────────────────────────────────────────
     zone_label_r = (_GAUGE_R_OUTER + _GAUGE_R_INNER) / 2.0
-    for (low, high, _, zone_label), zone_key in zip(_HRR_ZONES, _HRR_ZONE_KEYS, strict=True):
+    for (low, high, _, zone_label), zone_key in zip(
+        _HRR_ZONES, _HRR_ZONE_KEYS, strict=True
+    ):
         mid_val = (low + high) / 2.0
         angle_rad = math.radians(_angle_from_hrr(mid_val))
         xl = zone_label_r * math.cos(angle_rad)

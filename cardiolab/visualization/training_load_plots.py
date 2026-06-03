@@ -34,8 +34,11 @@ _TSB_ZONES = [
     (-60.0, -30.0, "#fadbd8", "Overload"),
 ]
 _TSB_ZONE_KEYS = [
-    "zone_tsb_fresh", "zone_tsb_optimal", "zone_tsb_neutral",
-    "zone_tsb_fatigue", "zone_tsb_overload",
+    "zone_tsb_fresh",
+    "zone_tsb_optimal",
+    "zone_tsb_neutral",
+    "zone_tsb_fatigue",
+    "zone_tsb_overload",
 ]
 
 # ── Default sport-type colour map ─────────────────────────────────────────────
@@ -127,8 +130,20 @@ def plot_atl_ctl_tsb(
     fig, (ax_top, ax_bot) = plt.subplots(2, 1, figsize=figsize, sharex=True)
 
     # ── Top: ATL + CTL ────────────────────────────────────────────────────────
-    ax_top.plot(x, atl, color=_ATL_COLOR, linewidth=1.8, label=lbl(labels, "atl", "ATL (fatigue τ=7)"))
-    ax_top.plot(x, ctl, color=_CTL_COLOR, linewidth=1.8, label=lbl(labels, "ctl", "CTL (fitness τ=42)"))
+    ax_top.plot(
+        x,
+        atl,
+        color=_ATL_COLOR,
+        linewidth=1.8,
+        label=lbl(labels, "atl", "ATL (fatigue τ=7)"),
+    )
+    ax_top.plot(
+        x,
+        ctl,
+        color=_CTL_COLOR,
+        linewidth=1.8,
+        label=lbl(labels, "ctl", "CTL (fitness τ=42)"),
+    )
 
     # Shaded area between ATL and CTL
     ax_top.fill_between(x, atl, ctl, where=(atl >= ctl), alpha=0.15, color=_ATL_COLOR)
@@ -142,7 +157,9 @@ def plot_atl_ctl_tsb(
     tsb_min = min(float(np.min(tsb)), -35.0)
     tsb_max = max(float(np.max(tsb)), 30.0)
 
-    for (low, high, color, label), zone_key in zip(_TSB_ZONES, _TSB_ZONE_KEYS, strict=True):
+    for (low, high, color, label), zone_key in zip(
+        _TSB_ZONES, _TSB_ZONE_KEYS, strict=True
+    ):
         if high >= tsb_min and low <= tsb_max:
             ax_bot.axhspan(
                 max(low, tsb_min - 5),
@@ -154,7 +171,14 @@ def plot_atl_ctl_tsb(
             )
 
     ax_bot.axhline(0, color=_GRAY, linewidth=0.9, linestyle="--", alpha=0.8)
-    ax_bot.plot(x, tsb, color=_TSB_COLOR, linewidth=1.8, zorder=4, label=lbl(labels, "tsb", "TSB (form)"))
+    ax_bot.plot(
+        x,
+        tsb,
+        color=_TSB_COLOR,
+        linewidth=1.8,
+        zorder=4,
+        label=lbl(labels, "tsb", "TSB (form)"),
+    )
     ax_bot.set_ylabel(lbl(labels, "tsb", "TSB"), fontsize=10)
     ax_bot.legend(loc="upper left", fontsize=8, ncol=2)
     ax_bot.grid(alpha=0.15, linestyle=":", axis="y")
@@ -304,12 +328,16 @@ def plot_tsb_zones(
     fig, ax = plt.subplots(figsize=figsize)
 
     legend_patches = []
-    for (low, high, color, label), zone_key in zip(_TSB_ZONES, _TSB_ZONE_KEYS, strict=True):
+    for (low, high, color, label), zone_key in zip(
+        _TSB_ZONES, _TSB_ZONE_KEYS, strict=True
+    ):
         clipped_low = max(low, tsb_min - pad)
         clipped_high = min(high, tsb_max + pad)
         if clipped_high > clipped_low:
             ax.axhspan(clipped_low, clipped_high, color=color, alpha=0.55, zorder=0)
-            legend_patches.append(Patch(facecolor=color, alpha=0.55, label=lbl(labels, zone_key, label)))
+            legend_patches.append(
+                Patch(facecolor=color, alpha=0.55, label=lbl(labels, zone_key, label))
+            )
 
     ax.axhline(0, color=_GRAY, linewidth=1.0, linestyle="--", alpha=0.8)
     ax.axhline(-10, color=_GRAY, linewidth=0.5, linestyle=":", alpha=0.6)

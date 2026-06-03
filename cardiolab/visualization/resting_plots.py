@@ -294,8 +294,16 @@ def _default_labels(features_list: list[HRVFeatures]) -> list[str]:
 
 def _draw_score_bands(ax: plt.Axes, labels: dict | None = None) -> None:
     """Fill horizontal coloured bands on a readiness score axis."""
-    for (low, high, color, default_label), zone_key in zip(_SCORE_ZONES, _SCORE_ZONE_KEYS, strict=True):
-        ax.axhspan(low, high, color=color, alpha=0.45, zorder=0,
-                   label=lbl(labels, zone_key, default_label))
+    for (low, high, color, default_label), zone_key in zip(
+        _SCORE_ZONES, _SCORE_ZONE_KEYS, strict=True
+    ):
+        ax.axhspan(
+            low,
+            high,
+            color=color,
+            alpha=0.45,
+            zorder=0,
+            label=lbl(labels, zone_key, default_label),
+        )
     for threshold in (40, 60, 80):
         ax.axhline(threshold, color=_GRAY, linewidth=0.6, linestyle=":", alpha=0.7)

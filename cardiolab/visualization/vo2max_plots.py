@@ -43,7 +43,11 @@ _VO2MAX_ZONES: list[tuple[float, float, str, str]] = [
     (_VO2MAX_VERY_GOOD, _VO2MAX_MAX_GAUGE, "#d5f5e3", "Excellent (≥ 58)"),
 ]
 _VO2MAX_ZONE_KEYS = [
-    "zone_vo2_poor", "zone_vo2_fair", "zone_vo2_good", "zone_vo2_very_good", "zone_vo2_excellent"
+    "zone_vo2_poor",
+    "zone_vo2_fair",
+    "zone_vo2_good",
+    "zone_vo2_very_good",
+    "zone_vo2_excellent",
 ]
 
 # ── Colour palettes ───────────────────────────────────────────────────────────
@@ -134,7 +138,9 @@ def plot_vo2max_comparison(
     for threshold in (_VO2MAX_POOR, _VO2MAX_FAIR, _VO2MAX_GOOD, _VO2MAX_VERY_GOOD):
         if threshold < y_max:
             ax.axhline(threshold, color=_GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
-    for (low, high, _, zone_label), zone_key in zip(_VO2MAX_ZONES, _VO2MAX_ZONE_KEYS, strict=True):
+    for (low, high, _, zone_label), zone_key in zip(
+        _VO2MAX_ZONES, _VO2MAX_ZONE_KEYS, strict=True
+    ):
         mid = (low + min(high, y_max)) / 2.0
         if mid < y_max:
             ax.text(
@@ -289,7 +295,9 @@ def plot_vo2max_evolution(
 
     # Zone labels on right margin
     x_r = n - 0.5
-    for (low, high, _, zone_label), zone_key in zip(_VO2MAX_ZONES, _VO2MAX_ZONE_KEYS, strict=True):
+    for (low, high, _, zone_label), zone_key in zip(
+        _VO2MAX_ZONES, _VO2MAX_ZONE_KEYS, strict=True
+    ):
         mid = (low + min(high, y_max)) / 2.0
         if mid < y_max:
             ax.text(
@@ -406,7 +414,9 @@ def plot_vo2max_gauge(
 
     # Zone labels inside sectors
     zone_r = (_GAUGE_R_OUTER + _GAUGE_R_INNER) / 2.0
-    for (low, high, _, zone_label), zone_key in zip(_VO2MAX_ZONES, _VO2MAX_ZONE_KEYS, strict=True):
+    for (low, high, _, zone_label), zone_key in zip(
+        _VO2MAX_ZONES, _VO2MAX_ZONE_KEYS, strict=True
+    ):
         mid_val = (low + high) / 2.0
         a_rad = math.radians(_angle_from_vo2max(mid_val))
         xl = zone_r * math.cos(a_rad)

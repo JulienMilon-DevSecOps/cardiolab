@@ -281,7 +281,9 @@ def plot_coherence_score_evolution(
 
     legend_patches = [
         Patch(facecolor=color, alpha=0.6, label=lbl(labels, zone_key, label))
-        for (_, _, color, label), zone_key in zip(_COHERENCE_ZONES, _COHERENCE_ZONE_KEYS, strict=True)
+        for (_, _, color, label), zone_key in zip(
+            _COHERENCE_ZONES, _COHERENCE_ZONE_KEYS, strict=True
+        )
     ]
     ax.legend(handles=legend_patches, loc="upper left", fontsize=8)
 
