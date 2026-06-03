@@ -38,13 +38,11 @@ Typical usage::
         repo.create_vo2max_table()
         repo.save_vo2max(vo2max_result, user_id="alice", date="2026-05-15")
 
-Schema version note:
-    The addition of ``apen`` and ``sampen`` columns (v0.2) is a **breaking
-    schema change**. Existing tables must be dropped and recreated::
-
-        DROP TABLE hrv_features;
-        DROP TABLE hrv_orthostatic;
-        -- then call repo.create_table() / repo.create_orthostatic_table()
+Schema migrations:
+    Use :func:`HRVRepository.run_migrations` (or the standalone
+    :func:`cardiolab.database.migrator.run_migrations`) to apply pending SQL
+    migrations safely.  The migration runner tracks applied versions in a
+    ``schema_migrations`` table and never re-applies a completed migration.
 
 """
 
@@ -854,6 +852,33 @@ class HRVRepository:
                 "'with HRVRepository(...) as repo:'"
             )
         return self._conn
+
+    # ── Migrations ───────────────────────────────────────────────────────
+
+    def run_migrations(self) -> list[str]:
+        """Apply all pending SQL migrations to the database.
+
+        Convenience wrapper around
+        :func:`cardiolab.database.migrator.run_migrations` that uses the
+        repository's open connection.
+
+        Returns:
+            List of migration version strings applied during this call
+            (e.g. ``["V001__initial_schema", "V002__add_apen_sampen_ortho_metrics"]``).
+            Empty list if the database is already up to date.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+
+        Example::
+
+            with HRVRepository.from_env() as repo:
+                applied = repo.run_migrations()
+
+        """
+        from cardiolab.database.migrator import run_migrations as _run
+
+        return _run(self._conn_or_raise())
 
     # ── Resting — schema ─────────────────────────────────────────────────
 
