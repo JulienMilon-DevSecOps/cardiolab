@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 
+from cardiolab.labels import lbl
 from cardiolab.protocols.resting import HRVFeatures
 
 # ── Colour palette ────────────────────────────────────────────────────────────
@@ -25,6 +26,12 @@ _SCORE_ZONES = [
     (40, 60, "#fdebd0", "Moderate fatigue"),
     (0, 40, "#fadbd8", "Fatigued"),
 ]
+_SCORE_ZONE_KEYS = [
+    "zone_score_very_good",
+    "zone_score_normal",
+    "zone_score_moderate_fatigue",
+    "zone_score_fatigued",
+]
 
 
 # ── Public functions ──────────────────────────────────────────────────────────
@@ -33,7 +40,8 @@ _SCORE_ZONES = [
 def plot_resting_evolution(
     features_list: list[HRVFeatures],
     scores: list[float],
-    labels: list[str] | None = None,
+    session_labels: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     title: str = "RMSSD and Readiness Score Evolution",
     figsize: tuple[float, float] = (12, 7),
 ) -> Figure:
@@ -51,9 +59,10 @@ def plot_resting_evolution(
             in chronological order.
         scores: Readiness score (0–100) for each session.  Must have the same
             length as ``features_list``.
-        labels: X-axis session labels.  Falls back to the ``date`` attribute
-            of each :class:`~cardiolab.protocols.resting.HRVFeatures` or to
-            ``"Session N"`` when no date is set.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Overall figure title.
         figsize: Width × height of the figure in inches.
 
@@ -77,14 +86,14 @@ def plot_resting_evolution(
             f"scores length ({len(scores)}) must match features_list length "
             f"({len(features_list)})"
         )
-    if labels is not None and len(labels) != len(features_list):
+    if session_labels is not None and len(session_labels) != len(features_list):
         raise ValueError(
-            f"labels length ({len(labels)}) must match features_list length "
+            f"session_labels length ({len(session_labels)}) must match features_list length "
             f"({len(features_list)})"
         )
 
     n = len(features_list)
-    labels = labels or _default_labels(features_list)
+    session_labels = session_labels or _default_labels(features_list)
     x = np.arange(n)
     rmssd = np.array([f.rmssd for f in features_list])
     scores_arr = np.array(scores, dtype=float)
@@ -110,12 +119,12 @@ def plot_resting_evolution(
         alpha=0.8,
         label=f"Mean {mean_rmssd:.1f} ms",
     )
-    ax_rmssd.set_ylabel("RMSSD (ms)", fontsize=10)
+    ax_rmssd.set_ylabel(lbl(labels, "rmssd", "RMSSD (ms)"), fontsize=10)
     ax_rmssd.legend(loc="upper left", fontsize=8)
     ax_rmssd.grid(alpha=0.20, linestyle=":")
 
     # ── Bottom: readiness score ───────────────────────────────────────────────
-    _draw_score_bands(ax_score)
+    _draw_score_bands(ax_score, labels)
     ax_score.plot(
         x,
         scores_arr,
@@ -126,9 +135,9 @@ def plot_resting_evolution(
         zorder=4,
     )
     ax_score.set_ylim(0, 105)
-    ax_score.set_ylabel("Readiness score", fontsize=10)
+    ax_score.set_ylabel(lbl(labels, "score", "Readiness score"), fontsize=10)
     ax_score.set_xticks(x)
-    ax_score.set_xticklabels(labels, rotation=40, ha="right", fontsize=9)
+    ax_score.set_xticklabels(session_labels, rotation=40, ha="right", fontsize=9)
     ax_score.grid(alpha=0.20, linestyle=":", axis="y")
 
     fig.suptitle(title, fontsize=13, fontweight="bold", y=1.01)
@@ -140,7 +149,8 @@ def plot_resting_evolution_rolling(
     features_list: list[HRVFeatures],
     scores: list[float],
     rolling_rmssd: list[float | None],
-    labels: list[str] | None = None,
+    session_labels: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     title: str = "RMSSD Evolution — with Rolling Median",
     figsize: tuple[float, float] = (12, 7),
 ) -> Figure:
@@ -157,8 +167,10 @@ def plot_resting_evolution_rolling(
         rolling_rmssd: Rolling RMSSD median per session.  A ``None`` value
             (e.g. for the first session when no prior baseline exists) is
             plotted as a gap.  Must have the same length as ``features_list``.
-        labels: X-axis session labels.  Defaults to date strings or
-            ``"Session N"``.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Overall figure title.
         figsize: Width × height of the figure in inches.
 
@@ -185,14 +197,14 @@ def plot_resting_evolution_rolling(
                 f"{param_name} length ({len(param_val)}) must match "
                 f"features_list length ({len(features_list)})"
             )
-    if labels is not None and len(labels) != len(features_list):
+    if session_labels is not None and len(session_labels) != len(features_list):
         raise ValueError(
-            f"labels length ({len(labels)}) must match features_list length "
+            f"session_labels length ({len(session_labels)}) must match features_list length "
             f"({len(features_list)})"
         )
 
     n = len(features_list)
-    labels = labels or _default_labels(features_list)
+    session_labels = session_labels or _default_labels(features_list)
     x = np.arange(n)
     rmssd = np.array([f.rmssd for f in features_list])
     scores_arr = np.array(scores, dtype=float)
@@ -227,12 +239,12 @@ def plot_resting_evolution_rolling(
         label="Rolling median",
         zorder=3,
     )
-    ax_rmssd.set_ylabel("RMSSD (ms)", fontsize=10)
+    ax_rmssd.set_ylabel(lbl(labels, "rmssd", "RMSSD (ms)"), fontsize=10)
     ax_rmssd.legend(loc="upper left", fontsize=8)
     ax_rmssd.grid(alpha=0.20, linestyle=":")
 
     # ── Bottom: readiness score ───────────────────────────────────────────────
-    _draw_score_bands(ax_score)
+    _draw_score_bands(ax_score, labels)
     ax_score.plot(
         x,
         scores_arr,
@@ -243,9 +255,9 @@ def plot_resting_evolution_rolling(
         zorder=4,
     )
     ax_score.set_ylim(0, 105)
-    ax_score.set_ylabel("Readiness score", fontsize=10)
+    ax_score.set_ylabel(lbl(labels, "score", "Readiness score"), fontsize=10)
     ax_score.set_xticks(x)
-    ax_score.set_xticklabels(labels, rotation=40, ha="right", fontsize=9)
+    ax_score.set_xticklabels(session_labels, rotation=40, ha="right", fontsize=9)
     ax_score.grid(alpha=0.20, linestyle=":", axis="y")
 
     fig.suptitle(title, fontsize=13, fontweight="bold", y=1.01)
@@ -280,9 +292,18 @@ def _default_labels(features_list: list[HRVFeatures]) -> list[str]:
     ]
 
 
-def _draw_score_bands(ax: plt.Axes) -> None:
+def _draw_score_bands(ax: plt.Axes, labels: dict | None = None) -> None:
     """Fill horizontal coloured bands on a readiness score axis."""
-    for low, high, color, _ in _SCORE_ZONES:
-        ax.axhspan(low, high, color=color, alpha=0.45, zorder=0)
+    for (low, high, color, default_label), zone_key in zip(
+        _SCORE_ZONES, _SCORE_ZONE_KEYS, strict=True
+    ):
+        ax.axhspan(
+            low,
+            high,
+            color=color,
+            alpha=0.45,
+            zorder=0,
+            label=lbl(labels, zone_key, default_label),
+        )
     for threshold in (40, 60, 80):
         ax.axhline(threshold, color=_GRAY, linewidth=0.6, linestyle=":", alpha=0.7)

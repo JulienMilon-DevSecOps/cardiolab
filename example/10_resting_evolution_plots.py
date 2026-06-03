@@ -225,7 +225,7 @@ def main() -> None:
     fig = plot_resting_evolution(
         all_features,
         scores,
-        labels=dates,
+        session_labels=dates,
         title="RMSSD and Readiness Score Evolution",
     )
     _save(fig, "10_03_evolution_combined.png")
@@ -235,7 +235,7 @@ def main() -> None:
         all_features,
         scores,
         rolling_medians,
-        labels=dates,
+        session_labels=dates,
         title="RMSSD Evolution — with Rolling Median",
     )
     _save(fig, "10_04_evolution_rolling.png")

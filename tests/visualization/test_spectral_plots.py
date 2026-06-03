@@ -225,12 +225,12 @@ class TestPlotLfHfEvolution:
     def test_with_labels(self, features_list):
         """Custom labels of matching length are accepted."""
         labels = ["Day 1", "Day 2", "Day 3"]
-        fig = plot_lf_hf_evolution(features_list, labels=labels)
+        fig = plot_lf_hf_evolution(features_list, session_labels=labels)
         assert isinstance(fig, Figure)
 
     def test_default_date_labels(self, features_list):
         """Date-bearing features produce date strings as default labels."""
-        fig = plot_lf_hf_evolution(features_list, labels=None)
+        fig = plot_lf_hf_evolution(features_list, session_labels=None)
         assert isinstance(fig, Figure)
 
     def test_type_error_not_a_list(self, features_single):
@@ -251,7 +251,7 @@ class TestPlotLfHfEvolution:
     def test_value_error_labels_length_mismatch(self, features_list):
         """Labels with wrong length raises ValueError."""
         with pytest.raises(ValueError, match="labels length"):
-            plot_lf_hf_evolution(features_list, labels=["only_one"])
+            plot_lf_hf_evolution(features_list, session_labels=["only_one"])
 
 
 # ── plot_hrv_radar ───────────────────────────────────────────────────────────
@@ -328,7 +328,7 @@ class TestPlotSpectralHeatmap:
     def test_with_labels(self, features_list):
         """Custom labels of correct length are accepted."""
         labels = ["Mon", "Tue", "Wed"]
-        fig = plot_spectral_heatmap(features_list, labels=labels)
+        fig = plot_spectral_heatmap(features_list, session_labels=labels)
         assert isinstance(fig, Figure)
 
     def test_type_error_not_a_list(self, features_single):
@@ -349,7 +349,7 @@ class TestPlotSpectralHeatmap:
     def test_value_error_labels_length_mismatch(self, features_list):
         """Labels with wrong length raises ValueError."""
         with pytest.raises(ValueError, match="labels length"):
-            plot_spectral_heatmap(features_list, labels=["Day 1", "Day 2"])
+            plot_spectral_heatmap(features_list, session_labels=["Day 1", "Day 2"])
 
     def test_single_session_normalize_true_skips_normalization(self, features_single):
         """Single session with normalize=True does not error (min==max guard)."""

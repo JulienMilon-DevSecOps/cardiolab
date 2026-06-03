@@ -16,6 +16,7 @@ import numpy as np
 from matplotlib.figure import Figure
 
 from cardiolab.features.frequency_domain import _ar_psd, _interpolate
+from cardiolab.labels import lbl
 from cardiolab.protocols.cardiac_coherence import CoherenceResult
 from cardiolab.signals.rr import RRSeries
 
@@ -45,10 +46,11 @@ _GRAY = "#95a5a6"
 # ── Coherence score interpretation bands ─────────────────────────────────────
 
 _COHERENCE_ZONES = [
-    (_SCORE_GOOD, 100, "#d5f5e3", "Good"),
-    (_SCORE_MODERATE, _SCORE_GOOD, "#fef9e7", "Moderate"),
-    (0, _SCORE_MODERATE, "#fadbd8", "Low"),
+    (_SCORE_GOOD, 100, "#d5f5e3", "Good coherence"),
+    (_SCORE_MODERATE, _SCORE_GOOD, "#fef9e7", "Moderate coherence"),
+    (0, _SCORE_MODERATE, "#fadbd8", "Low coherence"),
 ]
+_COHERENCE_ZONE_KEYS = ["zone_coh_good", "zone_coh_moderate", "zone_coh_low"]
 
 
 # ── Public functions ──────────────────────────────────────────────────────────
@@ -194,7 +196,8 @@ def plot_coherence_psd(
 
 def plot_coherence_score_evolution(
     results: list[CoherenceResult],
-    labels: list[str] | None = None,
+    session_labels: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     title: str = "Cardiac Coherence Score — Evolution",
     figsize: tuple[float, float] = (12, 5),
 ) -> Figure:
@@ -208,8 +211,10 @@ def plot_coherence_score_evolution(
     Args:
         results: List of :class:`~cardiolab.protocols.cardiac_coherence.CoherenceResult`
             in chronological order.
-        labels: X-axis session labels.  Falls back to the ``date`` attribute of
-            each result or to ``"Session N"`` when no date is set.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         figsize: Width × height of the figure in inches.
 
@@ -225,12 +230,12 @@ def plot_coherence_score_evolution(
     _validate_results_list(results)
     n = len(results)
 
-    if labels is not None and len(labels) != n:
+    if session_labels is not None and len(session_labels) != n:
         raise ValueError(
-            f"labels length ({len(labels)}) must match results length ({n})"
+            f"session_labels length ({len(session_labels)}) must match results length ({n})"
         )
 
-    labels = labels or _default_labels(results)
+    session_labels = session_labels or _default_labels(results)
     x = np.arange(n)
     scores = np.array([r.coherence_score for r in results], dtype=float)
 
@@ -266,17 +271,19 @@ def plot_coherence_score_evolution(
         )
 
     ax.set_ylim(0, 105)
-    ax.set_ylabel("Coherence score (%)", fontsize=10)
+    ax.set_ylabel(lbl(labels, "coherence_score", "Coherence score (%)"), fontsize=10)
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=40, ha="right", fontsize=9)
+    ax.set_xticklabels(session_labels, rotation=40, ha="right", fontsize=9)
     ax.grid(alpha=0.20, linestyle=":", axis="y")
 
     # Zone legend
     from matplotlib.patches import Patch
 
     legend_patches = [
-        Patch(facecolor=color, alpha=0.6, label=label)
-        for _, _, color, label in _COHERENCE_ZONES
+        Patch(facecolor=color, alpha=0.6, label=lbl(labels, zone_key, label))
+        for (_, _, color, label), zone_key in zip(
+            _COHERENCE_ZONES, _COHERENCE_ZONE_KEYS, strict=True
+        )
     ]
     ax.legend(handles=legend_patches, loc="upper left", fontsize=8)
 

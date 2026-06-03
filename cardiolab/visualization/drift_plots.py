@@ -15,6 +15,7 @@ import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
+from cardiolab.labels import lbl
 from cardiolab.protocols.cardiac_drift import DriftResult
 from cardiolab.signals.rr import RRSeries
 
@@ -34,6 +35,12 @@ _DRIFT_ZONES: list[tuple[float, float, str, str]] = [
     (_DRIFT_NO_THRESHOLD, _DRIFT_MILD_THRESHOLD, "#fef9e7", "Mild      (0.5–1.5)"),
     (_DRIFT_MILD_THRESHOLD, _DRIFT_MOD_THRESHOLD, "#fdebd0", "Moderate  (1.5–3.0)"),
     (_DRIFT_MOD_THRESHOLD, _DRIFT_MAX_AXIS, "#fadbd8", "Strong    (> 3.0)"),
+]
+_DRIFT_ZONE_KEYS = [
+    "zone_drift_no_drift",
+    "zone_drift_mild",
+    "zone_drift_moderate",
+    "zone_drift_strong",
 ]
 
 # ── Category colours ──────────────────────────────────────────────────────────
@@ -184,7 +191,8 @@ def plot_drift_curve(
 
 def plot_drift_zones(
     results: list[DriftResult],
-    labels: list[str] | None = None,
+    session_labels: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     title: str = "Cardiac Drift — Session Evolution",
     figsize: tuple[float, float] = (12, 5),
 ) -> Figure:
@@ -201,7 +209,10 @@ def plot_drift_zones(
     Args:
         results: :class:`~cardiolab.protocols.cardiac_drift.DriftResult` list
             in chronological order.
-        labels: Session labels. Falls back to ``result.date`` or ``"Session N"``.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         figsize: Width × height of the figure in inches.
 
@@ -216,11 +227,11 @@ def plot_drift_zones(
     _validate_results_list(results)
     n = len(results)
 
-    if labels is not None and len(labels) != n:
+    if session_labels is not None and len(session_labels) != n:
         raise ValueError(
-            f"labels length ({len(labels)}) must match results length ({n})"
+            f"session_labels length ({len(session_labels)}) must match results length ({n})"
         )
-    labels = labels or _default_labels(results)
+    session_labels = session_labels or _default_labels(results)
 
     drift_rates = [abs(r.drift_rate) for r in results]
     categories = [r.interpretation for r in results]
@@ -280,9 +291,9 @@ def plot_drift_zones(
         )
 
     ax.set_xticks(xs)
-    ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=9)
+    ax.set_xticklabels(session_labels, rotation=30, ha="right", fontsize=9)
     ax.set_ylim(0.0, y_max)
-    ax.set_ylabel("|Drift rate| (bpm/min)", fontsize=10)
+    ax.set_ylabel(lbl(labels, "drift_rate", "|Drift rate| (%/min)"), fontsize=10)
     ax.legend(
         handles=legend_patches,
         loc="upper left",

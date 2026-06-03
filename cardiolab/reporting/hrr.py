@@ -13,6 +13,7 @@ import pandas as pd
 from cardiolab.protocols.hrr import HRRResult
 from cardiolab.reporting._core import (
     _HRR_CAT_COLORS,
+    apply_labels,
     caption,
     fmt_float,
     fmt_nan,
@@ -25,7 +26,8 @@ from cardiolab.reporting._core import (
 def table_hrr_history(
     results: list[HRRResult],
     dates: list[str] | None = None,
-    caption_text: str = "Historique HRR — récupération cardiaque post-effort",
+    labels: dict[str, str] | None = None,
+    caption_text: str = "HRR history — post-exercise cardiac recovery",
 ) -> pd.Styler:
     """Build a multi-session Heart Rate Recovery history table.
 
@@ -39,6 +41,8 @@ def table_hrr_history(
         dates: Session labels. Falls back to ``"Session N"`` when ``None``.
             Ignored when :attr:`~cardiolab.protocols.hrr.HRRResult.date` is
             already set on each result.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         caption_text: Caption shown below the table.
 
     Returns:
@@ -53,7 +57,7 @@ def table_hrr_history(
     n = len(results)
     if dates is not None and len(dates) != n:
         raise ValueError(f"dates length ({len(dates)}) must match results length ({n})")
-    labels = [
+    date_labels = [
         (r.date or (dates[i] if dates else f"Session {i + 1}"))
         for i, r in enumerate(results)
     ]
@@ -63,10 +67,10 @@ def table_hrr_history(
     float1 = fmt_float(1)
 
     rows = []
-    for label, r in zip(labels, results, strict=False):
+    for date_label, r in zip(date_labels, results, strict=False):
         rows.append(
             {
-                "date": label,
+                "date": date_label,
                 "hr_peak": r.hr_peak,
                 "hr_at_60s": r.hr_at_60s,
                 "hrr_60": r.hrr_60,
@@ -94,6 +98,7 @@ def table_hrr_history(
     styler = gradient_bad(styler, ["hr_peak"])
     styler = highlight_category(styler, "hrr_60_category", _HRR_CAT_COLORS)
     styler = highlight_category(styler, "hrr_120_category", _HRR_CAT_COLORS)
+    styler = apply_labels(styler, labels)
 
     return caption(styler, caption_text)
 

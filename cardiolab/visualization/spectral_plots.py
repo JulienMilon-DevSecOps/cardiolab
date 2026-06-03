@@ -26,6 +26,7 @@ from cardiolab.features.frequency_domain import (
 )
 from cardiolab.features.frequency_domain import _ar_psd as _ar_psd_raw
 from cardiolab.features.frequency_domain import _welch_psd as _welch_psd_raw
+from cardiolab.labels import lbl
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.signals.rr import RRSeries
 
@@ -327,7 +328,8 @@ def plot_psd_comparison(
 
 def plot_lf_hf_evolution(
     features_list: list[HRVFeatures],
-    labels: list[str] | None = None,
+    session_labels: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     title: str = "LF/HF Balance Evolution",
     figsize: tuple[float, float] = (12, 5),
 ) -> Figure:
@@ -341,7 +343,10 @@ def plot_lf_hf_evolution(
     Args:
         features_list: List of :class:`~cardiolab.protocols.resting.HRVFeatures`
             objects, one per session, in chronological order.
-        labels: Session labels.  Falls back to ``"Session N"`` if not provided.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         figsize: Width × height in inches.
 
@@ -368,14 +373,14 @@ def plot_lf_hf_evolution(
                 f"features_list[{idx}] must be an HRVFeatures, "
                 f"got {type(item).__name__}"
             )
-    if labels is not None and len(labels) != len(features_list):
+    if session_labels is not None and len(session_labels) != len(features_list):
         raise ValueError(
-            f"labels length ({len(labels)}) must match features_list length "
+            f"session_labels length ({len(session_labels)}) must match features_list length "
             f"({len(features_list)})"
         )
 
-    if labels is None:
-        labels = [
+    if session_labels is None:
+        session_labels = [
             str(f.date) if f.date else f"Session {i + 1}"
             for i, f in enumerate(features_list)
         ]
@@ -434,8 +439,8 @@ def plot_lf_hf_evolution(
     ax.set_ylim(0, 1.15)
     ax.axhline(0.5, color=_GRAY, linewidth=0.8, linestyle=":", alpha=0.6)
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=40, ha="right", fontsize=9)
-    ax.set_ylabel("Normalised units (LF_nu / HF_nu)", fontsize=10)
+    ax.set_xticklabels(session_labels, rotation=40, ha="right", fontsize=9)
+    ax.set_ylabel(lbl(labels, "lf_nu", "Normalised units (LF_nu / HF_nu)"), fontsize=10)
     ax.legend(loc="upper left", fontsize=9)
     ax.grid(axis="y", alpha=0.20, linestyle=":")
 
@@ -561,7 +566,8 @@ def plot_hrv_radar(
 
 def plot_spectral_heatmap(
     features_list: list[HRVFeatures],
-    labels: list[str] | None = None,
+    session_labels: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     title: str = "Spectral Power Heatmap — Sessions × Bands",
     normalize: bool = True,
     figsize: tuple[float, float] = (12, 0.6),
@@ -581,6 +587,10 @@ def plot_spectral_heatmap(
         features_list: List of
             :class:`~cardiolab.protocols.resting.HRVFeatures`, one per session.
         labels: Session labels.  Falls back to date strings or ``"Session N"``.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         normalize: Whether to apply per-column min-max normalisation.
         figsize: ``(width, height_per_session)`` — total height is
@@ -608,14 +618,14 @@ def plot_spectral_heatmap(
                 f"features_list[{idx}] must be an HRVFeatures, "
                 f"got {type(item).__name__}"
             )
-    if labels is not None and len(labels) != len(features_list):
+    if session_labels is not None and len(session_labels) != len(features_list):
         raise ValueError(
-            f"labels length ({len(labels)}) must match features_list length "
+            f"session_labels length ({len(session_labels)}) must match features_list length "
             f"({len(features_list)})"
         )
 
-    if labels is None:
-        labels = [
+    if session_labels is None:
+        session_labels = [
             str(f.date) if f.date else f"Session {i + 1}"
             for i, f in enumerate(features_list)
         ]
@@ -673,7 +683,7 @@ def plot_spectral_heatmap(
     ax.set_xticks(range(n_cols))
     ax.set_xticklabels(col_names, fontsize=9)
     ax.set_yticks(range(n_sessions))
-    ax.set_yticklabels(labels, fontsize=9)
+    ax.set_yticklabels(session_labels, fontsize=9)
     ax.xaxis.set_ticks_position("top")
     ax.xaxis.set_label_position("top")
 

@@ -320,12 +320,14 @@ class TrainingLoad:
 
         Processing steps:
 
-        1. Parse the first and last session dates.
-        2. Build a dense daily date range between them (inclusive).
-        3. Map known TRIMP values to their dates; rest days and sessions
-           with ``trimp=None`` contribute ``0``.
-        4. Compute ATL and CTL via :func:`compute_atl` / :func:`compute_ctl`.
-        5. Compute TSB via :func:`compute_tsb`.
+        1. Aggregate TRIMP by date — **sum** across all activities on the
+           same day (multiple activities = multiple rows with the same date).
+           Activities with ``trimp=None`` contribute ``0`` to the sum.
+        2. Find the earliest and latest dates across all activities.
+        3. Build a dense daily date range between them (inclusive).
+        4. Fill rest days (no activity logged) with ``0``.
+        5. Compute ATL and CTL via :func:`compute_atl` / :func:`compute_ctl`.
+        6. Compute TSB via :func:`compute_tsb`.
 
         Args:
             sessions: List of training session dicts, sorted by date ASC.
@@ -340,14 +342,21 @@ class TrainingLoad:
         if not sessions:
             return cls()
 
-        first = _date.fromisoformat(str(sessions[0]["date"])[:10])
-        last = _date.fromisoformat(str(sessions[-1]["date"])[:10])
-        n = (last - first).days + 1
-
+        # Aggregate TRIMP by date — sum across multiple activities per day.
+        # An activity with trimp=None contributes 0 (TRIMP not yet computed).
+        # This correctly handles the one-row-per-activity storage model where
+        # the same date may appear multiple times (morning run + evening cycling).
         trimp_by_date: dict[str, float] = {}
+        all_dates_seen: set[str] = set()
         for s in sessions:
             d = str(s["date"])[:10]
-            trimp_by_date[d] = float(s["trimp"]) if s["trimp"] is not None else 0.0
+            all_dates_seen.add(d)
+            t = float(s["trimp"]) if s["trimp"] is not None else 0.0
+            trimp_by_date[d] = trimp_by_date.get(d, 0.0) + t
+
+        first = _date.fromisoformat(min(all_dates_seen))
+        last = _date.fromisoformat(max(all_dates_seen))
+        n = (last - first).days + 1
 
         dates: list[str] = []
         trimp_array = np.zeros(n)

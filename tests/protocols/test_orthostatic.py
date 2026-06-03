@@ -614,6 +614,8 @@ class TestOrthostaticToDict:
             "lf_hf_ratio_change",
             "hf_response_pct",
             "hf_hr_pct_change",
+            "lf_hr_pct_change",
+            "delta_rmssd",
             "interpretation",
             "score",
         }

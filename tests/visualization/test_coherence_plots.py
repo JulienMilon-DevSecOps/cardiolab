@@ -201,7 +201,7 @@ class TestPlotCoherenceScoreEvolution:
     def test_custom_labels(self, results_multi: list[CoherenceResult]) -> None:
         """Custom labels: function returns a Figure without raising."""
         labels = ["Lundi", "Mardi", "Mercredi"]
-        fig = plot_coherence_score_evolution(results_multi, labels=labels)
+        fig = plot_coherence_score_evolution(results_multi, session_labels=labels)
         assert isinstance(fig, Figure)
 
     def test_custom_figsize(self, result_good: CoherenceResult) -> None:
@@ -251,7 +251,7 @@ class TestPlotCoherenceScoreEvolution:
     ) -> None:
         """Labels list with wrong length raises ValueError."""
         with pytest.raises(ValueError, match="labels length"):
-            plot_coherence_score_evolution(results_multi, labels=["only one"])
+            plot_coherence_score_evolution(results_multi, session_labels=["only one"])
 
 
 # ── plot_coherence_tachogram ──────────────────────────────────────────────────

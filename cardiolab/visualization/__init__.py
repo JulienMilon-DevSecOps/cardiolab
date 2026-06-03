@@ -25,6 +25,10 @@ drift_plots
 hrr_plots
     Heart Rate Recovery: recovery curve with HRR1/HRR2 markers, multi-session
     comparison of HR-drop curves, and semi-circular HRR1 gauge.
+orthostatic_plots
+    Orthostatic test: four-panel multi-session plot showing RMSSD/HR per phase
+    (supine / transition / standing) and autonomic response metrics (ΔHR, ΔRMSSD,
+    HF/HR%, LF/HR%) over time.
 vo2max_plots
     VO2max estimation from HRV: grouped model comparison bars with ACSM zone
     backgrounds, multi-session best-estimate evolution with ±10 % uncertainty
@@ -65,6 +69,9 @@ from cardiolab.visualization.nonlinear_plots import (
     plot_poincare,
     plot_poincare_comparison,
     plot_sd1_sd2_evolution,
+)
+from cardiolab.visualization.orthostatic_plots import (
+    plot_orthostatic_phases_evolution,
 )
 from cardiolab.visualization.resting_plots import (
     plot_resting_evolution,
@@ -141,6 +148,8 @@ __all__ = [
     "plot_lf_hf_evolution",
     "plot_hrv_radar",
     "plot_spectral_heatmap",
+    # orthostatic_plots
+    "plot_orthostatic_phases_evolution",
     # vo2max_plots
     "plot_vo2max_comparison",
     "plot_vo2max_evolution",
