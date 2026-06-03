@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.3] - 2026-06-03
+
+### Fixed — Packaging
+
+- Fixed PyPI sdist size (was 113 MB, exceeding the 100 MB limit) by switching from an
+  exclusion list to an explicit inclusion list in `[tool.hatch.build.targets.sdist]`.
+  The sdist is now ~316 KB. No functional changes.
+
+*Versions 0.2.1 and 0.2.2 were intermediate attempts to resolve the same packaging issue
+and contain no functional changes relative to 0.2.0.*
+
+---
+
+## [0.2.2] - 2026-06-03
+
+### Fixed — Packaging
+
+- Partial fix for sdist size: added `[tool.hatch.build.targets.sdist]` exclusion list.
+  Reduced from 113 MB to 109 MB — still above the PyPI 100 MB limit. Superseded by 0.2.3.
+
+---
+
+## [0.2.1] - 2026-06-03
+
+### Fixed — Packaging
+
+- First attempt to fix sdist size by bumping the version after identifying the root cause
+  (no sdist configuration in `pyproject.toml`). Superseded by 0.2.3.
+
+---
+
 ## [0.2.0] - 2026-06-03
 
 ### Fixed — Post-review bugfixes (2026-06-03)
