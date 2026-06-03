@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.2.0] - 2026-06-03
+
+### Fixed — Post-review bugfixes (2026-06-03)
+
+- `signals/rr.py` — `remove_outliers(method="zscore")` no longer crashes when all
+  intervals are identical (std = 0). Previously, dividing by zero produced NaN z-scores,
+  the filter mask became all-False, and the resulting empty array raised
+  `ValueError: RRSeries must contain at least 2 intervals`. The series is now returned
+  unchanged when std = 0.
+- `signals/rr.py` — `segment()` now propagates timestamps to each produced segment.
+  Previously, segments were always created without timestamps even when the source
+  `RRSeries` had an explicit timestamp array.
+- `visualization/rr_plots.py` — `plot_rr_tachogram()` no longer emits
+  `UserWarning: No artists with labels found` when `show_mean=False` and no coloured band
+  is displayed. `ax.legend()` is now called only when at least one labelled artist exists.
+- `tests/conftest.py` — `baseline_30days` fixture generated invalid date strings
+  (`"2026-04-31"` through `"2026-04-42"`). Dates are now computed with `timedelta` from a
+  fixed start date.
+
 ### Added — v0.2.0 Pre-release improvements
 
 #### Bilingual label system — `cardiolab/labels.py`

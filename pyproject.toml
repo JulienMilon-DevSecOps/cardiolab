@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cardiolab"
-version = "0.1.0"
+version = "0.2.0"
 description = "HRV analysis toolkit — scientific core of the cardioanalysis platform"
 authors = [{name = "Julien MILON", email = "julienmilon.devsecops@gmail.com"}]
 readme = "README.md"
@@ -137,8 +137,6 @@ filterwarnings = [
     "ignore:Recording duration:cardiolab.signals.rr.PhysiologicalWarning",
     "ignore:interval.*below 300 ms:cardiolab.signals.rr.PhysiologicalWarning",
     "ignore:interval.*above 2000 ms:cardiolab.signals.rr.PhysiologicalWarning",
-    # Matplotlib opens many figures in visualization test suites.
-    "ignore:More than 20 figures:RuntimeWarning",
     # Complex multi-panel figures sometimes exceed tight_layout margins.
     "ignore:Tight layout not applied:UserWarning",
 ]

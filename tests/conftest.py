@@ -47,38 +47,40 @@ def close_matplotlib_figures():
 @pytest.fixture
 def normal_rr_series():
     """Return a normal RRSeries of 300 intervals at ~70 bpm (resting state)."""
-    # Simulating normal resting HR ~70 bpm = 857 ms interval
-    intervals = np.random.normal(857, 20, 300).clip(min=300)
+    rng = np.random.default_rng(42)
+    intervals = rng.normal(857, 20, 300).clip(min=300)
     return RRSeries(intervals=intervals)
 
 
 @pytest.fixture
 def short_rr_series():
     """Short RRSeries - < 1 minute (only 30 intervals)."""
-    intervals = np.random.normal(857, 20, 30).clip(min=300)
+    rng = np.random.default_rng(42)
+    intervals = rng.normal(857, 20, 30).clip(min=300)
     return RRSeries(intervals=intervals)
 
 
 @pytest.fixture
 def elevated_hr_rr_series():
     """RRSeries with elevated heart rate (high stress/exercise)."""
-    # Higher HR = shorter intervals ~600ms (100 bpm)
-    intervals = np.random.normal(600, 15, 300).clip(min=300)
+    rng = np.random.default_rng(42)
+    intervals = rng.normal(600, 15, 300).clip(min=300)
     return RRSeries(intervals=intervals)
 
 
 @pytest.fixture
 def low_variability_rr_series():
     """RRSeries with low variability - potential illness/fatigue."""
-    intervals = np.random.normal(857, 5, 300).clip(min=300)  # Very low std
+    rng = np.random.default_rng(42)
+    intervals = rng.normal(857, 5, 300).clip(min=300)
     return RRSeries(intervals=intervals)
 
 
 @pytest.fixture
 def rr_series_with_outliers():
     """RRSeries with some outlier intervals (arrhythmias)."""
-    intervals = np.random.normal(857, 20, 300).clip(min=300)
-    # Add some outliers
+    rng = np.random.default_rng(42)
+    intervals = rng.normal(857, 20, 300).clip(min=300)
     intervals[50] = 1500  # big gap
     intervals[150] = 200  # small gap
     return RRSeries(intervals=intervals)
@@ -87,7 +89,8 @@ def rr_series_with_outliers():
 @pytest.fixture
 def rr_series_with_timestamps():
     """RRSeries with explicit timestamps."""
-    intervals = np.random.normal(857, 20, 100).clip(min=300)
+    rng = np.random.default_rng(42)
+    intervals = rng.normal(857, 20, 100).clip(min=300)
     timestamps = np.cumsum(intervals / 1000.0)
     return RRSeries(intervals=intervals, timestamps=timestamps)
 
@@ -104,10 +107,11 @@ def normal_ecg_signal():
     duration = 300  # 5 min in seconds
     t = np.linspace(0, duration, fs * duration)
     # Simulate ECG with heart rate ~70 bpm
+    rng = np.random.default_rng(42)
     signal = (
         np.sin(2 * np.pi * (70 / 60) * t)
-        + 0.1 * np.sin(2 * np.pi * 5 * t)  # Some harmonic
-        + 0.01 * np.random.randn(len(t))  # Small noise
+        + 0.1 * np.sin(2 * np.pi * 5 * t)
+        + 0.01 * rng.standard_normal(len(t))
     )
     return ECGSignal(signal, sampling_rate=fs)
 
@@ -128,9 +132,8 @@ def noisy_ecg_signal():
     fs = 256
     duration = 60
     t = np.linspace(0, duration, fs * duration)
-    signal = (
-        np.sin(2 * np.pi * (70 / 60) * t) + 0.5 * np.random.randn(len(t))  # High noise
-    )
+    rng = np.random.default_rng(42)
+    signal = np.sin(2 * np.pi * (70 / 60) * t) + 0.5 * rng.standard_normal(len(t))
     return ECGSignal(signal, sampling_rate=fs)
 
 
@@ -226,16 +229,16 @@ def excellent_hrv_features():
 @pytest.fixture
 def baseline_7days(normal_hrv_features, excellent_hrv_features, poor_hrv_features):
     """Baseline with 7 days of data (normal pattern)."""
+    rng = np.random.default_rng(42)
     features = [normal_hrv_features]
-    # Generate 6 more days of similar data
     for i in range(1, 7):
         feature = HRVFeatures(
             date=f"2026-05-{12 - i:02d}T10:00:00",
-            rmssd=60.0 + np.random.normal(0, 5),
+            rmssd=60.0 + rng.normal(0, 5),
             ln_rmssd=4.09,
-            sdnn=80.0 + np.random.normal(0, 5),
-            pnn50=25.0 + np.random.normal(0, 3),
-            mean_hr=70.0 + np.random.normal(0, 2),
+            sdnn=80.0 + rng.normal(0, 5),
+            pnn50=25.0 + rng.normal(0, 3),
+            mean_hr=70.0 + rng.normal(0, 2),
             vlf=500.0,
             lf=1500.0,
             hf=2000.0,
@@ -244,7 +247,7 @@ def baseline_7days(normal_hrv_features, excellent_hrv_features, poor_hrv_feature
             lf_nu=0.4,
             hf_nu=0.6,
             duration=300.0,
-            score=75.0 + np.random.normal(0, 5),
+            score=75.0 + rng.normal(0, 5),
         )
         features.append(feature)
 
@@ -437,13 +440,13 @@ def rr_series_generator():
         length: int = 300,
         with_outliers: bool = False,
     ) -> RRSeries:
-        intervals = np.random.normal(mean_rr, std_rr, length).clip(min=300)
+        rng = np.random.default_rng(42)
+        intervals = rng.normal(mean_rr, std_rr, length).clip(min=300)
 
         if with_outliers:
-            # Add some outliers
-            outlier_indices = np.random.choice(length, size=5, replace=False)
+            outlier_indices = rng.choice(length, size=5, replace=False)
             for idx in outlier_indices:
-                intervals[idx] = np.random.choice([1500, 200])
+                intervals[idx] = rng.choice(np.array([1500.0, 200.0]))
 
         return RRSeries(intervals=intervals)
 

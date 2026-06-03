@@ -51,7 +51,7 @@ cardiolab/
 │   ├── hrr.py                → Heart Rate Recovery post-exercise
 │   ├── cardiac_drift.py      → progressive HR increase at constant load
 │   └── vo2max.py             → VO2max estimation from HRV (Uth, Esco-Flatt)
-├── analytics/        → baseline, scoring, anomaly detection, trend analysis
+├── analytics/        → baseline, scoring, anomaly detection, trend analysis, training load (ATL/CTL/TSB)
 ├── sensors_tools/    → Polar sensor integration
 ├── database/         → PostgreSQL persistence layer (8 tables)
 ├── io/               → CSV and JSON export for all protocols
