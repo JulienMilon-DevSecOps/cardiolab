@@ -51,9 +51,9 @@ cardiolab/
 │   ├── hrr.py                → Heart Rate Recovery post-exercise
 │   ├── cardiac_drift.py      → progressive HR increase at constant load
 │   └── vo2max.py             → VO2max estimation from HRV (Uth, Esco-Flatt)
-├── analytics/        → baseline, scoring, anomaly detection, trend analysis
+├── analytics/        → baseline, scoring, anomaly detection, trend analysis, training load (ATL/CTL/TSB)
 ├── sensors_tools/    → Polar sensor integration
-├── database/         → PostgreSQL persistence layer (7 tables)
+├── database/         → PostgreSQL persistence layer (8 tables)
 ├── io/               → CSV and JSON export for all protocols
 ├── reporting/        → tabular reporting (pandas Styler, HTML/Excel export)
 │   ├── _core.py          → shared formatters, colour palettes, gradient builders
@@ -66,7 +66,8 @@ cardiolab/
 │   │                   hrr.md, cardiac_drift.md, vo2max.md
 │   ├── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md
 │   ├── visualization/→ reading_charts.md — how to read each chart type
-│   └── reporting/    → tables.md — reporting API reference
+│   ├── reporting/    → tables.md — reporting API reference
+│   └── training_load/→ index.md, training_sessions.md, atl_ctl_tsb.md
 └── visualization/    → signal and HRV plots
     ├── resting_plots.py  → RMSSD & readiness score evolution over time
     └── rr_plots.py       → raw RR: tachogram, distribution, filtered,
@@ -294,6 +295,40 @@ See [`docs/protocols/vo2max.md`](cardiolab/docs/protocols/vo2max.md) for full pr
 
 ---
 
+## Bilingual labels
+
+`cardiolab.labels` provides human-readable display strings for all metrics,
+clinical zones, and protocol names. Pass a labels dict to any reporting table
+or visualization function to translate headers and legend entries.
+
+```python
+from cardiolab.labels import LABELS_EN, LABELS_FR, lbl
+
+# In reporting:
+from cardiolab.reporting import table_resting_history, table_orthostatic_comparison
+styler = table_resting_history(features_list, labels=LABELS_FR)
+styler = table_orthostatic_comparison(results, labels=LABELS_FR)
+
+# In visualization:
+from cardiolab.visualization.resting_plots import plot_resting_evolution
+fig = plot_resting_evolution(features_list, scores, labels=LABELS_FR)
+
+# Custom override (partial dict — unknown keys fall back to the raw name):
+my_labels = {**LABELS_FR, "rmssd": "RMSSD (ms) — repos"}
+```
+
+Two ready-made dicts: `LABELS_EN` (default in the package) and `LABELS_FR`
+(intended for the `local/` scripts). Both cover:
+- HRV metrics (time-domain, frequency, non-linear)
+- Orthostatic response metrics (`hr_response`, `delta_rmssd`, `lf_hr_pct_change`, …)
+- Clinical zone labels (readiness bands, HRR zones, drift zones, VO2max zones, TSB zones)
+- Protocol names (`protocol_resting`, `protocol_orthostatic`, …)
+
+The `session_labels` parameter (list of date strings) remains separate from `labels`
+(translation dict) in all visualization functions.
+
+---
+
 ## Visualization
 
 The `cardiolab.visualization` module provides ready-made matplotlib figures
@@ -333,11 +368,11 @@ from cardiolab.visualization.resting_plots import (
 )
 
 # features_list: list[HRVFeatures], scores: list[float]
-fig = plot_resting_evolution(features_list, scores, labels=dates)
+fig = plot_resting_evolution(features_list, scores, session_labels=dates)
 fig.savefig("evolution.png", dpi=150, bbox_inches="tight")
 
 # rolling_rmssd: list[float | None]  (None = no prior baseline)
-fig = plot_resting_evolution_rolling(features_list, scores, rolling_rmssd, labels=dates)
+fig = plot_resting_evolution_rolling(features_list, scores, rolling_rmssd, session_labels=dates)
 fig.savefig("evolution_rolling.png", dpi=150, bbox_inches="tight")
 ```
 
@@ -362,7 +397,7 @@ fig = plot_coherence_psd(rr, result)
 fig.savefig("coherence_psd.png", dpi=150, bbox_inches="tight")
 
 # Score evolution over multiple sessions (list[CoherenceResult])
-fig = plot_coherence_score_evolution(results, labels=dates)
+fig = plot_coherence_score_evolution(results, session_labels=dates)
 fig.savefig("coherence_score.png", dpi=150, bbox_inches="tight")
 
 # RR tachogram + sine reference at resonance frequency
@@ -389,7 +424,7 @@ fig = plot_poincare_comparison(result.phases.supine.rr, result.phases.standing.r
 fig.savefig("poincare_ortho.png", dpi=150, bbox_inches="tight")
 
 # Evolution over multiple sessions
-fig = plot_sd1_sd2_evolution(features_list, labels=dates)
+fig = plot_sd1_sd2_evolution(features_list, session_labels=dates)  # session dates on x-axis
 fig.savefig("sd1_sd2.png", dpi=150, bbox_inches="tight")
 
 # DFA α1 log-log fluctuation plot
@@ -415,7 +450,7 @@ fig = plot_drift_curve(rr_exercise, result, title="Session 2026-05-20")
 fig.savefig("drift_curve.png", dpi=150, bbox_inches="tight")
 
 # Multi-session evolution — coloured dots on zone-banded axes
-fig = plot_drift_zones(results, labels=dates)
+fig = plot_drift_zones(results, session_labels=dates)
 fig.savefig("drift_zones.png", dpi=150, bbox_inches="tight")
 ```
 
@@ -440,7 +475,7 @@ fig = plot_hrr_curve(rr_post_exercise, result, title="Session 2026-05-20")
 fig.savefig("hrr_curve.png", dpi=150, bbox_inches="tight")
 
 # Superimposed HR-drop curves across sessions
-fig = plot_hrr_comparison(rr_list, results, labels=dates)
+fig = plot_hrr_comparison(rr_list, results, session_labels=dates)
 fig.savefig("hrr_comparison.png", dpi=150, bbox_inches="tight")
 
 # Instant HRR1 gauge (colour-coded by clinical zone)
@@ -452,6 +487,30 @@ All three functions return a `Figure`.  The comparison chart uses **HR drop from
 peak** (starts at 0 for all sessions) so curves with different peak HRs remain
 directly comparable.  The gauge spans 0–40 bpm with four clinical zones
 colour-coded from red (impaired) to green (excellent) following Cole et al. 1999.
+
+### Orthostatic phases evolution — `orthostatic_plots`
+
+```python
+from cardiolab.visualization.orthostatic_plots import plot_orthostatic_phases_evolution
+from cardiolab.labels import LABELS_FR
+
+# results: list[OrthostaticResult] or list[OrthostaticRecord]
+fig = plot_orthostatic_phases_evolution(results, session_labels=dates, labels=LABELS_FR)
+fig.savefig("ortho_phases.png", dpi=150, bbox_inches="tight")
+```
+
+Four stacked panels sharing the same session x-axis:
+
+1. **RMSSD** — supine (blue), transition (orange), standing (green): read as three
+   parallel resting HRV lines to spot inter-phase differences at a glance.
+2. **Heart Rate** — same colour convention: track the HR shift per phase.
+3. **Autonomic response magnitude** — ΔHR (bars) and ΔRMSSD (line, right axis):
+   quantify the amplitude of the postural shift session by session.
+4. **Autonomic balance (%)** — `hf_hr_pct_change` and `lf_hr_pct_change`: assess vagal
+   withdrawal quality and sympathetic activation over time.
+
+Accepts both `OrthostaticResult` (file-based workflow) and `OrthostaticRecord`
+(database read-back) — duck-typed.
 
 ### VO2max estimation — `vo2max_plots`
 
@@ -469,7 +528,7 @@ fig = plot_vo2max_comparison(result, title="VO2max — Session 2026-05-20")
 fig.savefig("vo2max_comparison.png", dpi=150, bbox_inches="tight")
 
 # Multi-session evolution with uncertainty band
-fig = plot_vo2max_evolution(results, labels=dates)
+fig = plot_vo2max_evolution(results, session_labels=dates)
 fig.savefig("vo2max_evolution.png", dpi=150, bbox_inches="tight")
 
 # Instant fitness gauge with needle and central category text
@@ -517,12 +576,12 @@ fig = plot_longitudinal_heatmap(
     hrr_results=hrr_list,
     drift_results=drift_list,
     vo2max_results=vo2max_list,
-    labels=dates,
+    session_labels=dates,
 )
 fig.savefig("heatmap.png", dpi=150, bbox_inches="tight")
 
 # Daily readiness score evolution
-fig = plot_readiness_evolution(features_list, labels=dates)
+fig = plot_readiness_evolution(features_list, session_labels=dates)
 fig.savefig("readiness.png", dpi=150, bbox_inches="tight")
 
 # Per-protocol mini-dashboards
@@ -565,6 +624,9 @@ from cardiolab.reporting import (
     # VO2max
     table_vo2max_history,         # all three model estimates history
     table_vo2max_session,         # single-session detail (model breakdown)
+    # Training load
+    table_training_load_history,  # daily ATL/CTL/TSB history with zone colours
+    summary_training_load,        # dict: atl, ctl, tsb, tsb_zone, ctl_trend
 )
 ```
 
@@ -737,7 +799,7 @@ from cardiolab.analytics import hrr_score, coherence_score_100, drift_score, vo2
 ## Database
 
 PostgreSQL persistence via `HRVRepository` (context manager, upsert-safe).
-**Seven dedicated tables** — six protocol tables + one raw RR intervals table:
+**Eight dedicated tables** — six protocol tables + one raw RR intervals table + one training sessions table:
 
 ```python
 with HRVRepository.from_env() as repo:
@@ -773,6 +835,21 @@ with HRVRepository.from_env() as repo:
     rr_back = repo.load_raw_session(user_id="<uuid>", date="2026-05-19", protocol="resting")
     sessions = repo.list_raw_sessions(user_id="<uuid>")           # all protocols
     sessions = repo.list_raw_sessions(user_id="<uuid>", protocol="hrr")  # one protocol
+
+    # Training sessions (ATL/CTL/TSB — v0.2.0)
+    # One row per activity — multiple activities per day allowed
+    repo.create_training_sessions_table()
+    aid = repo.save_training_session(user_id="<uuid>", date="2026-05-19",
+                                     duration_min=45.0, sport_type="running", trimp=38.2)
+    # aid is a UUID string (activity_id) — keep it to delete later if needed
+    repo.save_training_session(user_id="<uuid>", date="2026-05-19",
+                               duration_min=30.0, sport_type="strength", trimp=12.5)
+    sessions = repo.load_training_sessions(user_id="<uuid>")  # sorted ASC by date, includes activity_id
+    # Lookup activities for a date (for interactive deletion)
+    matches = repo.find_training_sessions(user_id="<uuid>", date="2026-05-19")
+    matches = repo.find_training_sessions(user_id="<uuid>", date="2026-05-19", sport_type="running")
+    # Delete a specific activity by its UUID
+    deleted = repo.delete_training_session(activity_id=aid)  # True if deleted
 ```
 
 Each protocol table includes a `score FLOAT` column (see [Analytics & Scoring](#analytics--scoring)).
@@ -794,15 +871,15 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | `protocols/cardiac_drift` | Implemented |
 | `protocols/vo2max` | Implemented |
 | `analytics/` — baseline, scoring (all 6 protocols), anomaly, trend | Implemented |
-| `database/` — 7 tables (6 protocol + raw RR) | Implemented |
+| `database/` — 8 tables (6 protocol + raw RR + training sessions, multi-activity) | Implemented |
 | `io/` — CSV & JSON export for all protocols | Implemented |
 | `sensors_tools/` — Polar | Implemented |
 | `visualization/` | Implemented |
-| `reporting/` — all 6 protocols (9 functions) | Implemented |
+| `reporting/` — all 6 protocols (9 functions) + training load (2 functions) | Implemented |
 | PPG signal support | Planned |
-| Training load model (ATL / CTL / TSB) | Planned |
+| Training load — Phases 1-6 (DB / TRIMP / ATL-CTL-TSB / Viz / Reporting / Scripts) | In progress |
 
-**Test coverage:** 1190 unit tests, 0 failures.
+**Test coverage:** 1235 unit tests, 0 failures.
 
 ---
 
@@ -963,50 +1040,56 @@ TRIMP = duration_min × (1 − readiness / 100)
 | −10 to +5 | Optimal — good form |
 | < −10 | Fatigued — risk of overtraining |
 
-#### Phase 1 — Database
-* [ ] New table `training_sessions`: `user_id | date | duration_min | sport_type | trimp | notes` — UNIQUE `(user_id, date)`
-* [ ] `HRVRepository.create_training_sessions_table(table_name)`
-* [ ] `HRVRepository.save_training_session(user_id, date, duration_min, sport_type, trimp, notes)` — upsert on `(user_id, date)`
-* [ ] `HRVRepository.load_training_sessions(user_id) → list[dict]` — ascending date order
-* [ ] Integration tests `TestTrainingSessionsIntegration`
+#### Phase 1 — Database ✅
+* [x] New table `training_sessions`: `activity_id TEXT PK | user_id | date | duration_min | sport_type | trimp | notes` — one row per activity, multiple activities per day allowed
+* [x] `HRVRepository.create_training_sessions_table()`, `save_training_session() → str` (returns `activity_id`), `load_training_sessions()`, `find_training_sessions()`, `delete_training_session()`
+* [x] Integration tests `TestTrainingSessionsIntegration` (11 tests)
 
-#### Phase 2 — TRIMP calculation
-* [ ] `analytics/training_load.py`
-  * [ ] `trimp_hrv_based(duration_min, readiness_score) → float`
-  * [ ] `trimp_banister(duration_min, hr_mean, hr_max, hr_rest) → float` — Banister 1991, for sensors providing effort HR
-* [ ] `load_readiness_for_date(user_id, date, repo, baseline, protocol: Literal["resting", "orthostatic"]) → float | None`
-  * Strict: reads only from the declared protocol table, never mixes
-  * `"orthostatic"` → `readiness_score_composite(record.supine, baseline)`
-  * `"resting"` → `readiness_score_composite(features, baseline)`
-  * Returns `None` if no measurement exists for that date (TRIMP not computed)
-* [ ] Unit tests — edge cases: `readiness=0`, `readiness=100`, `duration=0`
+#### Phase 2 — TRIMP calculation ✅
+* [x] `analytics/training_load.py`
+  * [x] `trimp_hrv_based(duration_min, readiness_score) → float`
+  * [x] `trimp_banister(duration_min, hr_mean, hr_max, hr_rest, sex) → float`
+  * [x] `load_readiness_for_date(user_id, date, repo, baseline, protocol) → float | None`
+* [x] Unit tests `TestTrimpHrvBased` (12), `TestTrimpBanister` (10) + integration tests (6)
 
-#### Phase 3 — ATL / CTL / TSB
-* [ ] `compute_atl(sessions_df, tau=7) → pd.Series` — 7-day EMA (acute fatigue)
-* [ ] `compute_ctl(sessions_df, tau=42) → pd.Series` — 42-day EMA (chronic fitness)
-* [ ] `compute_tsb(ctl, atl) → pd.Series` — TSB = CTL − ATL (form)
-* [ ] `class TrainingLoad` with `.from_sessions(sessions_list)` and `.to_dataframe()` — columns: `date | trimp | atl | ctl | tsb`
-* [ ] Rest days (no session logged) contribute TRIMP = 0 — ATL decays naturally faster than CTL
-* [ ] Unit tests — 60-day series with known values, EMA verified at day 7 and day 42, 0-session and 1-session edge cases
+#### Phase 3 — ATL / CTL / TSB ✅
+* [x] `compute_atl(trimp, tau=7) → np.ndarray` — 7-day EMA (acute fatigue)
+* [x] `compute_ctl(trimp, tau=42) → np.ndarray` — 42-day EMA (chronic fitness)
+* [x] `compute_tsb(ctl, atl) → np.ndarray` — TSB = CTL − ATL (form)
+* [x] `class TrainingLoad` with `.from_sessions()` and `.to_dataframe()`; gaps filled with TRIMP=0
+* [x] Unit tests `TestComputeAtl` (8), `TestComputeCtl` (5), `TestComputeTsb` (5), `TestTrainingLoad` (12)
 
-#### Phase 4 — Visualization
-* [ ] `visualization/training_load_plots.py`
-  * [ ] `plot_atl_ctl_tsb(load, title, figsize)` — dual-axis: CTL + ATL top, TSB with coloured zones bottom
-  * [ ] `plot_trimp_history(sessions, title, figsize)` — TRIMP bar chart coloured by sport type
-  * [ ] `plot_tsb_zones(load, title, figsize)` — coloured zone bands (overload / optimal / fresh / detraining)
-* [ ] Visualization tests
+#### Phase 4 — Visualization ✅
+* [x] `visualization/training_load_plots.py`
+  * [x] `plot_atl_ctl_tsb()` — dual-axis: CTL + ATL top, TSB with coloured zones bottom
+  * [x] `plot_trimp_history()` — TRIMP bar chart coloured by sport type
+  * [x] `plot_tsb_zones()` — coloured zone bands (overload / optimal / fresh / detraining)
+* [x] 27 visualization tests
 
-#### Phase 5 — Reporting
-* [ ] `reporting/training_load_report.py`
-  * [ ] `table_training_load_history(sessions) → pd.DataFrame`
-  * [ ] `summary_training_load(load) → dict` — current ATL, CTL, TSB, CTL weekly trend
-* [ ] Reporting tests
+#### Phase 5 — Reporting ✅
+* [x] `reporting/training_load_report.py`
+  * [x] `table_training_load_history(training_load, caption_text) → pd.Styler` — daily ATL/CTL/TSB history; TSB zone highlighted; CTL green gradient; ATL red gradient
+  * [x] `summary_training_load(training_load) → dict` — atl, ctl, tsb, tsb_zone, ctl_trend
+* [x] 45 tests in `tests/reporting/test_training_load_report.py`
 
-#### Phase 6 — Local scripts
-* [ ] `local/main_training_load.py` — log session → compute TRIMP → save → refresh ATL/CTL/TSB chart
-* [ ] `local/main_training_load_report.py` — training load report over a chosen period
+#### Phase 6 — Local scripts ✅
+* [x] `local/main_training_load.py` — log session → TRIMP → save → ATL/CTL/TSB plots
+  * TRIMP methods: `hrv` (day's readiness), `banister` (HR sensor), `manual` (readiness typed in)
+  * Options: `--protocol resting|orthostatic`, `--date`, `--sport`, `--dry-run`, `--save-plot`
+  * Interactive `--delete` mode: lookup by (user, date, optional sport); numbered menu when multiple activities
+* [x] `local/main_training_load_report.py` — HTML ATL/CTL/TSB report over a period
+  * Period filter: `--from / --to` or `--last N` days; KPI summary + table + 3 base64-embedded plots; `--open`
 
 **References:** Banister EW et al. (1991); Morton RH et al. (1990); Manzi V et al. (2009)
+
+#### Additional local scripts (added during v0.2.0 development) ✅
+* [x] `local/main_report_files.py` — generate an HTML report from `.txt` files, **no database required**
+  * `--protocol` is optional — without it, all protocols with available files are included in a single report
+  * All tables rendered with `LABELS_FR`; output: `local/reports/<user>_<protocol>_files_<ts>.html`
+    (single protocol) or `local/reports/<user>_rapport_complet_<ts>.html` (all protocols)
+* [x] `local/main_visualize_files.py` — generate PNG plots from `.txt` files, **no database required**
+  * `--protocol` optional (default: all available); `--show` opens the plot interactively
+  * All plots rendered with `LABELS_FR`; raw `RRSeries` stored alongside results for HRR comparison
 
 ---
 

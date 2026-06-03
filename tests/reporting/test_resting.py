@@ -118,15 +118,10 @@ class TestTableRestingHistory:
         styler = table_resting_history(two_features, cols=["date", "rmssd"])
         assert list(styler.data.columns) == ["date", "rmssd"]
 
-    def test_missing_cols_silently_dropped(
-        self, two_features: list[HRVFeatures]
-    ) -> None:
-        """Unknown column names are ignored."""
-        styler = table_resting_history(
-            two_features, cols=["date", "rmssd", "nonexistent"]
-        )
-        assert "nonexistent" not in styler.data.columns
-        assert "rmssd" in styler.data.columns
+    def test_unknown_col_raises(self, two_features: list[HRVFeatures]) -> None:
+        """Unknown column names raise ValueError."""
+        with pytest.raises(ValueError, match="nonexistent"):
+            table_resting_history(two_features, cols=["date", "rmssd", "nonexistent"])
 
     def test_caption(self, two_features: list[HRVFeatures]) -> None:
         """Custom caption is applied."""
@@ -137,7 +132,7 @@ class TestTableRestingHistory:
         """Default caption contains expected keywords."""
         styler = table_resting_history(two_features)
         text = styler.caption.lower()
-        assert "rouge" in text or "historique" in text
+        assert "red" in text or "resting" in text
 
     def test_rmssd_values_in_data(self, two_features: list[HRVFeatures]) -> None:
         """RMSSD values are stored correctly per session."""

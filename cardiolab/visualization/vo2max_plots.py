@@ -20,6 +20,7 @@ import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.patches import Wedge
 
+from cardiolab.labels import lbl
 from cardiolab.protocols.vo2max import VO2maxResult
 
 # ── ACSM fitness thresholds (mL/kg/min) ──────────────────────────────────────
@@ -40,6 +41,13 @@ _VO2MAX_ZONES: list[tuple[float, float, str, str]] = [
     (_VO2MAX_FAIR, _VO2MAX_GOOD, "#fef9e7", "Good      (38–47)"),
     (_VO2MAX_GOOD, _VO2MAX_VERY_GOOD, "#d6eaf8", "Very good (48–57)"),
     (_VO2MAX_VERY_GOOD, _VO2MAX_MAX_GAUGE, "#d5f5e3", "Excellent (≥ 58)"),
+]
+_VO2MAX_ZONE_KEYS = [
+    "zone_vo2_poor",
+    "zone_vo2_fair",
+    "zone_vo2_good",
+    "zone_vo2_very_good",
+    "zone_vo2_excellent",
 ]
 
 # ── Colour palettes ───────────────────────────────────────────────────────────
@@ -76,6 +84,7 @@ _GRAY = "#95a5a6"
 
 def plot_vo2max_comparison(
     result: VO2maxResult,
+    labels: dict[str, str] | None = None,
     title: str = "VO2max Estimates — Model Comparison",
     figsize: tuple[float, float] = (10, 5),
 ) -> Figure:
@@ -88,6 +97,10 @@ def plot_vo2max_comparison(
     Args:
         result: :class:`~cardiolab.protocols.vo2max.VO2maxResult` from
             :func:`~cardiolab.protocols.vo2max.vo2max_from_hrv`.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         figsize: Width × height of the figure in inches.
 
@@ -107,7 +120,7 @@ def plot_vo2max_comparison(
     models.append(("Esco-Flatt", result.vo2max_esco_flatt))
     models.append(("ln-RMSSD", result.vo2max_ln_rmssd))
 
-    labels = [m[0] for m in models]
+    model_names = [m[0] for m in models]
     values = [m[1] for m in models]
     colors = [_MODEL_COLORS[m[0]] for m in models]
 
@@ -125,13 +138,15 @@ def plot_vo2max_comparison(
     for threshold in (_VO2MAX_POOR, _VO2MAX_FAIR, _VO2MAX_GOOD, _VO2MAX_VERY_GOOD):
         if threshold < y_max:
             ax.axhline(threshold, color=_GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
-    for low, high, _, zone_label in _VO2MAX_ZONES:
+    for (low, high, _, zone_label), zone_key in zip(
+        _VO2MAX_ZONES, _VO2MAX_ZONE_KEYS, strict=True
+    ):
         mid = (low + min(high, y_max)) / 2.0
         if mid < y_max:
             ax.text(
                 x_label,
                 mid,
-                zone_label.split()[0],
+                lbl(labels, zone_key, zone_label).split()[0],
                 ha="right",
                 va="center",
                 fontsize=8,
@@ -183,9 +198,9 @@ def plot_vo2max_comparison(
     )
 
     ax.set_xticks(xs)
-    ax.set_xticklabels(labels, fontsize=10)
+    ax.set_xticklabels(model_names, fontsize=10)
     ax.set_ylim(0.0, y_max)
-    ax.set_ylabel("VO2max (mL/kg/min)", fontsize=10)
+    ax.set_ylabel(lbl(labels, "vo2max_uth", "VO2max (mL/kg/min)"), fontsize=10)
     ax.grid(alpha=0.20, linestyle=":", axis="y")
     fig.suptitle(title, fontsize=12, fontweight="bold")
     plt.tight_layout()
@@ -194,7 +209,8 @@ def plot_vo2max_comparison(
 
 def plot_vo2max_evolution(
     results: list[VO2maxResult],
-    labels: list[str] | None = None,
+    session_labels: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     title: str = "VO2max Evolution",
     figsize: tuple[float, float] = (12, 5),
 ) -> Figure:
@@ -208,7 +224,10 @@ def plot_vo2max_evolution(
     Args:
         results: :class:`~cardiolab.protocols.vo2max.VO2maxResult` list in
             chronological order.
-        labels: Session labels. Falls back to ``result.date`` or ``"Session N"``.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         figsize: Width × height of the figure in inches.
 
@@ -223,11 +242,11 @@ def plot_vo2max_evolution(
     _validate_results_list(results)
     n = len(results)
 
-    if labels is not None and len(labels) != n:
+    if session_labels is not None and len(session_labels) != n:
         raise ValueError(
-            f"labels length ({len(labels)}) must match results length ({n})"
+            f"session_labels length ({len(session_labels)}) must match results length ({n})"
         )
-    labels = labels or _default_labels(results)
+    session_labels = session_labels or _default_labels(results)
 
     best = np.array([_best_estimate(r) for r in results])
     categories = [r.fitness_category for r in results]
@@ -276,13 +295,15 @@ def plot_vo2max_evolution(
 
     # Zone labels on right margin
     x_r = n - 0.5
-    for low, high, _, zone_label in _VO2MAX_ZONES:
+    for (low, high, _, zone_label), zone_key in zip(
+        _VO2MAX_ZONES, _VO2MAX_ZONE_KEYS, strict=True
+    ):
         mid = (low + min(high, y_max)) / 2.0
         if mid < y_max:
             ax.text(
                 x_r,
                 mid,
-                zone_label.split()[0],
+                lbl(labels, zone_key, zone_label).split()[0],
                 ha="right",
                 va="center",
                 fontsize=8,
@@ -290,9 +311,9 @@ def plot_vo2max_evolution(
             )
 
     ax.set_xticks(xs)
-    ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=9)
+    ax.set_xticklabels(session_labels, rotation=30, ha="right", fontsize=9)
     ax.set_ylim(0.0, y_max)
-    ax.set_ylabel("VO2max (mL/kg/min)", fontsize=10)
+    ax.set_ylabel(lbl(labels, "vo2max_uth", "VO2max (mL/kg/min)"), fontsize=10)
     ax.legend(loc="upper left", fontsize=8)
     ax.grid(alpha=0.20, linestyle=":", axis="y")
     fig.suptitle(title, fontsize=12, fontweight="bold")
@@ -302,6 +323,7 @@ def plot_vo2max_evolution(
 
 def plot_vo2max_gauge(
     result: VO2maxResult,
+    labels: dict[str, str] | None = None,
     title: str = "VO2max Fitness Gauge",
     figsize: tuple[float, float] = (6, 4),
 ) -> Figure:
@@ -315,6 +337,8 @@ def plot_vo2max_gauge(
     Args:
         result: :class:`~cardiolab.protocols.vo2max.VO2maxResult` from
             :func:`~cardiolab.protocols.vo2max.vo2max_from_hrv`.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         figsize: Width × height of the figure in inches.
 
@@ -377,7 +401,7 @@ def plot_vo2max_gauge(
         _VO2MAX_MAX_GAUGE,
     ]
     tick_lbls = ["0", "28", "38", "48", "58", "70"]
-    for val, lbl in zip(tick_vals, tick_lbls, strict=True):
+    for val, tick_label in zip(tick_vals, tick_lbls, strict=True):
         a_rad = math.radians(_angle_from_vo2max(val))
         xi = _GAUGE_R_TICK_IN * math.cos(a_rad)
         yi = _GAUGE_R_TICK_IN * math.sin(a_rad)
@@ -386,16 +410,18 @@ def plot_vo2max_gauge(
         ax.plot([xi, xo], [yi, yo], color=_DARK, linewidth=0.8, zorder=4)
         xl = _GAUGE_R_LABEL * math.cos(a_rad)
         yl = _GAUGE_R_LABEL * math.sin(a_rad)
-        ax.text(xl, yl, lbl, ha="center", va="center", fontsize=7, color=_DARK)
+        ax.text(xl, yl, tick_label, ha="center", va="center", fontsize=7, color=_DARK)
 
     # Zone labels inside sectors
     zone_r = (_GAUGE_R_OUTER + _GAUGE_R_INNER) / 2.0
-    for low, high, _, zone_label in _VO2MAX_ZONES:
+    for (low, high, _, zone_label), zone_key in zip(
+        _VO2MAX_ZONES, _VO2MAX_ZONE_KEYS, strict=True
+    ):
         mid_val = (low + high) / 2.0
         a_rad = math.radians(_angle_from_vo2max(mid_val))
         xl = zone_r * math.cos(a_rad)
         yl = zone_r * math.sin(a_rad)
-        word = zone_label.split()[0]
+        word = lbl(labels, zone_key, zone_label).split()[0]
         ax.text(
             xl,
             yl,

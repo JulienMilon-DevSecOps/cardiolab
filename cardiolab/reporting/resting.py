@@ -14,6 +14,7 @@ import pandas as pd
 
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.reporting._core import (
+    apply_labels,
     caption,
     fmt_float,
     fmt_nan,
@@ -44,7 +45,8 @@ _HISTORY_COLS: list[str] = [
 def table_resting_history(
     features_list: list[HRVFeatures],
     cols: list[str] | None = None,
-    caption_text: str = "Historique repos — rouge = bas · vert = élevé",
+    labels: dict[str, str] | None = None,
+    caption_text: str = "Resting HRV history — red = low · green = high",
 ) -> pd.Styler:
     """Build a multi-session history table for resting HRV.
 
@@ -56,6 +58,8 @@ def table_resting_history(
             in chronological order.
         cols: Column names to include. Defaults to the standard selection
             (date, RMSSD, SDNN, mean HR, SD1/SD2, DFA α1, ApEn, SampEn, score).
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         caption_text: Caption shown below the table.
 
     Returns:
@@ -72,7 +76,10 @@ def table_resting_history(
     rows = [f.to_dict() if hasattr(f, "to_dict") else vars(f) for f in features_list]
     df = pd.DataFrame(rows)
 
-    # Keep only requested columns that exist in the DataFrame
+    if cols is not _HISTORY_COLS:
+        unknown = set(cols) - set(df.columns)
+        if unknown:
+            raise ValueError(f"Unknown column(s): {sorted(unknown)}")
     cols = [c for c in cols if c in df.columns]
     df = df[cols]
 
@@ -93,6 +100,7 @@ def table_resting_history(
     styler = gradient_good(styler, ["apen"], vmin=0.5, vmax=1.8)
     styler = gradient_good(styler, ["sampen"], vmin=0.5, vmax=2.0)
     styler = gradient_bad(styler, ["mean_hr"])
+    styler = apply_labels(styler, labels)
     return caption(styler, caption_text)
 
 

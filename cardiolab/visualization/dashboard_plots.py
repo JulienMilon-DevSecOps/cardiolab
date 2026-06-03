@@ -27,6 +27,7 @@ from matplotlib.patches import Wedge
 from scipy.signal import welch
 
 from cardiolab.features.frequency_domain import _ar_psd, _interpolate
+from cardiolab.labels import lbl
 from cardiolab.protocols.cardiac_coherence import CoherenceResult
 from cardiolab.protocols.cardiac_drift import DriftResult
 from cardiolab.protocols.hrr import HRRResult
@@ -242,7 +243,8 @@ def plot_longitudinal_heatmap(
     drift_results: list[DriftResult] | None = None,
     vo2max_results: list[VO2maxResult] | None = None,
     coherence_results: list[CoherenceResult] | None = None,
-    labels: list[str] | None = None,
+    session_labels: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     title: str = "Longitudinal HRV Heatmap",
     figsize: tuple[float, float] = (14, 8),
 ) -> Figure:
@@ -263,8 +265,10 @@ def plot_longitudinal_heatmap(
             :class:`~cardiolab.protocols.vo2max.VO2maxResult`.
         coherence_results: Optional list of
             :class:`~cardiolab.protocols.cardiac_coherence.CoherenceResult`.
-        labels: Session labels. Falls back to ``features[i].date`` or
-            ``"Session N"``.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure suptitle.
         figsize: Width × height in inches.
 
@@ -297,8 +301,8 @@ def plot_longitudinal_heatmap(
                 f"{name} length ({len(lst)}) must match features length ({n})"
             )
 
-    if labels is None:
-        labels = [
+    if session_labels is None:
+        session_labels = [
             str(f.date) if f.date else f"Session {i + 1}"
             for i, f in enumerate(features)
         ]
@@ -390,7 +394,7 @@ def plot_longitudinal_heatmap(
     ax.set_xticks(range(n_cols))
     ax.set_xticklabels([m[0] for m in cols_meta], fontsize=8)
     ax.set_yticks(range(n))
-    ax.set_yticklabels(labels, fontsize=8)
+    ax.set_yticklabels(session_labels, fontsize=8)
     ax.invert_yaxis()
     ax.xaxis.tick_top()
     ax.xaxis.set_label_position("top")
@@ -414,7 +418,8 @@ def plot_longitudinal_heatmap(
 
 def plot_readiness_evolution(
     features: list[HRVFeatures],
-    labels: list[str] | None = None,
+    session_labels: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     title: str = "Readiness Score Evolution",
     figsize: tuple[float, float] = (12, 5),
 ) -> Figure:
@@ -427,8 +432,10 @@ def plot_readiness_evolution(
     Args:
         features: List of :class:`~cardiolab.protocols.resting.HRVFeatures` in
             chronological order.
-        labels: Session labels. Falls back to ``features[i].date`` or
-            ``"Session N"``.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure suptitle.
         figsize: Width × height in inches.
 
@@ -450,12 +457,12 @@ def plot_readiness_evolution(
                 f"features[{i}] must be an HRVFeatures, got {type(f).__name__}"
             )
     n = len(features)
-    if labels is not None and len(labels) != n:
+    if session_labels is not None and len(session_labels) != n:
         raise ValueError(
-            f"labels length ({len(labels)}) must match features length ({n})"
+            f"session_labels length ({len(session_labels)}) must match features length ({n})"
         )
-    if labels is None:
-        labels = [
+    if session_labels is None:
+        session_labels = [
             str(f.date) if f.date else f"Session {i + 1}"
             for i, f in enumerate(features)
         ]
@@ -520,14 +527,38 @@ def plot_readiness_evolution(
         )
 
     # Right-margin zone labels
-    ax.text(n - 0.5, 16.5, "Low", ha="right", va="center", fontsize=8, color=_GRAY)
-    ax.text(n - 0.5, 49.5, "Moderate", ha="right", va="center", fontsize=8, color=_GRAY)
-    ax.text(n - 0.5, 83.0, "Good", ha="right", va="center", fontsize=8, color=_GRAY)
+    ax.text(
+        n - 0.5,
+        16.5,
+        lbl(labels, "zone_score_low", "Low"),
+        ha="right",
+        va="center",
+        fontsize=8,
+        color=_GRAY,
+    )
+    ax.text(
+        n - 0.5,
+        49.5,
+        lbl(labels, "zone_score_moderate", "Moderate"),
+        ha="right",
+        va="center",
+        fontsize=8,
+        color=_GRAY,
+    )
+    ax.text(
+        n - 0.5,
+        83.0,
+        lbl(labels, "zone_score_good", "Good"),
+        ha="right",
+        va="center",
+        fontsize=8,
+        color=_GRAY,
+    )
 
     ax.set_xticks(xs)
-    ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=9)
+    ax.set_xticklabels(session_labels, rotation=30, ha="right", fontsize=9)
     ax.set_ylim(0.0, 100.0)
-    ax.set_ylabel("Readiness Score (0–100)", fontsize=10)
+    ax.set_ylabel(lbl(labels, "score", "Readiness Score") + " (0–100)", fontsize=10)
     ax.legend(loc="upper left", fontsize=8)
     ax.grid(alpha=0.20, linestyle=":", axis="y")
     fig.suptitle(title, fontsize=12, fontweight="bold")
@@ -538,7 +569,8 @@ def plot_readiness_evolution(
 def plot_score_evolution(
     results: list,
     protocol_name: str = "Protocol",
-    labels: list[str] | None = None,
+    session_labels: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     title: str | None = None,
     figsize: tuple[float, float] = (12, 5),
 ) -> Figure:
@@ -559,8 +591,10 @@ def plot_score_evolution(
             optionally a ``.date`` attribute used for automatic x-axis labels.
         protocol_name: Human-readable protocol name used in the y-axis label
             and default title. Defaults to ``"Protocol"``.
-        labels: Explicit x-axis session labels. Falls back to
-            ``result.date`` or ``"Session N"`` if not provided.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure suptitle. Defaults to
             ``"<protocol_name> — Score Evolution"``.
         figsize: Width × height in inches. Defaults to ``(12, 5)``.
@@ -575,12 +609,12 @@ def plot_score_evolution(
     if len(results) == 0:
         raise ValueError("results must contain at least one item.")
     n = len(results)
-    if labels is not None and len(labels) != n:
+    if session_labels is not None and len(session_labels) != n:
         raise ValueError(
-            f"labels length ({len(labels)}) must match results length ({n})"
+            f"session_labels length ({len(session_labels)}) must match results length ({n})"
         )
-    if labels is None:
-        labels = [
+    if session_labels is None:
+        session_labels = [
             str(getattr(r, "date", None) or f"Session {i + 1}")
             for i, r in enumerate(results)
         ]
@@ -642,12 +676,36 @@ def plot_score_evolution(
         )
 
     # Right-margin zone labels
-    ax.text(n - 0.5, 16.5, "Low", ha="right", va="center", fontsize=8, color=_GRAY)
-    ax.text(n - 0.5, 49.5, "Moderate", ha="right", va="center", fontsize=8, color=_GRAY)
-    ax.text(n - 0.5, 83.0, "Good", ha="right", va="center", fontsize=8, color=_GRAY)
+    ax.text(
+        n - 0.5,
+        16.5,
+        lbl(labels, "zone_score_low", "Low"),
+        ha="right",
+        va="center",
+        fontsize=8,
+        color=_GRAY,
+    )
+    ax.text(
+        n - 0.5,
+        49.5,
+        lbl(labels, "zone_score_moderate", "Moderate"),
+        ha="right",
+        va="center",
+        fontsize=8,
+        color=_GRAY,
+    )
+    ax.text(
+        n - 0.5,
+        83.0,
+        lbl(labels, "zone_score_good", "Good"),
+        ha="right",
+        va="center",
+        fontsize=8,
+        color=_GRAY,
+    )
 
     ax.set_xticks(xs)
-    ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=9)
+    ax.set_xticklabels(session_labels, rotation=30, ha="right", fontsize=9)
     ax.set_ylim(0.0, 100.0)
     ax.set_ylabel(f"{protocol_name} Score (0–100)", fontsize=10)
     ax.legend(loc="upper left", fontsize=8)

@@ -266,7 +266,9 @@ class TestPlotVo2maxEvolution:
     ) -> None:
         """Display custom labels on x-axis ticks."""
         labels = ["Session A", "Session B"]
-        fig = plot_vo2max_evolution([result_good, result_excellent], labels=labels)
+        fig = plot_vo2max_evolution(
+            [result_good, result_excellent], session_labels=labels
+        )
         tick_texts = [t.get_text() for t in fig.axes[0].get_xticklabels()]
         assert "Session A" in tick_texts
         assert "Session B" in tick_texts
@@ -330,7 +332,7 @@ class TestPlotVo2maxEvolution:
     def test_value_error_labels_mismatch(self, result_good: VO2maxResult) -> None:
         """Raise ValueError when labels length mismatches results."""
         with pytest.raises(ValueError, match="labels length"):
-            plot_vo2max_evolution([result_good], labels=["A", "B"])
+            plot_vo2max_evolution([result_good], session_labels=["A", "B"])
 
     def test_multi_session_mix(
         self,

@@ -16,6 +16,7 @@ import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.patches import Wedge
 
+from cardiolab.labels import lbl
 from cardiolab.protocols.hrr import HRRResult
 from cardiolab.signals.rr import RRSeries
 
@@ -72,6 +73,12 @@ _HRR_ZONES: list[tuple[float, float, str, str]] = [
     (_HRR_NORMAL_BPM, _HRR_GOOD_BPM, "#fdebd0", "Normal   (12–19)"),
     (_HRR_GOOD_BPM, _HRR_EXCELLENT_BPM, "#d6eaf8", "Good     (20–24)"),
     (_HRR_EXCELLENT_BPM, _HRR_MAX_GAUGE_BPM, "#d5f5e3", "Excellent (≥ 25)"),
+]
+_HRR_ZONE_KEYS = [
+    "zone_hrr_impaired",
+    "zone_hrr_normal",
+    "zone_hrr_good",
+    "zone_hrr_excellent",
 ]
 
 
@@ -164,7 +171,8 @@ def plot_hrr_curve(
 def plot_hrr_comparison(
     rr_list: list[RRSeries],
     results: list[HRRResult],
-    labels: list[str] | None = None,
+    session_labels: list[str] | None = None,
+    labels: dict[str, str] | None = None,
     fs: float = _HRR_INTERP_FS,
     title: str = "Heart Rate Recovery — Session Comparison",
     figsize: tuple[float, float] = (12, 6),
@@ -179,7 +187,10 @@ def plot_hrr_comparison(
         rr_list: Post-exercise :class:`~cardiolab.signals.rr.RRSeries` per session.
         results: :class:`~cardiolab.protocols.hrr.HRRResult` per session.
             Must have the same length as ``rr_list``.
-        labels: Session labels. Falls back to ``result.date`` or ``"Session N"``.
+        session_labels: X-axis session labels. Falls back to date attributes
+            or ``'Session N'`` when ``None``.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         fs: Resampling frequency in Hz. Defaults to 4.0.
         title: Figure title.
         figsize: Width × height of the figure in inches.
@@ -196,11 +207,11 @@ def plot_hrr_comparison(
     _validate_rr_results(rr_list, results)
     n = len(results)
 
-    if labels is not None and len(labels) != n:
+    if session_labels is not None and len(session_labels) != n:
         raise ValueError(
-            f"labels length ({len(labels)}) must match results length ({n})"
+            f"session_labels length ({len(session_labels)}) must match results length ({n})"
         )
-    labels = labels or _default_labels(results)
+    session_labels = session_labels or _default_labels(results)
 
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -215,7 +226,9 @@ def plot_hrr_comparison(
     ax.text(60.5, 1.5, "60 s", fontsize=7, color=_GRAY)
 
     max_t = 0.0
-    for idx, (rr, res, lbl) in enumerate(zip(rr_list, results, labels, strict=False)):
+    for idx, (rr, res, session_lbl) in enumerate(
+        zip(rr_list, results, session_labels, strict=False)
+    ):
         color = _PALETTE[idx % len(_PALETTE)]
         time_s, hr_interp = _hrr_time_series(rr, fs)
         hr_drop = res.hr_peak - hr_interp
@@ -226,7 +239,7 @@ def plot_hrr_comparison(
             hr_drop,
             color=color,
             linewidth=1.6,
-            label=f"{lbl}  HRR1={res.hrr_60:.0f} ({cat})",
+            label=f"{session_lbl}  HRR1={res.hrr_60:.0f} ({cat})",
             zorder=4,
         )
         # Marker at 60 s
@@ -235,12 +248,14 @@ def plot_hrr_comparison(
         max_t = max(max_t, float(time_s[-1]))
 
     # Zone labels on the right margin
-    for low, high, _, zone_label in _HRR_ZONES:
+    for (low, high, _, zone_label), zone_key in zip(
+        _HRR_ZONES, _HRR_ZONE_KEYS, strict=True
+    ):
         mid = (low + high) / 2.0
         ax.text(
             max_t * 0.99,
             mid,
-            zone_label,
+            lbl(labels, zone_key, zone_label),
             ha="right",
             va="center",
             fontsize=7,
@@ -250,7 +265,7 @@ def plot_hrr_comparison(
     ax.set_xlim(left=0.0)
     ax.set_ylim(bottom=0.0)
     ax.set_xlabel("Time post-peak (s)", fontsize=10)
-    ax.set_ylabel("HR drop from peak (bpm)", fontsize=10)
+    ax.set_ylabel(lbl(labels, "hrr_60", "HR drop from peak (bpm)"), fontsize=10)
     ax.legend(loc="upper left", fontsize=8)
     ax.grid(alpha=0.20, linestyle=":", axis="both")
     fig.suptitle(title, fontsize=13, fontweight="bold", y=1.01)
@@ -260,6 +275,7 @@ def plot_hrr_comparison(
 
 def plot_hrr_gauge(
     result: HRRResult,
+    labels: dict[str, str] | None = None,
     title: str = "HRR1 Gauge",
     figsize: tuple[float, float] = (6, 4),
 ) -> Figure:
@@ -272,6 +288,8 @@ def plot_hrr_gauge(
     Args:
         result: :class:`~cardiolab.protocols.hrr.HRRResult` from
             :func:`~cardiolab.protocols.hrr.heart_rate_recovery`.
+        labels: Translation dict (:data:`~cardiolab.labels.LABELS_EN` or
+            :data:`~cardiolab.labels.LABELS_FR`). Pass ``None`` for no translation.
         title: Figure title.
         figsize: Width × height of the figure in inches.
 
@@ -341,13 +359,15 @@ def plot_hrr_gauge(
 
     # ── Zone labels (inside sectors) ─────────────────────────────────────────
     zone_label_r = (_GAUGE_R_OUTER + _GAUGE_R_INNER) / 2.0
-    for low, high, _, zone_label in _HRR_ZONES:
+    for (low, high, _, zone_label), zone_key in zip(
+        _HRR_ZONES, _HRR_ZONE_KEYS, strict=True
+    ):
         mid_val = (low + high) / 2.0
         angle_rad = math.radians(_angle_from_hrr(mid_val))
         xl = zone_label_r * math.cos(angle_rad)
         yl = zone_label_r * math.sin(angle_rad)
         # Remove the threshold range from the label (just keep the word)
-        word = zone_label.split()[0]
+        word = lbl(labels, zone_key, zone_label).split()[0]
         ax.text(
             xl,
             yl,

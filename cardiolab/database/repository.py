@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import os
 import re
+import uuid
 from dataclasses import dataclass
 
 from psycopg2 import connect, sql
@@ -191,6 +192,8 @@ _ORTHO_COLUMNS: dict[str, str] = {
     "lf_hf_ratio_change": "FLOAT",
     "hf_response_pct": "FLOAT",
     "hf_hr_pct_change": "FLOAT",
+    "lf_hr_pct_change": "FLOAT",
+    "delta_rmssd": "FLOAT",
     "interpretation": "TEXT",
     # ── Methodological metadata ───────────────────────────────────────────
     # Single column for all phases: all three calls to resting_hrv() use the
@@ -297,6 +300,35 @@ _VO2MAX_DATA_COLUMNS: list[str] = [
 
 
 # ======================
+# TRAINING SESSIONS — COLUMN REGISTRY
+# ======================
+
+_TRAINING_SESSIONS_COLUMNS: dict[str, str] = {
+    "user_id": "TEXT NOT NULL",
+    "date": "DATE NOT NULL",
+    "duration_min": "FLOAT",
+    "sport_type": "TEXT",
+    "trimp": "FLOAT",
+    "notes": "TEXT",
+}
+
+# Columns writable by save_training_session() (excludes activity_id, user_id, date)
+_TRAINING_SESSIONS_DATA_COLUMNS: list[str] = [
+    c for c in _TRAINING_SESSIONS_COLUMNS if c not in ("user_id", "date")
+]
+
+# All columns returned by load/find (activity_id first, then data columns)
+_TRAINING_SESSIONS_SELECT_COLUMNS: list[str] = [
+    "activity_id",
+    "date",
+    "duration_min",
+    "sport_type",
+    "trimp",
+    "notes",
+]
+
+
+# ======================
 # ORTHOSTATIC RECORD (load return type)
 # ======================
 
@@ -348,6 +380,8 @@ class OrthostaticRecord:
     lf_hf_ratio_change: float
     hf_response_pct: float
     hf_hr_pct_change: float
+    lf_hr_pct_change: float
+    delta_rmssd: float
     interpretation: str
     score: float = 0.0
 
@@ -403,6 +437,8 @@ class OrthostaticRecord:
             "lf_hf_ratio_change": self.lf_hf_ratio_change,
             "hf_response_pct": self.hf_response_pct,
             "hf_hr_pct_change": self.hf_hr_pct_change,
+            "lf_hr_pct_change": self.lf_hr_pct_change,
+            "delta_rmssd": self.delta_rmssd,
             "interpretation": self.interpretation,
             "score": self.score,
         }
@@ -429,6 +465,8 @@ class OrthostaticRecord:
             "lf_hf_change": self.lf_hf_ratio_change,
             "hf_response_pct": self.hf_response_pct,
             "hf_hr_pct_change": self.hf_hr_pct_change,
+            "lf_hr_pct_change": self.lf_hr_pct_change,
+            "delta_rmssd": self.delta_rmssd,
             "interpretation": self.interpretation,
             "score": self.score,
         }
@@ -593,11 +631,13 @@ def _build_ortho_row(
         stf.sampen,
         # standing_duration_sec (1)
         p.standing.duration_sec,
-        # derived (5)
+        # derived (7)
         result.hr_response,
         result.lf_hf_ratio_change,
         result.hf_response_pct,
         result.hf_hr_pct_change,
+        result.lf_hr_pct_change,
+        result.delta_rmssd,
         result.interpretation,
         # spectral_method (1) — same for all phases
         sf.method,
@@ -689,6 +729,7 @@ class HRVRepository:
         drift_table_name: str = "hrv_drift",
         vo2max_table_name: str = "hrv_vo2max",
         raw_sessions_table_name: str = "hrv_raw_sessions",
+        training_sessions_table_name: str = "hrv_training_sessions",
         port: int = 5432,
     ) -> None:
         """Store connection parameters and validate table names."""
@@ -700,6 +741,7 @@ class HRVRepository:
             drift_table_name,
             vo2max_table_name,
             raw_sessions_table_name,
+            training_sessions_table_name,
         ):
             _validate_identifier(name)
         self._dsn = {
@@ -716,6 +758,7 @@ class HRVRepository:
         self.drift_table_name = drift_table_name
         self.vo2max_table_name = vo2max_table_name
         self.raw_sessions_table_name = raw_sessions_table_name
+        self.training_sessions_table_name = training_sessions_table_name
         self._conn = None
 
     # ── Factory ──────────────────────────────────────────────────────────
@@ -730,6 +773,7 @@ class HRVRepository:
         drift_table_name: str = "hrv_drift",
         vo2max_table_name: str = "hrv_vo2max",
         raw_sessions_table_name: str = "hrv_raw_sessions",
+        training_sessions_table_name: str = "hrv_training_sessions",
     ) -> HRVRepository:
         """Build a repository from environment variables.
 
@@ -757,6 +801,8 @@ class HRVRepository:
                 ``"hrv_vo2max"``.
             raw_sessions_table_name: Raw RR intervals table name. Defaults to
                 ``"hrv_raw_sessions"``.
+            training_sessions_table_name: Training sessions table name.
+                Defaults to ``"hrv_training_sessions"``.
 
         Returns:
             A configured ``HRVRepository`` instance (not yet connected).
@@ -778,6 +824,7 @@ class HRVRepository:
             drift_table_name=drift_table_name,
             vo2max_table_name=vo2max_table_name,
             raw_sessions_table_name=raw_sessions_table_name,
+            training_sessions_table_name=training_sessions_table_name,
         )
 
     # ── Connection lifecycle ──────────────────────────────────────────────
@@ -1145,38 +1192,43 @@ class HRVRepository:
             cur.execute(query, (user_id,))
             rows = cur.fetchall()
 
+        col_names = ["date"] + _ORTHO_DATA_COLUMNS
         records = []
-        for row in rows:
-            date = str(row[0])
-            # Row layout mirrors _ORTHO_DATA_COLUMNS — offsets start at 1 (skip date).
-            # [1..19]  supine HRV (19)    [20] supine_duration_sec
-            # [21..25] transition timing   [26..44] transition HRV (19)
-            # [45..63] standing HRV (19)  [64] standing_duration_sec
-            # [65..69] derived metrics (5)  [70] spectral_method  [71] score
-            spectral_method: str = row[70] or "welch"
-            supine = _features_from_row(row, offset=1, date=date, duration=row[20])
+        for raw in rows:
+            r = dict(zip(col_names, raw, strict=False))
+            date = str(r["date"])
+            # HRV phase offsets are positional (unchanged by adding derived cols at end):
+            # raw[1..19] supine HRV, raw[26..44] transition HRV, raw[45..63] standing HRV
+            spectral_method: str = r.get("spectral_method") or "welch"
+            supine = _features_from_row(
+                raw, offset=1, date=date, duration=r["supine_duration_sec"]
+            )
             supine.method = spectral_method
-            transition = _features_from_row(row, offset=26, date=date)
+            transition = _features_from_row(raw, offset=26, date=date)
             transition.method = spectral_method
-            standing = _features_from_row(row, offset=45, date=date, duration=row[64])
+            standing = _features_from_row(
+                raw, offset=45, date=date, duration=r["standing_duration_sec"]
+            )
             standing.method = spectral_method
             records.append(
                 OrthostaticRecord(
                     date=date,
                     supine=supine,
-                    transition_start_sec=row[21],
-                    transition_end_sec=row[22],
-                    transition_duration_sec=row[23],
-                    transition_delta_hr=row[24],
-                    transition_peak_hr=row[25],
+                    transition_start_sec=r["transition_start_sec"],
+                    transition_end_sec=r["transition_end_sec"],
+                    transition_duration_sec=r["transition_duration_sec"],
+                    transition_delta_hr=r["transition_delta_hr"],
+                    transition_peak_hr=r["transition_peak_hr"],
                     transition_features=transition,
                     standing=standing,
-                    hr_response=row[65],
-                    lf_hf_ratio_change=row[66],
-                    hf_response_pct=row[67],
-                    hf_hr_pct_change=row[68],
-                    interpretation=row[69],
-                    score=row[71] if row[71] is not None else 0.0,
+                    hr_response=r["hr_response"],
+                    lf_hf_ratio_change=r["lf_hf_ratio_change"],
+                    hf_response_pct=r["hf_response_pct"],
+                    hf_hr_pct_change=r["hf_hr_pct_change"],
+                    lf_hr_pct_change=r["lf_hr_pct_change"],
+                    delta_rmssd=r["delta_rmssd"],
+                    interpretation=r["interpretation"],
+                    score=r.get("score") or 0.0,
                 )
             )
 
@@ -1898,5 +1950,212 @@ class HRVRepository:
                 "created_at": str(row[6]) if row[6] else None,
                 "metadata": row[7] if isinstance(row[7], dict) else {},
             }
+            for row in rows
+        ]
+
+    # ── Training sessions — schema ────────────────────────────────────────
+
+    def create_training_sessions_table(self) -> None:
+        """Create the training sessions table if it does not already exist.
+
+        Schema::
+
+            activity_id  TEXT PRIMARY KEY   -- UUID generated in Python (uuid4)
+            user_id      TEXT NOT NULL
+            date         DATE NOT NULL
+            duration_min FLOAT              -- duration in minutes
+            sport_type   TEXT               -- e.g. "running", "cycling"
+            trimp        FLOAT              -- nullable: computed later if readiness absent
+            notes        TEXT               -- free-text notes
+
+        Design rationale: one row per **activity**, not per day.  Multiple
+        activities on the same day are each stored as independent rows, each
+        with their own ``activity_id``.  ATL/CTL/TSB aggregation (TRIMP sum
+        per day) is handled by :meth:`TrainingLoad.from_sessions
+        <cardiolab.analytics.training_load.TrainingLoad.from_sessions>`.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the SQL statement is rejected.
+
+        """
+        columns_sql = ",\n    ".join(
+            f"{k} {v}" for k, v in _TRAINING_SESSIONS_COLUMNS.items()
+        )
+        query = sql.SQL(
+            "CREATE TABLE IF NOT EXISTS {table} (\n"
+            "    activity_id TEXT PRIMARY KEY,\n"
+            "    {columns}\n"
+            ");"
+        ).format(
+            table=sql.Identifier(self.training_sessions_table_name),
+            columns=sql.SQL(columns_sql),
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query)
+
+    # ── Training sessions — write ─────────────────────────────────────────
+
+    def save_training_session(
+        self,
+        user_id: str,
+        date: str,
+        duration_min: float | None = None,
+        sport_type: str | None = None,
+        trimp: float | None = None,
+        notes: str | None = None,
+    ) -> str:
+        """Insert a new training activity and return its ``activity_id``.
+
+        Each call always inserts a **new row** — there is no upsert.  Multiple
+        activities on the same day are each stored independently and identified
+        by their ``activity_id``.  The caller is responsible for not inserting
+        duplicates when that matters (e.g. an interface should confirm before
+        logging a second activity of the same sport on the same day).
+
+        Args:
+            user_id: User identifier.
+            date: ISO date string (e.g. ``"2026-05-29"``).
+            duration_min: Duration of the training session in minutes.
+            sport_type: Sport type label (e.g. ``"running"``, ``"cycling"``).
+            trimp: Pre-computed TRIMP value. May be ``None`` when the
+                readiness score for the day is not available yet.
+            notes: Free-text notes about the session.
+
+        Returns:
+            The ``activity_id`` (UUID string) of the newly created row.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the insert fails.
+
+        """
+        activity_id = str(uuid.uuid4())
+        all_cols = ["activity_id", "user_id", "date"] + _TRAINING_SESSIONS_DATA_COLUMNS
+        col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
+        placeholders = sql.SQL(", ").join(
+            sql.Placeholder() for _ in range(len(all_cols))
+        )
+        query = sql.SQL("INSERT INTO {table} ({cols}) VALUES ({vals});").format(
+            table=sql.Identifier(self.training_sessions_table_name),
+            cols=col_identifiers,
+            vals=placeholders,
+        )
+        row = (activity_id, user_id, date, duration_min, sport_type, trimp, notes)
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, row)
+        return activity_id
+
+    def delete_training_session(self, activity_id: str) -> bool:
+        """Delete a training activity by its unique ``activity_id``.
+
+        Args:
+            activity_id: UUID string identifying the activity to delete.
+
+        Returns:
+            ``True`` if a row was deleted, ``False`` if no matching row existed.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the delete fails.
+
+        """
+        query = sql.SQL("DELETE FROM {table} WHERE activity_id = %s;").format(
+            table=sql.Identifier(self.training_sessions_table_name)
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (activity_id,))
+            return cur.rowcount == 1
+
+    # ── Training sessions — read ──────────────────────────────────────────
+
+    def load_training_sessions(self, user_id: str) -> list[dict]:
+        """Load all training activities for a user, sorted by date then activity_id.
+
+        Args:
+            user_id: User identifier.
+
+        Returns:
+            List of dicts, one per activity, sorted ascending by date.
+            Each dict has keys: ``activity_id``, ``date``, ``duration_min``,
+            ``sport_type``, ``trimp``, ``notes``.
+            Multiple activities on the same day appear as distinct rows.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        sel = sql.SQL(", ").join(
+            sql.Identifier(c) for c in _TRAINING_SESSIONS_SELECT_COLUMNS
+        )
+        query = sql.SQL(
+            "SELECT {sel}\n"
+            "FROM {table}\n"
+            "WHERE user_id = %s\n"
+            "ORDER BY date ASC, activity_id ASC;"
+        ).format(
+            sel=sel,
+            table=sql.Identifier(self.training_sessions_table_name),
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (user_id,))
+            rows = cur.fetchall()
+        return [
+            dict(zip(_TRAINING_SESSIONS_SELECT_COLUMNS, row, strict=False))
+            | {"date": str(row[1])}
+            for row in rows
+        ]
+
+    def find_training_sessions(
+        self,
+        user_id: str,
+        date: str,
+        sport_type: str | None = None,
+    ) -> list[dict]:
+        """Find activities for a user on a given date, optionally filtered by sport.
+
+        Intended for the delete workflow: look up which activities exist before
+        asking the user to confirm or choose by ``activity_id``.
+
+        Args:
+            user_id: User identifier.
+            date: ISO date string (``"YYYY-MM-DD"``).
+            sport_type: Optional sport filter.  When ``None``, all activities
+                on the date are returned regardless of sport type.
+
+        Returns:
+            List of matching activity dicts (same keys as
+            :meth:`load_training_sessions`), ordered by sport_type then
+            activity_id.  Empty list when nothing matches.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        sel = sql.SQL(", ").join(
+            sql.Identifier(c) for c in _TRAINING_SESSIONS_SELECT_COLUMNS
+        )
+        if sport_type is not None:
+            query = sql.SQL(
+                "SELECT {sel} FROM {table}\n"
+                "WHERE user_id = %s AND date = %s AND sport_type = %s\n"
+                "ORDER BY sport_type ASC, activity_id ASC;"
+            ).format(sel=sel, table=sql.Identifier(self.training_sessions_table_name))
+            params: tuple = (user_id, date, sport_type)
+        else:
+            query = sql.SQL(
+                "SELECT {sel} FROM {table}\n"
+                "WHERE user_id = %s AND date = %s\n"
+                "ORDER BY sport_type ASC, activity_id ASC;"
+            ).format(sel=sel, table=sql.Identifier(self.training_sessions_table_name))
+            params = (user_id, date)
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+        return [
+            dict(zip(_TRAINING_SESSIONS_SELECT_COLUMNS, row, strict=False))
+            | {"date": str(row[1])}
             for row in rows
         ]

@@ -90,8 +90,10 @@ def _make_result(interpretation: str = "normal") -> OrthostaticResult:
         ),
         hr_response=15.0,
         lf_hf_ratio_change=1.4,
-        hf_response_pct=-35.0,
-        hf_hr_pct_change=-28.0,
+        hf_response_pct=35.0,
+        hf_hr_pct_change=55.0,
+        lf_hr_pct_change=30.0,
+        delta_rmssd=18.0,
         interpretation=interpretation,
     )
 
@@ -158,38 +160,38 @@ class TestTableOrthostaticComparison:
     def test_supine_standing_columns_present(
         self, one_result: OrthostaticResult
     ) -> None:
-        """Supine and standing RMSSD and HR columns exist."""
+        """Supine and standing RMSSD/HR columns exist under MultiIndex."""
         styler = table_orthostatic_comparison([one_result])
         cols = set(styler.data.columns)
-        assert "supine_rmssd" in cols
-        assert "standing_rmssd" in cols
-        assert "supine_mean_hr" in cols
-        assert "standing_mean_hr" in cols
+        assert ("Supine", "rmssd") in cols
+        assert ("Standing", "rmssd") in cols
+        assert ("Supine", "mean_hr") in cols
+        assert ("Standing", "mean_hr") in cols
 
     def test_delta_columns_present(self, one_result: OrthostaticResult) -> None:
-        """Delta / response columns and interpretation are present."""
+        """Response columns and interpretation are present under MultiIndex."""
         styler = table_orthostatic_comparison([one_result])
         cols = set(styler.data.columns)
         for col in (
-            "hr_response",
-            "lf_hf_change",
-            "hf_response_pct",
-            "hf_hr_pct_change",
-            "interpretation",
+            ("Autonomic response", "hr_response"),
+            ("Autonomic response", "lf_hf_change"),
+            ("Autonomic response", "hf_response_pct"),
+            ("Autonomic response", "hf_hr_pct_change"),
+            ("Autonomic response", "interpretation"),
         ):
             assert col in cols
 
     def test_custom_dates(self, two_results: list[OrthostaticResult]) -> None:
-        """Custom date labels appear in the date column."""
+        """Custom date labels appear as DataFrame index."""
         dates = ["2024-01-01", "2024-01-08"]
         styler = table_orthostatic_comparison(two_results, dates=dates)
-        assert list(styler.data["date"]) == dates
+        assert list(styler.data.index) == dates
 
     def test_default_dates_fallback(self, two_results: list[OrthostaticResult]) -> None:
-        """Default date labels follow 'Session N' pattern."""
+        """Default date labels follow 'Session N' pattern in the index."""
         styler = table_orthostatic_comparison(two_results)
-        assert styler.data["date"].iloc[0] == "Session 1"
-        assert styler.data["date"].iloc[1] == "Session 2"
+        assert styler.data.index[0] == "Session 1"
+        assert styler.data.index[1] == "Session 2"
 
     def test_dates_length_mismatch_raises(
         self, two_results: list[OrthostaticResult]
@@ -206,12 +208,17 @@ class TestTableOrthostaticComparison:
     def test_hr_response_value(self, one_result: OrthostaticResult) -> None:
         """HR response value is stored correctly."""
         styler = table_orthostatic_comparison([one_result])
-        assert pytest.approx(styler.data["hr_response"].iloc[0], rel=1e-3) == 15.0
+        assert (
+            pytest.approx(
+                styler.data[("Autonomic response", "hr_response")].iloc[0], rel=1e-3
+            )
+            == 15.0
+        )
 
     def test_interpretation_value(self, one_result: OrthostaticResult) -> None:
         """Interpretation string is stored correctly."""
         styler = table_orthostatic_comparison([one_result])
-        assert styler.data["interpretation"].iloc[0] == "normal"
+        assert styler.data[("Autonomic response", "interpretation")].iloc[0] == "normal"
 
     def test_not_a_list_raises(self) -> None:
         """Raise TypeError when input is not a list."""
@@ -234,14 +241,19 @@ class TestTableOrthostaticComparison:
     def test_lf_hf_change_value(self, one_result: OrthostaticResult) -> None:
         """LF/HF change value is stored correctly."""
         styler = table_orthostatic_comparison([one_result])
-        assert pytest.approx(styler.data["lf_hf_change"].iloc[0], rel=1e-3) == 1.4
+        assert (
+            pytest.approx(
+                styler.data[("Autonomic response", "lf_hf_change")].iloc[0], rel=1e-3
+            )
+            == 1.4
+        )
 
     def test_interpretation_categories(
         self, two_results: list[OrthostaticResult]
     ) -> None:
         """Both 'normal' and 'impaired' interpretations appear in the table."""
         styler = table_orthostatic_comparison(two_results)
-        interps = list(styler.data["interpretation"])
+        interps = list(styler.data[("Autonomic response", "interpretation")])
         assert "normal" in interps
         assert "impaired" in interps
 

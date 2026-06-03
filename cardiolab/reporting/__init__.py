@@ -12,11 +12,17 @@ Public API::
         table_coherence_history,
         table_vo2max_history,
         table_vo2max_session,
+        table_training_load_history,
+        summary_training_load,
+        LABELS_EN,
+        LABELS_FR,
+        lbl,
     )
 """
 
 from __future__ import annotations
 
+from cardiolab.labels import LABELS_EN, LABELS_FR, lbl
 from cardiolab.reporting.coherence import table_coherence_history
 from cardiolab.reporting.drift import table_drift_history
 from cardiolab.reporting.hrr import table_hrr_history
@@ -27,6 +33,10 @@ from cardiolab.reporting.orthostatic import (
 from cardiolab.reporting.resting import (
     table_resting_history,
     table_resting_session,
+)
+from cardiolab.reporting.training_load_report import (
+    summary_training_load,
+    table_training_load_history,
 )
 from cardiolab.reporting.vo2max import (
     table_vo2max_history,
@@ -41,6 +51,11 @@ __all__ = [
     "table_orthostatic_history",
     "table_resting_history",
     "table_resting_session",
+    "table_training_load_history",
+    "summary_training_load",
     "table_vo2max_history",
     "table_vo2max_session",
+    "LABELS_EN",
+    "LABELS_FR",
+    "lbl",
 ]

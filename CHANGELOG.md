@@ -7,16 +7,243 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.2.0] - 2026-06-03
+
+### Fixed — Post-review bugfixes (2026-06-03)
+
+- `signals/rr.py` — `remove_outliers(method="zscore")` no longer crashes when all
+  intervals are identical (std = 0). Previously, dividing by zero produced NaN z-scores,
+  the filter mask became all-False, and the resulting empty array raised
+  `ValueError: RRSeries must contain at least 2 intervals`. The series is now returned
+  unchanged when std = 0.
+- `signals/rr.py` — `segment()` now propagates timestamps to each produced segment.
+  Previously, segments were always created without timestamps even when the source
+  `RRSeries` had an explicit timestamp array.
+- `visualization/rr_plots.py` — `plot_rr_tachogram()` no longer emits
+  `UserWarning: No artists with labels found` when `show_mean=False` and no coloured band
+  is displayed. `ax.legend()` is now called only when at least one labelled artist exists.
+- `tests/conftest.py` — `baseline_30days` fixture generated invalid date strings
+  (`"2026-04-31"` through `"2026-04-42"`). Dates are now computed with `timedelta` from a
+  fixed start date.
+
+### Added — v0.2.0 Pre-release improvements
+
+#### Bilingual label system — `cardiolab/labels.py`
+
+A new shared module provides human-readable display strings for all metrics, clinical
+zones, and protocol names, usable by both reporting and visualization layers:
+
+- `LABELS_EN` — English labels (default in the package).
+- `LABELS_FR` — French labels, intended for `local/` scripts.
+- `lbl(labels, key, default)` — lookup helper with safe fallback.
+- **Metrics covered:** all HRV time-domain, frequency-domain, non-linear, orthostatic
+  response, coherence, HRR, drift, VO2max, training load, and protocol name keys.
+- **Clinical zones covered:** readiness score bands, coherence zones, HRR zones, drift
+  zones, VO2max zones, TSB zones — all translatable via `zone_*` keys.
+- All 8 reporting functions (`table_*_history`) and all visualization functions accept a
+  `labels: dict[str, str] | None = None` parameter; session-axis labels are now passed via
+  the distinct `session_labels` parameter.
+- `apply_labels()` in `reporting/_core.py` uses `Styler.format_index()` to rename column
+  headers for display without touching the underlying data or breaking gradient styles.
+
+#### Orthostatic protocol — enriched metrics and new visualisation
+
+- `OrthostaticResult` gains two new computed fields:
+  - `lf_hr_pct_change` — LF/FC relative change supine → standing (%), positive = normal
+    sympathetic activation; < 10 % signals blunted response (chronic fatigue marker).
+  - `delta_rmssd` — absolute RMSSD drop supine → standing (ms), complementary to
+    `hf_hr_pct_change`; useful for day-to-day within-individual tracking.
+- `table_orthostatic_comparison` completely redesigned:
+  - Three-phase MultiIndex layout: **Supine | Transition | Standing | Autonomic response**
+  - Each phase shows the same HRV indicators as a resting session table.
+  - Phase group names are translatable via `_phase_*` keys in the labels dict.
+  - `cols` parameter to select or exclude specific flat column names.
+- `table_orthostatic_history` enriched with `delta_rmssd`, `hf_hr_pct_change`,
+  `lf_hr_pct_change`; filterable via `cols`.
+- `visualization/orthostatic_plots.py` — new module with:
+  - `plot_orthostatic_phases_evolution(results, ...)` — 4-panel plot showing RMSSD/HR per
+    phase across sessions, plus autonomic response magnitudes (ΔHR, ΔRMSSD) and balance
+    indicators (HF/HR%, LF/HR%) as a function of time.
+- DB: `hrv_orthostatic` gains two columns (`lf_hr_pct_change`, `delta_rmssd`); existing
+  tables must be recreated (`DROP TABLE hrv_orthostatic; python local/main_init_db.py`).
+- `load_orthostatic()` refactored from positional column offsets to named dict access.
+- Documentation on all three new orthostatic response metrics:
+  - `hf_hr_pct_change` (> 40 % = healthy vagal withdrawal),
+  - `lf_hr_pct_change` (> 30 % = healthy sympathetic activation),
+  - `delta_rmssd` (> 15 ms = good vagal reactivity).
+
+#### File-based report/visualisation scripts
+
+- `local/main_report_files.py` — read `.txt` files → HTML report without database:
+  - `--protocol` is now **optional** (default: all protocols with available files).
+  - Without `--protocol`, produces a single multi-section HTML report
+    (`<user>_rapport_complet_<ts>.html`).
+  - All tables rendered with `LABELS_FR`.
+- `local/main_visualize_files.py` — read `.txt` files → PNG plots without database:
+  - Corrected 4 silent bugs: missing `scores` arg for resting, missing `rr_list` for HRR
+    comparison, wrong argument type for VO2max comparison, missing `rolling_rmssd` for
+    rolling evolution.
+  - `_process_files()` now also returns `rr_list` (RRSeries per session).
+  - All plots rendered with `LABELS_FR`.
+
+#### `training_load_report.py` — labels support
+
+- `table_training_load_history()` accepts `labels` dict; ATL/CTL/TSB column headers are
+  now translatable.
+
+#### Robustness — test fixtures
+
+- `_test_table_drop()` added to **all** integration test fixtures — forces DROP+recreate
+  before each test class to prevent schema drift failures when column structures change.
+
+---
+
+### Changed — v0.2.0 Multi-activity schema refactor (training_sessions)
+
+**Why this change?**
+
+The initial schema (Phase 1) used a `UNIQUE(user_id, date)` constraint with an upsert on
+`(user_id, date)`. This prevented recording multiple activities on the same day: if a user
+went for a morning run and an evening strength session, the second insert would silently
+overwrite the first — irreversible data loss.
+
+The correct model is **one row per activity, not one row per day**. The constraint has
+therefore been dropped in favour of an `activity_id TEXT PRIMARY KEY` (UUID generated in
+Python via `uuid.uuid4()`, to avoid a dependency on the PostgreSQL `uuid-ossp` extension).
+
+**Where does aggregation responsibility sit?**
+
+Daily aggregation is handled by the analytics layer, not the database. The DB stores raw
+facts (each activity as it happened); `TrainingLoad.from_sessions()` sums TRIMP values per
+date before building the dense series. This is mathematically equivalent:
+`(d₁ + d₂) × (1 − r/100) = d₁ × (1 − r/100) + d₂ × (1 − r/100)`. Separating the
+concerns keeps the DB schema open to future uses (web interface, API) without touching the
+analytics logic.
+
+**Compatibility** — Tables created with the old schema (`UNIQUE(user_id, date)`) must be
+recreated: `python local/main_init_db.py --reset` (⚠️ all existing data will be lost) or
+`DROP TABLE hrv_training_sessions;` followed by `python local/main_init_db.py`.
+
+#### DB — `database/repository.py`
+
+- `hrv_training_sessions` schema revised:
+  - `activity_id TEXT PRIMARY KEY` — UUID primary key (one row = one activity)
+  - `UNIQUE(user_id, date)` removed — multiple activities on the same day are now allowed
+- `save_training_session(...) → str` — pure INSERT (no more upsert), returns the generated `activity_id`
+- `delete_training_session(activity_id: str) → bool` — DELETE by `activity_id`, returns `True` if deleted
+- `find_training_sessions(user_id, date, sport_type=None) → list[dict]` — lookup primitive for the interactive deletion workflow
+- `load_training_sessions()` — each returned dict now includes `activity_id`
+
+#### Analytics — `analytics/training_load.py`
+
+- `TrainingLoad.from_sessions()` — aggregates TRIMP by date (sum) instead of overwriting; activities with `trimp=None` contribute 0 to the sum
+
+#### Local scripts
+
+- `local/main_training_load.py` — interactive `--delete` mode added:
+  - Looks up activities by `(user, date, optional sport)` via `find_training_sessions()`
+  - 0 matches → error message
+  - 1 match → activity details displayed + `y/N` confirmation
+  - N > 1 matches → numbered table (`activity_id`, sport, duration, TRIMP) + number prompt (same interaction pattern planned for the future web interface)
+- `local/main_init_db.py` — bug fix: `hrv_training_sessions` was missing from `_TABLES`; `python local/main_init_db.py` was never creating the training sessions table
+
+#### Tests
+
+- `tests/database/test_repository.py` — 7 new tests: two activities on the same day (allowed), `save` returns a UUID `activity_id`, `delete_activity`, `delete_only_one_of_two`, `delete_nonexistent_returns_false`, `find_by_date`, `find_by_date_and_sport`
+- `tests/analytics/test_training_load.py` — 6 new multi-activity tests: single date entry for two activities, TRIMP summed (30+20=50), higher ATL with two activities, `trimp=None` contributes 0, other dates not shifted, gap between two multi-activity days
+
+---
+
+### Added — v0.2.0 Phase 6 — Local scripts for Training load
+
+- `local/main_training_load.py` — log a session → TRIMP → save → ATL/CTL/TSB plots:
+  - Three TRIMP methods: `hrv` (readiness from the day's HRV measurement via `load_readiness_for_date`), `banister` (HR-reserve formula, requires `--hr-mean/max/rest`), `manual` (readiness entered via `--readiness`)
+  - Readiness protocol selectable from the command line (`--protocol resting|orthostatic`)
+  - `--readiness` fallback when no HRV measurement exists for the target date
+  - `--dry-run` — simulation with no database writes
+  - `--save-plot` — saves the 3 ATL/CTL/TSB plots as PNG files under `local/reports/`
+- `local/main_training_load_report.py` — HTML ATL/CTL/TSB report over a period:
+  - Period filter: `--from / --to` or `--last N` days
+  - KPI summary (ATL, CTL, TSB, zone, CTL trend) + history table + 3 base64-encoded plots
+  - `--open` — opens the report in the browser after generation
+  - Output: `local/reports/<user>_training_load_<ts>.html`
+
+---
+
+### Added — v0.2.0 Phase 5 — Reporting Training load
+
+- `reporting/training_load_report.py` — new module:
+  - `table_training_load_history(training_load, caption_text) → pd.Styler` — dense daily ATL/CTL/TSB history table (one row per day); columns: `date | trimp | atl | ctl | tsb | tsb_zone`; CTL gradient green (high fitness = good); ATL gradient red (high fatigue = bad); `tsb_zone` cell coloured by physiological band using `_TSB_ZONE_COLORS`. Raises `ValueError` on empty input.
+  - `summary_training_load(training_load) → dict` — scalar summary of the latest state; keys: `atl`, `ctl`, `tsb` (rounded to 2 d.p.), `tsb_zone` (string label), `ctl_trend` (`"increasing"` / `"stable"` / `"decreasing"` from 7-day CTL delta; default threshold 1.0 AU).
+- `reporting/_core.py` — added `_TSB_ZONE_COLORS` palette (fresh_detraining / optimal / neutral / accumulated_fatigue / overload) matching the zone colour scheme in `training_load_plots.py`.
+- `reporting/__init__.py` — exports `table_training_load_history`, `summary_training_load`
+- Unit tests `TestTsbZoneLabel` (12), `TestCtlTrend` (6), `TestTableTrainingLoadHistory` (15), `TestSummaryTrainingLoad` (12) in `tests/reporting/test_training_load_report.py`
+
+---
+
+### Added — v0.2.0 Phase 4 — Visualisation ATL / CTL / TSB
+
+- `visualization/training_load_plots.py` — new module:
+  - `plot_atl_ctl_tsb(training_load, title, figsize) → Figure` — 2-panel figure: ATL (red) + CTL (blue) with shaded fill on top; TSB (purple) with 5 coloured zone bands and zero-reference line on bottom. Raises `ValueError` on empty input.
+  - `plot_trimp_history(training_load, sessions, sport_colors, title, figsize) → Figure` — daily TRIMP bar chart coloured by sport type (optional sessions lookup); 7-day rolling mean line when ≥ 7 days of data; built-in palette for running/cycling/swimming/strength/trail/rowing; fallback colour for unknown types.
+  - `plot_tsb_zones(training_load, title, figsize) → Figure` — TSB line with 5 physiological zone backgrounds (Fresh / Optimal / Neutral / Accumulated fatigue / Overload) from Coggan 2003 / Plews 2013; fill between TSB and zero.
+- `visualization/__init__.py` — exports `plot_atl_ctl_tsb`, `plot_trimp_history`, `plot_tsb_zones`
+- Unit tests `TestPlotAtlCtlTsb` (8), `TestPlotTrimpHistory` (10), `TestPlotTsbZones` (9) in `tests/visualization/test_training_load_plots.py`
+
+---
+
+### Added — v0.2.0 Phase 3 — ATL / CTL / TSB model
+
+- `analytics/training_load.py` — additions to the training load module:
+  - `compute_atl(trimp, tau=7) → np.ndarray` — 7-day EMA of TRIMP (acute fatigue). Initial condition: 0. Converges to TRIMP at steady state.
+  - `compute_ctl(trimp, tau=42) → np.ndarray` — 42-day EMA of TRIMP (chronic fitness). Decays ~6× slower than ATL.
+  - `compute_tsb(ctl, atl) → np.ndarray` — TSB = CTL − ATL (form / freshness). Negative = accumulated fatigue.
+  - `class TrainingLoad` — end-to-end container built from session dicts:
+    - `from_sessions(sessions, tau_atl=7, tau_ctl=42) → TrainingLoad` — builds a dense daily date range from the first to last session; gaps filled with TRIMP=0; `trimp=None` treated as 0.
+    - `to_dataframe() → pd.DataFrame` — columns: `date | trimp | atl | ctl | tsb` (requires `pip install cardiolab[analysis]`).
+- `analytics/__init__.py` — exports `compute_atl`, `compute_ctl`, `compute_tsb`, `TrainingLoad`
+- Unit tests `TestComputeAtl` (8), `TestComputeCtl` (5), `TestComputeTsb` (5), `TestTrainingLoad` (12) in `tests/analytics/test_training_load.py`
+
+---
+
+### Added — v0.2.0 Phase 2 — TRIMP calculation
+
+- `analytics/training_load.py` — new module for training load computation
+  - `trimp_hrv_based(duration_min, readiness_score) → float` — primary TRIMP: `duration × (1 − readiness/100)`. Validates input strictly (raises `ValueError` on invalid range). Reference: Manzi V et al. (2009).
+  - `trimp_banister(duration_min, hr_mean, hr_max, hr_rest, sex) → float` — Banister (1991) HR-reserve formula; `b=1.92` (male) / `b=1.67` (female); HRR clamped to [0, 1]. Fallback for HR-sensor data.
+  - `load_readiness_for_date(user_id, date, repo, baseline, protocol) → float | None` — strict single-protocol lookup; `"resting"` reads resting table, `"orthostatic"` reads orthostatic table and uses the **supine phase** RMSSD. Returns `None` when no session found for the date. Never falls back to the other protocol.
+- `analytics/__init__.py` — exports `trimp_hrv_based`, `trimp_banister`, `load_readiness_for_date`
+- Unit tests `TestTrimpHrvBased` (12 tests) and `TestTrimpBanister` (10 tests) in `tests/analytics/test_training_load.py`
+- Integration tests `TestLoadReadinessForDateIntegration` (6 tests: resting round-trip, neutral baseline, date not found, orthostatic round-trip, date not found, protocol isolation)
+
+---
+
+### Added — v0.2.0 Documentation — Training load
+
+- `docs/training_load/index.md` — overview and navigation for the training load module
+- `docs/training_load/training_sessions.md` — purpose, DB schema, repository API (`create`, `save`, `load`), daily workflow, custom table name
+- `docs/training_load/atl_ctl_tsb.md` — full model documentation: TRIMP formulas (HRV-based and Banister), protocol consistency rule, ATL/CTL/TSB EMA formulas with tau constants, TSB zones table, rest-day handling, numerical example, data requirements, references (Banister 1975/1991, Morton 1990, Manzi 2009, Plews 2013)
+
+---
+
+### Added — v0.2.0 Phase 1 — Training sessions (DB layer)
+
+- `database/repository.py` — `_TRAINING_SESSIONS_COLUMNS` column registry for the new `training_sessions` table (`user_id | date | duration_min | sport_type | trimp | notes`, UNIQUE `(user_id, date)`)
+- `HRVRepository.create_training_sessions_table()` — idempotent table creation (`CREATE TABLE IF NOT EXISTS`)
+- `HRVRepository.save_training_session(user_id, date, duration_min, sport_type, trimp, notes)` — upsert on `(user_id, date)`; `trimp` nullable (computed later when readiness is available)
+- `HRVRepository.load_training_sessions(user_id) → list[dict]` — sessions sorted ascending by date; keys: `date`, `duration_min`, `sport_type`, `trimp`, `notes`
+- `training_sessions_table_name` parameter added to `HRVRepository.__init__()` and `HRVRepository.from_env()` (default `"hrv_training_sessions"`)
+- Integration tests `TestTrainingSessionsIntegration` (4 tests: round-trip, upsert, date ordering, `trimp=None` accepted)
+
+---
+
 ### Planned — v0.2.0 Training load (ATL / CTL / TSB)
 
 **DB change:** one new table `training_sessions` — zero modification to the existing 7 tables.
 
 **Protocol consistency rule:** the readiness score feeding TRIMP is drawn from a single primary protocol chosen at setup (`"resting"` or `"orthostatic"`), never mixed. Switching protocol resets the readiness series; the two series are never crossed in baseline or TRIMP computation. When `"orthostatic"` is chosen, the supine-phase HRV (not the ΔHR score) feeds the baseline.
-
-#### Phase 1 — Database
-- New table `training_sessions` (`user_id | date | duration_min | sport_type | trimp | notes`), UNIQUE `(user_id, date)`
-- `HRVRepository.create_training_sessions_table()`, `save_training_session()`, `load_training_sessions()`
-- Integration tests `TestTrainingSessionsIntegration`
 
 #### Phase 2 — TRIMP calculation
 - `analytics/training_load.py`
@@ -37,12 +264,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `plot_trimp_history()` — TRIMP bars coloured by sport type
   - `plot_tsb_zones()` — coloured zone bands (overload / optimal / fresh / detraining)
 
-#### Phase 5 — Reporting
-- `reporting/training_load_report.py` — `table_training_load_history()`, `summary_training_load()`
-
-#### Phase 6 — Local scripts
-- `local/main_training_load.py` — log session → TRIMP → save → refresh chart
-- `local/main_training_load_report.py` — training load report over a period
+#### Phase 6 — Local scripts ✅
+- `local/main_training_load.py` — log session → TRIMP → save → ATL/CTL/TSB plots
+- `local/main_training_load_report.py` — HTML ATL/CTL/TSB report over a period
 
 ---
 

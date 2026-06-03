@@ -235,7 +235,10 @@ class RRSeries:
             mask = (rr >= low) & (rr <= high)
 
         elif method == "zscore":
-            z = (rr - np.mean(rr)) / np.std(rr)
+            std = np.std(rr)
+            if std == 0.0:
+                return RRSeries(rr, self.timestamps, self.metadata)
+            z = (rr - np.mean(rr)) / std
             mask = np.abs(z) < 3
 
         else:
@@ -300,17 +303,22 @@ class RRSeries:
 
         """
         segments = []
-        current = []
-        total_time = 0
+        current: list[float] = []
+        current_ts: list[float] = []
+        total_time = 0.0
 
-        for rr in self.intervals:
+        for i, rr in enumerate(self.intervals):
             current.append(rr)
+            if self.timestamps is not None:
+                current_ts.append(self.timestamps[i])
             total_time += rr / 1000.0
 
             if total_time >= window_sec:
-                segments.append(RRSeries(np.array(current)))
+                ts = np.array(current_ts) if self.timestamps is not None else None
+                segments.append(RRSeries(np.array(current), ts, self.metadata))
                 current = []
-                total_time = 0
+                current_ts = []
+                total_time = 0.0
 
         return segments
 

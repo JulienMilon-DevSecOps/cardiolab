@@ -125,7 +125,9 @@ class TestPlotRestingEvolution:
     ) -> None:
         """Custom labels: function returns a Figure without raising."""
         labels = ["Day 1", "Day 2", "Day 3"]
-        fig = plot_resting_evolution(multi_features, multi_scores, labels=labels)
+        fig = plot_resting_evolution(
+            multi_features, multi_scores, session_labels=labels
+        )
         assert isinstance(fig, Figure)
 
     def test_custom_figsize(
@@ -176,7 +178,9 @@ class TestPlotRestingEvolution:
     ) -> None:
         """Labels list with wrong length raises ValueError."""
         with pytest.raises(ValueError, match="labels length"):
-            plot_resting_evolution(multi_features, multi_scores, labels=["only one"])
+            plot_resting_evolution(
+                multi_features, multi_scores, session_labels=["only one"]
+            )
 
     def test_default_labels_from_date(
         self, multi_features: list[HRVFeatures], multi_scores: list[float]
@@ -243,7 +247,7 @@ class TestPlotRestingEvolutionRolling:
         """Custom labels: function returns a Figure without raising."""
         labels = ["D1", "D2", "D3"]
         fig = plot_resting_evolution_rolling(
-            multi_features, multi_scores, multi_rolling, labels=labels
+            multi_features, multi_scores, multi_rolling, session_labels=labels
         )
         assert isinstance(fig, Figure)
 
@@ -327,7 +331,7 @@ class TestPlotRestingEvolutionRolling:
         """Labels list with wrong length raises ValueError."""
         with pytest.raises(ValueError, match="labels length"):
             plot_resting_evolution_rolling(
-                multi_features, multi_scores, multi_rolling, labels=["only one"]
+                multi_features, multi_scores, multi_rolling, session_labels=["only one"]
             )
 
     def test_rmssd_values_finite(self, multi_features: list[HRVFeatures]) -> None:

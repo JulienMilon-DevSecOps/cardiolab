@@ -53,6 +53,14 @@ _COH_CAT_COLORS: dict[str, str] = {
     "high": "#d5f5e3",
 }
 
+_TSB_ZONE_COLORS: dict[str, str] = {
+    "fresh_detraining": "#d6eaf8",
+    "optimal": "#d5f5e3",
+    "neutral": "#fef9e7",
+    "accumulated_fatigue": "#fdebd0",
+    "overload": "#fadbd8",
+}
+
 
 # ── Value formatters ──────────────────────────────────────────────────────────
 
@@ -136,3 +144,45 @@ def highlight_category(
 def caption(styler: pd.Styler, text: str) -> pd.Styler:
     """Set the table caption."""
     return styler.set_caption(text)
+
+
+def apply_labels(styler: pd.Styler, labels: dict[str, str] | None) -> pd.Styler:
+    """Rename column headers using *labels* for display, without altering underlying data.
+
+    Uses :meth:`~pandas.io.formats.style.Styler.format_index` so that style
+    instructions (gradients, highlights) remain valid — they reference internal
+    column names which are never touched.
+
+    Supports both flat and MultiIndex column structures:
+
+    * **Flat**: each column name is looked up directly in *labels*.
+    * **MultiIndex**: the short name (level 1) and the phase group (level 0,
+      via the ``"_phase_<group>"`` key) are both translated independently.
+
+    Missing keys fall back to the original column name, so partial overrides
+    are safe.
+
+    Args:
+        styler: A fully styled :class:`~pandas.io.formats.style.Styler`.
+        labels: Translation dict such as ``LABELS_EN`` or ``LABELS_FR``.
+            Pass ``None`` to return *styler* unchanged.
+
+    Returns:
+        The same *styler* with display column headers updated.
+
+    """
+    if labels is None:
+        return styler
+
+    cols = styler.data.columns
+    if isinstance(cols, pd.MultiIndex):
+        styler = styler.format_index(
+            lambda v: labels.get(f"_phase_{v}", v), axis=1, level=0
+        )
+        styler = styler.format_index(
+            lambda v: labels.get(str(v), str(v)), axis=1, level=1
+        )
+    else:
+        styler = styler.format_index(lambda v: labels.get(str(v), str(v)), axis=1)
+
+    return styler

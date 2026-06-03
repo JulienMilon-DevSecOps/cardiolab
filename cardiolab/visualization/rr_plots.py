@@ -156,7 +156,8 @@ def plot_rr_tachogram(
     ax.set_xlabel("Temps (s)", fontsize=10)
     ax.set_ylabel("Intervalle RR (ms)", fontsize=10)
     ax.set_title(title, fontsize=12, fontweight="bold", pad=10)
-    ax.legend(loc="upper right", fontsize=8)
+    if ax.get_legend_handles_labels()[1]:
+        ax.legend(loc="upper right", fontsize=8)
     ax.set_xlim(t[0], t[-1])
     ax.grid(axis="y", alpha=0.25, linestyle=":")
 

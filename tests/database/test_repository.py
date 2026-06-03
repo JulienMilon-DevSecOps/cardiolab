@@ -126,8 +126,10 @@ def _mock_ortho_result() -> MagicMock:
     result.phases = phases
     result.hr_response = 20.0
     result.lf_hf_ratio_change = 1.5
-    result.hf_response_pct = -40.0
-    result.hf_hr_pct_change = -65.0
+    result.hf_response_pct = 40.0
+    result.hf_hr_pct_change = 65.0
+    result.lf_hr_pct_change = 30.0
+    result.delta_rmssd = 12.0
     result.interpretation = "normal"
     result.score = 0.0
 
@@ -283,12 +285,13 @@ class TestColumnRegistries:
         + supine_duration_sec, standing_duration_sec = 2
         + transition timing (start, end, duration, delta_hr, peak_hr) = 5
         + derived (hr_response, lf_hf_ratio_change, hf_response_pct,
-                   hf_hr_pct_change, interpretation) = 5
+                   hf_hr_pct_change, lf_hr_pct_change, delta_rmssd,
+                   interpretation) = 7
         + spectral_method = 1
         + score = 1
-        Total = 71
+        Total = 73
         """
-        assert len(_ORTHO_DATA_COLUMNS) == 71  # noqa: PLR2004
+        assert len(_ORTHO_DATA_COLUMNS) == 73  # noqa: PLR2004
 
     def test_ortho_data_columns_is_subset_of_ortho_columns(self):
         """Every column in _ORTHO_DATA_COLUMNS must exist in _ORTHO_COLUMNS."""
@@ -448,7 +451,9 @@ class TestOrthostaticRecord:
             hr_response=20.0,
             lf_hf_ratio_change=1.5,
             hf_response_pct=-40.0,
-            hf_hr_pct_change=-65.0,
+            hf_hr_pct_change=65.0,
+            lf_hr_pct_change=30.0,
+            delta_rmssd=12.0,
             interpretation="normal",
         )
         assert rec.date == "2026-05-15"
@@ -470,6 +475,8 @@ class TestOrthostaticRecord:
             lf_hf_ratio_change=0.0,
             hf_response_pct=0.0,
             hf_hr_pct_change=0.0,
+            lf_hr_pct_change=0.0,
+            delta_rmssd=0.0,
             interpretation="normal",
         )
         assert isinstance(rec.supine, HRVFeatures)
@@ -491,6 +498,8 @@ class TestOrthostaticRecord:
             lf_hf_ratio_change=0.0,
             hf_response_pct=0.0,
             hf_hr_pct_change=0.0,
+            lf_hr_pct_change=0.0,
+            delta_rmssd=0.0,
             interpretation="normal",
         )
         assert rec.supine.sdnn == 80.0
@@ -883,7 +892,7 @@ class TestLoadOrthostatic:
     def _make_ortho_row(self) -> tuple:
         """Build a fake DB row matching the load_orthostatic SELECT order.
 
-        Row layout (72 values):
+        Row layout (74 values):
         [0]      date
         [1..19]  supine HRV (19)
         [20]     supine_duration_sec
@@ -891,9 +900,9 @@ class TestLoadOrthostatic:
         [26..44] transition HRV (19)
         [45..63] standing HRV (19)
         [64]     standing_duration_sec
-        [65..69] derived metrics (5)
-        [70]     spectral_method
-        [71]     score
+        [65..71] derived metrics (7)
+        [72]     spectral_method
+        [73]     score
         """
         hrv_block = (
             60.0,
@@ -931,10 +940,12 @@ class TestLoadOrthostatic:
             20.0,
             1.5,
             -40.0,
-            -65.0,
-            "normal",  # [65..69] derived
-            "welch",  # [70]     spectral_method
-            72.5,  # [71]     score
+            65.0,
+            30.0,
+            12.0,
+            "normal",  # [65..71] derived
+            "welch",  # [72]     spectral_method
+            72.5,  # [73]     score
         )
 
     def test_returns_list_of_orthostatic_records(self):
@@ -1044,6 +1055,30 @@ def _repo_from_test_env(**kwargs) -> HRVRepository:
     )
 
 
+def _test_table_drop(table: str) -> None:
+    """Drop *table* unconditionally using a direct psycopg2 connection.
+
+    Used by fixtures that need to force a full schema refresh (e.g. after a
+    schema migration). ``DROP TABLE IF EXISTS`` is safe: it is a no-op when
+    the table does not yet exist.
+    """
+    import psycopg2  # local import: only needed for integration tests
+
+    conn = psycopg2.connect(
+        host=os.environ["DB_HOST_TEST"],
+        dbname=os.environ["DB_NAME_TEST"],
+        user=os.environ["DB_USER_TEST"],
+        password=os.environ["DB_PASSWORD_TEST"],
+        port=int(os.environ.get("DB_PORT_TEST", "5432")),
+    )
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"DROP TABLE IF EXISTS {table};")  # noqa: S608
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _test_db_cleanup(table: str, user: str) -> None:
     """Delete all rows for *user* from *table* using a direct psycopg2 connection.
 
@@ -1103,6 +1138,7 @@ class TestHRVRepositoryIntegration:
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
         """Create the test table before and delete test-user rows after each test."""
+        _test_table_drop(self._TABLE)
         with _repo_from_test_env(table_name=self._TABLE) as repo:
             repo.create_table()
         yield
@@ -1188,6 +1224,7 @@ class TestCoherenceIntegration:
 
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
+        _test_table_drop(self._TABLE)
         with _repo_from_test_env(coherence_table_name=self._TABLE) as repo:
             repo.create_coherence_table()
         yield
@@ -1252,6 +1289,7 @@ class TestHRRIntegration:
 
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
+        _test_table_drop(self._TABLE)
         with _repo_from_test_env(hrr_table_name=self._TABLE) as repo:
             repo.create_hrr_table()
         yield
@@ -1337,6 +1375,7 @@ class TestDriftIntegration:
 
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
+        _test_table_drop(self._TABLE)
         with _repo_from_test_env(drift_table_name=self._TABLE) as repo:
             repo.create_drift_table()
         yield
@@ -1408,6 +1447,7 @@ class TestVO2maxIntegration:
 
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
+        _test_table_drop(self._TABLE)
         with _repo_from_test_env(vo2max_table_name=self._TABLE) as repo:
             repo.create_vo2max_table()
         yield
@@ -1489,6 +1529,7 @@ class TestRawSessionsIntegration:
 
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
+        _test_table_drop(self._TABLE)
         with _repo_from_test_env(raw_sessions_table_name=self._TABLE) as repo:
             repo.create_raw_sessions_table()
         yield
@@ -1566,6 +1607,7 @@ class TestOrthostaticIntegration:
 
     @pytest.fixture(autouse=True)
     def _setup_teardown(self):
+        _test_table_drop(self._TABLE)
         with _repo_from_test_env(ortho_table_name=self._TABLE) as repo:
             repo.create_orthostatic_table()
         yield
@@ -1615,3 +1657,176 @@ class TestOrthostaticIntegration:
         match = next((r for r in loaded if str(r.date) == "2099-07-03"), None)
         assert match is not None
         assert match.score == pytest.approx(91.0)
+
+
+@pytest.mark.integration
+@_integration_skipif
+class TestTrainingSessionsIntegration:
+    """Full round-trip tests for training sessions against a real DB."""
+
+    _USER = "test-integration-user"
+    _TABLE = "_cardiolab_test_training"
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        # Drop before create to force a schema refresh when the table schema
+        # has changed (CREATE TABLE IF NOT EXISTS is a no-op on existing tables).
+        _test_table_drop(self._TABLE)
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            repo.create_training_sessions_table()
+        yield
+        _test_db_cleanup(self._TABLE, self._USER)
+
+    def test_save_returns_activity_id(self):
+        """save_training_session must return a non-empty UUID string."""
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            aid = repo.save_training_session(
+                self._USER, "2099-08-01", duration_min=60.0
+            )
+        assert isinstance(aid, str)
+        assert len(aid) == 36  # UUID canonical form
+
+    def test_save_and_load(self):
+        """save_training_session → load_training_sessions must round-trip all fields."""
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            repo.save_training_session(
+                user_id=self._USER,
+                date="2099-08-01",
+                duration_min=60.0,
+                sport_type="course",
+                trimp=42.5,
+                notes="Sortie longue Z2",
+            )
+            sessions = repo.load_training_sessions(self._USER)
+
+        match = [s for s in sessions if s["date"] == "2099-08-01"]
+        assert len(match) == 1
+        s = match[0]
+        assert "activity_id" in s
+        assert s["duration_min"] == pytest.approx(60.0)
+        assert s["sport_type"] == "course"
+        assert s["trimp"] == pytest.approx(42.5)
+        assert s["notes"] == "Sortie longue Z2"
+
+    def test_multiple_activities_same_day(self):
+        """Two activities on the same day must produce two distinct rows."""
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            aid1 = repo.save_training_session(
+                self._USER,
+                "2099-08-02",
+                duration_min=30.0,
+                sport_type="running",
+                trimp=20.0,
+            )
+            aid2 = repo.save_training_session(
+                self._USER,
+                "2099-08-02",
+                duration_min=45.0,
+                sport_type="cycling",
+                trimp=31.5,
+            )
+            sessions = repo.load_training_sessions(self._USER)
+
+        match = [s for s in sessions if s["date"] == "2099-08-02"]
+        assert len(match) == 2
+        assert aid1 != aid2
+        sports = {s["sport_type"] for s in match}
+        assert sports == {"running", "cycling"}
+
+    def test_load_sorted_by_date(self):
+        """load_training_sessions must return sessions in ascending date order."""
+        dates = ["2099-08-05", "2099-08-03", "2099-08-04"]
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            for d in dates:
+                repo.save_training_session(self._USER, d, duration_min=30.0)
+            sessions = repo.load_training_sessions(self._USER)
+
+        returned_dates = [s["date"] for s in sessions]
+        assert returned_dates == sorted(returned_dates)
+
+    def test_trimp_none_accepted(self):
+        """save_training_session must accept trimp=None (TRIMP computed later)."""
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            repo.save_training_session(
+                self._USER, "2099-08-06", duration_min=50.0, trimp=None
+            )
+            sessions = repo.load_training_sessions(self._USER)
+
+        match = [s for s in sessions if s["date"] == "2099-08-06"]
+        assert len(match) == 1
+        assert match[0]["trimp"] is None
+
+    def test_delete_activity(self):
+        """delete_training_session must remove the row and return True."""
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            aid = repo.save_training_session(
+                self._USER, "2099-08-07", duration_min=40.0
+            )
+            deleted = repo.delete_training_session(aid)
+            sessions = repo.load_training_sessions(self._USER)
+
+        assert deleted is True
+        assert not any(s["date"] == "2099-08-07" for s in sessions)
+
+    def test_delete_only_one_of_two(self):
+        """Deleting one activity on a day leaves the other intact."""
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            aid1 = repo.save_training_session(
+                self._USER, "2099-08-08", duration_min=30.0, sport_type="running"
+            )
+            repo.save_training_session(
+                self._USER, "2099-08-08", duration_min=45.0, sport_type="cycling"
+            )
+            repo.delete_training_session(aid1)
+            sessions = repo.load_training_sessions(self._USER)
+
+        match = [s for s in sessions if s["date"] == "2099-08-08"]
+        assert len(match) == 1
+        assert match[0]["sport_type"] == "cycling"
+
+    def test_delete_nonexistent_returns_false(self):
+        """Deleting a non-existent activity_id must return False."""
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            result = repo.delete_training_session(
+                "00000000-0000-0000-0000-000000000000"
+            )
+        assert result is False
+
+    def test_find_by_date(self):
+        """find_training_sessions returns all activities on a given date."""
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            repo.save_training_session(
+                self._USER, "2099-08-09", duration_min=30.0, sport_type="running"
+            )
+            repo.save_training_session(
+                self._USER, "2099-08-09", duration_min=45.0, sport_type="cycling"
+            )
+            repo.save_training_session(
+                self._USER, "2099-08-10", duration_min=60.0, sport_type="running"
+            )
+            results = repo.find_training_sessions(self._USER, "2099-08-09")
+
+        assert len(results) == 2
+        assert all(r["date"] == "2099-08-09" for r in results)
+
+    def test_find_by_date_and_sport(self):
+        """find_training_sessions with sport_type filters to matching activities only."""
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            repo.save_training_session(
+                self._USER, "2099-08-11", duration_min=30.0, sport_type="running"
+            )
+            repo.save_training_session(
+                self._USER, "2099-08-11", duration_min=45.0, sport_type="cycling"
+            )
+            results = repo.find_training_sessions(
+                self._USER, "2099-08-11", sport_type="running"
+            )
+
+        assert len(results) == 1
+        assert results[0]["sport_type"] == "running"
+
+    def test_find_no_match_returns_empty(self):
+        """find_training_sessions returns empty list when no activities match."""
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            results = repo.find_training_sessions(self._USER, "2099-09-01")
+        assert results == []

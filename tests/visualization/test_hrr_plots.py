@@ -233,7 +233,7 @@ class TestPlotHrrComparison:
         fig = plot_hrr_comparison(
             [rr_hrr, rr_short],
             [result_good, result_impaired],
-            labels=labels,
+            session_labels=labels,
         )
         legend_texts = [t.get_text() for t in fig.axes[0].get_legend().get_texts()]
         assert any("Week 1" in t for t in legend_texts)
@@ -282,7 +282,7 @@ class TestPlotHrrComparison:
     ) -> None:
         """Raise ValueError when labels length mismatches results."""
         with pytest.raises(ValueError, match="labels length"):
-            plot_hrr_comparison([rr_hrr], [result_good], labels=["A", "B"])
+            plot_hrr_comparison([rr_hrr], [result_good], session_labels=["A", "B"])
 
     def test_type_error_rr_element(self, result_good: HRRResult) -> None:
         """Raise TypeError when an rr_list element is not an RRSeries."""
