@@ -101,6 +101,35 @@ def test_remove_outliers():
     assert len(clean) < len(rr)
 
 
+def test_remove_outliers_zscore_constant_series():
+    """remove_outliers(zscore) on a constant series (std=0) returns the original unchanged."""
+    rr = RRSeries(np.full(50, 800.0))
+    result = rr.remove_outliers(method="zscore")
+    assert len(result) == 50
+    assert np.all(result.intervals == 800.0)
+
+
+def test_segment_preserves_timestamps():
+    """segment() propagates timestamps to every produced segment."""
+    intervals = np.full(20, 800.0)
+    timestamps = np.cumsum(intervals) / 1000.0
+    rr = RRSeries(intervals=intervals, timestamps=timestamps)
+    segments = rr.segment(window_sec=8.0)
+    assert len(segments) > 0
+    for seg in segments:
+        assert seg.timestamps is not None
+        assert len(seg.timestamps) == len(seg.intervals)
+
+
+def test_segment_without_timestamps_has_no_timestamps():
+    """segment() on a series without timestamps produces segments without timestamps."""
+    rr = RRSeries(np.full(20, 800.0))
+    segments = rr.segment(window_sec=8.0)
+    assert len(segments) > 0
+    for seg in segments:
+        assert seg.timestamps is None
+
+
 def test_interpolation():
     """Ensure interpolation returns consistent arrays.
 
