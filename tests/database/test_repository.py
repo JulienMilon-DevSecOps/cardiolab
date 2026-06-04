@@ -1830,3 +1830,173 @@ class TestTrainingSessionsIntegration:
         with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
             results = repo.find_training_sessions(self._USER, "2099-09-01")
         assert results == []
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not os.getenv("DB_HOST_TEST"),
+    reason=(
+        "Set DB_HOST_TEST (+ DB_NAME_TEST, DB_USER_TEST, DB_PASSWORD_TEST) "
+        "to enable integration tests."
+    ),
+)
+class TestUserProfilesIntegration:
+    """Full round-trip tests for user profiles against a real DB."""
+
+    _USER = "test-integration-profile-user"
+    _TABLE = "_cardiolab_test_user_profiles"
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        """Drop and recreate the test table before each test; delete test data after."""
+        _test_table_drop(self._TABLE)
+        with _repo_from_test_env(user_profiles_table_name=self._TABLE) as repo:
+            repo.create_user_profiles_table()
+        yield
+        _test_db_cleanup(self._TABLE, self._USER)
+
+    def test_save_and_load(self):
+        """save_user_profile → load_user_profile must round-trip all fields."""
+        with _repo_from_test_env(user_profiles_table_name=self._TABLE) as repo:
+            repo.save_user_profile(
+                user_id=self._USER,
+                primary_protocol="resting",
+                sex="male",
+                birth_year=1990,
+                height_cm=178.0,
+                hr_max=185,
+                hr_rest=52,
+                weight_kg=72.5,
+            )
+            profile = repo.load_user_profile(self._USER)
+
+        assert profile is not None
+        assert profile["user_id"] == self._USER
+        assert profile["primary_protocol"] == "resting"
+        assert profile["sex"] == "male"
+        assert profile["birth_year"] == 1990
+        assert profile["height_cm"] == pytest.approx(178.0)
+        assert profile["hr_max"] == 185
+        assert profile["hr_rest"] == 52
+        assert profile["weight_kg"] == pytest.approx(72.5)
+        assert profile["created_at"] is not None
+        assert profile["updated_at"] is not None
+
+    def test_load_nonexistent_returns_none(self):
+        """load_user_profile returns None when user_id does not exist."""
+        with _repo_from_test_env(user_profiles_table_name=self._TABLE) as repo:
+            result = repo.load_user_profile("nonexistent-user")
+        assert result is None
+
+    def test_save_upsert_overwrites_existing(self):
+        """A second save_user_profile call on the same user_id updates all fields."""
+        with _repo_from_test_env(user_profiles_table_name=self._TABLE) as repo:
+            repo.save_user_profile(self._USER, primary_protocol="resting", hr_max=180)
+            repo.save_user_profile(
+                self._USER, primary_protocol="orthostatic", hr_max=190
+            )
+            profile = repo.load_user_profile(self._USER)
+
+        assert profile["primary_protocol"] == "orthostatic"
+        assert profile["hr_max"] == 190
+
+    def test_upsert_preserves_created_at(self):
+        """A second save_user_profile must not change created_at."""
+        with _repo_from_test_env(user_profiles_table_name=self._TABLE) as repo:
+            repo.save_user_profile(self._USER)
+            first = repo.load_user_profile(self._USER)
+            repo.save_user_profile(self._USER, hr_max=195)
+            second = repo.load_user_profile(self._USER)
+
+        assert first["created_at"] == second["created_at"]
+
+    def test_update_single_field(self):
+        """update_user_profile updates only the specified field."""
+        with _repo_from_test_env(user_profiles_table_name=self._TABLE) as repo:
+            repo.save_user_profile(
+                self._USER, primary_protocol="resting", hr_max=180, weight_kg=70.0
+            )
+            repo.update_user_profile(self._USER, weight_kg=73.0)
+            profile = repo.load_user_profile(self._USER)
+
+        assert profile["weight_kg"] == pytest.approx(73.0)
+        assert profile["hr_max"] == 180
+        assert profile["primary_protocol"] == "resting"
+
+    def test_update_multiple_fields(self):
+        """update_user_profile can update several fields at once."""
+        with _repo_from_test_env(user_profiles_table_name=self._TABLE) as repo:
+            repo.save_user_profile(self._USER, hr_max=180, hr_rest=55)
+            repo.update_user_profile(self._USER, hr_max=185, hr_rest=50)
+            profile = repo.load_user_profile(self._USER)
+
+        assert profile["hr_max"] == 185
+        assert profile["hr_rest"] == 50
+
+    def test_update_returns_false_if_not_found(self):
+        """update_user_profile returns False when user_id does not exist."""
+        with _repo_from_test_env(user_profiles_table_name=self._TABLE) as repo:
+            result = repo.update_user_profile("ghost-user", weight_kg=65.0)
+        assert result is False
+
+    def test_update_raises_on_unknown_field(self):
+        """update_user_profile raises ValueError for unrecognised field names."""
+        with _repo_from_test_env(user_profiles_table_name=self._TABLE) as repo:
+            repo.save_user_profile(self._USER)
+            with pytest.raises(ValueError, match="Unknown field"):
+                repo.update_user_profile(self._USER, nonexistent_field=42)
+
+    def test_update_raises_on_empty_fields(self):
+        """update_user_profile raises ValueError when called with no fields."""
+        with _repo_from_test_env(user_profiles_table_name=self._TABLE) as repo:
+            repo.save_user_profile(self._USER)
+            with pytest.raises(ValueError, match="At least one field"):
+                repo.update_user_profile(self._USER)
+
+    def test_delete_profile(self):
+        """delete_user_profile removes the row and returns True."""
+        with _repo_from_test_env(user_profiles_table_name=self._TABLE) as repo:
+            repo.save_user_profile(self._USER)
+            deleted = repo.delete_user_profile(self._USER)
+            profile = repo.load_user_profile(self._USER)
+
+        assert deleted is True
+        assert profile is None
+
+    def test_delete_returns_false_if_not_found(self):
+        """delete_user_profile returns False when user_id does not exist."""
+        with _repo_from_test_env(user_profiles_table_name=self._TABLE) as repo:
+            result = repo.delete_user_profile("ghost-user")
+        assert result is False
+
+    def test_list_returns_all_profiles(self):
+        """list_user_profiles returns every stored profile sorted by user_id."""
+        users = [f"test-list-user-{i}" for i in range(3)]
+        with _repo_from_test_env(user_profiles_table_name=self._TABLE) as repo:
+            for u in users:
+                repo.save_user_profile(u, birth_year=1985 + int(u[-1]))
+            profiles = repo.list_user_profiles()
+
+        ids = [
+            p["user_id"] for p in profiles if p["user_id"].startswith("test-list-user-")
+        ]
+        assert sorted(ids) == sorted(users)
+
+    def test_list_empty_when_no_profiles(self):
+        """list_user_profiles returns an empty list on a fresh table."""
+        with _repo_from_test_env(user_profiles_table_name=self._TABLE) as repo:
+            profiles = repo.list_user_profiles()
+        assert profiles == []
+
+    def test_null_physical_fields_accepted(self):
+        """save_user_profile accepts None for all optional physical fields."""
+        with _repo_from_test_env(user_profiles_table_name=self._TABLE) as repo:
+            repo.save_user_profile(self._USER)
+            profile = repo.load_user_profile(self._USER)
+
+        assert profile["sex"] is None
+        assert profile["birth_year"] is None
+        assert profile["height_cm"] is None
+        assert profile["hr_max"] is None
+        assert profile["hr_rest"] is None
+        assert profile["weight_kg"] is None
