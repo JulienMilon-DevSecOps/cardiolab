@@ -86,9 +86,13 @@ def feed(pattern: str = "cardiolab/datasets/resting/*.json") -> None:
 
     with HRVRepository.from_env() as repo:
         repo.save_features(features, user_id=USER_ID)
-        print(f"Saved to table  : '{repo.table_name}' (upsert — duplicates are updated)")
+        print(
+            f"Saved to table  : '{repo.table_name}' (upsert — duplicates are updated)"
+        )
 
-    print(f"\n{'Date':<25} {'RMSSD':>7} {'SDNN':>7} {'HR':>6} {'HF_nu':>7} {'LF/HF':>7}")
+    print(
+        f"\n{'Date':<25} {'RMSSD':>7} {'SDNN':>7} {'HR':>6} {'HF_nu':>7} {'LF/HF':>7}"
+    )
     print("-" * 65)
     for f in features:
         print(

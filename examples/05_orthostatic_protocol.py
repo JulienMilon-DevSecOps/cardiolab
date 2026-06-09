@@ -51,10 +51,14 @@ with warnings.catch_warnings():
 print("Phase segments")
 if result.phases.supine:
     s = result.phases.supine
-    print(f"  Supine   — dur={s.duration_sec:.0f}s  HR={s.features.mean_hr:.1f} bpm  RMSSD={s.features.rmssd:.1f} ms")
+    print(
+        f"  Supine   — dur={s.duration_sec:.0f}s  HR={s.features.mean_hr:.1f} bpm  RMSSD={s.features.rmssd:.1f} ms"
+    )
 if result.phases.standing:
     st = result.phases.standing
-    print(f"  Standing — dur={st.duration_sec:.0f}s  HR={st.features.mean_hr:.1f} bpm  RMSSD={st.features.rmssd:.1f} ms")
+    print(
+        f"  Standing — dur={st.duration_sec:.0f}s  HR={st.features.mean_hr:.1f} bpm  RMSSD={st.features.rmssd:.1f} ms"
+    )
 print()
 
 # ── 3. Inspect the autonomic response ────────────────────────────────────────

@@ -59,7 +59,9 @@ print(f"  Coherence score   : {result_coh.coherence_score:.1f} %")
 print(f"  Resonance freq.   : {result_coh.resonance_freq:.4f} Hz")
 print(f"  Peak power        : {result_coh.peak_power:.2f} ms²")
 print(f"  Mean HR           : {result_coh.mean_hr:.1f} bpm")
-print(f"  Quality score     : {coherence_score_100(result_coh.coherence_score):.1f} / 100")
+print(
+    f"  Quality score     : {coherence_score_100(result_coh.coherence_score):.1f} / 100"
+)
 print()
 
 
@@ -80,9 +82,13 @@ with warnings.catch_warnings():
 
 print(f"  Peak HR           : {result_hrr.hr_peak:.1f} bpm")
 print(f"  HR at 60 s        : {result_hrr.hr_at_60s:.1f} bpm")
-print(f"  HRR1              : {result_hrr.hrr_60:.1f} bpm  ({result_hrr.hrr_60_category})")
+print(
+    f"  HRR1              : {result_hrr.hrr_60:.1f} bpm  ({result_hrr.hrr_60_category})"
+)
 if not math.isnan(result_hrr.hrr_120):
-    print(f"  HRR2              : {result_hrr.hrr_120:.1f} bpm  ({result_hrr.hrr_120_category})")
+    print(
+        f"  HRR2              : {result_hrr.hrr_120:.1f} bpm  ({result_hrr.hrr_120_category})"
+    )
 print(f"  Quality score     : {hrr_score(result_hrr.hrr_60):.1f} / 100")
 print()
 
@@ -103,7 +109,9 @@ with warnings.catch_warnings():
     result_drift = cardiac_drift(RRSeries(rr_drift))
 
 print(f"  Drift rate        : {result_drift.drift_rate:.3f} bpm/min")
-print(f"  Drift magnitude   : {result_drift.drift_magnitude:.1f} bpm  ({result_drift.interpretation})")
+print(
+    f"  Drift magnitude   : {result_drift.drift_magnitude:.1f} bpm  ({result_drift.interpretation})"
+)
 print(f"  R²                : {result_drift.r_squared:.3f}")
 print(f"  Drift detected    : {result_drift.drift_detected}")
 print(f"  Quality score     : {drift_score(result_drift.drift_rate):.1f} / 100")

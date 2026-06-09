@@ -82,7 +82,9 @@ for i in range(30):
     history.append(f)
 
 baseline = Baseline.from_features(history)
-print(f"  Baseline RMSSD  : {baseline.mean_rmssd():.1f} ms  (median: {baseline.median_rmssd():.1f})")
+print(
+    f"  Baseline RMSSD  : {baseline.mean_rmssd():.1f} ms  (median: {baseline.median_rmssd():.1f})"
+)
 print(f"  Baseline HR     : {baseline.mean_hr():.1f} bpm")
 
 trend = trend_rmssd(baseline)
@@ -150,7 +152,9 @@ past_sessions.append({"date": TODAY, "trimp": trimp_hrv})
 tl = TrainingLoad.from_sessions(past_sessions)
 print(f"  ATL (fatigue)  : {tl.atl[-1]:.1f}")
 print(f"  CTL (fitness)  : {tl.ctl[-1]:.1f}")
-print(f"  TSB (form)     : {tl.tsb[-1]:+.1f}  ({'fresh' if tl.tsb[-1] >= 0 else 'fatigued'})")
+print(
+    f"  TSB (form)     : {tl.tsb[-1]:+.1f}  ({'fresh' if tl.tsb[-1] >= 0 else 'fatigued'})"
+)
 
 
 # ── Summary ───────────────────────────────────────────────────────────────────
@@ -158,7 +162,9 @@ print("\n" + "=" * 60)
 print("  DAILY SUMMARY")
 print("=" * 60)
 print(f"  Date            : {TODAY}")
-print(f"  RMSSD           : {today_features.rmssd:.1f} ms  (baseline: {baseline.mean_rmssd():.1f})")
+print(
+    f"  RMSSD           : {today_features.rmssd:.1f} ms  (baseline: {baseline.mean_rmssd():.1f})"
+)
 print(f"  Readiness       : {score_multi:.1f} / 100  → {readiness_label}")
 print(f"  Anomaly         : {anomaly['status']}")
 print(f"  TRIMP (planned) : {trimp_hrv:.1f}")

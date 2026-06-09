@@ -90,12 +90,14 @@ for i in range(90):
         readiness = float(rng.uniform(45, 88))
         sport = rng.choice(["running", "cycling", "strength", "trail"])
         trimp = trimp_hrv_based(duration, readiness)
-        sessions.append({
-            "date": str(d),
-            "trimp": trimp,
-            "sport_type": str(sport),
-            "duration_min": duration,
-        })
+        sessions.append(
+            {
+                "date": str(d),
+                "trimp": trimp,
+                "sport_type": str(sport),
+                "duration_min": duration,
+            }
+        )
 
 print(f"\n  Training days    : {len(sessions)} / 90")
 print(f"  Average TRIMP    : {np.mean([s['trimp'] for s in sessions]):.1f}")
@@ -112,7 +114,9 @@ tl = TrainingLoad.from_sessions(sessions)
 print(f"\n  Period           : {tl.dates[0]} → {tl.dates[-1]}  ({len(tl.dates)} days)")
 print(f"  ATL (fatigue)    : {tl.atl[-1]:.1f}")
 print(f"  CTL (fitness)    : {tl.ctl[-1]:.1f}")
-print(f"  TSB (form)       : {tl.tsb[-1]:+.1f}  ({'fresh' if tl.tsb[-1] > 0 else 'fatigued'})")
+print(
+    f"  TSB (form)       : {tl.tsb[-1]:+.1f}  ({'fresh' if tl.tsb[-1] > 0 else 'fatigued'})"
+)
 print()
 
 # TSB interpretation zones:

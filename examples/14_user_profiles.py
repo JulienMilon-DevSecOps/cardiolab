@@ -38,7 +38,6 @@ print("=== cardiolab — user profiles ===\n")
 print(f"Demo user_id : {DEMO_USER_ID}\n")
 
 with HRVRepository.from_env() as repo:
-
     # ── 0. Ensure migrations are applied ─────────────────────────────────────
     run_migrations(repo.conn)
 
