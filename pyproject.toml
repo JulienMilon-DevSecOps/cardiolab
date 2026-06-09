@@ -72,6 +72,7 @@ include = [
     "/cardiolab",
     "/tests",
     "/docs",
+    "/example",
     "CHANGELOG.md",
     "README.md",
     "pyproject.toml",
