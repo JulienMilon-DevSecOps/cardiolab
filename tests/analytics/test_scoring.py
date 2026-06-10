@@ -12,6 +12,7 @@ from cardiolab.analytics.scoring import (
     coherence_score_100,
     drift_score,
     hrr_score,
+    orthostatic_readiness_score,
     orthostatic_score,
     readiness_score_composite,
     readiness_score_multi,
@@ -881,3 +882,73 @@ class TestOrthostaticScore:
         s_pots = orthostatic_score(32.0, -45.0)
         assert s_optimal > s_low
         assert s_optimal > s_pots
+
+
+# ======================
+# orthostatic_readiness_score
+# ======================
+
+
+class TestOrthostaticReadinessScore:
+    """Tests for orthostatic_readiness_score(supine, baseline).
+
+    The function applies readiness_score_multi to the supine phase of an
+    orthostatic test.  These tests verify correct delegation and the semantics
+    specific to the orthostatic context (empty baseline → neutral, supine above
+    baseline → score > 50, etc.).
+    """
+
+    def test_returns_float(self):
+        """orthostatic_readiness_score must return a float."""
+        supine = _make_features()
+        base = _make_baseline()
+        assert isinstance(orthostatic_readiness_score(supine, base), float)
+
+    def test_range(self):
+        """Score is always in [0, 100]."""
+        supine = _make_features()
+        base = _make_baseline()
+        score = orthostatic_readiness_score(supine, base)
+        assert 0.0 <= score <= 100.0
+
+    def test_empty_baseline_returns_neutral(self):
+        """Empty supine baseline → score = 50.0 (no reference yet)."""
+        supine = _make_features()
+        score = orthostatic_readiness_score(supine, Baseline(history=[]))
+        assert score == pytest.approx(50.0)
+
+    def test_supine_equal_baseline_near_neutral(self):
+        """Supine features equal to baseline → score near 50."""
+        base = _make_baseline(n=7, rmssd=60.0)
+        supine = _make_features(rmssd=60.0, mean_hr=70.0)
+        score = orthostatic_readiness_score(supine, base)
+        assert 40.0 <= score <= 65.0
+
+    def test_supine_above_baseline_above_50(self):
+        """Supine RMSSD higher than personal baseline → score > 50 (good recovery)."""
+        base = _make_baseline(n=7, rmssd=60.0)
+        supine = _make_features(rmssd=90.0, mean_hr=70.0)
+        score = orthostatic_readiness_score(supine, base)
+        assert score > 50.0
+
+    def test_supine_below_baseline_below_50(self):
+        """Supine RMSSD lower than personal baseline → score < 50 (fatigue signal)."""
+        base = _make_baseline(n=7, rmssd=60.0)
+        supine = _make_features(rmssd=30.0, mean_hr=75.0)
+        score = orthostatic_readiness_score(supine, base)
+        assert score < 50.0
+
+    def test_higher_supine_rmssd_gives_higher_score(self):
+        """Score increases monotonically with supine RMSSD (all else equal)."""
+        base = _make_baseline(n=7, rmssd=60.0)
+        low_score = orthostatic_readiness_score(_make_features(rmssd=40.0), base)
+        mid_score = orthostatic_readiness_score(_make_features(rmssd=60.0), base)
+        high_score = orthostatic_readiness_score(_make_features(rmssd=90.0), base)
+        assert low_score < mid_score < high_score
+
+    def test_consistent_with_readiness_score_multi(self):
+        """orthostatic_readiness_score must give the same result as readiness_score_multi."""
+        base = _make_baseline()
+        supine = _make_features(rmssd=75.0)
+        expected = readiness_score_multi(supine, base)
+        assert orthostatic_readiness_score(supine, base) == pytest.approx(expected)

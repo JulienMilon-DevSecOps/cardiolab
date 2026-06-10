@@ -71,6 +71,7 @@ from cardiolab.visualization.nonlinear_plots import (
     plot_sd1_sd2_evolution,
 )
 from cardiolab.visualization.orthostatic_plots import (
+    plot_orthostatic_dual_score_evolution,
     plot_orthostatic_phases_evolution,
 )
 from cardiolab.visualization.resting_plots import (
@@ -149,6 +150,7 @@ __all__ = [
     "plot_hrv_radar",
     "plot_spectral_heatmap",
     # orthostatic_plots
+    "plot_orthostatic_dual_score_evolution",
     "plot_orthostatic_phases_evolution",
     # vo2max_plots
     "plot_vo2max_comparison",
