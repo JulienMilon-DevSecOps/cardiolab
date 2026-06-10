@@ -229,7 +229,9 @@ def table_orthostatic_comparison(
         a_score = getattr(r, "score", float("nan"))
         r_score = readiness_scores[i] if readiness_scores else float("nan")
         row["readiness_score"] = r_score
-        row["readiness_label"] = _readiness_label(r_score) if readiness_scores else "n/a"
+        row["readiness_label"] = (
+            _readiness_label(r_score) if readiness_scores else "n/a"
+        )
         row["autonomic_score"] = a_score
         row["autonomic_label"] = (
             _autonomic_label(float(a_score))
@@ -294,9 +296,13 @@ def table_orthostatic_comparison(
         c
         for c in df.columns
         if c[0] == "Autonomic response"
-        and c[1] in (
-            "delta_rmssd", "hf_hr_pct_change", "lf_hr_pct_change",
-            "readiness_score", "autonomic_score",
+        and c[1]
+        in (
+            "delta_rmssd",
+            "hf_hr_pct_change",
+            "lf_hr_pct_change",
+            "readiness_score",
+            "autonomic_score",
         )
     ]
     styler = gradient_good(styler, supine_good)
@@ -445,9 +451,11 @@ def table_orthostatic_history(
             _readiness_label(r_score) if readiness_scores else "n/a"
         )
         row["autonomic_label"] = (
-            _autonomic_label(a_score) if not (
+            _autonomic_label(a_score)
+            if not (
                 isinstance(a_score, float) and (a_score != a_score)  # nan check
-            ) else "n/a"
+            )
+            else "n/a"
         )
         rows.append(row)
 
@@ -470,18 +478,35 @@ def table_orthostatic_history(
         if "interpretation" in df.columns:
             fmt["interpretation"] = lambda v, _l=labels: _l.get(f"ortho_interp_{v}", v)
         if "readiness_label" in df.columns:
-            fmt["readiness_label"] = lambda v, _l=labels: _l.get(f"readiness_label_{v}", v)
+            fmt["readiness_label"] = lambda v, _l=labels: _l.get(
+                f"readiness_label_{v}", v
+            )
         if "autonomic_label" in df.columns:
-            fmt["autonomic_label"] = lambda v, _l=labels: _l.get(f"autonomic_label_{v}", v)
+            fmt["autonomic_label"] = lambda v, _l=labels: _l.get(
+                f"autonomic_label_{v}", v
+            )
 
     styler = df.style.format(fmt, na_rep="n/a")
-    styler = gradient_good(styler, [c for c in ["readiness_score", "autonomic_score"] if c in df.columns])
-    styler = gradient_good(styler, [c for c in ["supine_rmssd", "standing_rmssd"] if c in df.columns])
     styler = gradient_good(
-        styler, [c for c in ["delta_rmssd", "hf_hr_pct_change", "lf_hr_pct_change"] if c in df.columns]
+        styler, [c for c in ["readiness_score", "autonomic_score"] if c in df.columns]
     )
-    styler = gradient_bad(styler, [c for c in ["supine_hr", "standing_hr"] if c in df.columns])
-    styler = gradient_bad(styler, [c for c in ["hr_response"] if c in df.columns], vmin=0, vmax=30)
+    styler = gradient_good(
+        styler, [c for c in ["supine_rmssd", "standing_rmssd"] if c in df.columns]
+    )
+    styler = gradient_good(
+        styler,
+        [
+            c
+            for c in ["delta_rmssd", "hf_hr_pct_change", "lf_hr_pct_change"]
+            if c in df.columns
+        ],
+    )
+    styler = gradient_bad(
+        styler, [c for c in ["supine_hr", "standing_hr"] if c in df.columns]
+    )
+    styler = gradient_bad(
+        styler, [c for c in ["hr_response"] if c in df.columns], vmin=0, vmax=30
+    )
     if "interpretation" in df.columns:
         styler = highlight_category(styler, "interpretation", _ORTHO_CAT_COLORS)
     if "readiness_label" in df.columns:

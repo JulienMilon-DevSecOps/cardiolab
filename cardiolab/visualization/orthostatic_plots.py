@@ -346,27 +346,59 @@ def plot_orthostatic_dual_score_evolution(
         else:
             dot_c = "#e74c3c"
         ax_read.scatter([x], [s], s=55, color=dot_c, zorder=5)
-        ax_read.text(x, s + 2.5, f"{s:.0f}", ha="center", va="bottom", fontsize=7, color=dot_c)
+        ax_read.text(
+            x, s + 2.5, f"{s:.0f}", ha="center", va="bottom", fontsize=7, color=dot_c
+        )
 
     ax_read.text(
-        n - 0.5, 17.5, lbl(labels, "readiness_label_high_fatigue", "High fatigue"),
-        ha="right", va="center", fontsize=8, color=_GRAY, alpha=0.8,
+        n - 0.5,
+        17.5,
+        lbl(labels, "readiness_label_high_fatigue", "High fatigue"),
+        ha="right",
+        va="center",
+        fontsize=8,
+        color=_GRAY,
+        alpha=0.8,
     )
     ax_read.text(
-        n - 0.5, 40.0, lbl(labels, "readiness_label_slight_fatigue", "Slight fatigue"),
-        ha="right", va="center", fontsize=8, color=_GRAY, alpha=0.8,
+        n - 0.5,
+        40.0,
+        lbl(labels, "readiness_label_slight_fatigue", "Slight fatigue"),
+        ha="right",
+        va="center",
+        fontsize=8,
+        color=_GRAY,
+        alpha=0.8,
     )
     ax_read.text(
-        n - 0.5, 50.0, lbl(labels, "readiness_label_normal", "Normal"),
-        ha="right", va="center", fontsize=8, color=_GRAY, alpha=0.8,
+        n - 0.5,
+        50.0,
+        lbl(labels, "readiness_label_normal", "Normal"),
+        ha="right",
+        va="center",
+        fontsize=8,
+        color=_GRAY,
+        alpha=0.8,
     )
     ax_read.text(
-        n - 0.5, 60.0, lbl(labels, "readiness_label_good_recovery", "Good recovery"),
-        ha="right", va="center", fontsize=8, color=_GRAY, alpha=0.8,
+        n - 0.5,
+        60.0,
+        lbl(labels, "readiness_label_good_recovery", "Good recovery"),
+        ha="right",
+        va="center",
+        fontsize=8,
+        color=_GRAY,
+        alpha=0.8,
     )
     ax_read.text(
-        n - 0.5, 82.5, lbl(labels, "readiness_label_excellent", "Excellent"),
-        ha="right", va="center", fontsize=8, color=_GRAY, alpha=0.8,
+        n - 0.5,
+        82.5,
+        lbl(labels, "readiness_label_excellent", "Excellent"),
+        ha="right",
+        va="center",
+        fontsize=8,
+        color=_GRAY,
+        alpha=0.8,
     )
     ax_read.set_ylim(0.0, 100.0)
     ax_read.set_ylabel(
@@ -393,27 +425,59 @@ def plot_orthostatic_dual_score_evolution(
         else:
             dot_c = "#e74c3c"
         ax_auto.scatter([x], [s], s=55, color=dot_c, zorder=5)
-        ax_auto.text(x, s + 2.5, f"{s:.0f}", ha="center", va="bottom", fontsize=7, color=dot_c)
+        ax_auto.text(
+            x, s + 2.5, f"{s:.0f}", ha="center", va="bottom", fontsize=7, color=dot_c
+        )
 
     ax_auto.text(
-        n - 0.5, 15.0, lbl(labels, "autonomic_label_impaired", "Impaired"),
-        ha="right", va="center", fontsize=8, color=_GRAY, alpha=0.8,
+        n - 0.5,
+        15.0,
+        lbl(labels, "autonomic_label_impaired", "Impaired"),
+        ha="right",
+        va="center",
+        fontsize=8,
+        color=_GRAY,
+        alpha=0.8,
     )
     ax_auto.text(
-        n - 0.5, 40.0, lbl(labels, "autonomic_label_borderline", "Borderline"),
-        ha="right", va="center", fontsize=8, color=_GRAY, alpha=0.8,
+        n - 0.5,
+        40.0,
+        lbl(labels, "autonomic_label_borderline", "Borderline"),
+        ha="right",
+        va="center",
+        fontsize=8,
+        color=_GRAY,
+        alpha=0.8,
     )
     ax_auto.text(
-        n - 0.5, 60.0, lbl(labels, "autonomic_label_normal", "Normal"),
-        ha="right", va="center", fontsize=8, color=_GRAY, alpha=0.8,
+        n - 0.5,
+        60.0,
+        lbl(labels, "autonomic_label_normal", "Normal"),
+        ha="right",
+        va="center",
+        fontsize=8,
+        color=_GRAY,
+        alpha=0.8,
     )
     ax_auto.text(
-        n - 0.5, 77.5, lbl(labels, "autonomic_label_good", "Good"),
-        ha="right", va="center", fontsize=8, color=_GRAY, alpha=0.8,
+        n - 0.5,
+        77.5,
+        lbl(labels, "autonomic_label_good", "Good"),
+        ha="right",
+        va="center",
+        fontsize=8,
+        color=_GRAY,
+        alpha=0.8,
     )
     ax_auto.text(
-        n - 0.5, 92.5, lbl(labels, "autonomic_label_excellent", "Excellent"),
-        ha="right", va="center", fontsize=8, color=_GRAY, alpha=0.8,
+        n - 0.5,
+        92.5,
+        lbl(labels, "autonomic_label_excellent", "Excellent"),
+        ha="right",
+        va="center",
+        fontsize=8,
+        color=_GRAY,
+        alpha=0.8,
     )
     ax_auto.set_ylim(0.0, 100.0)
     ax_auto.set_ylabel(
