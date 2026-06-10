@@ -73,8 +73,8 @@ cardiolab/
     └── rr_plots.py       → raw RR: tachogram, distribution, filtered,
                             multi-session comparison, 2×2 summary
 
-example/              → step-by-step usage scripts (01 – 10)
-tests/                → full unit test suite (1190 tests)
+examples/             → step-by-step usage scripts (01 – 15)
+tests/                → full unit test suite (1458 tests)
 ```
 
 ---
@@ -378,7 +378,7 @@ fig.savefig("evolution_rolling.png", dpi=150, bbox_inches="tight")
 
 Both functions return a `Figure` with two stacked panels (RMSSD top, readiness
 score bottom). `None` values in `rolling_rmssd` appear as gaps in the line.
-See [`example/10_resting_evolution_plots.py`](example/10_resting_evolution_plots.py)
+See [`examples/10_resting_evolution_plots.py`](examples/10_resting_evolution_plots.py)
 for a complete worked example including data loading and score computation.
 
 ### Cardiac coherence — `coherence_plots`
@@ -854,7 +854,7 @@ with HRVRepository.from_env() as repo:
 
 Each protocol table includes a `score FLOAT` column (see [Analytics & Scoring](#analytics--scoring)).
 
-See [`example/README.md`](example/README.md) for the full step-by-step setup.
+See [`examples/README.md`](examples/README.md) for the full step-by-step setup.
 
 ---
 
@@ -877,9 +877,9 @@ See [`example/README.md`](example/README.md) for the full step-by-step setup.
 | `visualization/` | Implemented |
 | `reporting/` — all 6 protocols (9 functions) + training load (2 functions) | Implemented |
 | PPG signal support | Planned |
-| Training load — Phases 1-6 (DB / TRIMP / ATL-CTL-TSB / Viz / Reporting / Scripts) | In progress |
+| Training load — Phases 1-6 (DB / TRIMP / ATL-CTL-TSB / Viz / Reporting / Scripts) | Implemented |
 
-**Test coverage:** 1235 unit tests, 0 failures.
+**Test coverage:** 1 458 unit tests, 0 failures — 87.6 % coverage.
 
 ---
 
@@ -1070,9 +1070,9 @@ TRIMP = duration_min × (1 − readiness / 100)
 #### Phase 4 — Visualization ✅
 * [x] `visualization/training_load_plots.py`
   * [x] `plot_atl_ctl_tsb()` — dual-axis: CTL + ATL top, TSB with coloured zones bottom
-  * [x] `plot_trimp_history()` — TRIMP bar chart coloured by sport type
+  * [x] `plot_trimp_history()` — TRIMP bar chart coloured by sport type; stacked bars for multi-activity days
   * [x] `plot_tsb_zones()` — coloured zone bands (overload / optimal / fresh / detraining)
-* [x] 27 visualization tests
+* [x] 34 visualization tests
 
 #### Phase 5 — Reporting ✅
 * [x] `reporting/training_load_report.py`
@@ -1101,9 +1101,28 @@ TRIMP = duration_min × (1 − readiness / 100)
 
 ---
 
-### v0.3.0 — Additional sensors
+### v0.3.0 — Notebooks + Additional sensors
 
 **DB change:** none — new sensor data maps to the existing `training_sessions` and `hrv_raw_sessions` tables.
+
+#### Phase 0 — Notebooks
+
+Split the monolithic `pipeline-notebook.ipynb` (v0.1.0) into thematic notebooks, reusing
+the structured content from `examples/`.
+
+* [ ] `notebooks/` directory at the repository root
+  * [ ] `README.md` — index and prerequisites
+  * [ ] `01_signal_rr.ipynb` — RRSeries, cleaning, tachogram (→ `examples/09`)
+  * [ ] `02_resting_protocol.ipynb` — full resting protocol (→ `examples/02`)
+  * [ ] `03_orthostatic_protocol.ipynb` — orthostatic with dual score (→ `examples/03`)
+  * [ ] `04_other_protocols.ipynb` — coherence, HRR, drift, VO2max (→ `examples/12`)
+  * [ ] `05_analytics_baseline_scoring.ipynb` — baseline, scoring, anomaly, trends (→ `examples/06–07`)
+  * [ ] `06_training_load.ipynb` — TRIMP, ATL/CTL/TSB, visualisation (→ `examples/13`)
+  * [ ] `07_database_pipeline.ipynb` — DB setup, import, queries, export (→ `examples/01–05`)
+  * [ ] `08_full_daily_pipeline.ipynb` — end-to-end daily pipeline (→ `examples/15`)
+
+Each notebook is self-contained with synthetic data embedded or drawn from `datasets/`.
+Compatible with `jupyter nbconvert --to html` for static sharing.
 
 #### Phase 1 — Garmin
 * [ ] `sensors_tools/garmin.py`

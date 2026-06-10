@@ -145,11 +145,74 @@ session:
 
 ---
 
-### Improved — Test coverage
+### Performance — `_ema()` vectorisation and `load_readiness_for_date` O(1) (issue #13)
 
-- Overall coverage raised from **83.6 % → 86.8 %** (`fail_under = 80`).
+#### `analytics/training_load.py`
+
+- `_ema(trimp, tau)` — rewritten using `scipy.signal.lfilter([k], [1.0, -(1-k)], trimp)`.
+  Mathematically identical to the original Python loop (1st-order IIR filter, initial
+  condition = 0); eliminates the explicit `for` loop, vectorising computation over NumPy
+  arrays.
+- `load_readiness_for_date(user_id, date, repo, baseline, protocol)` — now O(1): delegates
+  to `repo.load_features_for_date()` (resting) or `repo.load_orthostatic_for_date()`
+  (orthostatic) instead of loading all rows and scanning in Python.
+
+#### `database/repository.py`
+
+- `HRVRepository.load_features_for_date(user_id, date) → HRVFeatures | None` — targeted
+  `WHERE date::date = %s` query; returns the session for the specified calendar day, or `None`.
+- `HRVRepository.load_orthostatic_for_date(user_id, date) → OrthostaticRecord | None` —
+  same pattern for the orthostatic table.
+
+#### Tests
+
+- `tests/analytics/test_training_load.py` — new `TestEmaVectorised` class (8 tests):
+  matches the reference Python loop for constant τ = 7 and τ = 42, variable TRIMP, sparse
+  TRIMP; zero input → zero output; initial condition = 0; returns `ndarray`; length
+  preserved.
+
+---
+
+### Fixed — `plot_trimp_history` multi-activity stacked bars
+
+`plot_trimp_history()` previously assigned one sport colour per date, silently overwriting
+earlier activities when a day contained multiple sessions. The last activity's sport type
+was shown and all TRIMPs were summed into a single unsegmented bar — the individual
+activities were invisible.
+
+#### `visualization/training_load_plots.py`
+
+- When `sessions` is provided, activities are now grouped by calendar date using
+  `collections.defaultdict`. Days with a single active session render as before. Days with
+  two or more active sessions render **stacked bars**: each segment represents one activity,
+  height = individual TRIMP, colour = its sport type, with a thin white edge between
+  segments.
+- The legend now lists every unique sport type present across all sessions (not only the last
+  one per day).
+
+#### Tests
+
+- `tests/visualization/test_training_load_plots.py` — new `TestPlotTrimpHistoryMultiActivity`
+  class (7 tests): returns a Figure; 5 patches for a 5-day fixture with 2 activities on day 0;
+  stacked bars have correct `y` origins (0.0 and 30.0); total height = 70.0 (sum of both
+  activities); legend lists both sport types; single-activity days unaffected; rest day
+  produces no bar.
+
+---
+
+### Improved — Test coverage and quality
+
+- Overall coverage raised from **83.6 % → 87.6 %** (`fail_under = 80`). **1 458 tests**, 0 failures.
 - `tests/visualization/test_orthostatic_plots.py` — new file, 36 tests;
   brings `orthostatic_plots.py` from 13.2 % to 100 % coverage.
+- Deterministic seeds — three uses of unseeded `np.random` replaced with
+  `np.random.default_rng(42)`:  `test_trends.py`, `test_baseline.py`,
+  `test_frequency_domain.py`.
+- Zone-boundary tests — `tests/analytics/test_scoring.py`:
+  `TestOrthostaticScoreZoneBoundaries` (11 tests), `TestDriftScoreZoneBoundaries` (3),
+  `TestCoherenceScore100ZoneBoundaries` (3).
+- Dual-score reporting tests — `tests/reporting/test_orthostatic.py`:
+  `TestDualScoreColumnsComparison` (7), `TestDualScoreColumnsHistory` (7).
 
 ---
 
