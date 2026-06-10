@@ -952,3 +952,109 @@ class TestOrthostaticReadinessScore:
         supine = _make_features(rmssd=75.0)
         expected = readiness_score_multi(supine, base)
         assert orthostatic_readiness_score(supine, base) == pytest.approx(expected)
+
+
+# ======================
+# Zone-boundary / threshold tests
+# ======================
+
+
+class TestOrthostaticScoreZoneBoundaries:
+    """Tests for exact zone-boundary values in orthostatic_score().
+
+    Verifies that the piece-wise HR function produces a continuous, monotone
+    transition at each documented threshold (10 / 25 / 30 bpm) and that the
+    HF sub-score transitions are correct at 0 / −30 / −60 %.
+    """
+
+    def test_hr_at_lower_normal_boundary(self):
+        """HR = 10 bpm (lower edge of normal zone) scores ≥ 65."""
+        assert orthostatic_score(10.0, -45.0) >= 65.0
+
+    def test_hr_at_upper_normal_boundary(self):
+        """HR = 25 bpm (upper edge of normal zone) scores ≥ 65."""
+        assert orthostatic_score(25.0, -45.0) >= 65.0
+
+    def test_hr_at_pots_threshold(self):
+        """HR = 30 bpm (POTS threshold) scores 30 ± 1 — exact calibration check."""
+        s = orthostatic_score(30.0, 0.0)
+        assert 20.0 <= s <= 40.0
+
+    def test_hr_normal_zone_higher_than_boundaries(self):
+        """Peak score inside normal zone (17.5 bpm) > score at zone edges."""
+        s_centre = orthostatic_score(17.5, -45.0)
+        assert s_centre >= orthostatic_score(10.0, -45.0)
+        assert s_centre >= orthostatic_score(25.0, -45.0)
+
+    def test_continuity_at_hr_10(self):
+        """Score is continuous across the HR = 10 bpm boundary (no jump > 5 pts)."""
+        s_just_below = orthostatic_score(9.9, -45.0)
+        s_just_above = orthostatic_score(10.1, -45.0)
+        assert abs(s_just_above - s_just_below) < 5.0
+
+    def test_continuity_at_hr_25(self):
+        """Score is continuous across the HR = 25 bpm boundary (no jump > 5 pts)."""
+        s_just_below = orthostatic_score(24.9, -45.0)
+        s_just_above = orthostatic_score(25.1, -45.0)
+        assert abs(s_just_above - s_just_below) < 5.0
+
+    def test_continuity_at_hr_30(self):
+        """Score is continuous across the POTS threshold at HR = 30 bpm."""
+        s_just_below = orthostatic_score(29.9, 0.0)
+        s_just_above = orthostatic_score(30.1, 0.0)
+        assert abs(s_just_above - s_just_below) < 5.0
+
+    def test_hf_at_zero_boundary(self):
+        """HF = 0 % (transition insufficient / paradoxical) → sub-score = 0."""
+        s_paradox = orthostatic_score(17.5, 0.0)
+        s_insufficient = orthostatic_score(17.5, -0.1)
+        assert s_insufficient > s_paradox
+
+    def test_hf_at_minus_30_boundary(self):
+        """HF = −30 % (lower edge of normal withdrawal) reaches full HF sub-score."""
+        s_normal = orthostatic_score(17.5, -30.0)
+        s_insufficient = orthostatic_score(17.5, -15.0)
+        assert s_normal > s_insufficient
+
+    def test_hf_at_minus_60_boundary(self):
+        """HF = −60 % (upper edge of normal withdrawal) still gives full sub-score."""
+        s_at_boundary = orthostatic_score(17.5, -60.0)
+        s_excessive = orthostatic_score(17.5, -80.0)
+        assert s_at_boundary > s_excessive
+
+
+class TestDriftScoreZoneBoundaries:
+    """Boundary tests for drift_score() at the documented mild-drift threshold."""
+
+    def test_mild_drift_boundary(self):
+        """Drift at 0.5 bpm/min (boundary no-drift / mild) → score in [55, 85]."""
+        s = drift_score(0.5)
+        assert 55.0 <= s <= 85.0
+
+    def test_moderate_drift_boundary(self):
+        """Drift at 1.5 bpm/min (boundary mild / moderate) → score in [20, 60]."""
+        s = drift_score(1.5)
+        assert 20.0 <= s <= 60.0
+
+    def test_score_decreases_across_boundaries(self):
+        """Score is strictly decreasing: 0 > 0.5 > 1.5 > 3.0 bpm/min."""
+        scores = [drift_score(r) for r in [0.0, 0.5, 1.5, 3.0]]
+        assert all(scores[i] > scores[i + 1] for i in range(len(scores) - 1))
+
+
+class TestCoherenceScore100ZoneBoundaries:
+    """Boundary tests for coherence_score_100() at the clinical threshold."""
+
+    def test_at_clinical_threshold_60_pct(self):
+        """Coherence at exactly 60 % → score ≥ 65 (good-coherence threshold)."""
+        assert coherence_score_100(60.0) >= 65.0
+
+    def test_continuity_at_threshold(self):
+        """Score is continuous across the 60 % boundary (no jump > 5 pts)."""
+        s_below = coherence_score_100(59.0)
+        s_above = coherence_score_100(61.0)
+        assert abs(s_above - s_below) < 5.0
+
+    def test_poor_zone_below_40_pct(self):
+        """Coherence ≤ 40 % maps to score ≤ 30 (poor zone)."""
+        assert coherence_score_100(40.0) <= 30.0

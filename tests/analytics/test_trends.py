@@ -156,7 +156,8 @@ class TestTrendRmssd:
         from cardiolab.protocols.resting import HRVFeatures
 
         # Create baseline with trend but added noise
-        base_values = [50 + i * 5 + np.random.normal(0, 3) for i in range(10)]
+        rng = np.random.default_rng(42)
+        base_values = [50 + i * 5 + rng.normal(0, 3) for i in range(10)]
         features = [
             HRVFeatures(
                 date=f"2026-05-{i:02d}",

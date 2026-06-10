@@ -307,10 +307,11 @@ class TestBaselineValidation:
         """Test baseline with many features (performance check)."""
         from cardiolab.protocols.resting import HRVFeatures
 
+        rng = np.random.default_rng(42)
         features = [
             HRVFeatures(
                 date=f"2026-04-{1 + (i % 24):02d}",
-                rmssd=60.0 + np.random.normal(0, 5),
+                rmssd=60.0 + rng.normal(0, 5),
                 mean_hr=70.0,
                 sdnn=80.0,
                 pnn50=25.0,

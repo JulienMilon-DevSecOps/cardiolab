@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 from pandas.io.formats.style import Styler
 
+from cardiolab.labels import LABELS_EN, LABELS_FR
 from cardiolab.protocols.orthostatic import (
     OrthostaticPhases,
     OrthostaticResult,
@@ -343,3 +344,117 @@ class TestTableOrthostaticHistory:
         """Interpretation is stored in the condensed history table."""
         styler = table_orthostatic_history([one_result])
         assert styler.data["interpretation"].iloc[0] == "normal"
+
+
+class TestDualScoreColumnsComparison:
+    """Tests for readiness_scores integration in table_orthostatic_comparison."""
+
+    def test_dual_score_columns_added(self, one_result: OrthostaticResult) -> None:
+        """readiness_score and autonomic_score columns appear when scores provided."""
+        styler = table_orthostatic_comparison(
+            [one_result], readiness_scores=[62.0]
+        )
+        flat_cols = [c[1] for c in styler.data.columns]
+        assert "readiness_score" in flat_cols
+        assert "autonomic_score" in flat_cols
+
+    def test_readiness_score_value_stored(self, one_result: OrthostaticResult) -> None:
+        """readiness_score value round-trips correctly through the table."""
+        one_result.score = 70.0
+        styler = table_orthostatic_comparison(
+            [one_result], readiness_scores=[58.0]
+        )
+        mi_col = ("Autonomic response", "readiness_score")
+        assert styler.data[mi_col].iloc[0] == pytest.approx(58.0)
+
+    def test_readiness_label_key_stored(self, one_result: OrthostaticResult) -> None:
+        """readiness_label internal key is correct for score = 62 (good_recovery zone)."""
+        styler = table_orthostatic_comparison(
+            [one_result], readiness_scores=[62.0]
+        )
+        mi_col = ("Autonomic response", "readiness_label")
+        assert styler.data[mi_col].iloc[0] == "good_recovery"
+
+    def test_readiness_scores_length_mismatch_raises(
+        self, two_results: list[OrthostaticResult]
+    ) -> None:
+        """Raise ValueError when readiness_scores length mismatches results."""
+        with pytest.raises(ValueError, match="readiness_scores length"):
+            table_orthostatic_comparison(two_results, readiness_scores=[50.0])
+
+    def test_with_labels_fr_accepted(self, one_result: OrthostaticResult) -> None:
+        """labels=LABELS_FR is accepted without error."""
+        styler = table_orthostatic_comparison(
+            [one_result], readiness_scores=[62.0], labels=LABELS_FR
+        )
+        assert isinstance(styler, __import__("pandas.io.formats.style", fromlist=["Styler"]).Styler)
+
+    def test_with_labels_en_accepted(self, one_result: OrthostaticResult) -> None:
+        """labels=LABELS_EN is accepted without error."""
+        styler = table_orthostatic_comparison(
+            [one_result], readiness_scores=[62.0], labels=LABELS_EN
+        )
+        from pandas.io.formats.style import Styler
+        assert isinstance(styler, Styler)
+
+    def test_without_readiness_scores_no_crash(
+        self, one_result: OrthostaticResult
+    ) -> None:
+        """Calling without readiness_scores still produces a valid Styler."""
+        from pandas.io.formats.style import Styler
+        styler = table_orthostatic_comparison([one_result])
+        assert isinstance(styler, Styler)
+
+
+class TestDualScoreColumnsHistory:
+    """Tests for readiness_scores integration in table_orthostatic_history."""
+
+    def test_dual_score_columns_added(self, one_result: OrthostaticResult) -> None:
+        """readiness_score and readiness_label columns appear when scores provided."""
+        styler = table_orthostatic_history([one_result], readiness_scores=[58.0])
+        cols = set(styler.data.columns)
+        assert "readiness_score" in cols
+        assert "readiness_label" in cols
+        assert "autonomic_label" in cols
+
+    def test_readiness_score_value_stored(self, one_result: OrthostaticResult) -> None:
+        """readiness_score value round-trips correctly through the history table."""
+        styler = table_orthostatic_history([one_result], readiness_scores=[72.0])
+        assert styler.data["readiness_score"].iloc[0] == pytest.approx(72.0)
+
+    def test_readiness_label_key_for_high_score(
+        self, one_result: OrthostaticResult
+    ) -> None:
+        """Score ≥ 65 → readiness_label = 'excellent'."""
+        styler = table_orthostatic_history([one_result], readiness_scores=[68.0])
+        assert styler.data["readiness_label"].iloc[0] == "excellent"
+
+    def test_readiness_label_key_for_low_score(
+        self, one_result: OrthostaticResult
+    ) -> None:
+        """Score < 35 → readiness_label = 'high_fatigue'."""
+        styler = table_orthostatic_history([one_result], readiness_scores=[20.0])
+        assert styler.data["readiness_label"].iloc[0] == "high_fatigue"
+
+    def test_readiness_scores_length_mismatch_raises(
+        self, two_results: list[OrthostaticResult]
+    ) -> None:
+        """Raise ValueError when readiness_scores length mismatches results."""
+        with pytest.raises(ValueError, match="readiness_scores length"):
+            table_orthostatic_history(two_results, readiness_scores=[50.0])
+
+    def test_with_labels_fr_accepted(self, one_result: OrthostaticResult) -> None:
+        """labels=LABELS_FR is accepted without error."""
+        from pandas.io.formats.style import Styler
+        styler = table_orthostatic_history(
+            [one_result], readiness_scores=[62.0], labels=LABELS_FR
+        )
+        assert isinstance(styler, Styler)
+
+    def test_without_readiness_scores_no_crash(
+        self, one_result: OrthostaticResult
+    ) -> None:
+        """Calling without readiness_scores still produces a valid Styler."""
+        from pandas.io.formats.style import Styler
+        styler = table_orthostatic_history([one_result])
+        assert isinstance(styler, Styler)
