@@ -1113,6 +1113,68 @@ class HRVRepository:
             for row in rows
         ]
 
+    def load_features_for_date(self, user_id: str, date: str) -> HRVFeatures | None:
+        """Load the resting HRV session recorded on a specific date, or None.
+
+        Issues a targeted ``WHERE date::date = %s`` query instead of loading
+        the full history, making it O(1) rather than O(N).
+
+        Args:
+            user_id: Athlete identifier.
+            date: ISO date string (``"YYYY-MM-DD"`` or ``"YYYY-MM-DDTHH:MM:SS"``);
+                only the date part is used.
+
+        Returns:
+            The matching :class:`~cardiolab.protocols.resting.HRVFeatures`, or
+            ``None`` when no record exists for that date.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        query = sql.SQL(
+            "SELECT date, rmssd, ln_rmssd, sdnn, pnn50, mean_hr,\n"
+            "       vlf, lf, hf, lf_hf, hf_pct, lf_nu, hf_nu, hf_hr,\n"
+            "       sd1, sd2, sd_ratio, dfa_alpha1, apen, sampen,\n"
+            "       duration, score, method\n"
+            "FROM {table}\n"
+            "WHERE user_id = %s AND date::date = %s;"
+        ).format(table=sql.Identifier(self.table_name))
+
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (user_id, date[:10]))
+            row = cur.fetchone()
+
+        if row is None:
+            return None
+
+        return HRVFeatures(
+            date=str(row[0]),
+            rmssd=row[1],
+            ln_rmssd=row[2],
+            sdnn=row[3],
+            pnn50=row[4],
+            mean_hr=row[5],
+            vlf=row[6],
+            lf=row[7],
+            hf=row[8],
+            lf_hf=row[9],
+            hf_pct=row[10],
+            lf_nu=row[11],
+            hf_nu=row[12],
+            hf_hr=row[13],
+            sd1=row[14],
+            sd2=row[15],
+            sd_ratio=row[16],
+            dfa_alpha1=row[17],
+            apen=row[18],
+            sampen=row[19],
+            duration=row[20],
+            score=row[21],
+            method=row[22] or "welch",
+        )
+
     # ── Orthostatic — schema ──────────────────────────────────────────────
 
     def create_orthostatic_table(self) -> None:
@@ -1291,6 +1353,79 @@ class HRVRepository:
             )
 
         return records
+
+    def load_orthostatic_for_date(
+        self, user_id: str, date: str
+    ) -> OrthostaticRecord | None:
+        """Load the orthostatic session recorded on a specific date, or None.
+
+        Issues a targeted ``WHERE date::date = %s`` query instead of loading
+        the full history, making it O(1) rather than O(N).
+
+        Args:
+            user_id: Athlete identifier.
+            date: ISO date string (``"YYYY-MM-DD"`` or ``"YYYY-MM-DDTHH:MM:SS"``);
+                only the date part is used.
+
+        Returns:
+            The matching :class:`~cardiolab.database.repository.OrthostaticRecord`,
+            or ``None`` when no record exists for that date.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        select_cols = sql.SQL(", ").join(
+            sql.Identifier(c) for c in ["date"] + _ORTHO_DATA_COLUMNS
+        )
+        query = sql.SQL(
+            "SELECT {cols}\nFROM {table}\nWHERE user_id = %s AND date::date = %s;"
+        ).format(
+            cols=select_cols,
+            table=sql.Identifier(self.ortho_table_name),
+        )
+
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (user_id, date[:10]))
+            raw = cur.fetchone()
+
+        if raw is None:
+            return None
+
+        col_names = ["date"] + _ORTHO_DATA_COLUMNS
+        r = dict(zip(col_names, raw, strict=False))
+        date_str = str(r["date"])
+        spectral_method: str = r.get("spectral_method") or "welch"
+        supine = _features_from_row(
+            raw, offset=1, date=date_str, duration=r["supine_duration_sec"]
+        )
+        supine.method = spectral_method
+        transition = _features_from_row(raw, offset=26, date=date_str)
+        transition.method = spectral_method
+        standing = _features_from_row(
+            raw, offset=45, date=date_str, duration=r["standing_duration_sec"]
+        )
+        standing.method = spectral_method
+        return OrthostaticRecord(
+            date=date_str,
+            supine=supine,
+            transition_start_sec=r["transition_start_sec"],
+            transition_end_sec=r["transition_end_sec"],
+            transition_duration_sec=r["transition_duration_sec"],
+            transition_delta_hr=r["transition_delta_hr"],
+            transition_peak_hr=r["transition_peak_hr"],
+            transition_features=transition,
+            standing=standing,
+            hr_response=r["hr_response"],
+            lf_hf_ratio_change=r["lf_hf_ratio_change"],
+            hf_response_pct=r["hf_response_pct"],
+            hf_hr_pct_change=r["hf_hr_pct_change"],
+            lf_hr_pct_change=r["lf_hr_pct_change"],
+            delta_rmssd=r["delta_rmssd"],
+            interpretation=r["interpretation"],
+            score=r.get("score") or 0.0,
+        )
 
     # ── Cardiac coherence — schema ────────────────────────────────────────
 

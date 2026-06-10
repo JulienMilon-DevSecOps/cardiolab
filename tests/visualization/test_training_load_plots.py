@@ -194,6 +194,147 @@ class TestPlotTrimpHistory:
         assert isinstance(plot_trimp_history(tl), Figure)
 
 
+# ── plot_trimp_history — multi-activity stacking ─────────────────────────────
+
+
+@pytest.mark.unit
+class TestPlotTrimpHistoryMultiActivity:
+    """Tests for stacked-bar rendering when a day has multiple activities."""
+
+    def _make_multi_day_tl(self) -> TrainingLoad:
+        """TrainingLoad over 5 days; day 0 has two activities (30 + 40 = 70 TRIMP)."""
+        trimp = np.array([70.0, 40.0, 35.0, 50.0, 0.0])
+        atl = compute_atl(trimp)
+        ctl = compute_ctl(trimp)
+        tsb = compute_tsb(ctl, atl)
+        return TrainingLoad(
+            dates=[
+                "2026-01-01",
+                "2026-01-02",
+                "2026-01-03",
+                "2026-01-04",
+                "2026-01-05",
+            ],
+            trimp=trimp,
+            atl=atl,
+            ctl=ctl,
+            tsb=tsb,
+        )
+
+    def _make_multi_sessions(self) -> list[dict]:
+        """Two running+cycling sessions on 2026-01-01; one session on following days."""
+        return [
+            {
+                "date": "2026-01-01",
+                "trimp": 30.0,
+                "duration_min": 45.0,
+                "sport_type": "running",
+                "notes": None,
+            },
+            {
+                "date": "2026-01-01",
+                "trimp": 40.0,
+                "duration_min": 60.0,
+                "sport_type": "cycling",
+                "notes": None,
+            },
+            {
+                "date": "2026-01-02",
+                "trimp": 40.0,
+                "duration_min": 60.0,
+                "sport_type": "running",
+                "notes": None,
+            },
+            {
+                "date": "2026-01-03",
+                "trimp": 35.0,
+                "duration_min": 50.0,
+                "sport_type": "cycling",
+                "notes": None,
+            },
+            {
+                "date": "2026-01-04",
+                "trimp": 50.0,
+                "duration_min": 70.0,
+                "sport_type": "running",
+                "notes": None,
+            },
+        ]
+
+    def test_returns_figure(self):
+        """Multi-activity sessions must return a Figure without error."""
+        tl = self._make_multi_day_tl()
+        sessions = self._make_multi_sessions()
+        assert isinstance(plot_trimp_history(tl, sessions=sessions), Figure)
+
+    def test_extra_bar_for_stacked_day(self):
+        """A day with 2 activities must produce 2 bar patches, not 1."""
+        tl = self._make_multi_day_tl()
+        sessions = self._make_multi_sessions()
+        fig = plot_trimp_history(tl, sessions=sessions)
+        # 3 active single-activity days + 2 bars stacked on day 0 + 0 for rest day = 5
+        bars = fig.axes[0].patches
+        assert len(bars) == 5  # noqa: PLR2004
+
+    def test_stacked_bars_have_different_bottoms(self):
+        """The two bars on the multi-activity day must have different y-origins."""
+        tl = self._make_multi_day_tl()
+        sessions = self._make_multi_sessions()
+        fig = plot_trimp_history(tl, sessions=sessions)
+        # Bars at x-position 0 are the stacked pair
+        ax = fig.axes[0]
+        bars_at_0 = [p for p in ax.patches if abs(p.get_x() + p.get_width() / 2) < 0.5]
+        assert len(bars_at_0) == 2  # noqa: PLR2004
+        bottoms = sorted(p.get_y() for p in bars_at_0)
+        assert bottoms[0] == pytest.approx(0.0)
+        assert bottoms[1] == pytest.approx(30.0)
+
+    def test_stacked_total_height_equals_sum(self):
+        """Heights of stacked bars must sum to the total daily TRIMP."""
+        tl = self._make_multi_day_tl()
+        sessions = self._make_multi_sessions()
+        fig = plot_trimp_history(tl, sessions=sessions)
+        ax = fig.axes[0]
+        bars_at_0 = [p for p in ax.patches if abs(p.get_x() + p.get_width() / 2) < 0.5]
+        total = sum(p.get_height() for p in bars_at_0)
+        assert total == pytest.approx(70.0)
+
+    def test_legend_shows_all_sport_types(self):
+        """Legend must list every unique sport type present across all sessions."""
+        tl = self._make_multi_day_tl()
+        sessions = self._make_multi_sessions()
+        fig = plot_trimp_history(tl, sessions=sessions)
+        legend = fig.axes[0].get_legend()
+        assert legend is not None
+        labels = {t.get_text() for t in legend.get_texts()}
+        assert "running" in labels
+        assert "cycling" in labels
+
+    def test_single_activity_day_unaffected(self):
+        """Single-activity days in a mixed session list must draw one bar each."""
+        tl = self._make_multi_day_tl()
+        sessions = self._make_multi_sessions()
+        fig = plot_trimp_history(tl, sessions=sessions)
+        ax = fig.axes[0]
+        # Day index 1 (2026-01-02) has one session — expect exactly one bar at x=1
+        bars_at_1 = [
+            p for p in ax.patches if abs(p.get_x() + p.get_width() / 2 - 1.0) < 0.5
+        ]
+        assert len(bars_at_1) == 1
+
+    def test_rest_day_renders_no_bar(self):
+        """A day with TRIMP = 0 and no sessions must produce no bar."""
+        tl = self._make_multi_day_tl()
+        sessions = self._make_multi_sessions()
+        fig = plot_trimp_history(tl, sessions=sessions)
+        ax = fig.axes[0]
+        # Day index 4 (2026-01-05) is a rest day
+        bars_at_4 = [
+            p for p in ax.patches if abs(p.get_x() + p.get_width() / 2 - 4.0) < 0.5
+        ]
+        assert len(bars_at_4) == 0
+
+
 # ── plot_tsb_zones ────────────────────────────────────────────────────────────
 
 

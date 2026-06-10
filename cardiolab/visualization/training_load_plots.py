@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
@@ -232,20 +233,66 @@ def plot_trimp_history(
     x = np.arange(len(dates))
     colors_map = {**_DEFAULT_SPORT_COLORS, **(sport_colors or {})}
 
-    # Build sport_type lookup from sessions
-    sport_lookup: dict[str, str | None] = {}
-    if sessions:
-        for s in sessions:
-            sport_lookup[str(s["date"])[:10]] = s.get("sport_type")
-
-    bar_colors = [
-        colors_map.get(sport_lookup.get(d) or "", _TRIMP_COLOR) for d in dates
-    ]
-
     fig, ax = plt.subplots(figsize=figsize)
-    ax.bar(x, trimp, color=bar_colors, width=0.8, alpha=0.80, zorder=3)
 
-    # 7-day rolling mean
+    if sessions:
+        # Group all activities by date — preserves multi-activity days
+        sessions_by_date: dict[str, list[dict]] = defaultdict(list)
+        for s in sessions:
+            sessions_by_date[str(s["date"])[:10]].append(s)
+
+        # Draw bars: stacked for multi-activity days, single otherwise
+        for i, date in enumerate(dates):
+            day = sessions_by_date.get(date, [])
+            individual = [float(s.get("trimp") or 0.0) for s in day]
+            has_data = any(t > 0 for t in individual)
+
+            if has_data and len(day) > 1:
+                # Stacked bars — each segment = one activity
+                bottom = 0.0
+                for s, t in zip(day, individual, strict=True):
+                    if t <= 0:
+                        continue
+                    sport = s.get("sport_type") or ""
+                    ax.bar(
+                        i,
+                        t,
+                        bottom=bottom,
+                        color=colors_map.get(sport, _TRIMP_COLOR),
+                        width=0.8,
+                        alpha=0.80,
+                        edgecolor="white",
+                        linewidth=0.4,
+                        zorder=3,
+                    )
+                    bottom += t
+            elif trimp[i] > 0:
+                # Single activity (or trimp-only fallback)
+                sport = day[0].get("sport_type") or "" if day else ""
+                ax.bar(
+                    i,
+                    trimp[i],
+                    color=colors_map.get(sport, _TRIMP_COLOR),
+                    width=0.8,
+                    alpha=0.80,
+                    zorder=3,
+                )
+
+        # Legend: all unique sport types across all sessions
+        seen: set[str] = set()
+        patches = []
+        for s in sessions:
+            sport = s.get("sport_type") or ""
+            if sport and sport not in seen:
+                seen.add(sport)
+                patches.append(
+                    Patch(facecolor=colors_map.get(sport, _TRIMP_COLOR), label=sport)
+                )
+    else:
+        ax.bar(x, trimp, color=_TRIMP_COLOR, width=0.8, alpha=0.80, zorder=3)
+        patches = []
+
+    # 7-day rolling mean (computed on aggregated daily TRIMP)
     if len(trimp) >= 7:
         rolling = np.convolve(trimp, np.ones(7) / 7, mode="valid")
         ax.plot(
@@ -257,7 +304,10 @@ def plot_trimp_history(
             label="7-day mean",
             zorder=4,
         )
-        ax.legend(fontsize=8)
+        if patches:
+            patches.append(
+                Patch(facecolor=_DARK, label="7-day mean", linestyle="--", fill=False)
+            )
 
     ax.set_ylabel(lbl(labels, "trimp", "TRIMP"), fontsize=10)
     ax.grid(alpha=0.20, linestyle=":", axis="y")
@@ -266,19 +316,10 @@ def plot_trimp_history(
     ax.set_xticks(tick_idx)
     ax.set_xticklabels(tick_labels, rotation=40, ha="right", fontsize=8)
 
-    # Legend patches for sport types
-    if sessions and sport_lookup:
-        seen: set[str] = set()
-        patches = []
-        for d in dates:
-            sport = sport_lookup.get(d)
-            if sport and sport not in seen:
-                seen.add(sport)
-                patches.append(
-                    Patch(facecolor=colors_map.get(sport, _TRIMP_COLOR), label=sport)
-                )
-        if patches:
-            ax.legend(handles=patches, loc="upper right", fontsize=8)
+    if patches:
+        ax.legend(handles=patches, loc="upper right", fontsize=8)
+    elif len(trimp) >= 7:
+        ax.legend(fontsize=8)
 
     ax.set_title(title, fontsize=12, fontweight="bold")
     plt.tight_layout()
