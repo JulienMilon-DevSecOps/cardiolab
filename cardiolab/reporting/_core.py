@@ -35,8 +35,25 @@ _DRIFT_CAT_COLORS: dict[str, str] = {
 
 _ORTHO_CAT_COLORS: dict[str, str] = {
     "normal": "#d5f5e3",
+    "elevated_response": "#fdebd0",
+    "impaired_response": "#fadbd8",
+    "excessive_vagal_withdrawal": "#fdebd0",
+}
+
+_READINESS_LABEL_COLORS: dict[str, str] = {
+    "high_fatigue": "#fadbd8",
+    "slight_fatigue": "#fdebd0",
+    "normal": "#fef9e7",
+    "good_recovery": "#d5f5e3",
+    "excellent": "#d5f5e3",
+}
+
+_AUTONOMIC_LABEL_COLORS: dict[str, str] = {
     "impaired": "#fadbd8",
-    "elevated": "#fdebd0",
+    "borderline": "#fdebd0",
+    "normal": "#fef9e7",
+    "good": "#d5f5e3",
+    "excellent": "#d5f5e3",
 }
 
 _VO2_CAT_COLORS: dict[str, str] = {

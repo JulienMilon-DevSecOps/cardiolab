@@ -12,6 +12,7 @@ import pytest
 from cardiolab.analytics.baseline import Baseline
 from cardiolab.analytics.training_load import (
     TrainingLoad,
+    _ema,
     compute_atl,
     compute_ctl,
     compute_tsb,
@@ -773,3 +774,68 @@ class TestTrainingLoad:
         tl = TrainingLoad.from_sessions(sessions)
         idx = tl.dates.index("2026-06-02")
         assert tl.trimp[idx] == pytest.approx(0.0)
+
+
+# ======================
+# UNIT — _ema (lfilter vectorisation)
+# ======================
+
+
+@pytest.mark.unit
+class TestEmaVectorised:
+    """Unit tests verifying that the lfilter-based _ema matches the recurrence.
+
+    The old loop: EMA[i] = k * trimp[i] + (1-k) * EMA[i-1], initial = 0.
+    The new impl uses scipy.signal.lfilter which is mathematically equivalent.
+    These tests protect against regressions from the vectorisation.
+    """
+
+    def _loop_ema(self, trimp: np.ndarray, tau: int) -> np.ndarray:
+        """Return EMA computed by the original Python loop (reference oracle)."""
+        k = 1.0 - math.exp(-1.0 / tau)
+        result = np.zeros(len(trimp))
+        for i, t in enumerate(trimp):
+            prev = result[i - 1] if i > 0 else 0.0
+            result[i] = t * k + prev * (1.0 - k)
+        return result
+
+    def test_matches_loop_constant_trimp_tau7(self):
+        """Lfilter result equals Python loop for constant TRIMP, tau=7."""
+        trimp = np.full(30, 40.0)
+        assert np.allclose(_ema(trimp, 7), self._loop_ema(trimp, 7))
+
+    def test_matches_loop_constant_trimp_tau42(self):
+        """Lfilter result equals Python loop for constant TRIMP, tau=42."""
+        trimp = np.full(90, 40.0)
+        assert np.allclose(_ema(trimp, 42), self._loop_ema(trimp, 42))
+
+    def test_matches_loop_variable_trimp(self):
+        """Lfilter result equals Python loop for random TRIMP series."""
+        rng = np.random.default_rng(0)
+        trimp = rng.uniform(0, 80, 60)
+        assert np.allclose(_ema(trimp, 7), self._loop_ema(trimp, 7))
+
+    def test_matches_loop_sparse_trimp(self):
+        """Lfilter result equals Python loop for sparse (mostly-zero) TRIMP."""
+        trimp = np.zeros(30)
+        trimp[0] = 50.0
+        trimp[15] = 70.0
+        assert np.allclose(_ema(trimp, 7), self._loop_ema(trimp, 7))
+
+    def test_initial_condition_zero(self):
+        """First-day EMA = trimp[0] * k (initial condition = 0)."""
+        k = 1.0 - math.exp(-1.0 / 7)
+        assert _ema(np.array([50.0]), 7)[0] == pytest.approx(50.0 * k)
+
+    def test_all_zeros_gives_zeros(self):
+        """All-zero TRIMP → all-zero EMA."""
+        assert np.allclose(_ema(np.zeros(10), 7), 0.0)
+
+    def test_returns_ndarray(self):
+        """Return type is numpy ndarray."""
+        assert isinstance(_ema(np.array([40.0, 0.0]), 7), np.ndarray)
+
+    def test_length_preserved(self):
+        """Output length equals input length."""
+        trimp = np.array([10.0, 20.0, 30.0])
+        assert len(_ema(trimp, 7)) == 3

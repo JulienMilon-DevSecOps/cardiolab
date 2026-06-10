@@ -4,11 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cardiolab"
-version = "0.2.3"
+version = "0.2.4"
 description = "HRV analysis toolkit — scientific core of the cardioanalysis platform"
 authors = [{name = "Julien MILON", email = "julienmilon.devsecops@gmail.com"}]
 readme = "README.md"
-license = {text = "MIT"}
+license = {file = "LICENCE"}
 requires-python = ">=3.12"
 keywords = [
     "hrv",
@@ -31,7 +31,7 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Operating System :: OS Independent",
@@ -72,7 +72,9 @@ include = [
     "/cardiolab",
     "/tests",
     "/docs",
+    "/example",
     "CHANGELOG.md",
+    "LICENCE",
     "README.md",
     "pyproject.toml",
 ]
@@ -162,6 +164,7 @@ omit = [
 
 [tool.coverage.report]
 show_missing = true
+fail_under = 80
 skip_covered = false
 precision = 1
 exclude_lines = [

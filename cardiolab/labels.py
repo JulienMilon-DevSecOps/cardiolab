@@ -60,6 +60,29 @@ LABELS_EN: dict[str, str] = {
     "lf_hf_change": "LF/HF Δ",
     "lf_hf_ratio_change": "LF/HF Δ",
     "interpretation": "Assessment",
+    # ── Orthostatic — dual score columns ─────────────────────────────────
+    "readiness_score": "Readiness score",
+    "readiness_label": "Readiness",
+    "autonomic_score": "Autonomic score",
+    "autonomic_label": "Autonomic response",
+    "ortho_dual_score_title": "Orthostatic — Score Evolution",
+    # ── Orthostatic — interpretation cell values ──────────────────────────
+    "ortho_interp_normal": "Normal",
+    "ortho_interp_elevated_response": "Elevated (POTS?)",
+    "ortho_interp_impaired_response": "Impaired",
+    "ortho_interp_excessive_vagal_withdrawal": "Excessive withdrawal",
+    # ── Readiness label cell values ───────────────────────────────────────
+    "readiness_label_high_fatigue": "High fatigue",
+    "readiness_label_slight_fatigue": "Slight fatigue",
+    "readiness_label_normal": "Normal",
+    "readiness_label_good_recovery": "Good recovery",
+    "readiness_label_excellent": "Excellent",
+    # ── Autonomic label cell values ───────────────────────────────────────
+    "autonomic_label_impaired": "Impaired",
+    "autonomic_label_borderline": "Borderline",
+    "autonomic_label_normal": "Normal",
+    "autonomic_label_good": "Good",
+    "autonomic_label_excellent": "Excellent",
     # ── Orthostatic — condensed history columns ──────────────────────────
     "supine_rmssd": "Supine RMSSD (ms)",
     "standing_rmssd": "Standing RMSSD (ms)",
@@ -173,6 +196,29 @@ LABELS_FR: dict[str, str] = {
     "lf_hf_change": "Δ LF/HF",
     "lf_hf_ratio_change": "Δ LF/HF",
     "interpretation": "Évaluation",
+    # ── Orthostatique — colonnes dual score ──────────────────────────────
+    "readiness_score": "Score de récupération",
+    "readiness_label": "Récupération",
+    "autonomic_score": "Score autonome",
+    "autonomic_label": "Réponse autonome",
+    "ortho_dual_score_title": "Orthostatic — Évolution des scores",
+    # ── Orthostatique — valeurs de cellule interprétation ─────────────────
+    "ortho_interp_normal": "Normal",
+    "ortho_interp_elevated_response": "Élevée (POTS ?)",
+    "ortho_interp_impaired_response": "Altérée",
+    "ortho_interp_excessive_vagal_withdrawal": "Retrait vagal excessif",
+    # ── Valeurs de cellule readiness label ────────────────────────────────
+    "readiness_label_high_fatigue": "Fatigue élevée",
+    "readiness_label_slight_fatigue": "Légère fatigue",
+    "readiness_label_normal": "Normal",
+    "readiness_label_good_recovery": "Bonne récup.",
+    "readiness_label_excellent": "Excellent",
+    # ── Valeurs de cellule autonomic label ────────────────────────────────
+    "autonomic_label_impaired": "Altérée",
+    "autonomic_label_borderline": "Limite",
+    "autonomic_label_normal": "Normal",
+    "autonomic_label_good": "Bon",
+    "autonomic_label_excellent": "Excellent",
     # ── Orthostatique — historique condensé ──────────────────────────────
     "supine_rmssd": "Allongé RMSSD (ms)",
     "standing_rmssd": "Debout RMSSD (ms)",

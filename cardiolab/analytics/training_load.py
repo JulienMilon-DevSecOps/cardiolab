@@ -35,6 +35,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
+from scipy.signal import lfilter
 
 from cardiolab.analytics.baseline import Baseline
 from cardiolab.analytics.scoring import readiness_score_oura
@@ -166,19 +167,13 @@ def load_readiness_for_date(
         ``None`` otherwise.
 
     """
-    target = date[:10]
-
     if protocol == "resting":
-        for feat in repo.load_features(user_id):
-            if feat.date and str(feat.date)[:10] == target:
-                return readiness_score_oura(feat, baseline)
-        return None
+        feat = repo.load_features_for_date(user_id, date)
+        return readiness_score_oura(feat, baseline) if feat is not None else None
 
     # protocol == "orthostatic": use the supine phase as the readiness input
-    for record in repo.load_orthostatic(user_id):
-        if str(record.date)[:10] == target:
-            return readiness_score_oura(record.supine, baseline)
-    return None
+    record = repo.load_orthostatic_for_date(user_id, date)
+    return readiness_score_oura(record.supine, baseline) if record is not None else None
 
 
 # ======================
@@ -192,6 +187,10 @@ def _ema(trimp: np.ndarray, tau: int) -> np.ndarray:
     ``k = 1 − exp(−1/tau)``.  Each day:
     ``EMA[i] = trimp[i] * k + EMA[i-1] * (1 − k)``.
 
+    Implemented as a first-order IIR filter via ``scipy.signal.lfilter``
+    (numerator ``b=[k]``, denominator ``a=[1, -(1-k)]``) which is
+    mathematically equivalent to the recurrence and vectorised in C.
+
     Args:
         trimp: Dense daily TRIMP array (one value per consecutive day).
         tau: Time constant in days (7 for ATL, 42 for CTL).
@@ -201,11 +200,7 @@ def _ema(trimp: np.ndarray, tau: int) -> np.ndarray:
 
     """
     k = 1.0 - math.exp(-1.0 / tau)
-    result = np.zeros(len(trimp))
-    for i, t in enumerate(trimp):
-        prev = result[i - 1] if i > 0 else 0.0
-        result[i] = t * k + prev * (1.0 - k)
-    return result
+    return lfilter([k], [1.0, -(1.0 - k)], trimp)
 
 
 # ======================

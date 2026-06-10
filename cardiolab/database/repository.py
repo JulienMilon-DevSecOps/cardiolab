@@ -38,13 +38,11 @@ Typical usage::
         repo.create_vo2max_table()
         repo.save_vo2max(vo2max_result, user_id="alice", date="2026-05-15")
 
-Schema version note:
-    The addition of ``apen`` and ``sampen`` columns (v0.2) is a **breaking
-    schema change**. Existing tables must be dropped and recreated::
-
-        DROP TABLE hrv_features;
-        DROP TABLE hrv_orthostatic;
-        -- then call repo.create_table() / repo.create_orthostatic_table()
+Schema migrations:
+    Use :func:`HRVRepository.run_migrations` (or the standalone
+    :func:`cardiolab.database.migrator.run_migrations`) to apply pending SQL
+    migrations safely.  The migration runner tracks applied versions in a
+    ``schema_migrations`` table and never re-applies a completed migration.
 
 """
 
@@ -325,6 +323,32 @@ _TRAINING_SESSIONS_SELECT_COLUMNS: list[str] = [
     "sport_type",
     "trimp",
     "notes",
+]
+
+
+# ======================
+# USER PROFILES — COLUMN REGISTRY
+# ======================
+
+_USER_PROFILES_COLUMNS: dict[str, str] = {
+    "primary_protocol": "TEXT NOT NULL DEFAULT 'resting'",
+    "sex": "TEXT",
+    "birth_year": "INT",
+    "height_cm": "FLOAT",
+    "hr_max": "INT",
+    "hr_rest": "INT",
+    "weight_kg": "FLOAT",
+}
+
+# Fields that can be updated via update_user_profile() — excludes user_id and timestamps
+_USER_PROFILES_UPDATABLE: frozenset[str] = frozenset(_USER_PROFILES_COLUMNS.keys())
+
+# All columns returned by load / list queries
+_USER_PROFILES_SELECT_COLUMNS: list[str] = [
+    "user_id",
+    *_USER_PROFILES_COLUMNS.keys(),
+    "created_at",
+    "updated_at",
 ]
 
 
@@ -730,6 +754,7 @@ class HRVRepository:
         vo2max_table_name: str = "hrv_vo2max",
         raw_sessions_table_name: str = "hrv_raw_sessions",
         training_sessions_table_name: str = "hrv_training_sessions",
+        user_profiles_table_name: str = "user_profiles",
         port: int = 5432,
     ) -> None:
         """Store connection parameters and validate table names."""
@@ -742,6 +767,7 @@ class HRVRepository:
             vo2max_table_name,
             raw_sessions_table_name,
             training_sessions_table_name,
+            user_profiles_table_name,
         ):
             _validate_identifier(name)
         self._dsn = {
@@ -759,6 +785,7 @@ class HRVRepository:
         self.vo2max_table_name = vo2max_table_name
         self.raw_sessions_table_name = raw_sessions_table_name
         self.training_sessions_table_name = training_sessions_table_name
+        self.user_profiles_table_name = user_profiles_table_name
         self._conn = None
 
     # ── Factory ──────────────────────────────────────────────────────────
@@ -774,6 +801,7 @@ class HRVRepository:
         vo2max_table_name: str = "hrv_vo2max",
         raw_sessions_table_name: str = "hrv_raw_sessions",
         training_sessions_table_name: str = "hrv_training_sessions",
+        user_profiles_table_name: str = "user_profiles",
     ) -> HRVRepository:
         """Build a repository from environment variables.
 
@@ -803,6 +831,8 @@ class HRVRepository:
                 ``"hrv_raw_sessions"``.
             training_sessions_table_name: Training sessions table name.
                 Defaults to ``"hrv_training_sessions"``.
+            user_profiles_table_name: User profiles table name. Defaults to
+                ``"user_profiles"``.
 
         Returns:
             A configured ``HRVRepository`` instance (not yet connected).
@@ -825,6 +855,7 @@ class HRVRepository:
             vo2max_table_name=vo2max_table_name,
             raw_sessions_table_name=raw_sessions_table_name,
             training_sessions_table_name=training_sessions_table_name,
+            user_profiles_table_name=user_profiles_table_name,
         )
 
     # ── Connection lifecycle ──────────────────────────────────────────────
@@ -854,6 +885,33 @@ class HRVRepository:
                 "'with HRVRepository(...) as repo:'"
             )
         return self._conn
+
+    # ── Migrations ───────────────────────────────────────────────────────
+
+    def run_migrations(self) -> list[str]:
+        """Apply all pending SQL migrations to the database.
+
+        Convenience wrapper around
+        :func:`cardiolab.database.migrator.run_migrations` that uses the
+        repository's open connection.
+
+        Returns:
+            List of migration version strings applied during this call
+            (e.g. ``["V001__initial_schema", "V002__add_apen_sampen_ortho_metrics"]``).
+            Empty list if the database is already up to date.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+
+        Example::
+
+            with HRVRepository.from_env() as repo:
+                applied = repo.run_migrations()
+
+        """
+        from cardiolab.database.migrator import run_migrations as _run
+
+        return _run(self._conn_or_raise())
 
     # ── Resting — schema ─────────────────────────────────────────────────
 
@@ -1055,6 +1113,68 @@ class HRVRepository:
             for row in rows
         ]
 
+    def load_features_for_date(self, user_id: str, date: str) -> HRVFeatures | None:
+        """Load the resting HRV session recorded on a specific date, or None.
+
+        Issues a targeted ``WHERE date::date = %s`` query instead of loading
+        the full history, making it O(1) rather than O(N).
+
+        Args:
+            user_id: Athlete identifier.
+            date: ISO date string (``"YYYY-MM-DD"`` or ``"YYYY-MM-DDTHH:MM:SS"``);
+                only the date part is used.
+
+        Returns:
+            The matching :class:`~cardiolab.protocols.resting.HRVFeatures`, or
+            ``None`` when no record exists for that date.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        query = sql.SQL(
+            "SELECT date, rmssd, ln_rmssd, sdnn, pnn50, mean_hr,\n"
+            "       vlf, lf, hf, lf_hf, hf_pct, lf_nu, hf_nu, hf_hr,\n"
+            "       sd1, sd2, sd_ratio, dfa_alpha1, apen, sampen,\n"
+            "       duration, score, method\n"
+            "FROM {table}\n"
+            "WHERE user_id = %s AND date::date = %s;"
+        ).format(table=sql.Identifier(self.table_name))
+
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (user_id, date[:10]))
+            row = cur.fetchone()
+
+        if row is None:
+            return None
+
+        return HRVFeatures(
+            date=str(row[0]),
+            rmssd=row[1],
+            ln_rmssd=row[2],
+            sdnn=row[3],
+            pnn50=row[4],
+            mean_hr=row[5],
+            vlf=row[6],
+            lf=row[7],
+            hf=row[8],
+            lf_hf=row[9],
+            hf_pct=row[10],
+            lf_nu=row[11],
+            hf_nu=row[12],
+            hf_hr=row[13],
+            sd1=row[14],
+            sd2=row[15],
+            sd_ratio=row[16],
+            dfa_alpha1=row[17],
+            apen=row[18],
+            sampen=row[19],
+            duration=row[20],
+            score=row[21],
+            method=row[22] or "welch",
+        )
+
     # ── Orthostatic — schema ──────────────────────────────────────────────
 
     def create_orthostatic_table(self) -> None:
@@ -1233,6 +1353,79 @@ class HRVRepository:
             )
 
         return records
+
+    def load_orthostatic_for_date(
+        self, user_id: str, date: str
+    ) -> OrthostaticRecord | None:
+        """Load the orthostatic session recorded on a specific date, or None.
+
+        Issues a targeted ``WHERE date::date = %s`` query instead of loading
+        the full history, making it O(1) rather than O(N).
+
+        Args:
+            user_id: Athlete identifier.
+            date: ISO date string (``"YYYY-MM-DD"`` or ``"YYYY-MM-DDTHH:MM:SS"``);
+                only the date part is used.
+
+        Returns:
+            The matching :class:`~cardiolab.database.repository.OrthostaticRecord`,
+            or ``None`` when no record exists for that date.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        select_cols = sql.SQL(", ").join(
+            sql.Identifier(c) for c in ["date"] + _ORTHO_DATA_COLUMNS
+        )
+        query = sql.SQL(
+            "SELECT {cols}\nFROM {table}\nWHERE user_id = %s AND date::date = %s;"
+        ).format(
+            cols=select_cols,
+            table=sql.Identifier(self.ortho_table_name),
+        )
+
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (user_id, date[:10]))
+            raw = cur.fetchone()
+
+        if raw is None:
+            return None
+
+        col_names = ["date"] + _ORTHO_DATA_COLUMNS
+        r = dict(zip(col_names, raw, strict=False))
+        date_str = str(r["date"])
+        spectral_method: str = r.get("spectral_method") or "welch"
+        supine = _features_from_row(
+            raw, offset=1, date=date_str, duration=r["supine_duration_sec"]
+        )
+        supine.method = spectral_method
+        transition = _features_from_row(raw, offset=26, date=date_str)
+        transition.method = spectral_method
+        standing = _features_from_row(
+            raw, offset=45, date=date_str, duration=r["standing_duration_sec"]
+        )
+        standing.method = spectral_method
+        return OrthostaticRecord(
+            date=date_str,
+            supine=supine,
+            transition_start_sec=r["transition_start_sec"],
+            transition_end_sec=r["transition_end_sec"],
+            transition_duration_sec=r["transition_duration_sec"],
+            transition_delta_hr=r["transition_delta_hr"],
+            transition_peak_hr=r["transition_peak_hr"],
+            transition_features=transition,
+            standing=standing,
+            hr_response=r["hr_response"],
+            lf_hf_ratio_change=r["lf_hf_ratio_change"],
+            hf_response_pct=r["hf_response_pct"],
+            hf_hr_pct_change=r["hf_hr_pct_change"],
+            lf_hr_pct_change=r["lf_hr_pct_change"],
+            delta_rmssd=r["delta_rmssd"],
+            interpretation=r["interpretation"],
+            score=r.get("score") or 0.0,
+        )
 
     # ── Cardiac coherence — schema ────────────────────────────────────────
 
@@ -2158,4 +2351,240 @@ class HRVRepository:
             dict(zip(_TRAINING_SESSIONS_SELECT_COLUMNS, row, strict=False))
             | {"date": str(row[1])}
             for row in rows
+        ]
+
+    # ── User profiles — schema ────────────────────────────────────────────
+
+    def create_user_profiles_table(self) -> None:
+        """Create the user profiles table if it does not already exist.
+
+        Schema::
+
+            user_profiles (
+                user_id          TEXT      PRIMARY KEY,
+                primary_protocol TEXT      NOT NULL DEFAULT 'resting',
+                sex              TEXT,
+                birth_year       INT,
+                height_cm        FLOAT,
+                hr_max           INT,
+                hr_rest          INT,
+                weight_kg        FLOAT,
+                created_at       TIMESTAMP DEFAULT NOW(),
+                updated_at       TIMESTAMP DEFAULT NOW()
+            )
+
+        ``primary_protocol`` drives the readiness source for TRIMP computation
+        (``"resting"`` or ``"orthostatic"``). Physical fields are used by
+        specific formulas: ``sex`` for Banister TRIMP, ``hr_max``/``hr_rest``
+        for Banister and Uth VO2max, ``birth_year`` for ACSM age-based norms.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the SQL statement is rejected.
+
+        """
+        columns_sql = ",\n    ".join(
+            f"{k} {v}" for k, v in _USER_PROFILES_COLUMNS.items()
+        )
+        query = sql.SQL(
+            "CREATE TABLE IF NOT EXISTS {table} (\n"
+            "    user_id   TEXT PRIMARY KEY,\n"
+            "    {columns},\n"
+            "    created_at TIMESTAMP DEFAULT NOW(),\n"
+            "    updated_at TIMESTAMP DEFAULT NOW()\n"
+            ");"
+        ).format(
+            table=sql.Identifier(self.user_profiles_table_name),
+            columns=sql.SQL(columns_sql),
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query)
+
+    # ── User profiles — write ─────────────────────────────────────────────
+
+    def save_user_profile(
+        self,
+        user_id: str,
+        primary_protocol: str = "resting",
+        sex: str | None = None,
+        birth_year: int | None = None,
+        height_cm: float | None = None,
+        hr_max: int | None = None,
+        hr_rest: int | None = None,
+        weight_kg: float | None = None,
+    ) -> None:
+        """Insert or update a user profile (upsert on ``user_id``).
+
+        On conflict, all provided fields are overwritten and ``updated_at``
+        is refreshed.  ``created_at`` is never modified by an update.
+
+        Args:
+            user_id: Unique user identifier (UUID string).
+            primary_protocol: ``"resting"`` or ``"orthostatic"``. Determines
+                which HRV table feeds the readiness score used for TRIMP.
+            sex: ``"male"``, ``"female"``, or ``None``. Selects the Banister
+                TRIMP weighting coefficient (``b``).
+            birth_year: Year of birth. Used for ACSM VO2max age norms.
+            height_cm: Height in centimetres.
+            hr_max: Maximal heart rate (bpm). Required for Banister TRIMP
+                and Uth VO2max estimation.
+            hr_rest: Resting heart rate (bpm). Required for Banister TRIMP.
+            weight_kg: Body weight in kilograms.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the upsert fails.
+
+        """
+        cols = ["user_id", *_USER_PROFILES_COLUMNS.keys()]
+        values = (
+            user_id,
+            primary_protocol,
+            sex,
+            birth_year,
+            height_cm,
+            hr_max,
+            hr_rest,
+            weight_kg,
+        )
+        placeholders = sql.SQL(", ").join(sql.Placeholder() * len(cols))
+        col_ids = sql.SQL(", ").join(sql.Identifier(c) for c in cols)
+        update_set = sql.SQL(", ").join(
+            sql.SQL("{} = EXCLUDED.{}").format(sql.Identifier(c), sql.Identifier(c))
+            for c in _USER_PROFILES_COLUMNS
+        )
+        query = sql.SQL(
+            "INSERT INTO {table} ({cols}, created_at, updated_at)\n"
+            "VALUES ({vals}, NOW(), NOW())\n"
+            "ON CONFLICT (user_id) DO UPDATE SET\n"
+            "    {update_set},\n"
+            "    updated_at = NOW();"
+        ).format(
+            table=sql.Identifier(self.user_profiles_table_name),
+            cols=col_ids,
+            vals=placeholders,
+            update_set=update_set,
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, values)
+
+    def update_user_profile(self, user_id: str, **fields) -> bool:
+        """Update specific fields of an existing user profile.
+
+        Only fields whose names are in :data:`_USER_PROFILES_UPDATABLE` are
+        accepted; any other key raises ``ValueError`` before touching the DB.
+
+        Args:
+            user_id: Unique user identifier.
+            **fields: Field names and their new values. Accepted keys:
+                ``primary_protocol``, ``sex``, ``birth_year``,
+                ``height_cm``, ``hr_max``, ``hr_rest``, ``weight_kg``.
+
+        Returns:
+            ``True`` if a profile with ``user_id`` existed and was updated,
+            ``False`` if no such profile was found.
+
+        Raises:
+            ValueError: If any key in ``fields`` is not a known updatable
+                field, or if ``fields`` is empty.
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the UPDATE fails.
+
+        """
+        if not fields:
+            raise ValueError("At least one field must be provided.")
+        unknown = set(fields) - _USER_PROFILES_UPDATABLE
+        if unknown:
+            raise ValueError(
+                f"Unknown field(s): {sorted(unknown)}. "
+                f"Accepted: {sorted(_USER_PROFILES_UPDATABLE)}"
+            )
+        set_clause = sql.SQL(", ").join(
+            sql.SQL("{} = %s").format(sql.Identifier(k)) for k in fields
+        )
+        query = sql.SQL(
+            "UPDATE {table} SET {set_clause}, updated_at = NOW() WHERE user_id = %s;"
+        ).format(
+            table=sql.Identifier(self.user_profiles_table_name),
+            set_clause=set_clause,
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (*fields.values(), user_id))
+            return cur.rowcount > 0
+
+    def delete_user_profile(self, user_id: str) -> bool:
+        """Delete the profile for ``user_id``.
+
+        Args:
+            user_id: Unique user identifier.
+
+        Returns:
+            ``True`` if a profile was deleted, ``False`` if not found.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the DELETE fails.
+
+        """
+        query = sql.SQL("DELETE FROM {table} WHERE user_id = %s;").format(
+            table=sql.Identifier(self.user_profiles_table_name)
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (user_id,))
+            return cur.rowcount > 0
+
+    # ── User profiles — read ──────────────────────────────────────────────
+
+    def load_user_profile(self, user_id: str) -> dict | None:
+        """Return the profile for ``user_id``, or ``None`` if not found.
+
+        Args:
+            user_id: Unique user identifier.
+
+        Returns:
+            Dictionary with keys matching :data:`_USER_PROFILES_SELECT_COLUMNS`,
+            or ``None`` if no profile exists for ``user_id``.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the SELECT fails.
+
+        """
+        sel = sql.SQL(", ").join(
+            sql.Identifier(c) for c in _USER_PROFILES_SELECT_COLUMNS
+        )
+        query = sql.SQL("SELECT {sel} FROM {table} WHERE user_id = %s;").format(
+            sel=sel, table=sql.Identifier(self.user_profiles_table_name)
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (user_id,))
+            row = cur.fetchone()
+        if row is None:
+            return None
+        return dict(zip(_USER_PROFILES_SELECT_COLUMNS, row, strict=False))
+
+    def list_user_profiles(self) -> list[dict]:
+        """Return all user profiles sorted by ``user_id``.
+
+        Returns:
+            List of dicts, each with keys matching
+            :data:`_USER_PROFILES_SELECT_COLUMNS`.  Empty list when no
+            profiles exist.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the SELECT fails.
+
+        """
+        sel = sql.SQL(", ").join(
+            sql.Identifier(c) for c in _USER_PROFILES_SELECT_COLUMNS
+        )
+        query = sql.SQL("SELECT {sel} FROM {table} ORDER BY user_id ASC;").format(
+            sel=sel, table=sql.Identifier(self.user_profiles_table_name)
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+        return [
+            dict(zip(_USER_PROFILES_SELECT_COLUMNS, row, strict=False)) for row in rows
         ]

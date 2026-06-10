@@ -9,6 +9,213 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.4] - 2026-06-10
+
+### Changed — Licence
+
+- Licence changed from **MIT** to **GNU Affero General Public License v3 or later
+  (AGPLv3+)**. The AGPLv3 closes the SaaS loophole present in GPLv3: when a modified
+  version of cardiolab is used to power a network service, the operator must provide the
+  corresponding source to users of that service. The `LICENCE` file (full AGPLv3 text) is
+  included in the source distribution.
+
+### Added — Dual orthostatic scoring (issue #16)
+
+The orthostatic protocol now produces two complementary, independent scores for each
+session:
+
+- **`readiness_score`** (relative, baseline-dependent) — applies
+  `readiness_score_multi()` to the supine-phase HRV features, compared against the
+  user's personal supine baseline built from all previous sessions. Returns 50 (neutral)
+  on the first session. Score interpretation: `< 35` high fatigue → `35–45` slight
+  fatigue → `45–55` normal → `55–65` good recovery → `≥ 65` excellent.
+- **`autonomic_score`** (absolute, no baseline required) — unchanged from v0.1.0:
+  80 % ΔHR component + 20 % HF vagal-withdrawal component. Now renamed from the
+  ambiguous `score` field to `autonomic_score` in all reporting outputs.
+
+#### `analytics/scoring.py`
+
+- `orthostatic_readiness_score(supine, baseline) → float` — new public function.
+  Wraps `readiness_score_multi()` for the supine phase. Returns 50.0 when baseline is
+  empty (first session).
+- `orthostatic_score()` — unchanged; now explicitly documented as the *autonomic
+  response* score (absolute, ΔHR + HF).
+- Both functions exported in `analytics/__init__.py` and `__all__`.
+
+#### `reporting/orthostatic.py`
+
+- `table_orthostatic_comparison()` — gains an optional `readiness_scores` parameter
+  (`list[float]`). When provided, adds `readiness_score`, `readiness_label`,
+  `autonomic_score`, and `autonomic_label` columns to the `"Autonomic response"` MultiIndex
+  group. Colour-coded cells: green for high readiness/autonomic score, labelled zones
+  translated via `labels` dict.
+- `table_orthostatic_history()` — gains an optional `readiness_scores` parameter.
+  Adds `readiness_score` / `readiness_label` alongside the renamed `autonomic_score` /
+  `autonomic_label` columns. Both scores use a green gradient; label cells use the
+  appropriate colour palette.
+- New internal helpers `_readiness_label()` and `_autonomic_label()` map raw scores to
+  internal English keys translated at display time via the `labels` dict.
+
+#### `reporting/_core.py`
+
+- `_READINESS_LABEL_COLORS` — colour palette for the 5 readiness zones
+  (red / orange / yellow / light-green / green, matching the visualization module).
+- `_AUTONOMIC_LABEL_COLORS` — colour palette for the 5 autonomic zones.
+
+#### `visualization/orthostatic_plots.py`
+
+- `plot_orthostatic_dual_score_evolution(results, readiness_scores, ...)` — new
+  function, 2-panel figure:
+  - **Panel 1 — Readiness score**: 5 coloured zone bands (< 35 red, 35–45 orange,
+    45–55 yellow, 55–65 light-green, ≥ 65 green); neutral reference line at 50;
+    blue dashed rolling mean ± 5-point band (shown when n ≥ 3 sessions); coloured
+    dots per zone; right-margin zone labels.
+  - **Panel 2 — Autonomic score**: 5 zone bands (< 30 red, 30–50 orange, 50–70
+    yellow, 70–85 light-green, ≥ 85 green); coloured dots (red < 30, orange < 70,
+    green ≥ 70); right-margin zone labels.
+  - Rolling window constant `_ROLLING_WIN = 3`.
+- `plot_orthostatic_dual_score_evolution` exported in `visualization/__init__.py`
+  and `__all__`.
+
+#### `labels.py`
+
+- Added `"ortho_dual_score_title"` key in both `LABELS_EN` and `LABELS_FR`.
+- Added 5 readiness label keys (`readiness_label_high_fatigue` … `readiness_label_excellent`)
+  and 5 autonomic label keys (`autonomic_label_impaired` … `autonomic_label_excellent`)
+  in both language dicts.
+
+#### Tests
+
+- `tests/analytics/test_scoring.py` — new `TestOrthostaticReadinessScore` class
+  (empty baseline → 50, non-empty baseline, delegates to `readiness_score_multi`).
+- `tests/visualization/test_orthostatic_plots.py` — 36 tests for the full
+  `orthostatic_plots.py` module, including `TestPlotOrthostaticDualScoreEvolution`
+  (18 tests): all 5 readiness zones, all 3 autonomic dot colours, rolling mean
+  activation, error paths.
+
+---
+
+### Added — SQL migration framework (issue #11)
+
+- `cardiolab/database/migrations/` — versioned, idempotent SQL migration files:
+  - `V001__initial_schema.sql` — all 7 base tables
+  - `V002__add_apen_sampen_ortho_metrics.sql` — `apen`, `sampen`, `lf_hr_pct_change`,
+    `delta_rmssd` columns
+  - `V003__add_training_sessions.sql` — `hrv_training_sessions` table
+  - `V004__add_user_profiles.sql` — `hrv_user_profiles` table
+- `schema_migrations` tracking table (applied automatically by `main_init_db.py`).
+  Migrations are idempotent: re-running `main_init_db.py` on an up-to-date DB is a no-op.
+
+---
+
+### Added — User profiles table (issue #9)
+
+- `hrv_user_profiles` table — stores the primary HRV protocol per user
+  (`"resting"` or `"orthostatic"`), plus optional demographic fields used for
+  TRIMP computation (age, sex, HRmax, HRrest).
+- `HRVRepository.create_user_profiles_table()`, `save_user_profile()`,
+  `load_user_profile(user_id) → dict | None` — idempotent CRUD.
+- `local/main_init_db.py` updated to create the table on first run.
+
+---
+
+### Added — Public API audit (issue #10)
+
+- All previously private helpers in `analytics/anomaly.py` that were being accessed via
+  `_` names from outside the module are now either promoted to public symbols or
+  properly encapsulated. The public interface is stable across `analytics/`, `reporting/`,
+  and `visualization/` packages.
+- `cardiolab/__init__.py` — top-level imports audited; all public-API functions and
+  classes are directly importable from `cardiolab` without navigating subpackages.
+
+---
+
+### Added — Restructured `examples/` (issue #12)
+
+- `examples/` reorganised from a flat list to a 15-file numbered sequence covering the
+  full pipeline:
+  - `01_setup_database.py` → `07_auto_clean.py` — database setup, ingestion, analysis,
+    protocols
+  - `08_to_dict_export.py`, `09_rr_signal_plots.py` → `12_other_protocols.py` — I/O
+    and visualisation
+  - `13_training_load.py`, `14_user_profiles.py`, `15_full_daily_pipeline.py` — advanced
+    workflows
+- `examples/README.md` — index with one-line description per file.
+- `examples/figures/` — pre-rendered PNG outputs for each visualisation example.
+
+---
+
+### Performance — `_ema()` vectorisation and `load_readiness_for_date` O(1) (issue #13)
+
+#### `analytics/training_load.py`
+
+- `_ema(trimp, tau)` — rewritten using `scipy.signal.lfilter([k], [1.0, -(1-k)], trimp)`.
+  Mathematically identical to the original Python loop (1st-order IIR filter, initial
+  condition = 0); eliminates the explicit `for` loop, vectorising computation over NumPy
+  arrays.
+- `load_readiness_for_date(user_id, date, repo, baseline, protocol)` — now O(1): delegates
+  to `repo.load_features_for_date()` (resting) or `repo.load_orthostatic_for_date()`
+  (orthostatic) instead of loading all rows and scanning in Python.
+
+#### `database/repository.py`
+
+- `HRVRepository.load_features_for_date(user_id, date) → HRVFeatures | None` — targeted
+  `WHERE date::date = %s` query; returns the session for the specified calendar day, or `None`.
+- `HRVRepository.load_orthostatic_for_date(user_id, date) → OrthostaticRecord | None` —
+  same pattern for the orthostatic table.
+
+#### Tests
+
+- `tests/analytics/test_training_load.py` — new `TestEmaVectorised` class (8 tests):
+  matches the reference Python loop for constant τ = 7 and τ = 42, variable TRIMP, sparse
+  TRIMP; zero input → zero output; initial condition = 0; returns `ndarray`; length
+  preserved.
+
+---
+
+### Fixed — `plot_trimp_history` multi-activity stacked bars
+
+`plot_trimp_history()` previously assigned one sport colour per date, silently overwriting
+earlier activities when a day contained multiple sessions. The last activity's sport type
+was shown and all TRIMPs were summed into a single unsegmented bar — the individual
+activities were invisible.
+
+#### `visualization/training_load_plots.py`
+
+- When `sessions` is provided, activities are now grouped by calendar date using
+  `collections.defaultdict`. Days with a single active session render as before. Days with
+  two or more active sessions render **stacked bars**: each segment represents one activity,
+  height = individual TRIMP, colour = its sport type, with a thin white edge between
+  segments.
+- The legend now lists every unique sport type present across all sessions (not only the last
+  one per day).
+
+#### Tests
+
+- `tests/visualization/test_training_load_plots.py` — new `TestPlotTrimpHistoryMultiActivity`
+  class (7 tests): returns a Figure; 5 patches for a 5-day fixture with 2 activities on day 0;
+  stacked bars have correct `y` origins (0.0 and 30.0); total height = 70.0 (sum of both
+  activities); legend lists both sport types; single-activity days unaffected; rest day
+  produces no bar.
+
+---
+
+### Improved — Test coverage and quality
+
+- Overall coverage raised from **83.6 % → 87.6 %** (`fail_under = 80`). **1 458 tests**, 0 failures.
+- `tests/visualization/test_orthostatic_plots.py` — new file, 36 tests;
+  brings `orthostatic_plots.py` from 13.2 % to 100 % coverage.
+- Deterministic seeds — three uses of unseeded `np.random` replaced with
+  `np.random.default_rng(42)`:  `test_trends.py`, `test_baseline.py`,
+  `test_frequency_domain.py`.
+- Zone-boundary tests — `tests/analytics/test_scoring.py`:
+  `TestOrthostaticScoreZoneBoundaries` (11 tests), `TestDriftScoreZoneBoundaries` (3),
+  `TestCoherenceScore100ZoneBoundaries` (3).
+- Dual-score reporting tests — `tests/reporting/test_orthostatic.py`:
+  `TestDualScoreColumnsComparison` (7), `TestDualScoreColumnsHistory` (7).
+
+---
+
 ## [0.2.3] - 2026-06-03
 
 ### Fixed — Packaging

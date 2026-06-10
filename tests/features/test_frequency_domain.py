@@ -201,7 +201,8 @@ class TestBandPower:
     def test_band_power_with_noise(self):
         """Test band power extraction with noisy PSD."""
         freqs = np.linspace(0, 0.5, 500)
-        psd = np.random.rand(len(freqs)) * 100  # Noisy spectrum
+        rng = np.random.default_rng(42)
+        psd = rng.random(len(freqs)) * 100  # Noisy spectrum
 
         power_lf = _band_power(freqs, psd, 0.04, 0.15)
         power_hf = _band_power(freqs, psd, 0.15, 0.4)
