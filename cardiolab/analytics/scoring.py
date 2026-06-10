@@ -451,6 +451,34 @@ def vo2max_score(vo2max: float) -> float:
     return float(np.clip(50.0 + 50.0 * np.tanh((vo2max - 43.0) / 12.0), 0.0, 100.0))
 
 
+def orthostatic_readiness_score(supine: HRVFeatures, baseline: Baseline) -> float:
+    """Compute a readiness score from the supine phase of an orthostatic test.
+
+    The supine phase of an orthostatic test is physiologically equivalent to a
+    standard resting HRV session.  Applying :func:`readiness_score_multi` to
+    the supine features therefore gives a baseline-relative recovery score
+    that is directly comparable to a resting readiness score.
+
+    This score is **distinct** from :func:`orthostatic_score`, which measures
+    the quality of the autonomic response to standing (ΔHR + HF withdrawal).
+    Together they capture two orthogonal dimensions of the same session:
+
+    * ``orthostatic_readiness_score`` → *"Am I well recovered today?"* (relative)
+    * ``orthostatic_score``           → *"Is my autonomic response healthy?"* (absolute)
+
+    Args:
+        supine: HRV features of the supine phase (``OrthostaticRecord.supine``
+            or ``result.phases.supine.features``).
+        baseline: Personal reference built from previous supine sessions.
+            Returns 50.0 (neutral) when empty.
+
+    Returns:
+        Readiness score in [0, 100]. 50 = neutral (equal to personal supine baseline).
+
+    """
+    return readiness_score_multi(supine, baseline)
+
+
 def orthostatic_score(hr_response: float, hf_response_pct: float = 0.0) -> float:
     """Compute a composite autonomic score for the orthostatic (tilt) test.
 
