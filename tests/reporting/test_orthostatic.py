@@ -351,9 +351,7 @@ class TestDualScoreColumnsComparison:
 
     def test_dual_score_columns_added(self, one_result: OrthostaticResult) -> None:
         """readiness_score and autonomic_score columns appear when scores provided."""
-        styler = table_orthostatic_comparison(
-            [one_result], readiness_scores=[62.0]
-        )
+        styler = table_orthostatic_comparison([one_result], readiness_scores=[62.0])
         flat_cols = [c[1] for c in styler.data.columns]
         assert "readiness_score" in flat_cols
         assert "autonomic_score" in flat_cols
@@ -361,17 +359,13 @@ class TestDualScoreColumnsComparison:
     def test_readiness_score_value_stored(self, one_result: OrthostaticResult) -> None:
         """readiness_score value round-trips correctly through the table."""
         one_result.score = 70.0
-        styler = table_orthostatic_comparison(
-            [one_result], readiness_scores=[58.0]
-        )
+        styler = table_orthostatic_comparison([one_result], readiness_scores=[58.0])
         mi_col = ("Autonomic response", "readiness_score")
         assert styler.data[mi_col].iloc[0] == pytest.approx(58.0)
 
     def test_readiness_label_key_stored(self, one_result: OrthostaticResult) -> None:
         """readiness_label internal key is correct for score = 62 (good_recovery zone)."""
-        styler = table_orthostatic_comparison(
-            [one_result], readiness_scores=[62.0]
-        )
+        styler = table_orthostatic_comparison([one_result], readiness_scores=[62.0])
         mi_col = ("Autonomic response", "readiness_label")
         assert styler.data[mi_col].iloc[0] == "good_recovery"
 
@@ -387,7 +381,9 @@ class TestDualScoreColumnsComparison:
         styler = table_orthostatic_comparison(
             [one_result], readiness_scores=[62.0], labels=LABELS_FR
         )
-        assert isinstance(styler, __import__("pandas.io.formats.style", fromlist=["Styler"]).Styler)
+        assert isinstance(
+            styler, __import__("pandas.io.formats.style", fromlist=["Styler"]).Styler
+        )
 
     def test_with_labels_en_accepted(self, one_result: OrthostaticResult) -> None:
         """labels=LABELS_EN is accepted without error."""
@@ -395,6 +391,7 @@ class TestDualScoreColumnsComparison:
             [one_result], readiness_scores=[62.0], labels=LABELS_EN
         )
         from pandas.io.formats.style import Styler
+
         assert isinstance(styler, Styler)
 
     def test_without_readiness_scores_no_crash(
@@ -402,6 +399,7 @@ class TestDualScoreColumnsComparison:
     ) -> None:
         """Calling without readiness_scores still produces a valid Styler."""
         from pandas.io.formats.style import Styler
+
         styler = table_orthostatic_comparison([one_result])
         assert isinstance(styler, Styler)
 
@@ -446,6 +444,7 @@ class TestDualScoreColumnsHistory:
     def test_with_labels_fr_accepted(self, one_result: OrthostaticResult) -> None:
         """labels=LABELS_FR is accepted without error."""
         from pandas.io.formats.style import Styler
+
         styler = table_orthostatic_history(
             [one_result], readiness_scores=[62.0], labels=LABELS_FR
         )
@@ -456,5 +455,6 @@ class TestDualScoreColumnsHistory:
     ) -> None:
         """Calling without readiness_scores still produces a valid Styler."""
         from pandas.io.formats.style import Styler
+
         styler = table_orthostatic_history([one_result])
         assert isinstance(styler, Styler)
