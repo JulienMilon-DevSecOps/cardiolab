@@ -64,6 +64,9 @@ analysis = [
 database = [
     "psycopg2-binary>=2.9",
 ]
+garmin = [
+    "fitparse>=1.2",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["cardiolab"]
