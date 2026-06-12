@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cardiolab"
-version = "0.2.4"
+version = "0.3.0"
 description = "HRV analysis toolkit — scientific core of the cardioanalysis platform"
 authors = [{name = "Julien MILON", email = "julienmilon.devsecops@gmail.com"}]
 readme = "README.md"
