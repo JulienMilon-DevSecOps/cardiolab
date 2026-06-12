@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cardiolab"
-version = "0.2.4"
+version = "0.3.0"
 description = "HRV analysis toolkit — scientific core of the cardioanalysis platform"
 authors = [{name = "Julien MILON", email = "julienmilon.devsecops@gmail.com"}]
 readme = "README.md"
@@ -55,6 +55,7 @@ dev = [
     "pytest-benchmark",
     "ruff",
     "python-dotenv",
+    "pre-commit",
 ]
 analysis = [
     "pandas>=2.0",
@@ -62,6 +63,9 @@ analysis = [
 ]
 database = [
     "psycopg2-binary>=2.9",
+]
+garmin = [
+    "fitparse>=1.2",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -71,7 +75,6 @@ packages = ["cardiolab"]
 include = [
     "/cardiolab",
     "/tests",
-    "/docs",
     "/example",
     "CHANGELOG.md",
     "LICENCE",
@@ -159,6 +162,7 @@ omit = [
     "tests/*",
     "local/*",
     "example/*",
+    "notebooks/*",
     "*/datasets/*",
 ]
 
