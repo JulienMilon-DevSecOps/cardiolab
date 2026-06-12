@@ -72,7 +72,6 @@ packages = ["cardiolab"]
 include = [
     "/cardiolab",
     "/tests",
-    "/docs",
     "/example",
     "CHANGELOG.md",
     "LICENCE",
