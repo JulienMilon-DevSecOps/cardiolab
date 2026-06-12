@@ -159,6 +159,7 @@ omit = [
     "tests/*",
     "local/*",
     "example/*",
+    "notebooks/*",
     "*/datasets/*",
 ]
 

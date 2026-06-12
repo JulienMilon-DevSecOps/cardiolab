@@ -281,3 +281,97 @@ class TestPhysiologicalWarning:
     def test_physiological_warning_is_user_warning(self):
         """PhysiologicalWarning must be a subclass of UserWarning."""
         assert issubclass(PhysiologicalWarning, UserWarning)
+
+
+# ======================
+# Properties
+# ======================
+
+
+class TestRRSeriesProperties:
+    """Tests for basic scalar properties of RRSeries."""
+
+    def test_duration(self):
+        """duration returns total recording time in seconds."""
+        rr = RRSeries([1000, 1000, 1000])
+        assert rr.duration == pytest.approx(3.0)
+
+    def test_mean_rr(self):
+        """mean_rr returns the arithmetic mean of intervals in ms."""
+        rr = RRSeries([800, 900, 1000])
+        assert rr.mean_rr == pytest.approx(900.0)
+
+    def test_min_hr(self):
+        """min_hr corresponds to the longest interval."""
+        rr = RRSeries([1000, 800, 600])
+        assert rr.min_hr == pytest.approx(60.0)  # 60000 / 1000
+
+    def test_max_hr(self):
+        """max_hr corresponds to the shortest interval."""
+        rr = RRSeries([1000, 800, 600])
+        assert rr.max_hr == pytest.approx(100.0)  # 60000 / 600
+
+    def test_min_hr_lt_max_hr(self):
+        """min_hr is always less than max_hr for a non-constant series."""
+        rr = RRSeries([600, 800, 1000])
+        assert rr.min_hr < rr.max_hr
+
+
+# ======================
+# Summary & repr
+# ======================
+
+
+class TestRRSeriesDebug:
+    """Tests for summary() and __repr__."""
+
+    def test_summary_keys(self):
+        """summary() returns a dict with the four expected keys."""
+        rr = RRSeries([800, 810, 790])
+        s = rr.summary()
+        assert set(s.keys()) == {"n", "duration_s", "mean_rr", "mean_hr"}
+
+    def test_summary_values(self):
+        """summary() values are consistent with direct property access."""
+        rr = RRSeries([1000, 1000, 1000])
+        s = rr.summary()
+        assert s["n"] == 3
+        assert s["duration_s"] == pytest.approx(3.0)
+        assert s["mean_rr"] == pytest.approx(1000.0)
+        assert s["mean_hr"] == pytest.approx(60.0)
+
+    def test_repr_contains_n_and_hr(self):
+        """__repr__ produces a non-empty string referencing n and mean_hr."""
+        rr = RRSeries([1000, 1000, 1000])
+        r = repr(rr)
+        assert "RRSeries" in r
+        assert "n=3" in r
+        assert "mean_hr=60.0" in r
+
+
+# ======================
+# interpolate with timestamps
+# ======================
+
+
+def test_interpolate_with_timestamps():
+    """interpolate() uses the provided timestamps when available."""
+    intervals = np.array([800.0, 810.0, 790.0, 820.0])
+    timestamps = np.cumsum(intervals) / 1000.0
+    rr = RRSeries(intervals=intervals, timestamps=timestamps)
+    t, interp = rr.interpolate()
+    assert len(t) == len(interp)
+    assert t[0] >= timestamps[0]
+    assert t[-1] <= timestamps[-1]
+
+
+# ======================
+# remove_outliers — error branch
+# ======================
+
+
+def test_remove_outliers_unknown_method():
+    """remove_outliers raises ValueError for an unknown method."""
+    rr = RRSeries([800, 810, 790])
+    with pytest.raises(ValueError, match="Method unknown"):
+        rr.remove_outliers(method="median")
