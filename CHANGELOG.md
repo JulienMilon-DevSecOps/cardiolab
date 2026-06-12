@@ -9,6 +9,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.0] - 2026-06-12
+
+### Added — Sensor integrations (issues #42, #43, #44)
+
+#### `sensors_tools/hrv4training.py` (issue #44)
+
+- `parse_hrv4training_csv(filepath)` — parses HRV4Training CSV exports (semicolon-separated
+  RR intervals). Returns `list[dict]` with keys `date`, `rmssd`, `rr_intervals`.
+  Case-insensitive column detection via `_find_col()`. Filters zero/negative intervals.
+- `to_rrseries(record)` — converts a parsed HRV4Training record to `RRSeries`.
+
+#### `sensors_tools/apple_health.py` (issue #43)
+
+- `parse_apple_health_export(filepath)` — parses Apple Health `export.xml` for
+  `HKQuantityTypeIdentifierHeartRateVariabilitySDNN` and
+  `HKQuantityTypeIdentifierRestingHeartRate` records. Returns `list[dict]` with
+  `date`, `sdnn`, `rmssd` (always `None` — Apple Health does not export raw RR), `source`.
+  Raises `ValueError` on malformed XML or wrong root element.
+- `extract_hrv_samples(filepath)` — groups by date, averages SDNN, returns
+  `list[dict]` sorted by date.
+
+> **Note:** Apple Health XML exports contain only SDNN (pre-computed by watchOS).
+> Raw RR intervals are not available; `rmssd` is always `None`.
+
+#### `sensors_tools/garmin.py` (issue #42)
+
+- `parse_garmin_fit(filepath)` — extracts RR intervals from Garmin FIT `hrv` messages.
+  Converts seconds → milliseconds. Requires optional `fitparse` dependency
+  (`pip install cardiolab[garmin]`).
+- `parse_garmin_csv(filepath)` — parses beat-to-beat CSV exports (e.g. from Kubios HRV).
+  Auto-detects the RR column by scanning headers for `"rr"` (case-insensitive).
+- `extract_training_session_garmin(filepath)` — reads `record` messages from a FIT file
+  to compute `duration_min`, `hr_mean`, and `hr_max`.
+
+#### `pyproject.toml`
+
+- New `[garmin]` optional extra: `fitparse>=1.2`.
+
+#### `sensors_tools/__init__.py`
+
+- All new functions exported: `parse_hrv4training_csv`, `to_rrseries`,
+  `parse_apple_health_export`, `extract_hrv_samples`,
+  `parse_garmin_fit`, `parse_garmin_csv`, `extract_training_session_garmin`.
+
+### Added — Sensor documentation
+
+- `cardiolab/docs/sensors/hrv4training.md` — HRV4Training measurement protocol and import guide.
+- `cardiolab/docs/sensors/apple_health.md` — Apple Health export workflow and lossy-export warning.
+- `cardiolab/docs/sensors/garmin.md` — Garmin FIT/CSV import guide and measurement protocol.
+- `cardiolab/docs/sensors/polar.md` — Polar H10 measurement protocol and import guide (EN + FR).
+- `cardiolab/docs/sensors/README.md` — sensor compatibility table and quick-start snippets.
+
+### Added — Notebook
+
+- `notebooks/09_sensors.ipynb` — end-to-end workflow: sensor import → RR cleaning →
+  HRV feature extraction → readiness scoring → optional DB save. Covers all four
+  supported sources with embedded synthetic demo data.
+
+### Added — Dataset structure
+
+- `cardiolab/datasets/raw/polar/` — raw Polar H10 `.txt` files.
+- `cardiolab/datasets/raw/hrv4training/` — HRV4Training CSV exports.
+- `cardiolab/datasets/raw/apple_health/` — Apple Health `export.xml`.
+- `cardiolab/datasets/raw/garmin/` — Garmin `.fit` files and beat-to-beat CSV.
+
+### Changed
+
+- `visualization/plot.py` — removed (dead backward-compatibility shim; zero usages).
+- `docs/` (project root) — removed; content moved to `cardiolab/docs/` inside the package.
+  `docs/database/migration_guide.md` → `cardiolab/docs/database/migration_guide.md`.
+- `pyproject.toml` sdist include: removed `/docs` (no longer at project root).
+- `notebooks/README.md` — updated dataset structure, added notebook 09, updated sensor
+  integration section.
+
+### Tests
+
+- `tests/sensors_tools/test_hrv4training.py` — 22 new tests (100 % pass).
+- `tests/sensors_tools/test_apple_health.py` — 23 new tests.
+- `tests/sensors_tools/test_garmin.py` — 24 new tests; FIT parsing uses `unittest.mock`
+  (no binary FIT fixtures required).
+- Additional coverage for `signals/rr.py` and `signals/ecg.py` (new edge-case tests).
+
+---
+
 ## [0.2.4] - 2026-06-10
 
 ### Changed — Licence
