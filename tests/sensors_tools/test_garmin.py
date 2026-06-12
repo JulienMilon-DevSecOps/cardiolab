@@ -103,6 +103,11 @@ Timestamp,RR Interval (ms)
 class TestParseGarminFit:
     """Tests for parse_garmin_fit()."""
 
+    @pytest.fixture(autouse=True)
+    def _fitparse_available(self):
+        with patch("cardiolab.sensors_tools.garmin._FITPARSE_AVAILABLE", True):
+            yield
+
     def test_returns_rrseries(self, tmp_path):
         """Returns a valid RRSeries from a FIT file with HRV messages."""
         fit_file = tmp_path / "activity.fit"
@@ -253,6 +258,11 @@ class TestParseGarminCsv:
 
 class TestExtractTrainingSessionGarmin:
     """Tests for extract_training_session_garmin()."""
+
+    @pytest.fixture(autouse=True)
+    def _fitparse_available(self):
+        with patch("cardiolab.sensors_tools.garmin._FITPARSE_AVAILABLE", True):
+            yield
 
     def test_returns_dict(self, tmp_path):
         """Returns a dict with the three expected keys."""
