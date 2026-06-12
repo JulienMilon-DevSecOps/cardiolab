@@ -292,7 +292,7 @@ class TestRRSeriesProperties:
     """Tests for basic scalar properties of RRSeries."""
 
     def test_duration(self):
-        """duration returns total recording time in seconds."""
+        """Duration returns total recording time in seconds."""
         rr = RRSeries([1000, 1000, 1000])
         assert rr.duration == pytest.approx(3.0)
 

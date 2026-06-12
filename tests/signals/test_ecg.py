@@ -121,7 +121,9 @@ def test_ecg_creation_timestamps_wrong_length():
     """ECGSignal raises ValueError when timestamps length differs from data length."""
     data, fs = generate_fake_ecg()
     bad_timestamps = np.arange(len(data) - 10) / fs
-    with pytest.raises(ValueError, match="timestamps and data must have the same length"):
+    with pytest.raises(
+        ValueError, match="timestamps and data must have the same length"
+    ):
         ECGSignal(data, timestamps=bad_timestamps)
 
 
@@ -147,7 +149,7 @@ def test_ecg_generate_timestamps_invalid_sampling_rate():
 
 
 def test_ecg_duration():
-    """duration returns the difference between last and first timestamp."""
+    """Duration returns the difference between last and first timestamp."""
     data, fs = generate_fake_ecg(fs=250, duration=10)
     ecg = ECGSignal(data, sampling_rate=fs)
     assert ecg.duration == pytest.approx(ecg.timestamps[-1] - ecg.timestamps[0])
