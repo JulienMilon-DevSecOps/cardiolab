@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -25,6 +28,133 @@ try:
     load_dotenv(Path(__file__).parent.parent / ".env", override=False)
 except ImportError:
     pass  # python-dotenv facultatif — CI n'en a pas besoin
+
+
+# ── Auto start/stop du Supabase local pour les tests d'intégration ─────────────
+# Le stack Docker vit dans le repo voisin cardioanalysis-api (source unique,
+# partagée entre les deux projets). Ne le démarre que si des tests
+# @pytest.mark.integration vont réellement tourner, et ne l'arrête que si
+# c'est cette session qui l'a démarré — reste à l'arrêt (~0 CPU/RAM) le
+# reste du temps. Voir cardioanalysis-api/local/auth/dev/README.md pour le
+# détail du mécanisme (identique dans les deux repos).
+#
+# Seuls "db" et "supavisor" (le pooler) sont démarrés — ces tests d'intégration
+# ne font que du SQL direct via psycopg2/HRVRepository. "studio" (Next.js) est
+# volontairement exclu : gourmand en mémoire, vu planter sous charge sur cette
+# machine, et rien ici n'a besoin de la gateway HTTP/API auth.
+
+_SUPABASE_DIR = (
+    Path(__file__).resolve().parent.parent.parent
+    / "cardioanalysis-api"
+    / "local"
+    / "auth"
+)
+_COMPOSE_CMD = ["docker", "compose", "--env-file", "dev/.env"]
+_MINIMAL_SERVICES = ["db", "supavisor"]
+_we_started_supabase = False
+
+
+def _supabase_is_running() -> bool:
+    """Check whether the local Supabase stack's db container is up."""
+    try:
+        result = subprocess.run(
+            ["docker", "inspect", "-f", "{{.State.Running}}", "supabase-db"],  # noqa: S603, S607
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return False
+    return result.returncode == 0 and result.stdout.strip() == "true"
+
+
+_DB_TEST_VARS = ("DB_HOST_TEST", "DB_NAME_TEST", "DB_USER_TEST", "DB_PASSWORD_TEST")
+
+
+def _db_vars_present() -> bool:
+    """Return True only when all required DB_*_TEST env vars are set and non-empty."""
+    return all(os.environ.get(v) for v in _DB_TEST_VARS)
+
+
+def _wait_until_postgres_accepts_connections(timeout: float = 30.0) -> None:
+    """Retry a real connection — Docker's healthcheck can pass before Supavisor is ready.
+
+    Raises RuntimeError if the timeout is exceeded so that a misconfigured stack
+    causes an explicit failure instead of silently letting integration tests run
+    against an unavailable database.
+    """
+    import psycopg2
+
+    deadline = time.monotonic() + timeout
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
+        try:
+            conn = psycopg2.connect(
+                host=os.environ["DB_HOST_TEST"],
+                dbname=os.environ["DB_NAME_TEST"],
+                user=os.environ["DB_USER_TEST"],
+                password=os.environ["DB_PASSWORD_TEST"],
+                port=int(os.environ.get("DB_PORT_TEST", "5432")),
+                connect_timeout=3,
+            )
+        except psycopg2.OperationalError as exc:
+            last_error = exc
+            time.sleep(1)
+            continue
+        conn.close()
+        return
+
+    msg = (
+        f"Could not connect to the test database within {timeout:.0f} s. "
+        f"Last error: {last_error}"
+    )
+    raise RuntimeError(msg)
+
+
+def pytest_collection_finish(session: pytest.Session) -> None:
+    """Start the local Supabase stack if integration tests will actually run.
+
+    When DB_*_TEST env vars are absent the stack is not started: the integration
+    tests carry their own ``@pytest.mark.skipif(not os.getenv('DB_HOST_TEST'), …)``
+    guards and will be reported as skipped, not failed.
+    """
+    global _we_started_supabase  # noqa: PLW0603
+    has_integration_tests = any(
+        item.get_closest_marker("integration") for item in session.items
+    )
+    if (
+        not has_integration_tests
+        or not _db_vars_present()
+        or not _SUPABASE_DIR.is_dir()
+        or _supabase_is_running()
+    ):
+        return
+    try:
+        subprocess.run(  # noqa: S603
+            [
+                *_COMPOSE_CMD,
+                "up",
+                "-d",
+                "--wait",
+                "--wait-timeout",
+                "120",
+                *_MINIMAL_SERVICES,
+            ],
+            cwd=_SUPABASE_DIR,
+            check=False,
+        )
+    except FileNotFoundError:
+        return  # Docker not available — the tests' own skipif/connection error will explain why.
+    _we_started_supabase = True
+    _wait_until_postgres_accepts_connections()
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:  # noqa: ARG001
+    """Stop the local Supabase stack if this session is the one that started it."""
+    if _we_started_supabase:
+        subprocess.run(  # noqa: S603
+            [*_COMPOSE_CMD, "stop", *_MINIMAL_SERVICES], cwd=_SUPABASE_DIR, check=False
+        )
 
 
 # ── Matplotlib cleanup ────────────────────────────────────────────────────────
