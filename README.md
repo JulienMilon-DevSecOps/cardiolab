@@ -873,13 +873,15 @@ See [`examples/README.md`](examples/README.md) for the full step-by-step setup.
 | `analytics/` — baseline, scoring (all 6 protocols), anomaly, trend | Implemented |
 | `database/` — 8 tables (6 protocol + raw RR + training sessions, multi-activity) | Implemented |
 | `io/` — CSV & JSON export for all protocols | Implemented |
-| `sensors_tools/` — Polar | Implemented |
+| `sensors_tools/` — Polar, HRV4Training, Apple Health, Garmin (`.fit` / CSV) | Implemented |
 | `visualization/` | Implemented |
 | `reporting/` — all 6 protocols (9 functions) + training load (2 functions) | Implemented |
 | PPG signal support | Planned |
 | Training load — Phases 1-6 (DB / TRIMP / ATL-CTL-TSB / Viz / Reporting / Scripts) | Implemented |
 
-**Test coverage:** 1 458 unit tests, 0 failures — 87.6 % coverage.
+**Test coverage:** 1 545 tests (1 490 unit + 55 PostgreSQL integration), 0 failures — 91.7 % coverage on unit tests alone.
+
+**CI/CD:** GitLab [centralised Python pipeline](https://gitlab.com/project-jmilon-devsecops/ci-cd/pipeline-python-centralisee) `0.9.0` — gitleaks, ruff, pytest (with a throwaway PostgreSQL for integration tests), pip-audit, build + `twine check`. Tag `V-x.y.z` → PyPI; tag `V-x.y.z-rcN` → TestPyPI (Trusted Publishing). The tag must match `version` in `pyproject.toml` (`V-0.3.1-rc1` ↔ `0.3.1rc1`).
 
 ---
 
@@ -1101,55 +1103,23 @@ TRIMP = duration_min × (1 − readiness / 100)
 
 ---
 
-### v0.3.0 — Notebooks + Additional sensors
+### v0.3.0 — Notebooks + Additional sensors — Released (2026-06-12)
 
-**DB change:** none — new sensor data maps to the existing `training_sessions` and `hrv_raw_sessions` tables.
+**DB change:** none.
 
-#### Phase 0 — Notebooks
+* [x] `notebooks/` — 10 thematic notebooks (`00_setup` → `09_sensors`) + README, replacing the monolithic `pipeline-notebook.ipynb`
+* [x] `sensors_tools/hrv4training.py` — `parse_hrv4training_csv()`, `to_rrseries()`
+* [x] `sensors_tools/apple_health.py` — `parse_apple_health_export()`, `extract_hrv_samples()` (SDNN only — Apple does not export raw RR)
+* [x] `sensors_tools/garmin.py` — `parse_garmin_fit()`, `parse_garmin_csv()`, `extract_training_session_garmin()` — optional `[garmin]` extra (`fitparse`)
+* [x] Sensor documentation in `cardiolab/docs/sensors/`
 
-Split the monolithic `pipeline-notebook.ipynb` (v0.1.0) into thematic notebooks, reusing
-the structured content from `examples/`.
+See [CHANGELOG.md](CHANGELOG.md#030---2026-06-12) for the full list.
 
-* [ ] `notebooks/` directory at the repository root
-  * [ ] `README.md` — index and prerequisites
-  * [ ] `01_signal_rr.ipynb` — RRSeries, cleaning, tachogram (→ `examples/09`)
-  * [ ] `02_resting_protocol.ipynb` — full resting protocol (→ `examples/02`)
-  * [ ] `03_orthostatic_protocol.ipynb` — orthostatic with dual score (→ `examples/03`)
-  * [ ] `04_other_protocols.ipynb` — coherence, HRR, drift, VO2max (→ `examples/12`)
-  * [ ] `05_analytics_baseline_scoring.ipynb` — baseline, scoring, anomaly, trends (→ `examples/06–07`)
-  * [ ] `06_training_load.ipynb` — TRIMP, ATL/CTL/TSB, visualisation (→ `examples/13`)
-  * [ ] `07_database_pipeline.ipynb` — DB setup, import, queries, export (→ `examples/01–05`)
-  * [ ] `08_full_daily_pipeline.ipynb` — end-to-end daily pipeline (→ `examples/15`)
+---
 
-Each notebook is self-contained with synthetic data embedded or drawn from `datasets/`.
-Compatible with `jupyter nbconvert --to html` for static sharing.
+### v0.3.1 — CI pipeline 0.9.0 (in progress)
 
-#### Phase 1 — Garmin
-* [ ] `sensors_tools/garmin.py`
-  * [ ] `parse_garmin_fit(filepath) → RRSeries` — via `fitparse`
-  * [ ] `parse_garmin_csv(filepath) → RRSeries` — Garmin Connect CSV export
-  * [ ] `extract_training_session_garmin(filepath) → dict` — duration + HR mean/max for Banister TRIMP
-* [ ] Tests with synthetic `.fit` and CSV fixtures
-
-#### Phase 2 — Apple Health
-* [ ] `sensors_tools/apple_health.py`
-  * [ ] `parse_apple_health_export(xml_path) → list[RRSeries]`
-  * [ ] `extract_hrv_samples(xml_path) → list[dict]` — timestamped SDNN / RMSSD
-* [ ] Tests with minimal XML fixture
-
-#### Phase 3 — HRV4Training
-* [ ] `sensors_tools/hrv4training.py`
-  * [ ] `parse_hrv4training_csv(filepath) → list[dict]`
-  * [ ] `to_rrseries(row) → RRSeries`
-* [ ] Tests
-
-#### Phase 4 — Sensor documentation
-* [ ] `docs/sensors/polar.md` — HRV Elite export procedure
-* [ ] `docs/sensors/garmin.md` — Garmin Connect `.fit` + CSV export
-* [ ] `docs/sensors/apple_health.md` — Apple Health XML export
-* [ ] `docs/sensors/hrv4training.md` — HRV4Training CSV export
-
-**Optional dependency:** `fitparse` (Garmin `.fit`) — `[garmin]` extra in `pyproject.toml`
+No functional change. Centralised pipeline `0.9.0` (version check, TestPyPI pre-releases, Trusted Publishing, integration tests in CI), true coverage measurement, packaging fixes — see [CHANGELOG.md](CHANGELOG.md#unreleased).
 
 ---
 

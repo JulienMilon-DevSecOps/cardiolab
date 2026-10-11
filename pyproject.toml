@@ -75,7 +75,7 @@ packages = ["cardiolab"]
 include = [
     "/cardiolab",
     "/tests",
-    "/example",
+    "/examples",
     "CHANGELOG.md",
     "LICENCE",
     "README.md",
@@ -148,10 +148,11 @@ filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
     # Synthetic test recordings are intentionally short — the warning is expected.
-    "ignore::cardiolab.signals.rr.PhysiologicalWarning",
-    "ignore:Recording duration:cardiolab.signals.rr.PhysiologicalWarning",
-    "ignore:interval.*below 300 ms:cardiolab.signals.rr.PhysiologicalWarning",
-    "ignore:interval.*above 2000 ms:cardiolab.signals.rr.PhysiologicalWarning",
+    # PhysiologicalWarning is matched by message (UserWarning subclass) rather than
+    # by its dotted path: naming the class here makes pytest import cardiolab
+    # before pytest-cov starts, which hides module-level lines from coverage.
+    'ignore:.*interval\(s\) (below|above):UserWarning',
+    'ignore:(HRR |Coherence )?[Rr]ecording duration:UserWarning',
     # Complex multi-panel figures sometimes exceed tight_layout margins.
     "ignore:Tight layout not applied:UserWarning",
 ]
