@@ -11,3 +11,8 @@ build/
 *.egg-info/
 .coverage
 notebooks/resting_*
+coverage.json
+coverage.xml
+pytest-report.xml
+output/
+.benchmarks/

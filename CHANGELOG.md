@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No functional change to the `cardiolab` package — CI, packaging and test tooling only.
+
+### Changed — CI (centralised pipeline `0.3.0` → `0.9.0`)
+
+- `.gitlab-ci.yml` now includes `pipeline-python-centralisee` at `ref: 0.9.0`:
+  - blocking `version-check` on release tags (`V-x.y.z` ↔ `[project].version`);
+  - `twine check --strict` during `build-package`;
+  - pre-release tags `V-x.y.z-rcN` (`V-0.3.1-rc1` ↔ `version = "0.3.1rc1"`) are
+    published to **TestPyPI** only; `V-x.y.z` tags publish to PyPI + GitLab Package Registry;
+  - PyPI / TestPyPI publication through **Trusted Publishing** (`PYPI_AUTH_METHOD: "trusted"`),
+    no API token stored in GitLab;
+  - non-blocking `dependency-scan` (pip-audit).
+- `PYTHON_VERSION: "3.12"` (image `python:3.12-slim`) instead of `3.12.0`.
+- `PYTHON_PROJECT_EXTRAS: "dev,analysis,database,garmin"` — cardiolab has no `test` extra
+  (the pipeline default).
+- `PYTEST_COV_SOURCE: "cardiolab"` — coverage measured on the package only (the pipeline
+  default `.` also counted `tests/`).
+- **Integration tests now run in CI**: `PYTEST_DATABASE: "postgres"` starts a throwaway
+  PostgreSQL 17 service; `DB_*_TEST` variables point to it. The 55 `@pytest.mark.integration`
+  tests were previously always skipped in CI.
+
+### Fixed — Tests and packaging
+
+- Coverage under-reported (83.6 % → 91.7 % on unit tests, no test added): the
+  `filterwarnings` entries referenced `cardiolab.signals.rr.PhysiologicalWarning` by dotted
+  path, which made pytest import `cardiolab` before `pytest-cov` started — every module-level
+  line (imports, `def`, `class`) was counted as missed. Warnings are now filtered by message.
+- sdist: `/example` → `/examples` in `[tool.hatch.build.targets.sdist]` (the folder was
+  renamed in v0.2.4, so examples were silently missing from the source distribution).
+
+### Removed
+
+- `pystest.ini` — misspelled, never read by pytest; the configuration lives in
+  `pyproject.toml`.
+- Generated files untracked and ignored: `coverage.json`, `output/*.png`
+  (also ignored: `coverage.xml`, `pytest-report.xml`, `.benchmarks/`).
+
 ---
 
 ## [0.3.0] - 2026-06-12
