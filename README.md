@@ -1117,45 +1117,18 @@ See [CHANGELOG.md](CHANGELOG.md#030---2026-06-12) for the full list.
 
 ---
 
-### v0.3.1 — CI pipeline 0.9.0 (in progress)
+### Upcoming versions
 
-No functional change. Centralised pipeline `0.9.0` (version check, TestPyPI pre-releases, Trusted Publishing, integration tests in CI), true coverage measurement, packaging fixes — see [CHANGELOG.md](CHANGELOG.md#unreleased).
+The forward-looking roadmap, ordered by priority (P0 → P3), lives in **[ROADMAP.md](ROADMAP.md)**:
 
----
-
-### v0.4.0 — Statistical intelligence
-
-**DB change:** optional `ALTER TABLE … ADD COLUMN anomaly_score FLOAT` on protocol tables to cache results — not required for core functionality.
-
-> Note: this version is most useful once the database contains sufficient longitudinal data (~100+ sessions). GMM / HMM and ARIMA models are excluded from this version — the biological variance of HRV makes short-term prediction unreliable, and clustering requires data volumes unlikely to be reached before this point.
-
-#### Phase 1 — Multivariate anomaly detection (Mahalanobis)
-* [ ] `analytics/anomaly.py` additions
-  * [ ] `mahalanobis_distance(features_matrix, new_point) → float`
-  * [ ] `is_multivariate_anomaly(features_matrix, new_point, threshold=3.0) → bool`
-  * [ ] `anomaly_report(user_features_history) → pd.DataFrame` — `date | zscore | mahalanobis | is_anomaly`
-* [ ] Tests — point equal to mean → distance = 0; clear outlier → distance > threshold
-
-#### Phase 2 — Trend analysis
-* [ ] `analytics/trends.py`
-  * [ ] `linear_trend(series, window_days) → dict` — slope, r², p-value on sliding window
-  * [ ] `detect_sustained_decline(scores, min_sessions=5, threshold=-0.5) → bool`
-  * [ ] `trend_report(user_scores_history) → pd.DataFrame` — `date | score | slope_7d | slope_30d | trend_label`
-* [ ] Tests — known linear trend → expected slope
-
-#### Phase 3 — Statistical visualisation
-* [ ] `visualization/statistical_plots.py`
-  * [ ] `plot_anomaly_timeline(report, title, figsize)` — score line with anomaly points highlighted
-  * [ ] `plot_trend_overlay(scores, trends, title, figsize)` — raw score + trend line + 95 % CI
-* [ ] Tests
-
----
-
-### Out of scope — parallel repositories
-
-These projects live in separate GitLab repositories and do not affect cardiolab versioning.
-
-| Project | Repository | Depends on | Can start |
-|---------|-----------|-----------|-----------|
-| `cardioanalysis-api` (FastAPI) | New GitLab repo | cardiolab ≥ v0.2.0 via PyPI | After v0.2.0 published |
-| Web interface | New GitLab repo | `cardioanalysis-api` stable | After API v1 stable |
+| Version | Priority | Theme |
+|---------|----------|-------|
+| v0.3.1 | P0 | CI pipeline 0.9.0, TestPyPI pre-release (in progress) |
+| v0.3.2 | P1 | Readiness consistency fix, hygiene, entropy speed-up |
+| v0.3.3 | P1 | Generic `HRVRepository` |
+| v0.4.0 | P1 | Signal reliability — artefact correction, spectral fixes, signal quality |
+| v0.5.0 | P2 | Athlete longitudinal monitoring — 7-day lnRMSSD, CV, SWC, trends |
+| v0.6.0 | P2 | Exercise protocols — DFA α1 thresholds, submaximal test |
+| v0.7.0 | P3 | Statistical intelligence — Mahalanobis anomaly |
+| v0.8.0 | P3 | Autonomic function tests (Ewing battery) |
+| v0.9.0 | P3 | PPG / pulse rate variability |
