@@ -15,7 +15,7 @@ Prerequisites
 
 Usage::
 
-    python example/14_user_profiles.py
+    python examples/14_user_profiles.py
 
 """
 

@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — Readiness used for the HRV TRIMP
+
+- `load_readiness_for_date()` now scores the session with the same function as the readiness
+  stored and displayed in reports: `readiness_score_multi()` for resting,
+  `orthostatic_readiness_score()` (supine phase) for orthostatic. It previously used the legacy
+  `readiness_score_oura()` (RMSSD 70 % + HR 30 %, no DFA α1 nor trend), so the TRIMP was built
+  from a different score than the one the athlete sees (e.g. 63.0 vs 54.5 on the same session).
+  **TRIMP values saved with the `hrv` method before 0.3.2 differ**; re-saving the session
+  (upsert) recomputes them.
+- Notebooks `02_import_pipeline` and `08_full_pipeline`, and the `reading_charts.md` example,
+  scored sessions with `readiness_score_oura()` too — now `readiness_score_multi()`, consistent
+  with the local pipeline. Re-run the notebooks to refresh their saved outputs.
+
+### Changed
+
+- `cardiolab.__version__` is read from the installed distribution metadata
+  (`importlib.metadata`) — `pyproject.toml` is the single source of truth. It was hard-coded and
+  still reported `0.3.0` in the published 0.3.1 package. With an editable install, run
+  `pip install -e . --no-deps` after a version bump (enforced by `tests/test_version.py`).
+- `apen()` / `sampen()`: template matching uses a k-d tree (`scipy.spatial.cKDTree`, Chebyshev
+  metric) instead of O(N²) Python loops. **Results are identical** (checked against the former
+  implementation to 1e-12, including integer-ms series with ties at `r`); ×10 faster at
+  300 beats, ×30 at 3 000 beats (ApEn 1.4 s → 43 ms).
+- CI: the centralised pipeline is now included as a CI/CD component
+  (`python-package@0.11.1`) configured through `inputs:`; Ruff security rules (SAST) are
+  blocking.
+
+### Removed
+
+- `cardiolab/scripts/import_rr.py` (`import_all()`): it had no entry point, so the documented
+  `python cardiolab/scripts/import_rr.py` did nothing, and it only converted raw files to an
+  intermediate JSON format. Raw files are now read directly with `parse_rr_file()`, as the
+  local pipeline already did.
+
+### Changed — Examples and documentation
+
+- Examples 02, 09, 10 and 11 read raw RR files (`.txt` / `.csv` / `.rr`) from
+  `cardiolab/datasets/raw/resting/` with `parse_rr_file()` instead of the intermediate JSON
+  files; the session date is the file name without extension. Example 10 scores sessions with
+  `readiness_score_multi()`. Examples 04 / 05 notes updated; `example/` → `examples/` paths.
+- `docs/sensors/polar.md`: the import snippet called a non-existent `compute_time_domain()` and
+  treated the `dict` returned by `parse_rr_file()` as an `RRSeries` — fixed and verified.
+- README project structure brought up to date (no `preprocessing/` nor `scripts/`, sensors,
+  9 tables, notebooks, test count).
+
+### Tests
+
+- `tests/conftest.py`: the local Supabase stack is never started when `CI` is set — in the
+  pipeline the database is the `pytest-postgres` service (same rule as `cardioanalysis-api`).
+  Locally, integration tests still start and stop it automatically.
+- New: `TestLoadReadinessForDateScorer` (4, no database), `TestEntropyKDTreeEquivalence` (52),
+  entropy benchmarks on 3 000 beats (2, `slow`), `tests/test_version.py` (2).
+
+---
+
+## [0.3.1] - 2026-10-12
+
 No functional change to the `cardiolab` package — CI, packaging and test tooling only.
 
 ### Changed — CI (centralised pipeline `0.3.0` → `0.9.0`)

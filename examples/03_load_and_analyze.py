@@ -17,7 +17,7 @@ Usage
 -----
 Run from the project root::
 
-    python example/03_load_and_analyze.py
+    python examples/03_load_and_analyze.py
 
 """
 

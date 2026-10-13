@@ -42,7 +42,6 @@ PostgreSQL persistence
 cardiolab/
 │
 ├── signals/          → raw data structures (ECG, RR series)
-├── preprocessing/    → signal cleaning
 ├── features/         → HRV computation (time, frequency & non-linear)
 ├── protocols/        → physiological tests
 │   ├── resting.py            → standard 5-min resting HRV
@@ -52,14 +51,13 @@ cardiolab/
 │   ├── cardiac_drift.py      → progressive HR increase at constant load
 │   └── vo2max.py             → VO2max estimation from HRV (Uth, Esco-Flatt)
 ├── analytics/        → baseline, scoring, anomaly detection, trend analysis, training load (ATL/CTL/TSB)
-├── sensors_tools/    → Polar sensor integration
-├── database/         → PostgreSQL persistence layer (8 tables)
+├── sensors_tools/    → sensor imports: Polar, HRV4Training, Apple Health, Garmin (.fit / CSV)
+├── database/         → PostgreSQL persistence layer (9 tables, versioned SQL migrations)
 ├── io/               → CSV and JSON export for all protocols
 ├── reporting/        → tabular reporting (pandas Styler, HTML/Excel export)
 │   ├── _core.py          → shared formatters, colour palettes, gradient builders
 │   ├── resting.py        → table_resting_history, table_resting_session
 │   └── orthostatic.py    → table_orthostatic_comparison, table_orthostatic_history
-├── scripts/          → CLI import tools
 ├── datasets/         → sample recordings (resting/, orthostatic/)
 ├── docs/             → protocol & feature documentation
 │   ├── protocols/    → resting.md, orthostatic.md, cardiac_coherence.md,
@@ -74,7 +72,8 @@ cardiolab/
                             multi-session comparison, 2×2 summary
 
 examples/             → step-by-step usage scripts (01 – 15)
-tests/                → full unit test suite (1458 tests)
+notebooks/            → thematic Jupyter notebooks (00 – 09)
+tests/                → unit + PostgreSQL integration tests (1 605 tests)
 ```
 
 ---
@@ -879,9 +878,9 @@ See [`examples/README.md`](examples/README.md) for the full step-by-step setup.
 | PPG signal support | Planned |
 | Training load — Phases 1-6 (DB / TRIMP / ATL-CTL-TSB / Viz / Reporting / Scripts) | Implemented |
 
-**Test coverage:** 1 545 tests (1 490 unit + 55 PostgreSQL integration), 0 failures — 91.7 % coverage on unit tests alone.
+**Test coverage:** 1 605 tests (1 550 unit + 55 PostgreSQL integration), 0 failures — 92.5 % coverage on unit tests alone.
 
-**CI/CD:** GitLab [centralised Python pipeline](https://gitlab.com/project-jmilon-devsecops/ci-cd/pipeline-python-centralisee) `0.9.0` — gitleaks, ruff, pytest (with a throwaway PostgreSQL for integration tests), pip-audit, build + `twine check`. Tag `V-x.y.z` → PyPI; tag `V-x.y.z-rcN` → TestPyPI (Trusted Publishing). The tag must match `version` in `pyproject.toml` (`V-0.3.1-rc1` ↔ `0.3.1rc1`).
+**CI/CD:** GitLab [centralised Python pipeline](https://gitlab.com/project-jmilon-devsecops/ci-cd/pipeline-python-centralisee) (CI/CD component `python-package@0.11.1`) — gitleaks, ruff (lint, format, security rules), pytest (with a throwaway PostgreSQL for integration tests), pip-audit, build + `twine check`. Tag `V-x.y.z` → PyPI; tag `V-x.y.z-rcN` → TestPyPI (Trusted Publishing). The tag must match `version` in `pyproject.toml` (`V-0.3.1-rc1` ↔ `0.3.1rc1`).
 
 ---
 
@@ -1123,8 +1122,8 @@ The forward-looking roadmap, ordered by priority (P0 → P3), lives in **[ROADMA
 
 | Version | Priority | Theme |
 |---------|----------|-------|
-| v0.3.1 | P0 | CI pipeline 0.9.0, TestPyPI pre-release (in progress) |
-| v0.3.2 | P1 | Readiness consistency fix, hygiene, entropy speed-up |
+| v0.3.1 | P0 | CI pipeline 0.9.0, TestPyPI pre-release — released 2026-10-12 |
+| v0.3.2 | P1 | Readiness consistency fix, hygiene, entropy speed-up (in progress) |
 | v0.3.3 | P1 | Generic `HRVRepository` |
 | v0.4.0 | P1 | Signal reliability — artefact correction, spectral fixes, signal quality |
 | v0.5.0 | P2 | Athlete longitudinal monitoring — 7-day lnRMSSD, CV, SWC, trends |

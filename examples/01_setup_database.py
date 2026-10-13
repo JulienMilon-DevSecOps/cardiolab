@@ -18,7 +18,7 @@ Usage
 -----
 Run from the project root::
 
-    python example/01_setup_database.py
+    python examples/01_setup_database.py
 
 """
 
