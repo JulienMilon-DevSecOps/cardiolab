@@ -119,6 +119,10 @@ def pytest_collection_finish(session: pytest.Session) -> None:
     guards and will be reported as skipped, not failed.
     """
     global _we_started_supabase  # noqa: PLW0603
+    # En CI, la base est fournie par le service postgres de la pipeline
+    # (même règle que cardioanalysis-api).
+    if os.getenv("CI"):
+        return
     has_integration_tests = any(
         item.get_closest_marker("integration") for item in session.items
     )
