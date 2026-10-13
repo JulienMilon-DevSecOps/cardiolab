@@ -1,29 +1,26 @@
 include:
-  - project: 'project-jmilon-devsecops/ci-cd/pipeline-python-centralisee'
-    ref: 0.9.0
-    file: 'pipelines/python-package-pipeline.yml'
+  - component: $CI_SERVER_FQDN/project-jmilon-devsecops/ci-cd/pipeline-python-centralisee/python-package@0.11.1
+    inputs:
+      python_version: "3.12"
+      # cardiolab n'a pas d'extra "test" : extras qui couvrent toute la suite de tests
+      project_extras: "dev,analysis,database,garmin"
+      pytest_args: "-q"
+      # Couverture mesurée sur le package uniquement (fail_under = 80 dans pyproject.toml)
+      pytest_cov_source: "cardiolab"
+      # Tests d'intégration sur la base PostgreSQL jetable du job pytest-postgres
+      pytest_database: mysql
+      # Publication PyPI / TestPyPI sans secret (Trusted Publishing)
+      pypi_auth_method: trusted
+      # ── Sécurité : état des contrôles (gitleaks toujours actif et bloquant) ──
+      version_check_enabled: true          # version du tag = version du pyproject.toml, bloquant
+      ruff_allow_failure: false            # lint et formatage, bloquant
+      sast_allow_failure: false            # règles de sécurité Ruff, bloquant
+      dependency_scan_allow_failure: true  # vulnérabilités des dépendances + SBOM, non bloquant
 
 variables:
-  # Image des jobs Python : python:${PYTHON_VERSION}-slim (wheels disponibles pour toutes les dépendances).
-  # Pour revenir à l'image socle : PYTHON_IMAGE: "$CI_REGISTRY/project-jmilon-devsecops/ci-cd/pipeline-python-centralisee/python-base:${PYTHON_VERSION}-latest"
-  PYTHON_VERSION: '3.12'
-
-  # cardiolab n'a pas d'extra "test" : on installe ceux qui couvrent toute la suite de tests
-  PYTHON_PROJECT_EXTRAS: 'dev,analysis,database,garmin'
-
-  # Tests : couverture mesurée sur le package uniquement (fail_under = 80 dans pyproject.toml)
-  PYTEST_ARGS: '-q'
-  PYTEST_COV_SOURCE: 'cardiolab'
-
-  # Tests d'intégration (@pytest.mark.integration) sur la base PostgreSQL jetable du job pytest-postgres.
-  # Identifiants de test uniquement, détruits en fin de job (POSTGRES_* définis par la pipeline centralisée).
-  PYTEST_DATABASE: 'postgres'
-  DB_HOST_TEST: 'postgres'
-  DB_PORT_TEST: '5432'
-  DB_NAME_TEST: '$POSTGRES_DB'
-  DB_USER_TEST: '$POSTGRES_USER'
-  DB_PASSWORD_TEST: '$POSTGRES_PASSWORD'
-
-  # Publication PyPI / TestPyPI sans secret (Trusted Publishing, voir docs/pypi-publishing.md)
-  PYPI_AUTH_METHOD: 'trusted'
-
+  # Identifiants de la base de test jetable (POSTGRES_* définis par la pipeline centralisée)
+  DB_HOST_TEST: "postgres"
+  DB_PORT_TEST: "5432"
+  DB_NAME_TEST: "$POSTGRES_DB"
+  DB_USER_TEST: "$POSTGRES_USER"
+  DB_PASSWORD_TEST: "$POSTGRES_PASSWORD"
