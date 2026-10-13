@@ -10,7 +10,8 @@ Demonstrates the five plot functions in ``cardiolab.visualization.rr_plots``:
 
 Data source
 -----------
-Real sessions are loaded from ``cardiolab/datasets/resting/*.json`` when
+Real sessions are loaded from raw RR files (``.txt`` / ``.csv`` / ``.rr``) in
+``cardiolab/datasets/raw/resting/`` when
 available.  If no files are found, three synthetic sessions are generated
 (reproducible seed) so the script works out of the box.
 
@@ -18,21 +19,20 @@ Usage
 -----
 Run from the project root::
 
-    python example/09_rr_signal_plots.py
+    python examples/09_rr_signal_plots.py
 
-Figures are saved to ``example/figures/`` at 150 dpi.
+Figures are saved to ``examples/figures/`` at 150 dpi.
 No display window is opened — safe for headless / CI environments.
 """
 
 from __future__ import annotations
 
-import glob
-import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
+from cardiolab.sensors_tools import parse_rr_file
 from cardiolab.signals.rr import RRSeries
 from cardiolab.visualization.rr_plots import (
     plot_rr_comparison,
@@ -46,8 +46,9 @@ from cardiolab.visualization.rr_plots import (
 # CONFIGURATION
 # ---------------------------------------------------------------------------
 
-_DATA_GLOB = "cardiolab/datasets/resting/*.json"
-_FIGURES_DIR = Path("example/figures")
+_DATA_DIR = Path("cardiolab/datasets/raw/resting")
+_RR_SUFFIXES = {".txt", ".csv", ".rr"}
+_FIGURES_DIR = Path("examples/figures")
 _DPI = 150
 
 
@@ -57,16 +58,14 @@ _DPI = 150
 
 
 def _load_sessions() -> tuple[list[RRSeries], list[str]]:
-    """Return (rr_list, labels) from JSON files or synthetic data."""
-    files = sorted(glob.glob(_DATA_GLOB))
+    """Return (rr_list, labels) from raw RR files or synthetic data."""
+    files = sorted(p for p in _DATA_DIR.glob("*") if p.suffix in _RR_SUFFIXES)
 
     if files:
         rr_list, labels = [], []
         for path in files:
-            with open(path) as f:
-                data = json.load(f)
-            rr_list.append(RRSeries(data["rr_intervals"]))
-            labels.append(data.get("date", Path(path).stem))
+            rr_list.append(RRSeries(parse_rr_file(path)["rr_intervals"]))
+            labels.append(path.stem)
         return rr_list, labels
 
     print("[info] No session files found — generating synthetic data.")

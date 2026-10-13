@@ -8,10 +8,10 @@ Demonstrates all five functions from cardiolab.visualization.spectral_plots:
     plot_hrv_radar        — radar chart of 5 normalised HRV metrics
     plot_spectral_heatmap — sessions × frequency bands heatmap
 
-Data source: JSON session files in cardiolab/datasets/resting/.
+Data source: raw RR files (.txt / .csv / .rr) in cardiolab/datasets/raw/resting/.
 If none are found, three synthetic sessions are generated automatically.
 
-Saved figures (example/figures/):
+Saved figures (examples/figures/):
     11_01_psd_welch.png
     11_02_psd_ar.png
     11_03_psd_comparison.png
@@ -22,13 +22,13 @@ Saved figures (example/figures/):
 
 from __future__ import annotations
 
-import json
 import math
 from pathlib import Path
 
 import numpy as np
 
 from cardiolab.protocols.resting import HRVFeatures, resting_hrv
+from cardiolab.sensors_tools import parse_rr_file
 from cardiolab.signals.rr import RRSeries
 from cardiolab.visualization.spectral_plots import (
     plot_hrv_radar,
@@ -41,7 +41,7 @@ from cardiolab.visualization.spectral_plots import (
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
 ROOT = Path(__file__).resolve().parent.parent
-DATASET_DIR = ROOT / "cardiolab" / "datasets" / "resting"
+DATASET_DIR = ROOT / "cardiolab" / "datasets" / "raw" / "resting"
 FIGURES_DIR = Path(__file__).parent / "figures"
 FIGURES_DIR.mkdir(exist_ok=True)
 
@@ -51,13 +51,13 @@ DPI = 150
 
 
 def _load_sessions_from_files() -> list[tuple[str, RRSeries]]:
-    """Return (label, RRSeries) pairs from JSON files in the dataset directory."""
+    """Return (label, RRSeries) pairs from raw RR files in the dataset directory."""
     sessions = []
-    for path in sorted(DATASET_DIR.glob("*.json")):
+    for path in sorted(DATASET_DIR.glob("*")):
+        if path.suffix not in {".txt", ".csv", ".rr"}:
+            continue
         try:
-            with open(path) as f:
-                data = json.load(f)
-            rr_values = data.get("rr_intervals", data.get("intervals", []))
+            rr_values = parse_rr_file(path)["rr_intervals"]
             if rr_values:
                 label = path.stem
                 sessions.append((label, RRSeries(rr_values)))

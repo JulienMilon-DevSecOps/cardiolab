@@ -76,43 +76,43 @@ python3 -c "import uuid; print(uuid.uuid4())"
 
 ```bash
 # Signal RR : validation, nettoyage
-python example/06_rr_validation.py
-python example/07_auto_clean.py
+python examples/06_rr_validation.py
+python examples/07_auto_clean.py
 
 # Protocoles : resting, orthostatic, cohérence, HRR, dérive, VO2max
-python example/04_resting_protocol.py
-python example/05_orthostatic_protocol.py
-python example/12_other_protocols.py
+python examples/04_resting_protocol.py
+python examples/05_orthostatic_protocol.py
+python examples/12_other_protocols.py
 
 # Analytics : charge d'entraînement
-python example/13_training_load.py
+python examples/13_training_load.py
 
 # Export
-python example/08_to_dict_export.py
+python examples/08_to_dict_export.py
 
 # Visualisation
-python example/09_rr_signal_plots.py
-python example/10_resting_evolution_plots.py
-python example/11_spectral_plots.py
+python examples/09_rr_signal_plots.py
+python examples/10_resting_evolution_plots.py
+python examples/11_spectral_plots.py
 
 # Pipeline complet (tout en un)
-python example/15_full_daily_pipeline.py
+python examples/15_full_daily_pipeline.py
 ```
 
 ### Avec PostgreSQL (persistance)
 
 ```bash
 # 1. Initialiser le schéma (une seule fois)
-python example/01_setup_database.py
+python examples/01_setup_database.py
 
 # 2. Alimenter la base (après chaque session)
-python example/02_feed_database.py
+python examples/02_feed_database.py
 
 # 3. Charger et analyser
-python example/03_load_and_analyze.py
+python examples/03_load_and_analyze.py
 
 # 4. Gérer les profils utilisateurs
-python example/14_user_profiles.py
+python examples/14_user_profiles.py
 ```
 
 ---
@@ -229,7 +229,7 @@ Voir [`docs/visualization/`](../docs/visualization/) pour les guides de lecture.
   `hrv_training_sessions`, `user_profiles`.
 
 #### `02_feed_database.py` — Import de sessions resting
-- Lit les fichiers JSON dans `cardiolab/datasets/resting/`.
+- Lit les fichiers RR bruts (`.txt`, `.csv`, `.rr`) de `cardiolab/datasets/raw/resting/` via `parse_rr_file()` ; la date de session est le nom du fichier sans extension.
 - Calcule les `HRVFeatures` via `resting_hrv()`.
 - Upsert en base (relancer = mise à jour sans doublon).
 

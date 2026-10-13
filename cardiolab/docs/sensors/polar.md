@@ -77,23 +77,31 @@ Le parser cardiolab détecte automatiquement la colonne RR (recherche insensible
 ### Read a Polar RR file / Lire un fichier RR Polar
 
 ```python
+from cardiolab.features.time_domain import rmssd, sdnn
 from cardiolab.sensors_tools import parse_rr_file
-from cardiolab.features.time_domain import compute_time_domain
+from cardiolab.signals.rr import RRSeries
 
-rr = parse_rr_file("datasets/raw/polar/2026-01-10_repos.txt")
+data = parse_rr_file("cardiolab/datasets/raw/resting/2026-01-10 07-30-00.txt")
+rr = RRSeries(data["rr_intervals"])  # parse_rr_file returns a dict
 rr_clean = rr.remove_outliers()
 
-features = compute_time_domain(rr_clean)
-print(f"RMSSD : {features.rmssd:.1f} ms | SDNN : {features.sdnn:.1f} ms")
+print(f"RMSSD : {rmssd(rr_clean):.1f} ms | SDNN : {sdnn(rr_clean):.1f} ms")
 ```
 
-### Full pipeline via import_rr / Pipeline complet via import_rr
+### Full resting protocol / Protocole repos complet
 
-```bash
-# Drop the .txt file in datasets/raw/resting/ then run:
-# Déposer le fichier .txt dans datasets/raw/resting/ puis lancer :
-python cardiolab/scripts/import_rr.py
+```python
+from cardiolab.protocols.resting import resting_hrv
+
+features = resting_hrv(rr, auto_clean=True)  # 14+ HRV features
 ```
+
+To compute and store a whole folder of recordings, run
+`examples/02_feed_database.py` (reads every `.txt` / `.csv` / `.rr` file in
+`cardiolab/datasets/raw/resting/`, the session date being the file name).  
+Pour calculer et enregistrer tout un dossier de mesures, lancer
+`examples/02_feed_database.py` (lit chaque fichier `.txt` / `.csv` / `.rr` de
+`cardiolab/datasets/raw/resting/`, la date de session étant le nom du fichier).
 
 ---
 
@@ -101,10 +109,12 @@ python cardiolab/scripts/import_rr.py
 
 ```
 cardiolab/datasets/
-└── raw/
-    └── polar/
-        ├── 2026-01-10_repos.txt
-        └── 2026-01-11_repos.txt
+└── raw/                     (ignored by git / ignoré par git)
+    ├── resting/
+    │   ├── 2026-01-10 07-30-00.txt
+    │   └── 2026-01-11 07-28-12.txt
+    └── orthostatic/
+        └── 2026-01-12 07-35-40.txt
 ```
 
 ---
