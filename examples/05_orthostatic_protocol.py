@@ -8,12 +8,12 @@ Shows the complete orthostatic workflow:
 4. Score the result with ``orthostatic_score()``.
 
 Works entirely with synthetic data — no database or files required.
-For real recordings, use ``import_all(protocol="orthostatic")`` to convert
-raw Polar exports first (see the note at the bottom).
+For real recordings, read raw Polar exports with ``parse_rr_file()``
+(see the note at the bottom).
 
 Usage::
 
-    python example/05_orthostatic_protocol.py
+    python examples/05_orthostatic_protocol.py
 
 """
 
@@ -82,16 +82,13 @@ print("""
 ── For real Polar recordings ─────────────────────────────────────────────────
   Requirements: ≥ 5 min supine + transition + ≥ 5 min standing (≥ 12 min total)
 
-  1. Drop raw .txt / .csv files in cardiolab/datasets/raw/orthostatic/
-  2. python example/05_orthostatic_protocol.py  →  imports to datasets/orthostatic/
-  3. Load and analyse with orthostatic_hrv():
+  Load and analyse a raw Polar export with orthostatic_hrv():
 
-       import json
-       from cardiolab.signals.rr import RRSeries
        from cardiolab.protocols.orthostatic import orthostatic_hrv
+       from cardiolab.sensors_tools import parse_rr_file
+       from cardiolab.signals.rr import RRSeries
 
-       with open("cardiolab/datasets/orthostatic/2026-05-15 08-00-00.json") as f:
-           data = json.load(f)
+       data = parse_rr_file("cardiolab/datasets/raw/orthostatic/2026-05-15 08-00-00.txt")
        rr = RRSeries(data["rr_intervals"])
        result = orthostatic_hrv(rr)
 """)

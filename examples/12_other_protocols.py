@@ -13,7 +13,7 @@ Protocols covered
 
 Usage::
 
-    python example/12_other_protocols.py
+    python examples/12_other_protocols.py
 
 """
 

@@ -36,7 +36,16 @@ cardiolab.database
 
 from __future__ import annotations
 
-__version__ = "0.3.0"
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _dist_version
+
+# Single source of truth: [project].version in pyproject.toml (checked against
+# the release tag by the CI version-check job).
+try:
+    __version__ = _dist_version("cardiolab")
+except PackageNotFoundError:  # running from a source tree that is not installed
+    __version__ = "0+unknown"
+
 __author__ = "Julien MILON"
 
 # ── Signals ───────────────────────────────────────────────────────────────────

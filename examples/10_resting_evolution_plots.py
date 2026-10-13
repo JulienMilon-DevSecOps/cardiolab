@@ -8,9 +8,10 @@ across multiple resting sessions using ``cardiolab.visualization.resting_plots``
 
 Data source
 -----------
-Real sessions are loaded from ``cardiolab/datasets/resting/*.json`` when
-available.  If fewer than two files are found, ten synthetic sessions spanning
-10 days are generated (reproducible seed) so the script works out of the box.
+Your own raw RR files (``.txt`` / ``.csv`` / ``.rr``) in
+``cardiolab/datasets/raw/resting/`` when at least two are available; otherwise
+the six resting recordings shipped with cardiolab (``cardiolab.datasets``,
+2026-04-24 → 2026-04-30), so the script works out of the box on real data.
 
 Manual breakdown
 ----------------
@@ -22,23 +23,22 @@ Usage
 -----
 Run from the project root::
 
-    python example/10_resting_evolution_plots.py
+    python examples/10_resting_evolution_plots.py
 
-Figures are saved to ``example/figures/`` at 150 dpi.
+Figures are saved to ``examples/figures/`` at 150 dpi.
 """
 
 from __future__ import annotations
 
-import glob
-import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import numpy as np
 
 from cardiolab.analytics.baseline import Baseline
-from cardiolab.analytics.scoring import readiness_score_oura
+from cardiolab.analytics.scoring import readiness_score_multi
+from cardiolab.datasets import list_samples, load_sample
 from cardiolab.protocols.resting import HRVFeatures, resting_hrv
+from cardiolab.sensors_tools import parse_rr_file
 from cardiolab.signals.rr import RRSeries
 from cardiolab.visualization.resting_plots import (
     plot_resting_evolution,
@@ -49,8 +49,9 @@ from cardiolab.visualization.resting_plots import (
 # CONFIGURATION
 # ---------------------------------------------------------------------------
 
-_DATA_GLOB = "cardiolab/datasets/resting/*.json"
-_FIGURES_DIR = Path("example/figures")
+_DATA_DIR = Path("cardiolab/datasets/raw/resting")
+_RR_SUFFIXES = {".txt", ".csv", ".rr"}
+_FIGURES_DIR = Path("examples/figures")
 _DPI = 150
 
 
@@ -67,22 +68,6 @@ def _save(fig: plt.Figure, name: str) -> None:
     print(f"  saved → {path}")
 
 
-def _build_synthetic_sessions() -> list[dict]:
-    """Return 10 synthetic session dicts (rr_intervals + date)."""
-    rng = np.random.default_rng(42)
-    sessions = []
-    for i in range(10):
-        mean_rr = 830 + i * 5 + rng.normal(0, 10)
-        intervals = rng.normal(mean_rr, 30, 300).clip(min=310).tolist()
-        sessions.append(
-            {
-                "date": f"2026-05-{10 + i:02d}",
-                "rr_intervals": intervals,
-            }
-        )
-    return sessions
-
-
 # ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
@@ -97,19 +82,24 @@ def main() -> None:
     # ------------------------------------------------------------------
     # 1. LOAD DATA
     # ------------------------------------------------------------------
-    files = sorted(glob.glob(_DATA_GLOB))
+    files = sorted(p for p in _DATA_DIR.glob("*") if p.suffix in _RR_SUFFIXES)
 
     if len(files) >= 2:
-        print(f"Loading {len(files)} session file(s) from {_DATA_GLOB}\n")
-        sessions = []
-        for path in files:
-            with open(path) as f:
-                sessions.append(json.load(f))
+        print(f"Loading {len(files)} session file(s) from {_DATA_DIR}\n")
+        # Session date = file name without extension (e.g. "2026-04-24 07-52-36")
+        sessions = [
+            {"date": path.stem, "rr_intervals": parse_rr_file(path)["rr_intervals"]}
+            for path in files
+        ]
     else:
-        print(
-            "[info] Fewer than 2 session files found — using 10 synthetic sessions.\n"
-        )
-        sessions = _build_synthetic_sessions()
+        print("[info] Fewer than 2 files — using the cardiolab sample recordings.\n")
+        sessions = [
+            {
+                "date": sample["date"],
+                "rr_intervals": load_sample("resting", i).intervals.tolist(),
+            }
+            for i, sample in enumerate(list_samples("resting"))
+        ]
 
     # ------------------------------------------------------------------
     # 2. COMPUTE HRV FEATURES AND SCORES PROGRESSIVELY
@@ -126,7 +116,7 @@ def main() -> None:
         result.date = session["date"]
 
         baseline = Baseline.from_features(all_features) if all_features else Baseline()
-        score = readiness_score_oura(result, baseline)
+        score = readiness_score_multi(result, baseline)
 
         rolling = baseline.rolling_rmssd_median()
         rolling_medians.append(float(rolling[-1]) if rolling else None)

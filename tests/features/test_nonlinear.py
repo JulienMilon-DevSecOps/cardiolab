@@ -320,3 +320,116 @@ class TestSampEn:
         assert not math.isnan(v_sampen)
         assert v_apen > 0.0
         assert v_sampen > 0.0
+
+
+# ======================
+# k-d tree implementation ≡ reference O(N²) loops (v0.3.2)
+# ======================
+
+
+def _reference_apen(x: np.ndarray, m: int = 2, r_coef: float = 0.2) -> float:
+    """Compute ApEn with the pairwise loop used up to v0.3.1 (reference oracle)."""
+    from numpy.lib.stride_tricks import sliding_window_view
+
+    r = r_coef * float(np.std(x, ddof=1))
+    if len(x) < 2 * m + 1 or r == 0.0:
+        return float("nan")
+
+    def phi(mm: int) -> float:
+        templates = sliding_window_view(x, mm)
+        n = len(templates)
+        total = 0.0
+        for i in range(n):
+            dists = np.max(np.abs(templates - templates[i]), axis=1)
+            total += np.log(int(np.sum(dists <= r)) / n)
+        return total / n
+
+    return float(phi(m) - phi(m + 1))
+
+
+def _reference_sampen(x: np.ndarray, m: int = 2, r_coef: float = 0.2) -> float:
+    """Compute SampEn with the pairwise loop used up to v0.3.1 (reference oracle)."""
+    from numpy.lib.stride_tricks import sliding_window_view
+
+    r = r_coef * float(np.std(x, ddof=1))
+    if len(x) < 2 * m + 2 or r == 0.0:
+        return float("nan")
+    templates_m = sliding_window_view(x, m)
+    templates_m1 = sliding_window_view(x, m + 1)
+    n_m1 = len(templates_m1)
+    b_count = a_count = 0
+    for i in range(n_m1):
+        diffs_m = np.max(np.abs(templates_m[i + 1 :] - templates_m[i]), axis=1)
+        b_count += int(np.sum(diffs_m <= r))
+        if i < n_m1 - 1:
+            diffs_m1 = np.max(np.abs(templates_m1[i + 1 :] - templates_m1[i]), axis=1)
+            a_count += int(np.sum(diffs_m1 <= r))
+    if b_count == 0 or a_count == 0:
+        return float("nan")
+    return float(-np.log(a_count / b_count))
+
+
+def _series(n: int, seed: int, integer_ms: bool) -> np.ndarray:
+    """Build a realistic RR series; integer ms mimics Polar exports (ties at r)."""
+    rng = np.random.default_rng(seed)
+    t = np.arange(n)
+    x = 850 + 40 * np.sin(2 * np.pi * t / 18) + rng.normal(0, 25, n)
+    return np.round(x) if integer_ms else x
+
+
+_CASES = [
+    (n, seed, integer_ms)
+    for n, seed in [(7, 1), (50, 2), (300, 3), (1200, 4)]
+    for integer_ms in (False, True)
+]
+
+
+@pytest.mark.unit
+class TestEntropyKDTreeEquivalence:
+    """apen / sampen must return exactly what the former pairwise loops returned."""
+
+    @pytest.mark.parametrize(("n", "seed", "integer_ms"), _CASES)
+    @pytest.mark.parametrize("m", [1, 2, 3])
+    def test_apen_matches_reference(self, n, seed, integer_ms, m):
+        """ApEn identical to the reference loop (tolerance 1e-12)."""
+        x = _series(n, seed, integer_ms)
+        expected = _reference_apen(x, m=m)
+        got = apen(RRSeries(x), m=m)
+        if math.isnan(expected):
+            assert math.isnan(got)
+        else:
+            assert got == pytest.approx(expected, abs=1e-12)
+
+    @pytest.mark.parametrize(("n", "seed", "integer_ms"), _CASES)
+    @pytest.mark.parametrize("m", [1, 2, 3])
+    def test_sampen_matches_reference(self, n, seed, integer_ms, m):
+        """SampEn identical to the reference loop (tolerance 1e-12)."""
+        x = _series(n, seed, integer_ms)
+        expected = _reference_sampen(x, m=m)
+        got = sampen(RRSeries(x), m=m)
+        if math.isnan(expected):
+            assert math.isnan(got)
+        else:
+            assert got == pytest.approx(expected, abs=1e-12)
+
+    @pytest.mark.parametrize("r_coef", [0.05, 0.2, 0.5, 2.0])
+    def test_tolerance_range_matches_reference(self, r_coef):
+        """Small and very large tolerances (few / all matches) agree too."""
+        x = _series(400, 5, integer_ms=True)
+        rr = RRSeries(x)
+        for fn, ref in ((apen, _reference_apen), (sampen, _reference_sampen)):
+            expected = ref(x, r_coef=r_coef)
+            got = fn(rr, r_coef=r_coef)
+            if math.isnan(expected):
+                assert math.isnan(got)
+            else:
+                assert got == pytest.approx(expected, abs=1e-12)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("fn", [apen, sampen], ids=["apen", "sampen"])
+def test_entropy_benchmark_3000_beats(benchmark, fn):
+    """Benchmark on a 3000-beat recording (≈ 45 min, drift / HRR scale)."""
+    rr = RRSeries(_series(3000, 6, integer_ms=True))
+    result = benchmark(fn, rr)
+    assert math.isfinite(result)

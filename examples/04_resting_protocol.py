@@ -6,12 +6,12 @@ Shows the complete resting workflow:
 3. Score the session against a personal baseline.
 
 The example works with synthetic data so no database or files are required.
-For real recordings, use ``import_all(protocol="resting")`` to convert
-raw Polar exports to JSON first (see the note at the bottom).
+For real recordings, read raw Polar exports with ``parse_rr_file()``
+(see the note at the bottom).
 
 Usage::
 
-    python example/04_resting_protocol.py
+    python examples/04_resting_protocol.py
 
 """
 
@@ -86,6 +86,5 @@ print("to_dict() keys:", list(d.keys()))
 print("""
 ── For real Polar recordings ─────────────────────────────────────────────────
   1. Drop raw .txt / .csv files in cardiolab/datasets/raw/resting/
-  2. python example/04_resting_protocol.py  →  imports to datasets/resting/
-  3. python example/02_feed_database.py     →  persists to PostgreSQL
+  2. python examples/02_feed_database.py    →  parses them and persists to PostgreSQL
 """)

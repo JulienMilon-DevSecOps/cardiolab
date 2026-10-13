@@ -24,7 +24,7 @@ starts once the previous one is tagged. Each item maps to one GitLab issue
 
 | Version | Priority | Theme | DB change | Changes computed values |
 |---------|----------|-------|-----------|-------------------------|
-| [v0.3.1](#v031--ci-pipeline-090-p0) | P0 | CI pipeline 0.9.0, TestPyPI pre-release | — | No |
+| [v0.3.1](#v031--ci-pipeline-090-p0) | P0 | CI pipeline 0.9.0, TestPyPI pre-release — **released 2026-10-12** | — | No |
 | [v0.3.2](#v032--fixes-and-hygiene-p1) | P1 | Readiness consistency fix, hygiene, entropy speed-up | — | TRIMP only |
 | [v0.3.3](#v033--generic-repository-p1) | P1 | Generic `HRVRepository` (prerequisite for new tables) | — | No |
 | [v0.4.0](#v040--signal-reliability-p1) | P1 | Artefact correction, spectral fixes, signal quality, reprocessing | V005 | **Yes** |
@@ -38,7 +38,7 @@ starts once the previous one is tagged. Each item maps to one GitLab issue
 
 ## v0.3.1 — CI pipeline 0.9.0 (P0)
 
-No functional change. Prepared on 2026-10-11, to be finalized next.
+Released 2026-10-12. No functional change.
 
 * **CI — Pipeline 0.9.0 and publication 0.3.1rc1 → 0.3.1**: `ref: 0.9.0`, integration tests on a throwaway PostgreSQL, Trusted Publishing, `V-0.3.1-rc1` on TestPyPI then `V-0.3.1` on PyPI, revoke the old `PYPI_TOKEN`.
 
@@ -46,9 +46,10 @@ No functional change. Prepared on 2026-10-11, to be finalized next.
 
 No schema change. Only the TRIMP values change (bug fix).
 
-* **Bug — `load_readiness_for_date` uses the legacy score**: it calls `readiness_score_oura` (RMSSD 70 % + HR 30 %), whereas the score stored and displayed for resting comes from `readiness_score_multi`, and orthostatic has a dedicated `orthostatic_readiness_score`. The TRIMP is therefore built from a different score than the one the athlete sees.
-* **Hygiene — single source of version, dead code, test isolation**: `__version__` from `importlib.metadata`; remove `cardiolab/scripts/import_rr.py` (0 % covered, stale paths); the Supabase auto-start in `conftest.py` only when `DB_HOST_TEST` is local.
-* **Performance — SampEn / ApEn with a KD-tree**: replace the O(N²) Python loops with `scipy.spatial.KDTree` (Chebyshev metric); identical results, speed-up for long recordings (drift, HRR).
+* ✅ **Bug — `load_readiness_for_date` uses the legacy score**: it calls `readiness_score_oura` (RMSSD 70 % + HR 30 %), whereas the score stored and displayed for resting comes from `readiness_score_multi`, and orthostatic has a dedicated `orthostatic_readiness_score`. The TRIMP is therefore built from a different score than the one the athlete sees.
+* **Hygiene — single source of version, dead code, test isolation**: ✅ `__version__` from `importlib.metadata`; ✅ the Supabase auto-start in `conftest.py` only when `DB_HOST_TEST` is local; ✅ `cardiolab/scripts/import_rr.py` removed (no entry point); examples read raw files with `parse_rr_file()`; broken `docs/sensors/polar.md` snippet fixed.
+* ✅ **Performance — SampEn / ApEn with a KD-tree**: replace the O(N²) Python loops with `scipy.spatial.KDTree` (Chebyshev metric); identical results, speed-up for long recordings (drift, HRR).
+* ✅ **Sample datasets — `cardiolab.datasets`**: the author's real recordings (6 resting, 1 orthostatic) as raw `.txt` + manifest, loadable after `pip install` with `list_samples()` / `load_sample()`; former JSON files and `exports/` removed (they were shipped in the wheel but unreachable).
 
 ## v0.3.3 — Generic repository (P1)
 
@@ -61,6 +62,7 @@ No API change. Prerequisite for v0.4.0, v0.6.0 and v0.8.0, which all add tables 
 **Changes computed values** — the most important scientific version. DB: migration V005 (signal quality).
 
 * **Artefact correction by replacement (Lipponen & Tarvainen 2019)**: `remove_outliers` deletes beats, which creates spurious successive differences and biases RMSSD, pNN50, SD1 and DFA α1. Detect ectopic / missed / extra beats from dRR and replace them by interpolation; `auto_clean=True` uses it.
+* **Entropy convention**: `sampen` counts B over the N−m+1 m-length templates, whereas Richman & Moorman (2000) use the first N−m templates for both A and B. Small bias, but values change: align with the reference definition here (kept identical in v0.3.2, where only speed changed).
 * **Spectral analysis — Welch window, single interpolation, Lomb-Scargle**: Welch window 64 s → 256 s with 50 % overlap (resolution 0.016 → 0.004 Hz); merge `RRSeries.interpolate` and `frequency_domain._interpolate` (cubic spline, 4 Hz); add `method="lomb"` (no interpolation, suited to irregular / PPG data).
 * **Signal quality index per session**: share of corrected beats, effective duration, quality grade; stored (V005), shown in reports, and low-quality sessions excluded from the baseline by default.
 * **Reprocess history from `hrv_raw_sessions`**: recompute features and scores of past sessions with the new pipeline, plus a migration note for users.

@@ -1,4 +1,4 @@
-"""Compute HRV features from resting JSON session files and persist them to the database.
+"""Compute HRV features from raw resting RR files and persist them to the database.
 
 Run this script after each new recording session, or in batch to import all
 existing sessions at once. The upsert strategy makes re-running safe: existing
@@ -6,37 +6,38 @@ rows are updated rather than duplicated.
 
 Workflow
 --------
-1. Find all ``.json`` files in ``cardiolab/datasets/resting/``.
-2. Build an ``RRSeries`` for each file and compute ``HRVFeatures`` via ``resting_hrv()``.
+1. Find all raw RR files (``.txt``, ``.csv``, ``.rr``) in ``cardiolab/datasets/raw/resting/``.
+2. Parse each one with ``parse_rr_file()``, build an ``RRSeries`` and compute ``HRVFeatures`` via ``resting_hrv()``.
 3. Persist every session to the database under your ``USER_ID``.
 
 Prerequisites
 -------------
 * ``01_setup_database.py`` must have been run at least once.
 * ``.env`` file with ``DB_*`` variables and a stable ``USER_ID`` (UUID).
-* JSON files in ``cardiolab/datasets/resting/`` (use ``04_import_resting.py``
-  to convert raw Polar exports).
+* Raw Polar / Elite HRV exports in ``cardiolab/datasets/raw/resting/`` (ignored by
+  git). The session date is the file name without extension, e.g.
+  ``2026-04-24 07-52-36.txt``.
 
 Usage
 -----
 Run from the project root::
 
-    python example/02_feed_database.py
+    python examples/02_feed_database.py
 
 """
 
 from __future__ import annotations
 
 import dataclasses
-import glob
-import json
 import os
 import uuid
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 from cardiolab.database.repository import HRVRepository
 from cardiolab.protocols.resting import resting_hrv
+from cardiolab.sensors_tools import parse_rr_file
 from cardiolab.signals.rr import RRSeries
 
 load_dotenv()
@@ -55,30 +56,34 @@ else:
     USER_ID = str(uuid.UUID(_raw_user_id))
 
 
-def load_features_from_json(pattern: str = "cardiolab/datasets/resting/*.json") -> list:
-    """Compute HRVFeatures from each JSON file matched by *pattern*."""
-    files = sorted(glob.glob(pattern))
+RAW_DIR = "cardiolab/datasets/raw/resting"
+_RR_SUFFIXES = {".txt", ".csv", ".rr"}
+
+
+def load_features_from_files(raw_dir: str = RAW_DIR) -> list:
+    """Compute HRVFeatures from each raw RR file found in *raw_dir*."""
+    files = sorted(p for p in Path(raw_dir).glob("*") if p.suffix in _RR_SUFFIXES)
     if not files:
-        print(f"No JSON files found at: {pattern}")
+        print(f"No RR files (.txt / .csv / .rr) found in: {raw_dir}")
         return []
 
     features = []
     for filepath in files:
-        with open(filepath) as f:
-            data = json.load(f)
+        data = parse_rr_file(filepath)
         rr = RRSeries(data["rr_intervals"])
         result = resting_hrv(rr)
-        features.append(dataclasses.replace(result, date=data["date"]))
+        # Session date = file name without extension (e.g. "2026-04-24 07-52-36")
+        features.append(dataclasses.replace(result, date=filepath.stem))
 
     return features
 
 
-def feed(pattern: str = "cardiolab/datasets/resting/*.json") -> None:
+def feed(raw_dir: str = RAW_DIR) -> None:
     """Full feed pipeline: compute HRV features and persist to DB."""
     print("=== cardiolab — feed database ===\n")
     print(f"User ID : {USER_ID}")
 
-    features = load_features_from_json(pattern)
+    features = load_features_from_files(raw_dir)
     if not features:
         return
 

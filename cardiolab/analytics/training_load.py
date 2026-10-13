@@ -38,7 +38,10 @@ import numpy as np
 from scipy.signal import lfilter
 
 from cardiolab.analytics.baseline import Baseline
-from cardiolab.analytics.scoring import readiness_score_oura
+from cardiolab.analytics.scoring import (
+    orthostatic_readiness_score,
+    readiness_score_multi,
+)
 
 if TYPE_CHECKING:
     from cardiolab.database.repository import HRVRepository
@@ -139,7 +142,16 @@ def load_readiness_for_date(
     """Load the readiness score for a given date from the database.
 
     Looks up the HRV session recorded on ``date`` and computes a readiness
-    score relative to ``baseline`` using :func:`readiness_score_oura`.
+    score relative to ``baseline`` with the same scorer as the one stored and
+    displayed for that protocol, so that the TRIMP is built from the score the
+    athlete actually sees:
+
+    * ``"resting"`` → :func:`readiness_score_multi`;
+    * ``"orthostatic"`` → :func:`orthostatic_readiness_score` (supine phase).
+
+    Changed in 0.3.2: earlier versions used the legacy
+    :func:`readiness_score_oura` (RMSSD 70 % + HR 30 %), which gave a
+    different value from the displayed readiness score.
 
     Protocol consistency rule — the ``protocol`` parameter is **strict**:
 
@@ -169,11 +181,13 @@ def load_readiness_for_date(
     """
     if protocol == "resting":
         feat = repo.load_features_for_date(user_id, date)
-        return readiness_score_oura(feat, baseline) if feat is not None else None
+        return readiness_score_multi(feat, baseline) if feat is not None else None
 
     # protocol == "orthostatic": use the supine phase as the readiness input
     record = repo.load_orthostatic_for_date(user_id, date)
-    return readiness_score_oura(record.supine, baseline) if record is not None else None
+    if record is None:
+        return None
+    return orthostatic_readiness_score(record.supine, baseline)
 
 
 # ======================

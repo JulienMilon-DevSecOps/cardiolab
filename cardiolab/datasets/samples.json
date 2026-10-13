@@ -1,0 +1,85 @@
+{
+  "description": "Real RR-interval recordings of the cardiolab author, published voluntarily as example data.",
+  "author": "Julien MILON",
+  "license": "CC-BY-4.0",
+  "format": "Plain text, one RR interval in milliseconds per line (Polar H10 export format).",
+  "samples": [
+    {
+      "id": "resting-2026-04-24",
+      "protocol": "resting",
+      "file": "resting/2026-04-24.txt",
+      "date": "2026-04-24",
+      "recorded_at": "2026-04-24T07:52:36",
+      "device": "Polar H10",
+      "position": "supine",
+      "beats": 320,
+      "duration_sec": 331.6
+    },
+    {
+      "id": "resting-2026-04-25",
+      "protocol": "resting",
+      "file": "resting/2026-04-25.txt",
+      "date": "2026-04-25",
+      "recorded_at": "2026-04-25T07:58:25",
+      "device": "Polar H10",
+      "position": "supine",
+      "beats": 591,
+      "duration_sec": 678.9
+    },
+    {
+      "id": "resting-2026-04-26",
+      "protocol": "resting",
+      "file": "resting/2026-04-26.txt",
+      "date": "2026-04-26",
+      "recorded_at": "2026-04-26T07:40:41",
+      "device": "Polar H10",
+      "position": "supine",
+      "beats": 307,
+      "duration_sec": 333.1
+    },
+    {
+      "id": "resting-2026-04-27",
+      "protocol": "resting",
+      "file": "resting/2026-04-27.txt",
+      "date": "2026-04-27",
+      "recorded_at": "2026-04-27T07:01:19",
+      "device": "Polar H10",
+      "position": "supine",
+      "beats": 296,
+      "duration_sec": 331.7
+    },
+    {
+      "id": "resting-2026-04-28",
+      "protocol": "resting",
+      "file": "resting/2026-04-28.txt",
+      "date": "2026-04-28",
+      "recorded_at": "2026-04-28T07:01:05",
+      "device": "Polar H10",
+      "position": "supine",
+      "beats": 299,
+      "duration_sec": 332.9
+    },
+    {
+      "id": "resting-2026-04-30",
+      "protocol": "resting",
+      "file": "resting/2026-04-30.txt",
+      "date": "2026-04-30",
+      "recorded_at": "2026-04-30T07:01:38",
+      "device": "Polar H10",
+      "position": "supine",
+      "beats": 283,
+      "duration_sec": 332.8
+    },
+    {
+      "id": "orthostatic-2026-05-17",
+      "protocol": "orthostatic",
+      "file": "orthostatic/2026-05-17.txt",
+      "date": "2026-05-17",
+      "recorded_at": "2026-05-17T09:29:27",
+      "device": "Polar H10",
+      "position": "orthostatic",
+      "beats": 694,
+      "duration_sec": 609.0
+    }
+  ]
+}
