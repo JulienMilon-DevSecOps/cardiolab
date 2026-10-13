@@ -25,8 +25,8 @@ starts once the previous one is tagged. Each item maps to one GitLab issue
 | Version | Priority | Theme | DB change | Changes computed values |
 |---------|----------|-------|-----------|-------------------------|
 | [v0.3.1](#v031--ci-pipeline-090-p0) | P0 | CI pipeline 0.9.0, TestPyPI pre-release — **released 2026-10-12** | — | No |
-| [v0.3.2](#v032--fixes-and-hygiene-p1) | P1 | Readiness consistency fix, hygiene, entropy speed-up | — | TRIMP only |
-| [v0.3.3](#v033--generic-repository-p1) | P1 | Generic `HRVRepository` (prerequisite for new tables) | — | No |
+| [v0.3.2](#v032--fixes-and-hygiene-p1) | P1 | Readiness consistency fix, hygiene, entropy speed-up, sample datasets — **released 2026-10-13** | — | TRIMP only |
+| [v0.3.3](#v033--generic-repository-p1) | P1 | Generic `HRVRepository` (prerequisite for new tables) — **released 2026-10-13** | — | No |
 | [v0.4.0](#v040--signal-reliability-p1) | P1 | Artefact correction, spectral fixes, signal quality, reprocessing | V005 | **Yes** |
 | [v0.5.0](#v050--athlete-longitudinal-monitoring-p2) | P2 | 7-day lnRMSSD + CV + SWC, trend analysis | — | No (new metrics) |
 | [v0.6.0](#v060--exercise-protocols-p2) | P2 | DFA α1 thresholds (VT1/VT2), submaximal test | V006 | No (new protocols) |
@@ -44,18 +44,18 @@ Released 2026-10-12. No functional change.
 
 ## v0.3.2 — Fixes and hygiene (P1)
 
-No schema change. Only the TRIMP values change (bug fix).
+Released 2026-10-13. No schema change. Only the TRIMP values change (bug fix).
 
 * ✅ **Bug — `load_readiness_for_date` uses the legacy score**: it calls `readiness_score_oura` (RMSSD 70 % + HR 30 %), whereas the score stored and displayed for resting comes from `readiness_score_multi`, and orthostatic has a dedicated `orthostatic_readiness_score`. The TRIMP is therefore built from a different score than the one the athlete sees.
-* **Hygiene — single source of version, dead code, test isolation**: ✅ `__version__` from `importlib.metadata`; ✅ the Supabase auto-start in `conftest.py` only when `DB_HOST_TEST` is local; ✅ `cardiolab/scripts/import_rr.py` removed (no entry point); examples read raw files with `parse_rr_file()`; broken `docs/sensors/polar.md` snippet fixed.
+* **Hygiene — single source of version, dead code, test isolation**: ✅ `__version__` from `importlib.metadata`; ✅ the local Supabase auto-start in `conftest.py` is skipped in CI (`CI` set — same rule as `cardioanalysis-api`); ✅ `cardiolab/scripts/import_rr.py` removed (no entry point); examples read raw files with `parse_rr_file()`; broken `docs/sensors/polar.md` snippet fixed.
 * ✅ **Performance — SampEn / ApEn with a KD-tree**: replace the O(N²) Python loops with `scipy.spatial.KDTree` (Chebyshev metric); identical results, speed-up for long recordings (drift, HRR).
 * ✅ **Sample datasets — `cardiolab.datasets`**: the author's real recordings (6 resting, 1 orthostatic) as raw `.txt` + manifest, loadable after `pip install` with `list_samples()` / `load_sample()`; former JSON files and `exports/` removed (they were shipped in the wheel but unreachable).
 
 ## v0.3.3 — Generic repository (P1)
 
-No API change. Prerequisite for v0.4.0, v0.6.0 and v0.8.0, which all add tables or columns.
+Released 2026-10-13. No API change. Prerequisite for v0.4.0, v0.6.0 and v0.8.0, which all add tables or columns.
 
-* **Refactor — Generic `HRVRepository`**: `repository.py` is 2 590 lines with a near-identical create / save / load trio per protocol. Drive it with one table specification per protocol; public methods stay as thin wrappers. The 55 integration tests now running in CI are the safety net.
+* ✅ **Refactor — Generic `HRVRepository`**: one `_ProtocolTable` specification per protocol table, generic `_create` / `_upsert` / `_select`, public methods as one-line wrappers. Code −31 % (1 448 → 993 lines, docstrings kept); SQL and loaded objects verified identical before / after. Adding a table is documented in `docs/database/migration_guide.md`.
 
 ## v0.4.0 — Signal reliability (P1)
 

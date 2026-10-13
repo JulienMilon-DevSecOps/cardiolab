@@ -1141,8 +1141,8 @@ The forward-looking roadmap, ordered by priority (P0 → P3), lives in **[ROADMA
 | Version | Priority | Theme |
 |---------|----------|-------|
 | v0.3.1 | P0 | CI pipeline 0.9.0, TestPyPI pre-release — released 2026-10-12 |
-| v0.3.2 | P1 | Readiness consistency fix, hygiene, entropy speed-up (in progress) |
-| v0.3.3 | P1 | Generic `HRVRepository` |
+| v0.3.2 | P1 | Readiness consistency fix, hygiene, entropy speed-up, sample datasets — released |
+| v0.3.3 | P1 | Generic `HRVRepository` — released |
 | v0.4.0 | P1 | Signal reliability — artefact correction, spectral fixes, signal quality |
 | v0.5.0 | P2 | Athlete longitudinal monitoring — 7-day lnRMSSD, CV, SWC, trends |
 | v0.6.0 | P2 | Exercise protocols — DFA α1 thresholds, submaximal test |

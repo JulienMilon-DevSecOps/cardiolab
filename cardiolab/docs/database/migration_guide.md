@@ -62,6 +62,7 @@ conn.close()
 | `V001__initial_schema.sql` | v0.1.0 | Creates all 7 base tables |
 | `V002__add_apen_sampen_ortho_metrics.sql` | v0.1.x→v0.2.0 | Adds `apen`/`sampen` + orthostatic enrichment columns |
 | `V003__add_training_sessions.sql` | v0.2.0 | Adds `hrv_training_sessions` table |
+| `V004__add_user_profiles.sql` | v0.2.4 | Adds `user_profiles` table |
 
 ---
 
@@ -76,19 +77,40 @@ subclass `HRVRepository` and override `run_migrations`.
 
 ## Writing your own migration
 
-Create a file `V004__<description>.sql` in `cardiolab/database/migrations/`
+Create a file `V005__<description>.sql` (next free number) in `cardiolab/database/migrations/`
 (or in a local copy of the migrations directory) and apply it via
 `run_migrations`. Use `ADD COLUMN IF NOT EXISTS` to make alterations idempotent:
 
 ```sql
--- V004__add_user_preferences.sql
-CREATE TABLE IF NOT EXISTS user_preferences (
-    user_id          TEXT PRIMARY KEY,
-    primary_protocol TEXT NOT NULL DEFAULT 'resting',
-    created_at       TIMESTAMP DEFAULT NOW(),
-    updated_at       TIMESTAMP DEFAULT NOW()
-);
+-- V005__add_signal_quality.sql
+ALTER TABLE hrv_features ADD COLUMN IF NOT EXISTS quality JSONB;
 ```
 
 > **Note:** only increment the version number — never modify an already-applied
 > migration file. Changes to applied files are ignored by the runner.
+
+---
+
+## Adding a protocol table (contributors)
+
+Since v0.3.3, every protocol table keyed by `UNIQUE(user_id, date)` is described
+by a `_ProtocolTable` specification in `cardiolab/database/repository.py`; the
+generic `HRVRepository._create`, `_upsert` and `_select` methods do the SQL.
+Adding a protocol therefore takes four small steps:
+
+1. **Column registry** — `_MYPROTO_COLUMNS = {"user_id": "TEXT NOT NULL",
+   "date": "DATE NOT NULL", ...}`. Name each metric column **exactly like the
+   attribute of the result dataclass**: rows are written with
+   `getattr(result, column)` and read back with `Result(**row)`.
+2. **`from_row` function** — `_myproto_from_row(r: dict) -> MyResult`, converting
+   `date` to `str` and restoring the defaults of nullable columns (`NaN`, `0.0`…).
+3. **Specification** — `_MYPROTO = _ProtocolTable("myproto_table_name",
+   _MYPROTO_COLUMNS, _myproto_from_row)`, plus a `myproto_table_name` argument in
+   `HRVRepository.__init__` / `from_env`.
+4. **Public methods** — one-liners: `create_myproto_table()` →
+   `self._create(_MYPROTO)`, `save_myproto()` →
+   `self._upsert(_MYPROTO, (user_id, date, *_MYPROTO.values(result)))`,
+   `load_myproto()` → `self._select(_MYPROTO, user_id)`.
+
+Then ship the matching `V00N__add_myproto.sql` migration (one schema change per
+version) and integration tests for the round trip.

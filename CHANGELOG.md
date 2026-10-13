@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.3.3] - 2026-10-13
+
+No change to the public API nor to the stored data — internal refactoring of the database
+layer.
+
+### Changed — Generic `HRVRepository` (`database/repository.py`)
+
+- The six protocol tables keyed by `UNIQUE(user_id, date)` (resting, orthostatic, coherence,
+  HRR, drift, VO2max) are now described by `_ProtocolTable` specifications — column registry +
+  row → result function — and handled by three generic methods (`_create`, `_upsert`,
+  `_select`) built on three query builders. The 18 public `create_* / save_* / load_*`
+  methods are one-line wrappers with unchanged signatures and docstrings.
+- Metric columns are written and read **by name** (they match the result dataclass
+  attributes) instead of hand-maintained positional tuples; `_build_ortho_row` gathers its
+  73 values by column name, so a row can no longer drift out of sync with the schema.
+  The 19 HRV metrics are defined once (`_HRV_METRICS`) for resting and the three orthostatic
+  phases.
+- Code size: 1 448 → 993 lines of code (−31 %, docstrings kept); `repository.py`
+  2 590 → ~2 180 lines. Raw sessions, training sessions and user profiles (different keys)
+  are unchanged.
+- Verified: the SQL (statements and parameters) emitted by the 21 public table calls is
+  identical before / after on PostgreSQL 17, and rows written by 0.3.2 — including NULL
+  columns — are read back into identical objects.
+
+### Documentation
+
+- `docs/database/migration_guide.md`: new section *Adding a protocol table*; bundled
+  migrations list completed with `V004__add_user_profiles.sql`.
+
+---
+
+## [0.3.2] - 2026-10-13
+
 ### Added — Sample datasets (`cardiolab.datasets`)
 
 - `list_samples(protocol=None)` and `load_sample(protocol="resting", index=0)`: seven real
