@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cardiolab"
-version = "0.3.1"
+version = "0.3.2"
 description = "HRV analysis toolkit — scientific core of the cardioanalysis platform"
 authors = [{name = "Julien MILON", email = "julienmilon.devsecops@gmail.com"}]
 readme = "README.md"
@@ -164,7 +164,7 @@ omit = [
     "local/*",
     "example/*",
     "notebooks/*",
-    "*/datasets/raw/*",
+    "*/datasets/*",
 ]
 
 [tool.coverage.report]
