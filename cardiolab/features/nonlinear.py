@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
+from scipy.spatial import cKDTree
 
 
 def sd1(rr) -> float:
@@ -213,7 +215,8 @@ def apen(rr, m: int = 2, r_coef: float = 0.2) -> float:
 
     Standard clinical parameters: ``m = 2``, ``r = 0.2 · std(RR)``.
 
-    **Complexity**: O(N²) — may be slow for N > 1 000 beats.
+    **Complexity**: k-d tree neighbour counting (Chebyshev metric) — close to
+    O(N log N) in practice, instead of O(N²) pairwise comparisons.
 
     Clinical interpretation:
 
@@ -265,7 +268,8 @@ def sampen(rr, m: int = 2, r_coef: float = 0.2) -> float:
 
     Standard clinical parameters: ``m = 2``, ``r = 0.2 · std(RR)``.
 
-    **Complexity**: O(N²) — may be slow for N > 1 000 beats.
+    **Complexity**: k-d tree neighbour counting (Chebyshev metric) — close to
+    O(N log N) in practice, instead of O(N²) pairwise comparisons.
 
     Clinical interpretation:
 
@@ -293,8 +297,6 @@ def sampen(rr, m: int = 2, r_coef: float = 0.2) -> float:
         if no m-length template pairs match (B = 0).
 
     """
-    from numpy.lib.stride_tricks import sliding_window_view
-
     x = np.asarray(rr.intervals, dtype=float)
     n = len(x)
     r = r_coef * float(np.std(x, ddof=1))
@@ -302,22 +304,10 @@ def sampen(rr, m: int = 2, r_coef: float = 0.2) -> float:
     if n < 2 * m + 2 or r == 0.0:
         return float("nan")
 
-    templates_m = sliding_window_view(x, m)  # shape: (N-m+1, m)
-    templates_m1 = sliding_window_view(x, m + 1)  # shape: (N-m,   m+1)
-    n_m1 = len(templates_m1)  # N-m (valid m+1 template starts)
-
-    b_count = 0  # m-length matches (self excluded)
-    a_count = 0  # (m+1)-length matches (self excluded)
-
-    for i in range(n_m1):
-        # b_count: compare m-length template i against all j > i (up to N-m)
-        diffs_m = np.max(np.abs(templates_m[i + 1 :] - templates_m[i]), axis=1)
-        b_count += int(np.sum(diffs_m <= r))
-
-        # a_count: compare (m+1)-length template i against all j in (i, N-m-1]
-        if i < n_m1 - 1:
-            diffs_m1 = np.max(np.abs(templates_m1[i + 1 :] - templates_m1[i]), axis=1)
-            a_count += int(np.sum(diffs_m1 <= r))
+    # B: m-length template pairs (i < j) over all N-m+1 templates;
+    # A: (m+1)-length template pairs (i < j) over all N-m templates.
+    b_count = _count_template_pairs(x, m, r)
+    a_count = _count_template_pairs(x, m + 1, r)
 
     if b_count == 0 or a_count == 0:
         return float("nan")
@@ -346,13 +336,34 @@ def _apen_phi(x: np.ndarray, m: int, r: float) -> float:
         φ(m) value (dimensionless).
 
     """
-    from numpy.lib.stride_tricks import sliding_window_view
-
     templates = sliding_window_view(x, m)  # shape: (N-m+1, m)
     n = len(templates)
-    phi = 0.0
-    for i in range(n):
-        dists = np.max(np.abs(templates - templates[i]), axis=1)
-        matches = int(np.sum(dists <= r))
-        phi += np.log(matches / n)
+    # Matches within Chebyshev distance r (inclusive), self-match included.
+    matches = cKDTree(templates).query_ball_point(
+        templates, r, p=np.inf, return_length=True
+    )
+    phi = float(np.sum(np.log(matches / n)))
     return phi / n
+
+
+def _count_template_pairs(x: np.ndarray, m: int, r: float) -> int:
+    """Count template pairs (i < j) of length ``m`` within Chebyshev distance ``r``.
+
+    Uses a k-d tree (``p = ∞``, i.e. Chebyshev metric, distance ≤ ``r``
+    inclusive) instead of an O(N²) pairwise loop. ``count_neighbors`` of a
+    tree against itself counts ordered pairs including self-matches, hence
+    ``(total − n) / 2`` unordered pairs with ``i ≠ j``.
+
+    Args:
+        x: 1-D array of RR intervals.
+        m: Template length.
+        r: Absolute Chebyshev tolerance (ms).
+
+    Returns:
+        Number of unordered matching template pairs, self-matches excluded.
+
+    """
+    templates = sliding_window_view(x, m)
+    tree = cKDTree(templates)
+    total = int(tree.count_neighbors(tree, r, p=np.inf))
+    return (total - len(templates)) // 2
