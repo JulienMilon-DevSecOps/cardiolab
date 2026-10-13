@@ -340,14 +340,14 @@ fig.savefig("evolution_rolling.png", dpi=150, bbox_inches="tight")
 
 ```python
 from cardiolab.analytics.baseline import Baseline
-from cardiolab.analytics.scoring import readiness_score_oura
+from cardiolab.analytics.scoring import readiness_score_multi
 
 all_features, rolling_rmssd, scores = [], [], []
 for session_features in chronological_features:
     baseline = Baseline.from_features(all_features) if all_features else Baseline()
     rolling = baseline.rolling_rmssd_median()
     rolling_rmssd.append(float(rolling[-1]) if rolling else None)
-    scores.append(readiness_score_oura(session_features, baseline))
+    scores.append(readiness_score_multi(session_features, baseline))
     all_features.append(session_features)
 ```
 

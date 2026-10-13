@@ -4,7 +4,7 @@ Demonstrates the complete training load pipeline:
 1. Compute TRIMP using the HRV-based and Banister methods.
 2. Build a 90-day synthetic session history.
 3. Construct a ``TrainingLoad`` to get ATL / CTL / TSB curves.
-4. Save the three standard training load plots to ``example/figures/``.
+4. Save the three standard training load plots to ``examples/figures/``.
 
 No database required — all data is generated synthetically.
 
@@ -19,7 +19,7 @@ Key concepts
 
 Usage::
 
-    python example/13_training_load.py
+    python examples/13_training_load.py
 
 """
 
@@ -138,7 +138,7 @@ print()
 
 # ── 4. Save plots ─────────────────────────────────────────────────────────────
 print("=" * 60)
-print("4. Training load plots → example/figures/")
+print("4. Training load plots → examples/figures/")
 print("=" * 60)
 
 fig_atl = plot_atl_ctl_tsb(tl)

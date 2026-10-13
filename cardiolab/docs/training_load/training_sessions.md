@@ -133,4 +133,11 @@ Evening / next morning
   └── save_training_session(date=yesterday, trimp=trimp)   # upsert updates the value
 ```
 
+`load_readiness_for_date()` scores the session with the same function as the
+readiness displayed in reports — `readiness_score_multi()` for resting,
+`orthostatic_readiness_score()` (supine phase) for orthostatic — so the TRIMP
+is consistent with the score the athlete sees. Before 0.3.2 it used the legacy
+`readiness_score_oura()`: TRIMP values saved with the `hrv` method before 0.3.2
+differ and can be recomputed with the same upsert.
+
 See [atl_ctl_tsb.md](atl_ctl_tsb.md) for the full TRIMP computation.

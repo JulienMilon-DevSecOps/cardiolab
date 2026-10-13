@@ -64,9 +64,9 @@ cardiolab/datasets/
     hrv4training/   ← exports CSV HRV4Training
     apple_health/   ← export.xml Apple Health
     garmin/         ← fichiers .fit Garmin / CSV beat-to-beat
-  resting/          ← résultats pré-analysés en JSON
-  orthostatic/      ← résultat pré-analysé en JSON
-  exports/          ← exemples CSV et JSON
+  resting/          ← échantillons livrés avec le package (6 fichiers .txt, Polar H10)
+  orthostatic/      ← échantillon livré avec le package (1 fichier .txt)
+  samples.json      ← manifeste des échantillons — voir cardiolab.datasets.load_sample()
 ```
 
 ---
@@ -74,12 +74,13 @@ cardiolab/datasets/
 ## Intégrations capteurs (v0.3.0)
 
 Le notebook `09_sensors` illustre le workflow complet pour chaque source de données.
-Tous les parseurs partagent la même interface de sortie (`RRSeries`) :
+Tous les parseurs mènent à un `RRSeries` :
 
 ```python
-# Polar H10
+# Polar H10 — parse_rr_file renvoie un dict
 from cardiolab.sensors_tools import parse_rr_file
-rr = parse_rr_file("datasets/raw/polar/session.txt")
+from cardiolab.signals.rr import RRSeries
+rr = RRSeries(parse_rr_file("datasets/raw/polar/session.txt")["rr_intervals"])
 
 # HRV4Training
 from cardiolab.sensors_tools import parse_hrv4training_csv, to_rrseries

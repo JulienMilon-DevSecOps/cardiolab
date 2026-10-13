@@ -16,7 +16,7 @@ To persist the session, uncomment the database block at the bottom.
 
 Usage::
 
-    python example/15_full_daily_pipeline.py
+    python examples/15_full_daily_pipeline.py
 
 """
 
