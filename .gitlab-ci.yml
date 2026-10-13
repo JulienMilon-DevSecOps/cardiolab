@@ -8,7 +8,7 @@ include:
       # Couverture mesurée sur le package uniquement (fail_under = 80 dans pyproject.toml)
       pytest_cov_source: "cardiolab"
       # Tests d'intégration sur la base PostgreSQL jetable du job pytest-postgres
-      pytest_database: mysql
+      pytest_database: postgres
       # Publication PyPI / TestPyPI sans secret (Trusted Publishing)
       pypi_auth_method: trusted
       # ── Sécurité : état des contrôles (gitleaks toujours actif et bloquant) ──
