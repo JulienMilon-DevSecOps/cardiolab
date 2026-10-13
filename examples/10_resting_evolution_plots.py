@@ -8,7 +8,8 @@ across multiple resting sessions using ``cardiolab.visualization.resting_plots``
 
 Data source
 -----------
-Real sessions are loaded from ``cardiolab/datasets/resting/*.json`` when
+Real sessions are loaded from raw RR files (``.txt`` / ``.csv`` / ``.rr``) in
+``cardiolab/datasets/raw/resting/`` when
 available.  If fewer than two files are found, ten synthetic sessions spanning
 10 days are generated (reproducible seed) so the script works out of the box.
 
@@ -22,23 +23,22 @@ Usage
 -----
 Run from the project root::
 
-    python example/10_resting_evolution_plots.py
+    python examples/10_resting_evolution_plots.py
 
-Figures are saved to ``example/figures/`` at 150 dpi.
+Figures are saved to ``examples/figures/`` at 150 dpi.
 """
 
 from __future__ import annotations
 
-import glob
-import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from cardiolab.analytics.baseline import Baseline
-from cardiolab.analytics.scoring import readiness_score_oura
+from cardiolab.analytics.scoring import readiness_score_multi
 from cardiolab.protocols.resting import HRVFeatures, resting_hrv
+from cardiolab.sensors_tools import parse_rr_file
 from cardiolab.signals.rr import RRSeries
 from cardiolab.visualization.resting_plots import (
     plot_resting_evolution,
@@ -49,8 +49,9 @@ from cardiolab.visualization.resting_plots import (
 # CONFIGURATION
 # ---------------------------------------------------------------------------
 
-_DATA_GLOB = "cardiolab/datasets/resting/*.json"
-_FIGURES_DIR = Path("example/figures")
+_DATA_DIR = Path("cardiolab/datasets/raw/resting")
+_RR_SUFFIXES = {".txt", ".csv", ".rr"}
+_FIGURES_DIR = Path("examples/figures")
 _DPI = 150
 
 
@@ -97,14 +98,15 @@ def main() -> None:
     # ------------------------------------------------------------------
     # 1. LOAD DATA
     # ------------------------------------------------------------------
-    files = sorted(glob.glob(_DATA_GLOB))
+    files = sorted(p for p in _DATA_DIR.glob("*") if p.suffix in _RR_SUFFIXES)
 
     if len(files) >= 2:
-        print(f"Loading {len(files)} session file(s) from {_DATA_GLOB}\n")
-        sessions = []
-        for path in files:
-            with open(path) as f:
-                sessions.append(json.load(f))
+        print(f"Loading {len(files)} session file(s) from {_DATA_DIR}\n")
+        # Session date = file name without extension (e.g. "2026-04-24 07-52-36")
+        sessions = [
+            {"date": path.stem, "rr_intervals": parse_rr_file(path)["rr_intervals"]}
+            for path in files
+        ]
     else:
         print(
             "[info] Fewer than 2 session files found — using 10 synthetic sessions.\n"
@@ -126,7 +128,7 @@ def main() -> None:
         result.date = session["date"]
 
         baseline = Baseline.from_features(all_features) if all_features else Baseline()
-        score = readiness_score_oura(result, baseline)
+        score = readiness_score_multi(result, baseline)
 
         rolling = baseline.rolling_rmssd_median()
         rolling_medians.append(float(rolling[-1]) if rolling else None)

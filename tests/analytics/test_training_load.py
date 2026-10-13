@@ -10,6 +10,11 @@ import numpy as np
 import pytest
 
 from cardiolab.analytics.baseline import Baseline
+from cardiolab.analytics.scoring import (
+    orthostatic_readiness_score,
+    readiness_score_multi,
+    readiness_score_oura,
+)
 from cardiolab.analytics.training_load import (
     TrainingLoad,
     _ema,
@@ -341,6 +346,67 @@ def _mock_ortho_result(rmssd: float = 60.0, mean_hr: float = 70.0) -> MagicMock:
     result.interpretation = "normal"
     result.score = 75.0
     return result
+
+
+# ======================
+# UNIT — load_readiness_for_date (scorer alignment, no database)
+# ======================
+
+
+@pytest.mark.unit
+class TestLoadReadinessForDateScorer:
+    """The TRIMP readiness must be the score stored and displayed for the protocol."""
+
+    _DATE = "2099-10-01"
+
+    @staticmethod
+    def _history() -> Baseline:
+        return Baseline(
+            history=[_make_features(rmssd=55.0 + i, mean_hr=62.0) for i in range(10)]
+        )
+
+    @staticmethod
+    def _today() -> HRVFeatures:
+        # Low DFA α1 and RMSSD above baseline: the multi-factor and legacy
+        # Oura scores clearly diverge on this session.
+        feat = _make_features(rmssd=70.0, mean_hr=60.0)
+        feat.dfa_alpha1 = 0.55
+        return feat
+
+    def test_resting_uses_readiness_score_multi(self):
+        """Resting → readiness_score_multi, not the legacy Oura score."""
+        feat, baseline = self._today(), self._history()
+        repo = MagicMock()
+        repo.load_features_for_date.return_value = feat
+
+        result = load_readiness_for_date("u", self._DATE, repo, baseline, "resting")
+
+        assert result == pytest.approx(readiness_score_multi(feat, baseline))
+        assert result != pytest.approx(readiness_score_oura(feat, baseline), abs=1.0)
+        repo.load_orthostatic_for_date.assert_not_called()
+
+    def test_orthostatic_uses_orthostatic_readiness_score(self):
+        """Orthostatic → orthostatic_readiness_score on the supine phase."""
+        supine, baseline = self._today(), self._history()
+        repo = MagicMock()
+        repo.load_orthostatic_for_date.return_value = MagicMock(supine=supine)
+
+        result = load_readiness_for_date("u", self._DATE, repo, baseline, "orthostatic")
+
+        assert result == pytest.approx(orthostatic_readiness_score(supine, baseline))
+        repo.load_features_for_date.assert_not_called()
+
+    @pytest.mark.parametrize("protocol", ["resting", "orthostatic"])
+    def test_no_session_returns_none(self, protocol):
+        """No session on that date → None for both protocols."""
+        repo = MagicMock()
+        repo.load_features_for_date.return_value = None
+        repo.load_orthostatic_for_date.return_value = None
+
+        assert (
+            load_readiness_for_date("u", self._DATE, repo, self._history(), protocol)
+            is None
+        )
 
 
 # ======================
