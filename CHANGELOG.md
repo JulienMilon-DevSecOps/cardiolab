@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Sample datasets (`cardiolab.datasets`)
+
+- `list_samples(protocol=None)` and `load_sample(protocol="resting", index=0)`: seven real
+  Polar H10 recordings of the author (6 resting 2026-04-24 → 04-30, 1 orthostatic
+  2026-05-17), returned as raw `RRSeries` with the manifest entry in `metadata`. Usable right
+  after `pip install cardiolab`, read through `importlib.resources` and `parse_rr_file()`.
+- Stored as raw Polar `.txt` files (one RR interval in ms per line) + `samples.json` manifest
+  (date, time, beats, duration) + `README.md` (provenance, voluntary publication, licence
+  CC BY 4.0 for the data). Converted from the former JSON files with no value changed.
+- `pyproject.toml`: coverage now measures `cardiolab/datasets/` (only `datasets/raw/` — your
+  own files, ignored by git and never packaged — stays excluded).
+
 ### Fixed — Readiness used for the HRV TRIMP
 
 - `load_readiness_for_date()` now scores the session with the same function as the readiness
@@ -40,12 +52,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `python cardiolab/scripts/import_rr.py` did nothing, and it only converted raw files to an
   intermediate JSON format. Raw files are now read directly with `parse_rr_file()`, as the
   local pipeline already did.
+- `cardiolab/datasets/{resting,orthostatic}/*.json` (replaced by the `.txt` samples above) and
+  `cardiolab/datasets/exports/` (derived CSV / JSON outputs, out of date and regenerable).
+  Both were shipped in the wheel without any way to load them once installed.
 
 ### Changed — Examples and documentation
 
-- Examples 02, 09, 10 and 11 read raw RR files (`.txt` / `.csv` / `.rr`) from
+- Examples 02, 09, 10 and 11 read your raw RR files (`.txt` / `.csv` / `.rr`) from
   `cardiolab/datasets/raw/resting/` with `parse_rr_file()` instead of the intermediate JSON
-  files; the session date is the file name without extension. Example 10 scores sessions with
+  files; the session date is the file name without extension. When that folder is empty,
+  09 / 10 / 11 now use the shipped sample recordings instead of synthetic data. Example 10 scores sessions with
   `readiness_score_multi()`. Examples 04 / 05 notes updated; `example/` → `examples/` paths.
 - `docs/sensors/polar.md`: the import snippet called a non-existent `compute_time_domain()` and
   treated the `dict` returned by `parse_rr_file()` as an `RRSeries` — fixed and verified.
@@ -58,7 +74,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pipeline the database is the `pytest-postgres` service (same rule as `cardioanalysis-api`).
   Locally, integration tests still start and stop it automatically.
 - New: `TestLoadReadinessForDateScorer` (4, no database), `TestEntropyKDTreeEquivalence` (52),
-  entropy benchmarks on 3 000 beats (2, `slow`), `tests/test_version.py` (2).
+  entropy benchmarks on 3 000 beats (2, `slow`), `tests/test_version.py` (2),
+  `tests/datasets/test_datasets.py` (18 — manifest, loading, every file packaged, samples
+  run through the resting and orthostatic protocols).
 
 ---
 

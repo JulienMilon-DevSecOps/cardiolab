@@ -90,7 +90,8 @@ python examples/13_training_load.py
 # Export
 python examples/08_to_dict_export.py
 
-# Visualisation
+# Visualisation — vos fichiers de cardiolab/datasets/raw/resting/ s'il y en a,
+# sinon les mesures d'exemple livrées avec le package (cardiolab.datasets)
 python examples/09_rr_signal_plots.py
 python examples/10_resting_evolution_plots.py
 python examples/11_spectral_plots.py

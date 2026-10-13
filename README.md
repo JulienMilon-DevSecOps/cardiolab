@@ -58,7 +58,7 @@ cardiolab/
 │   ├── _core.py          → shared formatters, colour palettes, gradient builders
 │   ├── resting.py        → table_resting_history, table_resting_session
 │   └── orthostatic.py    → table_orthostatic_comparison, table_orthostatic_history
-├── datasets/         → sample recordings (resting/, orthostatic/)
+├── datasets/         → sample recordings shipped with the package (list_samples / load_sample)
 ├── docs/             → protocol & feature documentation
 │   ├── protocols/    → resting.md, orthostatic.md, cardiac_coherence.md,
 │   │                   hrr.md, cardiac_drift.md, vo2max.md
@@ -73,7 +73,7 @@ cardiolab/
 
 examples/             → step-by-step usage scripts (01 – 15)
 notebooks/            → thematic Jupyter notebooks (00 – 09)
-tests/                → unit + PostgreSQL integration tests (1 605 tests)
+tests/                → unit + PostgreSQL integration tests (1 623 tests)
 ```
 
 ---
@@ -140,6 +140,24 @@ with warnings.catch_warnings(record=True) as w:
 
 rr_clean = rr.remove_outliers()  # or: resting_hrv(rr, auto_clean=True)
 ```
+
+### Sample datasets
+
+Seven real Polar H10 recordings of the author (6 resting, 1 orthostatic, raw and
+uncleaned) ship with the package, so every protocol can be tried right after
+`pip install cardiolab` — no database, no sensor:
+
+```python
+from cardiolab.datasets import list_samples, load_sample
+from cardiolab.protocols.resting import resting_hrv
+
+list_samples("resting")          # manifest: id, date, beats, duration…
+rr = load_sample("resting", 0)   # RRSeries, manifest entry in rr.metadata
+features = resting_hrv(rr, auto_clean=True)
+```
+
+Provenance, consent and licence (data: CC BY 4.0) are described in
+[`cardiolab/datasets/README.md`](cardiolab/datasets/README.md).
 
 ### Export
 
@@ -878,7 +896,7 @@ See [`examples/README.md`](examples/README.md) for the full step-by-step setup.
 | PPG signal support | Planned |
 | Training load — Phases 1-6 (DB / TRIMP / ATL-CTL-TSB / Viz / Reporting / Scripts) | Implemented |
 
-**Test coverage:** 1 605 tests (1 550 unit + 55 PostgreSQL integration), 0 failures — 92.5 % coverage on unit tests alone.
+**Test coverage:** 1 623 tests (1 568 unit + 55 PostgreSQL integration), 0 failures — 96.9 % coverage (unit + integration, as measured in CI).
 
 **CI/CD:** GitLab [centralised Python pipeline](https://gitlab.com/project-jmilon-devsecops/ci-cd/pipeline-python-centralisee) (CI/CD component `python-package@0.11.1`) — gitleaks, ruff (lint, format, security rules), pytest (with a throwaway PostgreSQL for integration tests), pip-audit, build + `twine check`. Tag `V-x.y.z` → PyPI; tag `V-x.y.z-rcN` → TestPyPI (Trusted Publishing). The tag must match `version` in `pyproject.toml` (`V-0.3.1-rc1` ↔ `0.3.1rc1`).
 

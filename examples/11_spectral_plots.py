@@ -8,8 +8,9 @@ Demonstrates all five functions from cardiolab.visualization.spectral_plots:
     plot_hrv_radar        — radar chart of 5 normalised HRV metrics
     plot_spectral_heatmap — sessions × frequency bands heatmap
 
-Data source: raw RR files (.txt / .csv / .rr) in cardiolab/datasets/raw/resting/.
-If none are found, three synthetic sessions are generated automatically.
+Data source: your raw RR files (.txt / .csv / .rr) in cardiolab/datasets/raw/resting/;
+if none are found, the six resting recordings shipped with cardiolab
+(cardiolab.datasets).
 
 Saved figures (examples/figures/):
     11_01_psd_welch.png
@@ -25,8 +26,7 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
-import numpy as np
-
+from cardiolab.datasets import list_samples, load_sample
 from cardiolab.protocols.resting import HRVFeatures, resting_hrv
 from cardiolab.sensors_tools import parse_rr_file
 from cardiolab.signals.rr import RRSeries
@@ -66,17 +66,12 @@ def _load_sessions_from_files() -> list[tuple[str, RRSeries]]:
     return sessions
 
 
-def _synthetic_sessions(n: int = 3) -> list[tuple[str, RRSeries]]:
-    """Generate n synthetic RR sessions with mild day-to-day variation."""
-    sessions = []
-    rng = np.random.default_rng(42)
-    for i in range(n):
-        mean_rr = 860 + i * 30  # gradual increase (recovery trend)
-        std_rr = 40 - i * 5
-        intervals = rng.normal(mean_rr, max(std_rr, 15), 300).clip(min=310)
-        label = f"2026-05-{18 + i:02d}"
-        sessions.append((label, RRSeries(intervals)))
-    return sessions
+def _sample_sessions() -> list[tuple[str, RRSeries]]:
+    """Return (label, RRSeries) pairs from the recordings shipped with cardiolab."""
+    return [
+        (sample["date"], load_sample("resting", i))
+        for i, sample in enumerate(list_samples("resting"))
+    ]
 
 
 def _compute_features(label: str, rr: RRSeries) -> HRVFeatures | None:
@@ -100,8 +95,8 @@ def main() -> None:
     sessions = _load_sessions_from_files()
     source = "dataset files"
     if not sessions:
-        sessions = _synthetic_sessions(3)
-        source = "synthetic data"
+        sessions = _sample_sessions()
+        source = "cardiolab sample recordings"
     print(f"Sessions loaded from {source}: {len(sessions)}\n")
 
     # Use the first session for single-series charts

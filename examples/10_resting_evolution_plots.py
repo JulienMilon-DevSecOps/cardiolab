@@ -8,10 +8,10 @@ across multiple resting sessions using ``cardiolab.visualization.resting_plots``
 
 Data source
 -----------
-Real sessions are loaded from raw RR files (``.txt`` / ``.csv`` / ``.rr``) in
-``cardiolab/datasets/raw/resting/`` when
-available.  If fewer than two files are found, ten synthetic sessions spanning
-10 days are generated (reproducible seed) so the script works out of the box.
+Your own raw RR files (``.txt`` / ``.csv`` / ``.rr``) in
+``cardiolab/datasets/raw/resting/`` when at least two are available; otherwise
+the six resting recordings shipped with cardiolab (``cardiolab.datasets``,
+2026-04-24 → 2026-04-30), so the script works out of the box on real data.
 
 Manual breakdown
 ----------------
@@ -33,10 +33,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import numpy as np
 
 from cardiolab.analytics.baseline import Baseline
 from cardiolab.analytics.scoring import readiness_score_multi
+from cardiolab.datasets import list_samples, load_sample
 from cardiolab.protocols.resting import HRVFeatures, resting_hrv
 from cardiolab.sensors_tools import parse_rr_file
 from cardiolab.signals.rr import RRSeries
@@ -68,22 +68,6 @@ def _save(fig: plt.Figure, name: str) -> None:
     print(f"  saved → {path}")
 
 
-def _build_synthetic_sessions() -> list[dict]:
-    """Return 10 synthetic session dicts (rr_intervals + date)."""
-    rng = np.random.default_rng(42)
-    sessions = []
-    for i in range(10):
-        mean_rr = 830 + i * 5 + rng.normal(0, 10)
-        intervals = rng.normal(mean_rr, 30, 300).clip(min=310).tolist()
-        sessions.append(
-            {
-                "date": f"2026-05-{10 + i:02d}",
-                "rr_intervals": intervals,
-            }
-        )
-    return sessions
-
-
 # ---------------------------------------------------------------------------
 # MAIN
 # ---------------------------------------------------------------------------
@@ -108,10 +92,14 @@ def main() -> None:
             for path in files
         ]
     else:
-        print(
-            "[info] Fewer than 2 session files found — using 10 synthetic sessions.\n"
-        )
-        sessions = _build_synthetic_sessions()
+        print("[info] Fewer than 2 files — using the cardiolab sample recordings.\n")
+        sessions = [
+            {
+                "date": sample["date"],
+                "rr_intervals": load_sample("resting", i).intervals.tolist(),
+            }
+            for i, sample in enumerate(list_samples("resting"))
+        ]
 
     # ------------------------------------------------------------------
     # 2. COMPUTE HRV FEATURES AND SCORES PROGRESSIVELY

@@ -47,8 +47,9 @@ Released 2026-10-12. No functional change.
 No schema change. Only the TRIMP values change (bug fix).
 
 * ✅ **Bug — `load_readiness_for_date` uses the legacy score**: it calls `readiness_score_oura` (RMSSD 70 % + HR 30 %), whereas the score stored and displayed for resting comes from `readiness_score_multi`, and orthostatic has a dedicated `orthostatic_readiness_score`. The TRIMP is therefore built from a different score than the one the athlete sees.
-* **Hygiene — single source of version, dead code, test isolation**: ✅ `__version__` from `importlib.metadata`; ✅ the Supabase auto-start in `conftest.py` only when `DB_HOST_TEST` is local; ⏳ `cardiolab/scripts/import_rr.py` (no entry point, 0 % covered) — still referenced by examples 02 / 11 (JSON intermediate format) and `docs/sensors/polar.md`, whose snippet is broken (`compute_time_domain` does not exist, `parse_rr_file` returns a `dict`).
+* **Hygiene — single source of version, dead code, test isolation**: ✅ `__version__` from `importlib.metadata`; ✅ the Supabase auto-start in `conftest.py` only when `DB_HOST_TEST` is local; ✅ `cardiolab/scripts/import_rr.py` removed (no entry point); examples read raw files with `parse_rr_file()`; broken `docs/sensors/polar.md` snippet fixed.
 * ✅ **Performance — SampEn / ApEn with a KD-tree**: replace the O(N²) Python loops with `scipy.spatial.KDTree` (Chebyshev metric); identical results, speed-up for long recordings (drift, HRR).
+* ✅ **Sample datasets — `cardiolab.datasets`**: the author's real recordings (6 resting, 1 orthostatic) as raw `.txt` + manifest, loadable after `pip install` with `list_samples()` / `load_sample()`; former JSON files and `exports/` removed (they were shipped in the wheel but unreachable).
 
 ## v0.3.3 — Generic repository (P1)
 

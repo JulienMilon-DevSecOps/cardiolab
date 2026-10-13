@@ -164,7 +164,7 @@ omit = [
     "local/*",
     "example/*",
     "notebooks/*",
-    "*/datasets/*",
+    "*/datasets/raw/*",
 ]
 
 [tool.coverage.report]
