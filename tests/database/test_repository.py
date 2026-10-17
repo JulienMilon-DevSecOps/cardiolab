@@ -1029,6 +1029,44 @@ class TestLoadOrthostatic:
 # ======================
 
 
+@pytest.mark.unit
+class TestTrainingSessionSport:
+    """Sport is validated and stored as a reference code (v0.3.4)."""
+
+    def test_save_stores_code(self):
+        """A label is converted to its code before the INSERT."""
+        repo = HRVRepository("h", "db", "u", "p")
+        cur = _mock_repo_conn(repo)
+        repo.save_training_session("u1", "2026-08-25", 52.0, "Course à pied", 68.0)
+        _, row = cur.execute.call_args[0]
+        assert row[4] == "running"
+
+    def test_save_without_sport(self):
+        """No sport stays None."""
+        repo = HRVRepository("h", "db", "u", "p")
+        cur = _mock_repo_conn(repo)
+        repo.save_training_session("u1", "2026-08-25", 52.0, None, 68.0)
+        _, row = cur.execute.call_args[0]
+        assert row[4] is None
+
+    def test_save_unknown_sport_raises_before_insert(self):
+        """A typo raises ValueError with a suggestion; nothing is written."""
+        repo = HRVRepository("h", "db", "u", "p")
+        cur = _mock_repo_conn(repo)
+        with pytest.raises(ValueError, match="Did you mean 'running'"):
+            repo.save_training_session("u1", "2026-08-25", 52.0, "runing", 68.0)
+        cur.execute.assert_not_called()
+
+    def test_find_filter_accepts_labels(self):
+        """The sport filter is converted to the stored code."""
+        repo = HRVRepository("h", "db", "u", "p")
+        cur = _mock_repo_conn(repo)
+        cur.fetchall.return_value = []
+        repo.find_training_sessions("u1", "2026-08-25", sport_type="Vélo")
+        _, params = cur.execute.call_args[0]
+        assert params == ("u1", "2026-08-25", "cycling")
+
+
 def _repo_from_test_env(**kwargs) -> HRVRepository:
     """Build an HRVRepository from DB_*_TEST environment variables.
 
@@ -1693,7 +1731,7 @@ class TestTrainingSessionsIntegration:
                 user_id=self._USER,
                 date="2099-08-01",
                 duration_min=60.0,
-                sport_type="course",
+                sport_type="Course à pied",
                 trimp=42.5,
                 notes="Sortie longue Z2",
             )
@@ -1704,7 +1742,7 @@ class TestTrainingSessionsIntegration:
         s = match[0]
         assert "activity_id" in s
         assert s["duration_min"] == pytest.approx(60.0)
-        assert s["sport_type"] == "course"
+        assert s["sport_type"] == "running"  # stored as the reference code (v0.3.4)
         assert s["trimp"] == pytest.approx(42.5)
         assert s["notes"] == "Sortie longue Z2"
 

@@ -73,6 +73,7 @@ from cardiolab.protocols.orthostatic import OrthostaticResult
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.protocols.vo2max import VO2maxResult
 from cardiolab.signals.rr import RRSeries
+from cardiolab.sports import validate_sport
 
 # ======================
 # VALIDATION
@@ -1799,7 +1800,11 @@ class HRVRepository:
             user_id: User identifier.
             date: ISO date string (e.g. ``"2026-05-29"``).
             duration_min: Duration of the training session in minutes.
-            sport_type: Sport type label (e.g. ``"running"``, ``"cycling"``).
+            sport_type: Sport — a code of :data:`cardiolab.sports.SPORTS`
+                (``"running"``, ``"cycling"``…) or any name
+                :func:`cardiolab.sports.validate_sport` recognises
+                (« Course à pied », ``"vélo"``…). Always stored as the code.
+                ``None`` means no sport.
             trimp: Pre-computed TRIMP value. May be ``None`` when the
                 readiness score for the day is not available yet.
             notes: Free-text notes about the session.
@@ -1808,10 +1813,13 @@ class HRVRepository:
             The ``activity_id`` (UUID string) of the newly created row.
 
         Raises:
+            ValueError: If ``sport_type`` is not a known sport (the message
+                suggests the closest one) — nothing is written.
             RuntimeError: If called outside a ``with`` block.
             psycopg2.Error: If the insert fails.
 
         """
+        sport_type = validate_sport(sport_type)
         activity_id = str(uuid.uuid4())
         all_cols = ["activity_id", "user_id", "date"] + _TRAINING_SESSIONS_DATA_COLUMNS
         col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
@@ -1903,8 +1911,10 @@ class HRVRepository:
         Args:
             user_id: User identifier.
             date: ISO date string (``"YYYY-MM-DD"``).
-            sport_type: Optional sport filter.  When ``None``, all activities
-                on the date are returned regardless of sport type.
+            sport_type: Optional sport filter (code or any name
+                :func:`cardiolab.sports.validate_sport` recognises). When
+                ``None``, all activities on the date are returned regardless
+                of sport type.
 
         Returns:
             List of matching activity dicts (same keys as
@@ -1912,6 +1922,7 @@ class HRVRepository:
             activity_id.  Empty list when nothing matches.
 
         Raises:
+            ValueError: If ``sport_type`` is not a known sport.
             RuntimeError: If called outside a ``with`` block.
             psycopg2.Error: If the query fails.
 
@@ -1919,6 +1930,7 @@ class HRVRepository:
         sel = sql.SQL(", ").join(
             sql.Identifier(c) for c in _TRAINING_SESSIONS_SELECT_COLUMNS
         )
+        sport_type = validate_sport(sport_type)
         if sport_type is not None:
             query = sql.SQL(
                 "SELECT {sel} FROM {table}\n"
