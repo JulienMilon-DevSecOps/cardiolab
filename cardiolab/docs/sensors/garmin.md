@@ -144,7 +144,15 @@ from cardiolab.sensors_tools.garmin import extract_training_session_garmin
 session = extract_training_session_garmin("datasets/raw/garmin/activity.fit")
 print(f"Durée : {session['duration_min']:.1f} min")
 print(f"FC moy : {session['hr_mean']:.0f} bpm | FC max : {session['hr_max']:.0f} bpm")
+print(f"Sport : {session['sport']} (valeur FIT : {session['sport_raw']})")
 ```
+
+**EN:** Since v0.3.4, `sport` is the activity sport read from the FIT `session` /
+`sport` messages and normalised with the sports reference list
+(see `docs/training_load/sports.md`); `"other"` when the file has no sport.  
+**FR :** Depuis la v0.3.4, `sport` est le sport de l'activité lu dans les messages
+FIT `session` / `sport` et normalisé avec la liste de référence des sports
+(voir `docs/training_load/sports.md`) ; `"other"` si le fichier n'indique pas de sport.
 
 ---
 

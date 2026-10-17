@@ -21,6 +21,7 @@ except ImportError:
     _FITPARSE_AVAILABLE = False
 
 from cardiolab.signals.rr import RRSeries
+from cardiolab.sports import normalize_sport
 
 # ======================
 # PUBLIC API
@@ -123,7 +124,8 @@ def extract_training_session_garmin(filepath: str | Path) -> dict:
     """Extract a training session summary from a Garmin FIT file.
 
     Reads ``record`` messages (sampled at ~1 Hz) to compute the session
-    duration and heart rate statistics.
+    duration and heart rate statistics, and the ``session`` / ``sport``
+    messages for the activity sport.
 
     Args:
         filepath: Path to the Garmin ``.fit`` file.
@@ -135,6 +137,11 @@ def extract_training_session_garmin(filepath: str | Path) -> dict:
           derived from the first and last ``timestamp`` fields.
         * ``"hr_mean"`` (:class:`float`) — mean heart rate in bpm.
         * ``"hr_max"`` (:class:`float`) — maximum heart rate in bpm.
+        * ``"sport"`` (:class:`str`) — sport code of the reference list
+          (:func:`cardiolab.sports.normalize_sport` of the FIT ``sport`` and
+          ``sub_sport`` fields); ``"other"`` when the file has no sport.
+        * ``"sport_raw"`` (:class:`str` | ``None``) — FIT ``sport`` value as
+          read from the file, for diagnosis.
 
     Raises:
         ImportError: If ``fitparse`` is not installed.
@@ -168,16 +175,35 @@ def extract_training_session_garmin(filepath: str | Path) -> dict:
         delta = timestamps[-1] - timestamps[0]
         duration_min = delta.total_seconds() / 60.0
 
+    sport_raw, sub_sport_raw = _read_sport(fitfile)
+
     return {
         "duration_min": round(duration_min, 2),
         "hr_mean": round(sum(heart_rates) / len(heart_rates), 1),
         "hr_max": float(max(heart_rates)),
+        "sport": normalize_sport(sport_raw, sub_sport_raw),
+        "sport_raw": sport_raw,
     }
 
 
 # ======================
 # INTERNAL HELPERS
 # ======================
+
+
+def _read_sport(fitfile) -> tuple[str | None, str | None]:
+    """Return the activity ``(sport, sub_sport)`` of a FIT file, or ``(None, None)``.
+
+    Looks at the ``session`` messages first (one per activity), then at the
+    ``sport`` message; the first one carrying a ``sport`` value wins.
+    """
+    for message_name in ("session", "sport"):
+        for message in fitfile.get_messages(message_name):
+            sport = message.get_value("sport")
+            if sport is not None:
+                sub_sport = message.get_value("sub_sport")
+                return str(sport), (str(sub_sport) if sub_sport is not None else None)
+    return None, None
 
 
 def _require_fitparse() -> None:
