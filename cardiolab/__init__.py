@@ -20,6 +20,11 @@ cardiolab.protocols
 cardiolab.analytics
     Baseline rolling window, readiness scoring, anomaly detection, trends,
     and training load (ATL/CTL/TSB, TRIMP).
+cardiolab.sports
+    Reference list of sports (codes, FR/EN labels, colours, families) and
+    ``normalize_sport()`` for free text and Garmin FIT sport values.
+cardiolab.datasets
+    Sample RR recordings shipped with the package (``load_sample()``).
 cardiolab.visualization
     Matplotlib figures. Import separately to avoid loading matplotlib when
     only the computational pipeline is needed::
@@ -83,6 +88,13 @@ from cardiolab.protocols.orthostatic import OrthostaticResult, orthostatic_hrv
 from cardiolab.protocols.resting import HRVFeatures, resting_hrv
 from cardiolab.protocols.vo2max import VO2maxResult, vo2max_from_hrv
 from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
+from cardiolab.sports import (
+    Sport,
+    get_sport,
+    list_sports,
+    normalize_sport,
+    validate_sport,
+)
 
 __all__ = [
     "__version__",
@@ -126,4 +138,10 @@ __all__ = [
     "trimp_hrv_based",
     "trimp_banister",
     "load_readiness_for_date",
+    # ── Sports reference list
+    "Sport",
+    "get_sport",
+    "list_sports",
+    "normalize_sport",
+    "validate_sport",
 ]
