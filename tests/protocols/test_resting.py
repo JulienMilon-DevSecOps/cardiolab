@@ -444,7 +444,7 @@ class TestRestingHRVAutoClean:
         assert len(normal_rr_series) == n_before
 
     def test_auto_clean_removes_outliers_before_computation(self):
-        """auto_clean=True must produce the same result as cleaning manually."""
+        """auto_clean=True = correct_artifacts() then remove_outliers() (0.4.0)."""
         import warnings
 
         rng = np.random.default_rng(0)
@@ -454,14 +454,30 @@ class TestRestingHRVAutoClean:
         from cardiolab.signals.rr import RRSeries
 
         dirty = RRSeries(base)
-        clean = dirty.remove_outliers()
-
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
+            clean = dirty.correct_artifacts()[0].remove_outliers()
             result_auto = resting_hrv(dirty, min_duration=0.0, auto_clean=True)
         result_manual = resting_hrv(clean, min_duration=0.0)
 
         assert abs(result_auto.rmssd - result_manual.rmssd) < 1e-6
+
+    def test_auto_clean_corrects_rather_than_deletes(self):
+        """A missed beat is split, not deleted: RMSSD stays close to the truth."""
+        import warnings
+
+        from cardiolab.signals.rr import RRSeries
+
+        rng = np.random.default_rng(1)
+        t = np.arange(300)
+        truth = 900 + 30 * np.sin(2 * np.pi * t / 4.2) + rng.normal(0, 10, 300)
+        dirty = list(truth)
+        dirty[100:102] = [dirty[100] + dirty[101]]  # missed beat (~1 800 ms)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            auto = resting_hrv(RRSeries(dirty), min_duration=0.0, auto_clean=True)
+            ref = resting_hrv(RRSeries(truth), min_duration=0.0)
+        assert abs(auto.rmssd - ref.rmssd) / ref.rmssd < 0.05
 
     def test_auto_clean_suppresses_warning(self):
         """After auto_clean, PhysiologicalWarning must not propagate further."""

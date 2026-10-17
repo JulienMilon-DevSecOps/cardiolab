@@ -654,7 +654,7 @@ class TestOrthostaticAutoClean:
     """Tests for the auto_clean parameter in orthostatic_hrv()."""
 
     def test_auto_clean_produces_same_result_as_manual_clean(self, orthostatic_rr):
-        """auto_clean=True must give the same result as pre-cleaning the series."""
+        """auto_clean=True = correct_artifacts() then remove_outliers() (0.4.0)."""
         import warnings
 
         intervals = orthostatic_rr.intervals.copy()
@@ -664,10 +664,9 @@ class TestOrthostaticAutoClean:
         from cardiolab.signals.rr import RRSeries
 
         dirty = RRSeries(intervals)
-        clean = dirty.remove_outliers()
-
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
+            clean = dirty.correct_artifacts()[0].remove_outliers()
             result_auto = orthostatic_hrv(
                 dirty, min_phase_duration=60.0, auto_clean=True
             )

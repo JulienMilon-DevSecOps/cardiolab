@@ -304,9 +304,12 @@ def orthostatic_hrv(
             triggers transition detection. Defaults to 10 bpm.
         window_sec: Duration of the rolling HR window used for smoothing.
             Defaults to 30 s.
-        auto_clean: If ``True``, removes physiological outliers (< 300 ms or
-            > 2000 ms) from ``rr`` before phase detection and feature
-            computation. Defaults to ``False``.
+        auto_clean: If ``True``, corrects artefacts before phase detection
+            and feature computation (:meth:`RRSeries.correct_artifacts` —
+            beats corrected, not deleted), then removes any remaining value
+            outside 300–2000 ms. Movement artefacts when standing up are
+            typically corrected. Defaults to ``False``. Changed in 0.4.0:
+            earlier versions only deleted out-of-range values.
         method: Spectral estimation method passed to ``resting_hrv()`` for
             each phase. ``"welch"`` (default) suits long phases (≥ 5 min);
             ``"ar"`` offers better resolution on the short transition window
@@ -323,6 +326,9 @@ def orthostatic_hrv(
 
     """
     if auto_clean:
+        rr, _ = rr.correct_artifacts()
+        # Safety net: impossible values the classification cannot reach
+        # (the last two beats of a series are never classified)
         rr = rr.remove_outliers()
 
     phases = detect_phases(
