@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Artefact correction (`cardiolab.signals.artifacts`)
+
+- `RRSeries.correct_artifacts(method="lipponen2019", max_passes=1, min_deviation=0.20)` →
+  `(RRSeries, ArtifactReport)`: classifies abnormal beats (Lipponen & Tarvainen 2019 — time-varying
+  thresholds on successive differences and on the deviation from an 11-beat median) and **corrects**
+  them instead of deleting them: extra beats merged with the next interval, missed beats split in
+  two, ectopic and long / short beats replaced by cubic-spline interpolation. Timestamps follow
+  added / removed beats; the report is stored in `metadata["artifact_correction"]`.
+- **Amplitude gate** (`min_deviation=0.20`): ectopic / long-short beats are only corrected beyond
+  20 % of the local median. The published rules alone also flag the sharp physiological swings of a
+  strong respiratory arrhythmia (trained athletes at rest); `0` restores them unchanged.
+- `ArtifactReport` (counts per type, `corrected_pct`, `is_reliable`, `to_dict()`), exported from
+  `cardiolab` and `cardiolab.signals`. More than 5 % corrected → `PhysiologicalWarning`.
+- Validation: 100 % of injected artefacts detected, corrected RMSSD within 3 % of the truth,
+  0 correction on clean signals; classifications identical to NeuroKit2 (`signal_fixpeaks`,
+  method « kubios », one pass) without the gate. On the sample recordings: 0–1 % corrected.
+- `docs/features/artefact_correction.md`.
+
+### Changed
+
+- **`auto_clean=True`** (`resting_hrv`, `orthostatic_hrv`) now runs `correct_artifacts()` then
+  removes any remaining value outside 300–2000 ms; it only applied `remove_outliers()` before.
+  **Computed values change** for recordings analysed with `auto_clean=True`.
+- `PhysiologicalWarning` messages suggest `correct_artifacts()`.
+- Documentation (features, sensors, README) recommends `correct_artifacts()` instead of
+  `remove_outliers()`; example 07 compares deletion and correction. README no longer claims that
+  every protocol has `auto_clean` (only resting and orthostatic).
+
+### Tests
+
+- `tests/signals/test_artifacts.py` (61): acceptance criteria, classification, corrections,
+  timestamps, edge cases, report, `RRSeries` wrapper, real sample with a missed beat.
+- `auto_clean` tests now compare with `correct_artifacts()` + `remove_outliers()`; new test:
+  a missed beat is corrected, not deleted (RMSSD within 5 % of the truth).
+
 ---
 
 ## [0.3.4] - 2026-10-16
