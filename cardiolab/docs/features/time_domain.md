@@ -55,7 +55,7 @@ compared to frequency-domain metrics.
 ### Notes
 
 - Minimum reliable recording: **2 minutes** (but 5 minutes recommended).
-- Sensitive to outlier beats — always clean with `remove_outliers()`.
+- Sensitive to outlier beats — always correct them with `correct_artifacts()` (see [artefact_correction.md](artefact_correction.md)).
 - Not directly comparable across different recording conditions (supine vs.
   standing, morning vs. evening).
 

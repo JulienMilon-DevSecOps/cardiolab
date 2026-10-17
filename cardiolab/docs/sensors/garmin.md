@@ -122,7 +122,7 @@ Timestamp,RR Interval (ms),HR (bpm)
 from cardiolab.sensors_tools.garmin import parse_garmin_fit
 from cardiolab.features.time_domain import compute_time_domain
 
-rr = parse_garmin_fit("datasets/raw/garmin/activity.fit").remove_outliers()
+rr, report = parse_garmin_fit("datasets/raw/garmin/activity.fit").correct_artifacts()
 features = compute_time_domain(rr)
 print(f"RMSSD : {features.rmssd:.1f} ms | SDNN : {features.sdnn:.1f} ms")
 ```
@@ -132,7 +132,7 @@ print(f"RMSSD : {features.rmssd:.1f} ms | SDNN : {features.sdnn:.1f} ms")
 ```python
 from cardiolab.sensors_tools.garmin import parse_garmin_csv
 
-rr = parse_garmin_csv("datasets/raw/garmin/rr_export.csv").remove_outliers()
+rr, report = parse_garmin_csv("datasets/raw/garmin/rr_export.csv").correct_artifacts()
 print(f"{len(rr)} intervalles | HR moyen : {rr.mean_hr:.0f} bpm")
 ```
 
@@ -171,11 +171,11 @@ cardiolab/datasets/
 ## Known Limitations / Limites connues
 
 **EN**
-- **Optical sensor**: wrist optical RR intervals are noisy above 0.15 Hz. Always call `remove_outliers()`.
+- **Optical sensor**: wrist optical RR intervals are noisy above 0.15 Hz. Always call `correct_artifacts()` and check `report.corrected_pct` (above 5 %, measure again).
 - **FIT without HRV**: if the watch has no paired chest strap, the FIT may contain no `hrv` messages — `parse_garmin_fit()` raises `ValueError`.
 - **Summary CSV**: CSVs exported from Garmin Connect contain only summary metrics (average HR, max HR), not beat-to-beat RR intervals. Only beat-to-beat CSVs (exported via Kubios or third-party tools) are compatible with `parse_garmin_csv()`.
 
 **FR**
-- **Capteur optique** : les intervalles RR du capteur optique poignet sont bruités pour les fréquences > 0.15 Hz. Le filtre `remove_outliers()` est indispensable.
+- **Capteur optique** : les intervalles RR du capteur optique poignet sont bruités pour les fréquences > 0.15 Hz. `correct_artifacts()` est indispensable ; au-delà de 5 % de battements corrigés (`report.corrected_pct`), refaire la mesure.
 - **FIT sans HRV** : si la montre n'a pas de ceinture thoracique associée, le FIT peut ne pas contenir de messages `hrv` — `parse_garmin_fit()` lèvera alors une `ValueError`.
 - **CSV résumé** : les CSV exportés depuis Garmin Connect ne contiennent que des métriques résumées (FC moy, FC max), pas les intervalles RR. Seuls les CSV beat-to-beat (exportés via Kubios ou outils tiers) sont compatibles avec `parse_garmin_csv()`.

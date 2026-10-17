@@ -74,7 +74,7 @@ cardiolab/
 
 examples/             → step-by-step usage scripts (01 – 15)
 notebooks/            → thematic Jupyter notebooks (00 – 09)
-tests/                → unit + PostgreSQL integration tests (1 701 tests)
+tests/                → unit + PostgreSQL integration tests (1 763 tests)
 ```
 
 ---
@@ -128,8 +128,18 @@ Heart rate variability is used to assess:
 
 `RRSeries` automatically emits a `PhysiologicalWarning` when any interval
 falls outside [300, 2000] ms (HR > 200 bpm or HR < 30 bpm), which almost
-always indicates artefacts. Use `remove_outliers()` to clean the signal, or
-pass `auto_clean=True` to any protocol function.
+always indicates artefacts.
+
+### Artefact correction
+
+`correct_artifacts()` classifies abnormal beats (Lipponen & Tarvainen 2019)
+and **corrects** them instead of deleting them — extra beats merged, missed
+beats split, ectopic and long / short beats interpolated — so that successive
+differences (RMSSD, pNN50, SD1, DFA α1) are not distorted. Ectopic and long /
+short beats are only corrected beyond 20 % of the local median, which keeps the
+strong respiratory arrhythmia of trained athletes. `resting_hrv()` and
+`orthostatic_hrv()` accept `auto_clean=True` to apply it. Validation and
+details: [`docs/features/artefact_correction.md`](cardiolab/docs/features/artefact_correction.md).
 
 ```python
 from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
@@ -139,7 +149,8 @@ with warnings.catch_warnings(record=True) as w:
     warnings.simplefilter("always")
     rr = RRSeries(raw_intervals)  # PhysiologicalWarning if outliers present
 
-rr_clean = rr.remove_outliers()  # or: resting_hrv(rr, auto_clean=True)
+rr_clean, report = rr.correct_artifacts()  # or: resting_hrv(rr, auto_clean=True)
+report.corrected_pct  # above 5 %: PhysiologicalWarning, measure again
 ```
 
 ### Sample datasets
@@ -904,7 +915,7 @@ See [`examples/README.md`](examples/README.md) for the full step-by-step setup.
 | PPG signal support | Planned |
 | Training load — Phases 1-6 (DB / TRIMP / ATL-CTL-TSB / Viz / Reporting / Scripts) | Implemented |
 
-**Test coverage:** 1 701 tests (1 646 unit + 55 PostgreSQL integration), 0 failures — 96.9 % coverage (unit + integration, as measured in CI).
+**Test coverage:** 1 763 tests (1 708 unit + 55 PostgreSQL integration), 0 failures — 97.0 % coverage (unit + integration, as measured in CI).
 
 **CI/CD:** GitLab [centralised Python pipeline](https://gitlab.com/project-jmilon-devsecops/ci-cd/pipeline-python-centralisee) (CI/CD component `python-package@0.11.1`) — gitleaks, ruff (lint, format, security rules), pytest (with a throwaway PostgreSQL for integration tests), pip-audit, build + `twine check`. Tag `V-x.y.z` → PyPI; tag `V-x.y.z-rcN` → TestPyPI (Trusted Publishing). The tag must match `version` in `pyproject.toml` (`V-0.3.1-rc1` ↔ `0.3.1rc1`).
 
@@ -983,7 +994,7 @@ See [`examples/README.md`](examples/README.md) for the full step-by-step setup.
 * [x] PostgreSQL persistence layer (7 tables — 6 protocol + raw RR intervals)
 * [x] Score [0–100] for all protocols (resting: baseline-relative; HRR / coherence / drift / VO2max / orthostatic: clinical thresholds)
 * [x] Physiological validation with `PhysiologicalWarning` on `RRSeries`
-* [x] `auto_clean` option in all protocols
+* [x] `auto_clean` option in the resting and orthostatic protocols
 * [x] `to_dict()` export on all result dataclasses
 * [x] SD1 / SD2 / SD1:SD2 / DFA α1 non-linear features
 * [x] ApEn / SampEn entropy features
