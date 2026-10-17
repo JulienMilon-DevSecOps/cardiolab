@@ -52,6 +52,7 @@ cardiolab/
 │   └── vo2max.py             → VO2max estimation from HRV (Uth, Esco-Flatt)
 ├── analytics/        → baseline, scoring, anomaly detection, trend analysis, training load (ATL/CTL/TSB)
 ├── sensors_tools/    → sensor imports: Polar, HRV4Training, Apple Health, Garmin (.fit / CSV)
+├── sports.py         → sports reference list: codes, FR/EN labels, colours, normalize / validate
 ├── database/         → PostgreSQL persistence layer (9 tables, versioned SQL migrations)
 ├── io/               → CSV and JSON export for all protocols
 ├── reporting/        → tabular reporting (pandas Styler, HTML/Excel export)
@@ -65,7 +66,7 @@ cardiolab/
 │   ├── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md
 │   ├── visualization/→ reading_charts.md — how to read each chart type
 │   ├── reporting/    → tables.md — reporting API reference
-│   └── training_load/→ index.md, training_sessions.md, atl_ctl_tsb.md
+│   └── training_load/→ index.md, training_sessions.md, atl_ctl_tsb.md, sports.md
 └── visualization/    → signal and HRV plots
     ├── resting_plots.py  → RMSSD & readiness score evolution over time
     └── rr_plots.py       → raw RR: tachogram, distribution, filtered,
@@ -73,7 +74,7 @@ cardiolab/
 
 examples/             → step-by-step usage scripts (01 – 15)
 notebooks/            → thematic Jupyter notebooks (00 – 09)
-tests/                → unit + PostgreSQL integration tests (1 623 tests)
+tests/                → unit + PostgreSQL integration tests (1 701 tests)
 ```
 
 ---
@@ -869,6 +870,12 @@ with HRVRepository.from_env() as repo:
     deleted = repo.delete_training_session(activity_id=aid)  # True if deleted
 ```
 
+`sport_type` is validated on save against the sports reference list
+(`cardiolab.sports`): labels and synonyms are stored as their code
+(`"Course à pied"` → `"running"`), and an unknown sport raises `ValueError`
+with the closest one suggested. Offer `list_sports()` in your interface rather
+than a free text field — see [`docs/training_load/sports.md`](cardiolab/docs/training_load/sports.md).
+
 Each protocol table includes a `score FLOAT` column (see [Analytics & Scoring](#analytics--scoring)).
 
 See [`examples/README.md`](examples/README.md) for the full step-by-step setup.
@@ -890,13 +897,14 @@ See [`examples/README.md`](examples/README.md) for the full step-by-step setup.
 | `analytics/` — baseline, scoring (all 6 protocols), anomaly, trend | Implemented |
 | `database/` — 8 tables (6 protocol + raw RR + training sessions, multi-activity) | Implemented |
 | `io/` — CSV & JSON export for all protocols | Implemented |
-| `sensors_tools/` — Polar, HRV4Training, Apple Health, Garmin (`.fit` / CSV) | Implemented |
+| `sensors_tools/` — Polar, HRV4Training, Apple Health, Garmin (`.fit` / CSV, sport included) | Implemented |
+| `sports.py` — sports reference list, validation on save | Implemented |
 | `visualization/` | Implemented |
 | `reporting/` — all 6 protocols (9 functions) + training load (2 functions) | Implemented |
 | PPG signal support | Planned |
 | Training load — Phases 1-6 (DB / TRIMP / ATL-CTL-TSB / Viz / Reporting / Scripts) | Implemented |
 
-**Test coverage:** 1 623 tests (1 568 unit + 55 PostgreSQL integration), 0 failures — 96.9 % coverage (unit + integration, as measured in CI).
+**Test coverage:** 1 701 tests (1 646 unit + 55 PostgreSQL integration), 0 failures — 96.9 % coverage (unit + integration, as measured in CI).
 
 **CI/CD:** GitLab [centralised Python pipeline](https://gitlab.com/project-jmilon-devsecops/ci-cd/pipeline-python-centralisee) (CI/CD component `python-package@0.11.1`) — gitleaks, ruff (lint, format, security rules), pytest (with a throwaway PostgreSQL for integration tests), pip-audit, build + `twine check`. Tag `V-x.y.z` → PyPI; tag `V-x.y.z-rcN` → TestPyPI (Trusted Publishing). The tag must match `version` in `pyproject.toml` (`V-0.3.1-rc1` ↔ `0.3.1rc1`).
 
@@ -1062,10 +1070,13 @@ TRIMP = duration_min × (1 − readiness / 100)
 
 | TSB zone | Interpretation |
 |----------|---------------|
-| > +20 | Detraining — load too low |
-| +5 to +20 | Fresh — ready for an intense session |
-| −10 to +5 | Optimal — good form |
-| < −10 | Fatigued — risk of overtraining |
+| > +25 | Fresh / detraining — load too low if it lasts |
+| +5 to +25 | Optimal — rested, ready for a competition or a test |
+| −10 to +5 | Neutral — load and recovery balanced |
+| −30 to −10 | Accumulated fatigue — training block |
+| < −30 | Overload |
+
+Zones as implemented in `reporting/training_load_report.py` and `visualization/training_load_plots.py`.
 
 #### Phase 1 — Database ✅
 * [x] New table `training_sessions`: `activity_id TEXT PK | user_id | date | duration_min | sport_type | trimp | notes` — one row per activity, multiple activities per day allowed
@@ -1141,8 +1152,9 @@ The forward-looking roadmap, ordered by priority (P0 → P3), lives in **[ROADMA
 | Version | Priority | Theme |
 |---------|----------|-------|
 | v0.3.1 | P0 | CI pipeline 0.9.0, TestPyPI pre-release — released 2026-10-12 |
-| v0.3.2 | P1 | Readiness consistency fix, hygiene, entropy speed-up (in progress) |
-| v0.3.3 | P1 | Generic `HRVRepository` |
+| v0.3.2 | P1 | Readiness consistency fix, hygiene, entropy speed-up, sample datasets — released |
+| v0.3.3 | P1 | Generic `HRVRepository` — shipped in v0.3.4 |
+| v0.3.4 | P1 | Sports reference list, sport validated on save, sport from `.fit` files — ready |
 | v0.4.0 | P1 | Signal reliability — artefact correction, spectral fixes, signal quality |
 | v0.5.0 | P2 | Athlete longitudinal monitoring — 7-day lnRMSSD, CV, SWC, trends |
 | v0.6.0 | P2 | Exercise protocols — DFA α1 thresholds, submaximal test |

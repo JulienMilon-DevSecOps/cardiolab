@@ -25,13 +25,14 @@ starts once the previous one is tagged. Each item maps to one GitLab issue
 | Version | Priority | Theme | DB change | Changes computed values |
 |---------|----------|-------|-----------|-------------------------|
 | [v0.3.1](#v031--ci-pipeline-090-p0) | P0 | CI pipeline 0.9.0, TestPyPI pre-release — **released 2026-10-12** | — | No |
-| [v0.3.2](#v032--fixes-and-hygiene-p1) | P1 | Readiness consistency fix, hygiene, entropy speed-up | — | TRIMP only |
-| [v0.3.3](#v033--generic-repository-p1) | P1 | Generic `HRVRepository` (prerequisite for new tables) | — | No |
+| [v0.3.2](#v032--fixes-and-hygiene-p1) | P1 | Readiness consistency fix, hygiene, entropy speed-up, sample datasets — **released 2026-10-13** | — | TRIMP only |
+| [v0.3.3](#v033--generic-repository-p1) | P1 | Generic `HRVRepository` (prerequisite for new tables) — not published separately, **shipped in v0.3.4** | — | No |
+| [v0.3.4](#v034--sports-p1) | P1 | Sports reference list, sport validated on save, sport read from `.fit` files — **ready 2026-10-16** (includes v0.3.3) | — | No |
 | [v0.4.0](#v040--signal-reliability-p1) | P1 | Artefact correction, spectral fixes, signal quality, reprocessing | V005 | **Yes** |
-| [v0.5.0](#v050--athlete-longitudinal-monitoring-p2) | P2 | 7-day lnRMSSD + CV + SWC, trend analysis | — | No (new metrics) |
-| [v0.6.0](#v060--exercise-protocols-p2) | P2 | DFA α1 thresholds (VT1/VT2), submaximal test | V006 | No (new protocols) |
+| [v0.5.0](#v050--athlete-longitudinal-monitoring-p2) | P2 | 7-day lnRMSSD + CV + SWC, trend analysis, real trend component, effort-based load (session RPE) | V006 | **Yes** (readiness trend) |
+| [v0.6.0](#v060--exercise-protocols-p2) | P2 | DFA α1 thresholds (VT1/VT2), submaximal test | V007 | No (new protocols) |
 | [v0.7.0](#v070--statistical-intelligence-p3) | P3 | Multivariate anomaly, statistical plots | — | No |
-| [v0.8.0](#v080--autonomic-function-tests-p3) | P3 | Ewing battery (E/I, Valsalva, 30:15) | V007 | No (new protocol) |
+| [v0.8.0](#v080--autonomic-function-tests-p3) | P3 | Ewing battery (E/I, Valsalva, 30:15) | V008 | No (new protocol) |
 | [v0.9.0](#v090--ppg--prv-p3) | P3 | PPG signals / pulse rate variability | — | No |
 
 ---
@@ -44,18 +45,26 @@ Released 2026-10-12. No functional change.
 
 ## v0.3.2 — Fixes and hygiene (P1)
 
-No schema change. Only the TRIMP values change (bug fix).
+Released 2026-10-13. No schema change. Only the TRIMP values change (bug fix).
 
 * ✅ **Bug — `load_readiness_for_date` uses the legacy score**: it calls `readiness_score_oura` (RMSSD 70 % + HR 30 %), whereas the score stored and displayed for resting comes from `readiness_score_multi`, and orthostatic has a dedicated `orthostatic_readiness_score`. The TRIMP is therefore built from a different score than the one the athlete sees.
-* **Hygiene — single source of version, dead code, test isolation**: ✅ `__version__` from `importlib.metadata`; ✅ the Supabase auto-start in `conftest.py` only when `DB_HOST_TEST` is local; ✅ `cardiolab/scripts/import_rr.py` removed (no entry point); examples read raw files with `parse_rr_file()`; broken `docs/sensors/polar.md` snippet fixed.
+* **Hygiene — single source of version, dead code, test isolation**: ✅ `__version__` from `importlib.metadata`; ✅ the local Supabase auto-start in `conftest.py` is skipped in CI (`CI` set — same rule as `cardioanalysis-api`); ✅ `cardiolab/scripts/import_rr.py` removed (no entry point); examples read raw files with `parse_rr_file()`; broken `docs/sensors/polar.md` snippet fixed.
 * ✅ **Performance — SampEn / ApEn with a KD-tree**: replace the O(N²) Python loops with `scipy.spatial.KDTree` (Chebyshev metric); identical results, speed-up for long recordings (drift, HRR).
 * ✅ **Sample datasets — `cardiolab.datasets`**: the author's real recordings (6 resting, 1 orthostatic) as raw `.txt` + manifest, loadable after `pip install` with `list_samples()` / `load_sample()`; former JSON files and `exports/` removed (they were shipped in the wheel but unreachable).
 
 ## v0.3.3 — Generic repository (P1)
 
-No API change. Prerequisite for v0.4.0, v0.6.0 and v0.8.0, which all add tables or columns.
+Prepared 2026-10-13, not published separately: shipped in v0.3.4. No API change. Prerequisite for v0.4.0, v0.6.0 and v0.8.0, which all add tables or columns.
 
-* **Refactor — Generic `HRVRepository`**: `repository.py` is 2 590 lines with a near-identical create / save / load trio per protocol. Drive it with one table specification per protocol; public methods stay as thin wrappers. The 55 integration tests now running in CI are the safety net.
+* ✅ **Refactor — Generic `HRVRepository`**: one `_ProtocolTable` specification per protocol table, generic `_create` / `_upsert` / `_select`, public methods as one-line wrappers. Code −31 % (1 448 → 993 lines, docstrings kept); SQL and loaded objects verified identical before / after. Adding a table is documented in `docs/database/migration_guide.md`.
+
+## v0.3.4 — Sports (P1)
+
+Ready 2026-10-16 — also ships v0.3.3. No schema change (`sport_type` stays a `TEXT` column, now holding normalised codes). No change to computed values. Needed by the cardioanalysis site (activity list of « Saisir une séance », colours of the weekly load chart).
+
+* ✅ **Sports reference list**: one module (`cardiolab/sports.py`) defining each sport once — code (`running`, `cycling`, `swimming`, `trail`, `strength`, `rowing`, `hiking`, `skiing`, team sports…), FR / EN labels, colour, family (endurance, strength, team sports, other) — plus `normalize_sport()` mapping free text and import names (« Course à pied », `run`, Garmin FIT sport / sub-sport codes) to a code. `_DEFAULT_SPORT_COLORS` of `training_load_plots.py` and the labels read from it.
+* ✅ **Sport validated on save**: `save_training_session()` stores the reference code and rejects unknown sports with a suggestion (`validate_sport()`), so typos never reach the database.
+* ✅ **Sport read from `.fit` files**: `extract_training_session_garmin()` also returns the activity sport (FIT `sport` / `sub_sport` fields), normalised with the reference list.
 
 ## v0.4.0 — Signal reliability (P1)
 
@@ -65,18 +74,22 @@ No API change. Prerequisite for v0.4.0, v0.6.0 and v0.8.0, which all add tables 
 * **Entropy convention**: `sampen` counts B over the N−m+1 m-length templates, whereas Richman & Moorman (2000) use the first N−m templates for both A and B. Small bias, but values change: align with the reference definition here (kept identical in v0.3.2, where only speed changed).
 * **Spectral analysis — Welch window, single interpolation, Lomb-Scargle**: Welch window 64 s → 256 s with 50 % overlap (resolution 0.016 → 0.004 Hz); merge `RRSeries.interpolate` and `frequency_domain._interpolate` (cubic spline, 4 Hz); add `method="lomb"` (no interpolation, suited to irregular / PPG data).
 * **Signal quality index per session**: share of corrected beats, effective duration, quality grade; stored (V005), shown in reports, and low-quality sessions excluded from the baseline by default.
+* **Bug — VO2max RMSSD model (Esco & Flatt)**: `vo2_ef = 18.37 + 0.054 × RMSSD` returns 19.5–23.8 mL/kg/min over the whole normal RMSSD range (20–100 ms), versus ~50 for the ln-RMSSD and Uth models on the same athlete — every user without `hr_max` is classed « poor » / « fair ». Check the coefficients against Esco & Flatt (2014) and fix (or drop the model); test that the three models agree within a plausible range on realistic profiles.
 * **Reprocess history from `hrv_raw_sessions`**: recompute features and scores of past sessions with the new pipeline, plus a migration note for users.
 
 ## v0.5.0 — Athlete longitudinal monitoring (P2)
 
-No schema change — computed from the existing history.
+DB: migration V006 (`rpe` column on training sessions). Monitoring metrics are computed from the existing history; the real trend component changes readiness values (reprocessing note).
 
 * **7-day rolling lnRMSSD, CV and smallest worthwhile change (Plews, Buchheit)**: the reference approach for monitoring training adaptation. Rolling mean lnRMSSD, coefficient of variation, SWC band (±0.5 SD of the baseline) and interpretation (coping / maladaptation / overreaching).
+* **Readiness — a real trend component**: the 20 % « trend » of `readiness_score_multi` compares today's RMSSD with the median of the last 7 sessions — the same reference as the main RMSSD component (35 %), so RMSSD actually weighs ~55 % and no trend is measured. Replace it with the **change of the 7-day rolling mean of lnRMSSD versus the previous week**, scaled by the athlete's smallest worthwhile change (SWC): stable within ±SWC → ≈ 50, sustained rise → up to 100, sustained decline → down to 0; neutral (50) until 14 days of data. Changes readiness values → reprocessing note. Already described this way on the cardioanalysis site.
+* **VO2max — age- and sex-adjusted categories**: `_fitness_category()` and `vo2max_score()` use one fixed ACSM scale for everyone; use the ACSM norms by age and sex from the user profile (`birth_year`, `sex` already stored in `user_profiles`). The site already says the categories « do not yet take age and sex into account ».
+* **Effort-based load — session RPE (Foster 2001)**: load = duration × perceived effort (0–10 scale), for every sport and without heart rate. Heart-rate load (`trimp_banister`) suits endurance but underestimates strength and short intervals; the HRV method needs a morning measure. Adds `trimp_session_rpe()` and an `rpe` column on training sessions (migration V006); the site's « Saisir une séance » gets an effort field.
 * **Trend analysis**: refactor `trends.py` — slope, r², p-value over a sliding window, relative threshold, sustained-decline detection, trend report.
 
 ## v0.6.0 — Exercise protocols (P2)
 
-DB: migration V006 (exercise test results). Requires v0.4.0 (DFA α1 is very sensitive to artefacts).
+DB: migration V007 (exercise test results). Requires v0.4.0 (DFA α1 is very sensitive to artefacts).
 
 * **DFA α1 during exercise — ventilatory thresholds (VT1 / VT2)**: windowed DFA α1 (2 min, rolling) on an incremental test; HR and power at α1 = 0.75 (aerobic threshold) and α1 = 0.5 (anaerobic threshold). Garmin `.fit` and Polar H10 already provide the RR data.
 * **Submaximal fitness test (LSCT, Lamberts 2011)**: standardised 3-stage test; HR at each stage + HRR60; weekly monitoring without a maximal test.
@@ -90,7 +103,7 @@ Most useful with ~100+ sessions per user.
 
 ## v0.8.0 — Autonomic function tests (P3)
 
-DB: migration V007.
+DB: migration V008.
 
 * **Ewing battery**: deep breathing (6 breaths/min, E/I ratio), Valsalva ratio, 30:15 ratio on standing (reuses orthostatic phase detection). Clinical reference values by age.
 
@@ -112,6 +125,7 @@ DB: migration V007.
 * Lipponen, J. A., & Tarvainen, M. P. (2019). A robust algorithm for heart rate variability time series artefact correction using novel beat classification. *Journal of Medical Engineering & Technology*, 43(3), 173–181.
 * Plews, D. J., Laursen, P. B., Kilding, A. E., & Buchheit, M. (2012). Heart rate variability in elite triathletes: is variation in variability the key to effective training? *European Journal of Applied Physiology*, 112(11), 3729–3741.
 * Buchheit, M. (2014). Monitoring training status with HR measures: do all roads lead to Rome? *Frontiers in Physiology*, 5, 73.
+* Foster, C., et al. (2001). A new approach to monitoring exercise training. *Journal of Strength and Conditioning Research*, 15(1), 109–115.
 * Rogers, B., Giles, D., Draper, N., Hoos, O., & Gronwald, T. (2021). A new detection method defining the aerobic threshold for endurance exercise and training prescription based on fractal correlation properties of heart rate variability. *Frontiers in Physiology*, 11, 596567.
 * Lamberts, R. P., Swart, J., Noakes, T. D., & Lambert, M. I. (2011). A novel submaximal cycle test to monitor fatigue and predict cycling performance. *British Journal of Sports Medicine*, 45(10), 797–804.
 * Ewing, D. J., Martyn, C. N., Young, R. J., & Clarke, B. F. (1985). The value of cardiovascular autonomic function tests: 10 years experience in diabetes. *Diabetes Care*, 8(5), 491–498.

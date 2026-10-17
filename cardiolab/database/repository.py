@@ -1,6 +1,6 @@
 """PostgreSQL repository for HRV feature storage and retrieval.
 
-Manages seven tables through a single class:
+Manages the cardiolab tables through a single class:
 
 * **Raw sessions** (``hrv_raw_sessions``): raw RR intervals in ms for every
   recorded session. Source of truth that allows reprocessing with different
@@ -38,6 +38,13 @@ Typical usage::
         repo.create_vo2max_table()
         repo.save_vo2max(vo2max_result, user_id="alice", date="2026-05-15")
 
+Implementation:
+    The six protocol tables keyed by ``UNIQUE(user_id, date)`` are described by
+    ``_ProtocolTable`` specifications (column registry + row → result function)
+    and handled by the generic ``_create`` / ``_upsert`` / ``_select`` methods;
+    the public ``create_* / save_* / load_*`` methods are thin wrappers. See
+    ``docs/database/migration_guide.md`` to add a protocol table.
+
 Schema migrations:
     Use :func:`HRVRepository.run_migrations` (or the standalone
     :func:`cardiolab.database.migrator.run_migrations`) to apply pending SQL
@@ -48,10 +55,13 @@ Schema migrations:
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from psycopg2 import connect, sql
 from psycopg2.extras import Json
@@ -63,6 +73,7 @@ from cardiolab.protocols.orthostatic import OrthostaticResult
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.protocols.vo2max import VO2maxResult
 from cardiolab.signals.rr import RRSeries
+from cardiolab.sports import validate_sport
 
 # ======================
 # VALIDATION
@@ -89,42 +100,59 @@ def _validate_identifier(name: str) -> None:
 
 
 # ======================
-# RESTING — COLUMN REGISTRY
+# COLUMN REGISTRIES
 # ======================
+#
+# Each protocol table is described by an ordered ``{column_name: sql_type}``
+# registry starting with the ``user_id`` / ``date`` key. Metric column names
+# are the attribute names of the protocol result dataclass, so rows can be
+# written and read by name (see ``_ProtocolTable`` below).
+
+
+def _data_columns(columns: dict[str, str]) -> list[str]:
+    """Return the metric columns of a registry (everything but ``user_id`` / ``date``)."""
+    return [c for c in columns if c not in ("user_id", "date")]
+
+
+# The 19 HRV indicators stored for a resting session and for each orthostatic
+# phase, in storage order: time domain, frequency domain, non-linear.
+_HRV_METRICS: tuple[str, ...] = (
+    "rmssd",
+    "ln_rmssd",
+    "sdnn",
+    "pnn50",
+    "mean_hr",
+    "vlf",
+    "lf",
+    "hf",
+    "lf_hf",
+    "hf_pct",
+    "lf_nu",
+    "hf_nu",
+    "hf_hr",
+    "sd1",
+    "sd2",
+    "sd_ratio",
+    "dfa_alpha1",
+    "apen",
+    "sampen",
+)
+
+# ── Resting ──────────────────────────────────────────────────────────────────
 
 _HRV_COLUMNS: dict[str, str] = {
     "user_id": "TEXT NOT NULL",
     "date": "DATE NOT NULL",
-    "rmssd": "FLOAT",
-    "ln_rmssd": "FLOAT",
-    "sdnn": "FLOAT",
-    "pnn50": "FLOAT",
-    "mean_hr": "FLOAT",
-    "vlf": "FLOAT",
-    "lf": "FLOAT",
-    "hf": "FLOAT",
-    "lf_hf": "FLOAT",
-    "hf_pct": "FLOAT",
-    "lf_nu": "FLOAT",
-    "hf_nu": "FLOAT",
-    "hf_hr": "FLOAT",
-    "sd1": "FLOAT",
-    "sd2": "FLOAT",
-    "sd_ratio": "FLOAT",
-    "dfa_alpha1": "FLOAT",
-    "apen": "FLOAT",
-    "sampen": "FLOAT",
+    **dict.fromkeys(_HRV_METRICS, "FLOAT"),
     "duration": "FLOAT",
     "score": "FLOAT",
     "method": "TEXT",
 }
 
-_DATA_COLUMNS: list[str] = [c for c in _HRV_COLUMNS if c not in ("user_id", "date")]
+_DATA_COLUMNS: list[str] = _data_columns(_HRV_COLUMNS)
 
 
-# ======================
-# ORTHOSTATIC — COLUMN REGISTRY
-# ======================
+# ── Orthostatic ──────────────────────────────────────────────────────────────
 
 
 def _hrv_fields(prefix: str) -> dict[str, str]:
@@ -144,27 +172,7 @@ def _hrv_fields(prefix: str) -> dict[str, str]:
         Ordered dict ``{column_name: sql_type}``.
 
     """
-    return {
-        f"{prefix}_rmssd": "FLOAT",
-        f"{prefix}_ln_rmssd": "FLOAT",
-        f"{prefix}_sdnn": "FLOAT",
-        f"{prefix}_pnn50": "FLOAT",
-        f"{prefix}_mean_hr": "FLOAT",
-        f"{prefix}_vlf": "FLOAT",
-        f"{prefix}_lf": "FLOAT",
-        f"{prefix}_hf": "FLOAT",
-        f"{prefix}_lf_hf": "FLOAT",
-        f"{prefix}_hf_pct": "FLOAT",
-        f"{prefix}_lf_nu": "FLOAT",
-        f"{prefix}_hf_nu": "FLOAT",
-        f"{prefix}_hf_hr": "FLOAT",
-        f"{prefix}_sd1": "FLOAT",
-        f"{prefix}_sd2": "FLOAT",
-        f"{prefix}_sd_ratio": "FLOAT",
-        f"{prefix}_dfa_alpha1": "FLOAT",
-        f"{prefix}_apen": "FLOAT",
-        f"{prefix}_sampen": "FLOAT",
-    }
+    return {f"{prefix}_{metric}": "FLOAT" for metric in _HRV_METRICS}
 
 
 _ORTHO_COLUMNS: dict[str, str] = {
@@ -201,14 +209,9 @@ _ORTHO_COLUMNS: dict[str, str] = {
     "score": "FLOAT DEFAULT 0.0",
 }
 
-_ORTHO_DATA_COLUMNS: list[str] = [
-    c for c in _ORTHO_COLUMNS if c not in ("user_id", "date")
-]
+_ORTHO_DATA_COLUMNS: list[str] = _data_columns(_ORTHO_COLUMNS)
 
-
-# ======================
-# COHERENCE — COLUMN REGISTRY
-# ======================
+# ── Cardiac coherence ────────────────────────────────────────────────────────
 
 _COHERENCE_COLUMNS: dict[str, str] = {
     "user_id": "TEXT NOT NULL",
@@ -224,14 +227,7 @@ _COHERENCE_COLUMNS: dict[str, str] = {
     "score": "FLOAT DEFAULT 0.0",
 }
 
-_COHERENCE_DATA_COLUMNS: list[str] = [
-    c for c in _COHERENCE_COLUMNS if c not in ("user_id", "date")
-]
-
-
-# ======================
-# HRR — COLUMN REGISTRY
-# ======================
+# ── Heart Rate Recovery ──────────────────────────────────────────────────────
 
 _HRR_COLUMNS: dict[str, str] = {
     "user_id": "TEXT NOT NULL",
@@ -247,12 +243,7 @@ _HRR_COLUMNS: dict[str, str] = {
     "score": "FLOAT DEFAULT 0.0",
 }
 
-_HRR_DATA_COLUMNS: list[str] = [c for c in _HRR_COLUMNS if c not in ("user_id", "date")]
-
-
-# ======================
-# DRIFT — COLUMN REGISTRY
-# ======================
+# ── Cardiac drift ────────────────────────────────────────────────────────────
 
 _DRIFT_COLUMNS: dict[str, str] = {
     "user_id": "TEXT NOT NULL",
@@ -269,14 +260,7 @@ _DRIFT_COLUMNS: dict[str, str] = {
     "score": "FLOAT DEFAULT 0.0",
 }
 
-_DRIFT_DATA_COLUMNS: list[str] = [
-    c for c in _DRIFT_COLUMNS if c not in ("user_id", "date")
-]
-
-
-# ======================
-# VO2MAX — COLUMN REGISTRY
-# ======================
+# ── VO2max ───────────────────────────────────────────────────────────────────
 
 _VO2MAX_COLUMNS: dict[str, str] = {
     "user_id": "TEXT NOT NULL",
@@ -291,10 +275,6 @@ _VO2MAX_COLUMNS: dict[str, str] = {
     "fitness_category": "TEXT",
     "score": "FLOAT DEFAULT 0.0",
 }
-
-_VO2MAX_DATA_COLUMNS: list[str] = [
-    c for c in _VO2MAX_COLUMNS if c not in ("user_id", "date")
-]
 
 
 # ======================
@@ -509,8 +489,8 @@ def _features_from_row(
 ) -> HRVFeatures:
     """Reconstruct an ``HRVFeatures`` from 19 consecutive row values.
 
-    Reads ``row[offset]`` through ``row[offset + 18]`` in the order produced
-    by ``_hrv_fields()``: rmssd, ln_rmssd, sdnn, pnn50, mean_hr, vlf, lf, hf,
+    Reads ``row[offset]`` through ``row[offset + 18]`` in the order of
+    ``_HRV_METRICS``: rmssd, ln_rmssd, sdnn, pnn50, mean_hr, vlf, lf, hf,
     lf_hf, hf_pct, lf_nu, hf_nu, hf_hr, sd1, sd2, sd_ratio, dfa_alpha1,
     apen, sampen.
 
@@ -524,29 +504,36 @@ def _features_from_row(
         A populated ``HRVFeatures`` instance.
 
     """
+    values = row[offset : offset + len(_HRV_METRICS)]
     return HRVFeatures(
         date=date,
-        rmssd=row[offset],
-        ln_rmssd=row[offset + 1],
-        sdnn=row[offset + 2],
-        pnn50=row[offset + 3],
-        mean_hr=row[offset + 4],
-        vlf=row[offset + 5],
-        lf=row[offset + 6],
-        hf=row[offset + 7],
-        lf_hf=row[offset + 8],
-        hf_pct=row[offset + 9],
-        lf_nu=row[offset + 10],
-        hf_nu=row[offset + 11],
-        hf_hr=row[offset + 12],
-        sd1=row[offset + 13],
-        sd2=row[offset + 14],
-        sd_ratio=row[offset + 15],
-        dfa_alpha1=row[offset + 16],
-        apen=row[offset + 17],
-        sampen=row[offset + 18],
         duration=duration,
+        **dict(zip(_HRV_METRICS, values, strict=True)),
     )
+
+
+def _phase_features(
+    r: dict,
+    prefix: str,
+    date: str,
+    duration: float = 0.0,
+) -> HRVFeatures:
+    """Rebuild the ``HRVFeatures`` of one orthostatic phase from a named row.
+
+    Args:
+        r: Row as ``{column_name: value}``.
+        prefix: Phase prefix — ``"supine"``, ``"transition"`` or ``"standing"``.
+        date: Session date attached to the features.
+        duration: Phase duration in seconds.
+
+    Returns:
+        The phase features, with the session-wide spectral method.
+
+    """
+    values = tuple(r[f"{prefix}_{metric}"] for metric in _HRV_METRICS)
+    features = _features_from_row(values, offset=0, date=date, duration=duration)
+    features.method = r["spectral_method"] or "welch"
+    return features
 
 
 def _build_ortho_row(
@@ -556,17 +543,10 @@ def _build_ortho_row(
 ) -> tuple:
     """Flatten an ``OrthostaticResult`` into a DB row tuple.
 
-    The tuple order matches ``["user_id", "date"] + _ORTHO_DATA_COLUMNS``
-    exactly and must stay in sync with ``_ORTHO_COLUMNS``.
-
-    Column layout (71 data values after user_id + date):
-
-    * supine HRV (19) + supine_duration_sec (1)
-    * transition timing (5)
-    * transition HRV (19)
-    * standing HRV (19) + standing_duration_sec (1)
-    * derived metrics (5)
-    * spectral_method (1) + score (1)
+    Values are gathered by column name and returned in the order of
+    ``_ORTHO_COLUMNS`` (``user_id``, ``date``, then ``_ORTHO_DATA_COLUMNS``),
+    so the row can never drift out of sync with the schema: a column without
+    a value raises ``KeyError``.
 
     Args:
         result: Protocol output from ``orthostatic_hrv()``.
@@ -574,99 +554,234 @@ def _build_ortho_row(
         date: ISO date string for the session.
 
     Returns:
-        A flat tuple ready for ``cursor.executemany()``.
+        A flat tuple ready for ``cursor.execute()``.
 
     """
     p = result.phases
-    sf = p.supine.features
-    tf = p.transition.features
-    stf = p.standing.features
+    values: dict = {"user_id": user_id, "date": date}
+    for prefix, phase in (
+        ("supine", p.supine),
+        ("transition", p.transition),
+        ("standing", p.standing),
+    ):
+        values.update(
+            {f"{prefix}_{m}": getattr(phase.features, m) for m in _HRV_METRICS}
+        )
+    values.update(
+        supine_duration_sec=p.supine.duration_sec,
+        transition_start_sec=p.transition.start_sec,
+        transition_end_sec=p.transition.end_sec,
+        transition_duration_sec=p.transition.duration_sec,
+        transition_delta_hr=p.transition.delta_hr,
+        transition_peak_hr=p.transition.peak_hr,
+        standing_duration_sec=p.standing.duration_sec,
+        hr_response=result.hr_response,
+        lf_hf_ratio_change=result.lf_hf_ratio_change,
+        hf_response_pct=result.hf_response_pct,
+        hf_hr_pct_change=result.hf_hr_pct_change,
+        lf_hr_pct_change=result.lf_hr_pct_change,
+        delta_rmssd=result.delta_rmssd,
+        interpretation=result.interpretation,
+        # Same spectral method for all phases — stored once
+        spectral_method=p.supine.features.method,
+        score=result.score,
+    )
+    return tuple(values[c] for c in _ORTHO_COLUMNS)
 
-    return (
-        user_id,
-        date,
-        # supine HRV (19)
-        sf.rmssd,
-        sf.ln_rmssd,
-        sf.sdnn,
-        sf.pnn50,
-        sf.mean_hr,
-        sf.vlf,
-        sf.lf,
-        sf.hf,
-        sf.lf_hf,
-        sf.hf_pct,
-        sf.lf_nu,
-        sf.hf_nu,
-        sf.hf_hr,
-        sf.sd1,
-        sf.sd2,
-        sf.sd_ratio,
-        sf.dfa_alpha1,
-        sf.apen,
-        sf.sampen,
-        # supine_duration_sec (1)
-        p.supine.duration_sec,
-        # transition timing (5)
-        p.transition.start_sec,
-        p.transition.end_sec,
-        p.transition.duration_sec,
-        p.transition.delta_hr,
-        p.transition.peak_hr,
-        # transition HRV (19)
-        tf.rmssd,
-        tf.ln_rmssd,
-        tf.sdnn,
-        tf.pnn50,
-        tf.mean_hr,
-        tf.vlf,
-        tf.lf,
-        tf.hf,
-        tf.lf_hf,
-        tf.hf_pct,
-        tf.lf_nu,
-        tf.hf_nu,
-        tf.hf_hr,
-        tf.sd1,
-        tf.sd2,
-        tf.sd_ratio,
-        tf.dfa_alpha1,
-        tf.apen,
-        tf.sampen,
-        # standing HRV (19)
-        stf.rmssd,
-        stf.ln_rmssd,
-        stf.sdnn,
-        stf.pnn50,
-        stf.mean_hr,
-        stf.vlf,
-        stf.lf,
-        stf.hf,
-        stf.lf_hf,
-        stf.hf_pct,
-        stf.lf_nu,
-        stf.hf_nu,
-        stf.hf_hr,
-        stf.sd1,
-        stf.sd2,
-        stf.sd_ratio,
-        stf.dfa_alpha1,
-        stf.apen,
-        stf.sampen,
-        # standing_duration_sec (1)
-        p.standing.duration_sec,
-        # derived (7)
-        result.hr_response,
-        result.lf_hf_ratio_change,
-        result.hf_response_pct,
-        result.hf_hr_pct_change,
-        result.lf_hr_pct_change,
-        result.delta_rmssd,
-        result.interpretation,
-        # spectral_method (1) — same for all phases
-        sf.method,
-        # autonomic score (1)
-        result.score,
+
+# ── Row → result object (one per protocol table) ─────────────────────────────
+# Each receives {"date": …, <data column>: …} and restores the defaults of
+# nullable columns exactly as stored results are expected downstream.
+
+
+def _or(value, default):
+    """Return ``default`` when a nullable column is NULL."""
+    return default if value is None else value
+
+
+def _resting_from_row(r: dict) -> HRVFeatures:
+    """Rebuild a resting session."""
+    return HRVFeatures(**r | {"date": str(r["date"]), "method": r["method"] or "welch"})
+
+
+def _ortho_record_from_row(r: dict) -> OrthostaticRecord:
+    """Rebuild an orthostatic session (three phases + derived metrics)."""
+    date = str(r["date"])
+    return OrthostaticRecord(
+        date=date,
+        supine=_phase_features(r, "supine", date, r["supine_duration_sec"]),
+        transition_start_sec=r["transition_start_sec"],
+        transition_end_sec=r["transition_end_sec"],
+        transition_duration_sec=r["transition_duration_sec"],
+        transition_delta_hr=r["transition_delta_hr"],
+        transition_peak_hr=r["transition_peak_hr"],
+        transition_features=_phase_features(r, "transition", date),
+        standing=_phase_features(r, "standing", date, r["standing_duration_sec"]),
+        hr_response=r["hr_response"],
+        lf_hf_ratio_change=r["lf_hf_ratio_change"],
+        hf_response_pct=r["hf_response_pct"],
+        hf_hr_pct_change=r["hf_hr_pct_change"],
+        lf_hr_pct_change=r["lf_hr_pct_change"],
+        delta_rmssd=r["delta_rmssd"],
+        interpretation=r["interpretation"],
+        score=r["score"] or 0.0,
+    )
+
+
+def _coherence_from_row(r: dict) -> CoherenceResult:
+    """Rebuild a cardiac coherence session."""
+    return CoherenceResult(
+        **r | {"date": str(r["date"]), "score": _or(r["score"], 0.0)}
+    )
+
+
+def _hrr_from_row(r: dict) -> HRRResult:
+    """Rebuild a Heart Rate Recovery session (HRR2 is NULL for < 120 s)."""
+    return HRRResult(
+        **r
+        | {
+            "date": str(r["date"]),
+            "hr_at_120s": _or(r["hr_at_120s"], math.nan),
+            "hrr_120": _or(r["hrr_120"], math.nan),
+            "hrr_60_category": r["hrr_60_category"] or "",
+            "hrr_120_category": r["hrr_120_category"] or "",
+            "score": _or(r["score"], 0.0),
+        }
+    )
+
+
+def _drift_from_row(r: dict) -> DriftResult:
+    """Rebuild a cardiac drift session."""
+    return DriftResult(
+        **r
+        | {
+            "date": str(r["date"]),
+            "drift_detected": bool(r["drift_detected"]),
+            "n_windows": int(r["n_windows"]),
+            "interpretation": r["interpretation"] or "no_drift",
+            "score": _or(r["score"], 0.0),
+        }
+    )
+
+
+def _vo2max_from_row(r: dict) -> VO2maxResult:
+    """Rebuild a VO2max estimation (Uth model is NULL without hr_max)."""
+    return VO2maxResult(
+        **r
+        | {
+            "date": str(r["date"]),
+            "vo2max_uth": _or(r["vo2max_uth"], math.nan),
+            "hr_max": _or(r["hr_max"], math.nan),
+            "fitness_category": r["fitness_category"] or "poor",
+            "score": _or(r["score"], 0.0),
+        }
+    )
+
+
+# ======================
+# PROTOCOL TABLE SPECIFICATIONS
+# ======================
+
+
+@dataclass(frozen=True)
+class _ProtocolTable:
+    """Storage specification of a protocol table keyed by ``UNIQUE(user_id, date)``.
+
+    Drives the generic ``HRVRepository._create`` / ``_upsert`` / ``_select``
+    methods, so adding a protocol table only takes a column registry and a
+    ``from_row`` function.
+
+    Attributes:
+        table_attr: Name of the ``HRVRepository`` attribute holding the table
+            name (table names are configurable per repository instance).
+        columns: Column registry ``{name: sql_type}``, ``user_id`` and ``date``
+            first; metric columns are named after the result attributes.
+        from_row: Builds the result object from ``{"date": …, <metric>: …}``.
+
+    """
+
+    table_attr: str
+    columns: dict[str, str]
+    from_row: Callable[[dict], Any]
+
+    @property
+    def data_columns(self) -> list[str]:
+        """Metric columns, in storage order."""
+        return _data_columns(self.columns)
+
+    def values(self, result: Any) -> tuple:
+        """Read the metric column values from the same-named result attributes."""
+        return tuple(getattr(result, c) for c in self.data_columns)
+
+
+_RESTING = _ProtocolTable("table_name", _HRV_COLUMNS, _resting_from_row)
+_ORTHOSTATIC = _ProtocolTable(
+    "ortho_table_name", _ORTHO_COLUMNS, _ortho_record_from_row
+)
+_COHERENCE = _ProtocolTable(
+    "coherence_table_name", _COHERENCE_COLUMNS, _coherence_from_row
+)
+_HRR = _ProtocolTable("hrr_table_name", _HRR_COLUMNS, _hrr_from_row)
+_DRIFT = _ProtocolTable("drift_table_name", _DRIFT_COLUMNS, _drift_from_row)
+_VO2MAX = _ProtocolTable("vo2max_table_name", _VO2MAX_COLUMNS, _vo2max_from_row)
+
+
+# ======================
+# QUERY BUILDERS
+# ======================
+# Table and column names always go through ``sql.Identifier``; column types
+# come from the constant registries above (or validated ``extra_columns``).
+
+
+def _create_table_query(table: str, columns: dict[str, str]) -> sql.Composed:
+    """``CREATE TABLE IF NOT EXISTS`` with a serial id and ``UNIQUE(user_id, date)``."""
+    columns_sql = ",\n    ".join(
+        f"{name} {sql_type}" for name, sql_type in columns.items()
+    )
+    return sql.SQL(
+        "CREATE TABLE IF NOT EXISTS {table} (\n"
+        "    id SERIAL PRIMARY KEY,\n"
+        "    {columns},\n"
+        "    UNIQUE(user_id, date)\n"
+        ");"
+    ).format(table=sql.Identifier(table), columns=sql.SQL(columns_sql))
+
+
+def _upsert_query(table: str, data_columns: list[str]) -> sql.Composed:
+    """``INSERT … ON CONFLICT (user_id, date) DO UPDATE`` on every metric column."""
+    all_cols = ["user_id", "date", *data_columns]
+    return sql.SQL(
+        "INSERT INTO {table} ({cols}) VALUES ({vals})\n"
+        "ON CONFLICT (user_id, date) DO UPDATE SET {update};"
+    ).format(
+        table=sql.Identifier(table),
+        cols=sql.SQL(", ").join(sql.Identifier(c) for c in all_cols),
+        vals=sql.SQL(", ").join(sql.Placeholder() for _ in all_cols),
+        update=sql.SQL(", ").join(
+            sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
+            for c in data_columns
+        ),
+    )
+
+
+def _select_query(
+    table: str,
+    data_columns: list[str],
+    *,
+    single_date: bool,
+) -> sql.Composed:
+    """Select ``date`` + metric columns for a user — whole history or one date."""
+    if single_date:
+        template = sql.SQL(
+            "SELECT {cols}\nFROM {table}\nWHERE user_id = %s AND date::date = %s;"
+        )
+    else:
+        template = sql.SQL(
+            "SELECT {cols}\nFROM {table}\nWHERE user_id = %s\nORDER BY date ASC;"
+        )
+    return template.format(
+        cols=sql.SQL(", ").join(sql.Identifier(c) for c in ["date", *data_columns]),
+        table=sql.Identifier(table),
     )
 
 
@@ -913,7 +1028,67 @@ class HRVRepository:
 
         return _run(self._conn_or_raise())
 
-    # ── Resting — schema ─────────────────────────────────────────────────
+    # ── Generic protocol-table operations ────────────────────────────────
+
+    def _create(
+        self, spec: _ProtocolTable, columns: dict[str, str] | None = None
+    ) -> None:
+        """Create a protocol table (``CREATE TABLE IF NOT EXISTS``).
+
+        Args:
+            spec: Table specification.
+            columns: Column registry overriding ``spec.columns`` (custom
+                resting schemas).
+
+        """
+        query = _create_table_query(
+            getattr(self, spec.table_attr), columns or spec.columns
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query)
+
+    def _upsert(self, spec: _ProtocolTable, row: tuple) -> None:
+        """Insert or update one ``(user_id, date, *metrics)`` row."""
+        query = _upsert_query(getattr(self, spec.table_attr), spec.data_columns)
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, row)
+
+    def _select(
+        self,
+        spec: _ProtocolTable,
+        user_id: str,
+        date: str | None = None,
+    ) -> list:
+        """Load a user's sessions — all of them by ascending date, or those of ``date``.
+
+        Args:
+            spec: Table specification.
+            user_id: Identifier of the user whose sessions are retrieved.
+            date: ISO date string; only the date part (``[:10]``) is matched.
+                ``None`` loads the whole history.
+
+        Returns:
+            Result objects built by ``spec.from_row``.
+
+        """
+        query = _select_query(
+            getattr(self, spec.table_attr),
+            spec.data_columns,
+            single_date=date is not None,
+        )
+        params = (user_id,) if date is None else (user_id, date[:10])
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+        columns = ["date", *spec.data_columns]
+        return [spec.from_row(dict(zip(columns, row, strict=True))) for row in rows]
+
+    def _select_one(self, spec: _ProtocolTable, user_id: str, date: str):
+        """Return the session of ``date`` (unique per user and date), or ``None``."""
+        rows = self._select(spec, user_id, date)
+        return rows[0] if rows else None
+
+    # ── Resting ───────────────────────────────────────────────────────────
 
     def create_table(
         self,
@@ -955,23 +1130,7 @@ class HRVRepository:
                 _validate_identifier(k)
             fields.update(extra_columns)
 
-        columns_sql = ",\n    ".join(f"{k} {v}" for k, v in fields.items())
-
-        query = sql.SQL(
-            "CREATE TABLE IF NOT EXISTS {table} (\n"
-            "    id SERIAL PRIMARY KEY,\n"
-            "    {columns},\n"
-            "    UNIQUE(user_id, date)\n"
-            ");"
-        ).format(
-            table=sql.Identifier(self.table_name),
-            columns=sql.SQL(columns_sql),
-        )
-
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query)
-
-    # ── Resting — write ───────────────────────────────────────────────────
+        self._create(_RESTING, fields)
 
     def save_features(
         self,
@@ -997,60 +1156,11 @@ class HRVRepository:
         if isinstance(features, HRVFeatures):
             features = [features]
 
-        all_cols = ["user_id", "date"] + _DATA_COLUMNS
-        col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
-        placeholders = sql.SQL(", ").join(
-            sql.Placeholder() for _ in range(len(all_cols))
-        )
-        update_set = sql.SQL(", ").join(
-            sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
-            for c in _DATA_COLUMNS
-        )
-
-        query = sql.SQL(
-            "INSERT INTO {table} ({cols}) VALUES ({vals})\n"
-            "ON CONFLICT (user_id, date) DO UPDATE SET {update};"
-        ).format(
-            table=sql.Identifier(self.table_name),
-            cols=col_identifiers,
-            vals=placeholders,
-            update=update_set,
-        )
-
-        rows = [
-            (
-                user_id,
-                f.date,
-                f.rmssd,
-                f.ln_rmssd,
-                f.sdnn,
-                f.pnn50,
-                f.mean_hr,
-                f.vlf,
-                f.lf,
-                f.hf,
-                f.lf_hf,
-                f.hf_pct,
-                f.lf_nu,
-                f.hf_nu,
-                f.hf_hr,
-                f.sd1,
-                f.sd2,
-                f.sd_ratio,
-                f.dfa_alpha1,
-                f.apen,
-                f.sampen,
-                f.duration,
-                f.score,
-                f.method,
-            )
-            for f in features
-        ]
+        query = _upsert_query(self.table_name, _RESTING.data_columns)
+        rows = [(user_id, f.date, *_RESTING.values(f)) for f in features]
 
         with self._conn_or_raise().cursor() as cur:
             cur.executemany(query, rows)
-
-    # ── Resting — read ────────────────────────────────────────────────────
 
     def load_features(self, user_id: str) -> list[HRVFeatures]:
         """Load all resting HRV session records for a user, sorted by date.
@@ -1070,48 +1180,7 @@ class HRVRepository:
             psycopg2.Error: If the query fails.
 
         """
-        query = sql.SQL(
-            "SELECT date, rmssd, ln_rmssd, sdnn, pnn50, mean_hr,\n"
-            "       vlf, lf, hf, lf_hf, hf_pct, lf_nu, hf_nu, hf_hr,\n"
-            "       sd1, sd2, sd_ratio, dfa_alpha1, apen, sampen,\n"
-            "       duration, score, method\n"
-            "FROM {table}\n"
-            "WHERE user_id = %s\n"
-            "ORDER BY date ASC;"
-        ).format(table=sql.Identifier(self.table_name))
-
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query, (user_id,))
-            rows = cur.fetchall()
-
-        return [
-            HRVFeatures(
-                date=str(row[0]),
-                rmssd=row[1],
-                ln_rmssd=row[2],
-                sdnn=row[3],
-                pnn50=row[4],
-                mean_hr=row[5],
-                vlf=row[6],
-                lf=row[7],
-                hf=row[8],
-                lf_hf=row[9],
-                hf_pct=row[10],
-                lf_nu=row[11],
-                hf_nu=row[12],
-                hf_hr=row[13],
-                sd1=row[14],
-                sd2=row[15],
-                sd_ratio=row[16],
-                dfa_alpha1=row[17],
-                apen=row[18],
-                sampen=row[19],
-                duration=row[20],
-                score=row[21],
-                method=row[22] or "welch",
-            )
-            for row in rows
-        ]
+        return self._select(_RESTING, user_id)
 
     def load_features_for_date(self, user_id: str, date: str) -> HRVFeatures | None:
         """Load the resting HRV session recorded on a specific date, or None.
@@ -1133,49 +1202,9 @@ class HRVRepository:
             psycopg2.Error: If the query fails.
 
         """
-        query = sql.SQL(
-            "SELECT date, rmssd, ln_rmssd, sdnn, pnn50, mean_hr,\n"
-            "       vlf, lf, hf, lf_hf, hf_pct, lf_nu, hf_nu, hf_hr,\n"
-            "       sd1, sd2, sd_ratio, dfa_alpha1, apen, sampen,\n"
-            "       duration, score, method\n"
-            "FROM {table}\n"
-            "WHERE user_id = %s AND date::date = %s;"
-        ).format(table=sql.Identifier(self.table_name))
+        return self._select_one(_RESTING, user_id, date)
 
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query, (user_id, date[:10]))
-            row = cur.fetchone()
-
-        if row is None:
-            return None
-
-        return HRVFeatures(
-            date=str(row[0]),
-            rmssd=row[1],
-            ln_rmssd=row[2],
-            sdnn=row[3],
-            pnn50=row[4],
-            mean_hr=row[5],
-            vlf=row[6],
-            lf=row[7],
-            hf=row[8],
-            lf_hf=row[9],
-            hf_pct=row[10],
-            lf_nu=row[11],
-            hf_nu=row[12],
-            hf_hr=row[13],
-            sd1=row[14],
-            sd2=row[15],
-            sd_ratio=row[16],
-            dfa_alpha1=row[17],
-            apen=row[18],
-            sampen=row[19],
-            duration=row[20],
-            score=row[21],
-            method=row[22] or "welch",
-        )
-
-    # ── Orthostatic — schema ──────────────────────────────────────────────
+    # ── Orthostatic ───────────────────────────────────────────────────────
 
     def create_orthostatic_table(self) -> None:
         """Create the orthostatic HRV table if it does not already exist.
@@ -1185,7 +1214,7 @@ class HRVRepository:
         and derived metrics. A ``UNIQUE(user_id, date)`` constraint supports
         safe upserts.
 
-        Column layout (72 total data columns after user_id + date):
+        Column layout (73 data columns after user_id + date):
 
         * ``supine_*`` — 19 HRV metrics + ``supine_duration_sec``
         * ``transition_start_sec``, ``transition_end_sec``,
@@ -1194,30 +1223,16 @@ class HRVRepository:
         * ``transition_*`` — 19 HRV metrics (short window, ≈ 20–60 s)
         * ``standing_*`` — 19 HRV metrics + ``standing_duration_sec``
         * ``hr_response``, ``lf_hf_ratio_change``, ``hf_response_pct``,
-          ``hf_hr_pct_change``, ``interpretation``
+          ``hf_hr_pct_change``, ``lf_hr_pct_change``, ``delta_rmssd``,
+          ``interpretation``
+        * ``spectral_method``, ``score``
 
         Raises:
             RuntimeError: If called outside a ``with`` block.
             psycopg2.Error: If the SQL statement is rejected.
 
         """
-        columns_sql = ",\n    ".join(f"{k} {v}" for k, v in _ORTHO_COLUMNS.items())
-
-        query = sql.SQL(
-            "CREATE TABLE IF NOT EXISTS {table} (\n"
-            "    id SERIAL PRIMARY KEY,\n"
-            "    {columns},\n"
-            "    UNIQUE(user_id, date)\n"
-            ");"
-        ).format(
-            table=sql.Identifier(self.ortho_table_name),
-            columns=sql.SQL(columns_sql),
-        )
-
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query)
-
-    # ── Orthostatic — write ───────────────────────────────────────────────
+        self._create(_ORTHOSTATIC)
 
     def save_orthostatic(
         self,
@@ -1241,32 +1256,7 @@ class HRVRepository:
             psycopg2.Error: If the insert fails.
 
         """
-        all_cols = ["user_id", "date"] + _ORTHO_DATA_COLUMNS
-        col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
-        placeholders = sql.SQL(", ").join(
-            sql.Placeholder() for _ in range(len(all_cols))
-        )
-        update_set = sql.SQL(", ").join(
-            sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
-            for c in _ORTHO_DATA_COLUMNS
-        )
-
-        query = sql.SQL(
-            "INSERT INTO {table} ({cols}) VALUES ({vals})\n"
-            "ON CONFLICT (user_id, date) DO UPDATE SET {update};"
-        ).format(
-            table=sql.Identifier(self.ortho_table_name),
-            cols=col_identifiers,
-            vals=placeholders,
-            update=update_set,
-        )
-
-        row = _build_ortho_row(result, user_id, date)
-
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query, row)
-
-    # ── Orthostatic — read ────────────────────────────────────────────────
+        self._upsert(_ORTHOSTATIC, _build_ortho_row(result, user_id, date))
 
     def load_orthostatic(self, user_id: str) -> list[OrthostaticRecord]:
         """Load all orthostatic session records for a user, sorted by date.
@@ -1274,16 +1264,6 @@ class HRVRepository:
         Reconstructs ``HRVFeatures`` objects for each phase from the stored
         column values so that ``record.supine.rmssd`` etc. work identically
         to the live protocol output.
-
-        Row index layout (date at [0], data columns from [1]):
-
-        * ``[1..19]``  — supine HRV (19)    ``[20]`` supine_duration_sec
-        * ``[21..25]`` — transition timing (5)
-        * ``[26..44]`` — transition HRV (19)
-        * ``[45..63]`` — standing HRV (19)  ``[64]`` standing_duration_sec
-        * ``[65..69]`` — derived metrics (5)
-        * ``[70]``     — spectral_method (TEXT)
-        * ``[71]``     — score (FLOAT)
 
         Args:
             user_id: Identifier of the user whose sessions are retrieved.
@@ -1297,62 +1277,7 @@ class HRVRepository:
             psycopg2.Error: If the query fails.
 
         """
-        select_cols = sql.SQL(", ").join(
-            sql.Identifier(c) for c in ["date"] + _ORTHO_DATA_COLUMNS
-        )
-
-        query = sql.SQL(
-            "SELECT {cols}\nFROM {table}\nWHERE user_id = %s\nORDER BY date ASC;"
-        ).format(
-            cols=select_cols,
-            table=sql.Identifier(self.ortho_table_name),
-        )
-
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query, (user_id,))
-            rows = cur.fetchall()
-
-        col_names = ["date"] + _ORTHO_DATA_COLUMNS
-        records = []
-        for raw in rows:
-            r = dict(zip(col_names, raw, strict=False))
-            date = str(r["date"])
-            # HRV phase offsets are positional (unchanged by adding derived cols at end):
-            # raw[1..19] supine HRV, raw[26..44] transition HRV, raw[45..63] standing HRV
-            spectral_method: str = r.get("spectral_method") or "welch"
-            supine = _features_from_row(
-                raw, offset=1, date=date, duration=r["supine_duration_sec"]
-            )
-            supine.method = spectral_method
-            transition = _features_from_row(raw, offset=26, date=date)
-            transition.method = spectral_method
-            standing = _features_from_row(
-                raw, offset=45, date=date, duration=r["standing_duration_sec"]
-            )
-            standing.method = spectral_method
-            records.append(
-                OrthostaticRecord(
-                    date=date,
-                    supine=supine,
-                    transition_start_sec=r["transition_start_sec"],
-                    transition_end_sec=r["transition_end_sec"],
-                    transition_duration_sec=r["transition_duration_sec"],
-                    transition_delta_hr=r["transition_delta_hr"],
-                    transition_peak_hr=r["transition_peak_hr"],
-                    transition_features=transition,
-                    standing=standing,
-                    hr_response=r["hr_response"],
-                    lf_hf_ratio_change=r["lf_hf_ratio_change"],
-                    hf_response_pct=r["hf_response_pct"],
-                    hf_hr_pct_change=r["hf_hr_pct_change"],
-                    lf_hr_pct_change=r["lf_hr_pct_change"],
-                    delta_rmssd=r["delta_rmssd"],
-                    interpretation=r["interpretation"],
-                    score=r.get("score") or 0.0,
-                )
-            )
-
-        return records
+        return self._select(_ORTHOSTATIC, user_id)
 
     def load_orthostatic_for_date(
         self, user_id: str, date: str
@@ -1376,58 +1301,9 @@ class HRVRepository:
             psycopg2.Error: If the query fails.
 
         """
-        select_cols = sql.SQL(", ").join(
-            sql.Identifier(c) for c in ["date"] + _ORTHO_DATA_COLUMNS
-        )
-        query = sql.SQL(
-            "SELECT {cols}\nFROM {table}\nWHERE user_id = %s AND date::date = %s;"
-        ).format(
-            cols=select_cols,
-            table=sql.Identifier(self.ortho_table_name),
-        )
+        return self._select_one(_ORTHOSTATIC, user_id, date)
 
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query, (user_id, date[:10]))
-            raw = cur.fetchone()
-
-        if raw is None:
-            return None
-
-        col_names = ["date"] + _ORTHO_DATA_COLUMNS
-        r = dict(zip(col_names, raw, strict=False))
-        date_str = str(r["date"])
-        spectral_method: str = r.get("spectral_method") or "welch"
-        supine = _features_from_row(
-            raw, offset=1, date=date_str, duration=r["supine_duration_sec"]
-        )
-        supine.method = spectral_method
-        transition = _features_from_row(raw, offset=26, date=date_str)
-        transition.method = spectral_method
-        standing = _features_from_row(
-            raw, offset=45, date=date_str, duration=r["standing_duration_sec"]
-        )
-        standing.method = spectral_method
-        return OrthostaticRecord(
-            date=date_str,
-            supine=supine,
-            transition_start_sec=r["transition_start_sec"],
-            transition_end_sec=r["transition_end_sec"],
-            transition_duration_sec=r["transition_duration_sec"],
-            transition_delta_hr=r["transition_delta_hr"],
-            transition_peak_hr=r["transition_peak_hr"],
-            transition_features=transition,
-            standing=standing,
-            hr_response=r["hr_response"],
-            lf_hf_ratio_change=r["lf_hf_ratio_change"],
-            hf_response_pct=r["hf_response_pct"],
-            hf_hr_pct_change=r["hf_hr_pct_change"],
-            lf_hr_pct_change=r["lf_hr_pct_change"],
-            delta_rmssd=r["delta_rmssd"],
-            interpretation=r["interpretation"],
-            score=r.get("score") or 0.0,
-        )
-
-    # ── Cardiac coherence — schema ────────────────────────────────────────
+    # ── Cardiac coherence ─────────────────────────────────────────────────
 
     def create_coherence_table(self) -> None:
         """Create the cardiac coherence session table if it does not exist.
@@ -1440,21 +1316,7 @@ class HRVRepository:
             psycopg2.Error: If the SQL statement is rejected.
 
         """
-        columns_sql = ",\n    ".join(f"{k} {v}" for k, v in _COHERENCE_COLUMNS.items())
-        query = sql.SQL(
-            "CREATE TABLE IF NOT EXISTS {table} (\n"
-            "    id SERIAL PRIMARY KEY,\n"
-            "    {columns},\n"
-            "    UNIQUE(user_id, date)\n"
-            ");"
-        ).format(
-            table=sql.Identifier(self.coherence_table_name),
-            columns=sql.SQL(columns_sql),
-        )
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query)
-
-    # ── Cardiac coherence — write ─────────────────────────────────────────
+        self._create(_COHERENCE)
 
     def save_coherence(
         self,
@@ -1474,41 +1336,7 @@ class HRVRepository:
             psycopg2.Error: If the insert fails.
 
         """
-        all_cols = ["user_id", "date"] + _COHERENCE_DATA_COLUMNS
-        col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
-        placeholders = sql.SQL(", ").join(
-            sql.Placeholder() for _ in range(len(all_cols))
-        )
-        update_set = sql.SQL(", ").join(
-            sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
-            for c in _COHERENCE_DATA_COLUMNS
-        )
-        query = sql.SQL(
-            "INSERT INTO {table} ({cols}) VALUES ({vals})\n"
-            "ON CONFLICT (user_id, date) DO UPDATE SET {update};"
-        ).format(
-            table=sql.Identifier(self.coherence_table_name),
-            cols=col_identifiers,
-            vals=placeholders,
-            update=update_set,
-        )
-        row = (
-            user_id,
-            date,
-            result.coherence_score,
-            result.resonance_freq,
-            result.peak_power,
-            result.total_power_resonance,
-            result.rmssd,
-            result.sdnn,
-            result.mean_hr,
-            result.duration,
-            result.score,
-        )
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query, row)
-
-    # ── Cardiac coherence — read ──────────────────────────────────────────
+        self._upsert(_COHERENCE, (user_id, date, *_COHERENCE.values(result)))
 
     def load_coherence(self, user_id: str) -> list[CoherenceResult]:
         """Load all cardiac coherence session records for a user.
@@ -1524,32 +1352,9 @@ class HRVRepository:
             psycopg2.Error: If the query fails.
 
         """
-        select_cols = sql.SQL(", ").join(
-            sql.Identifier(c) for c in ["date"] + _COHERENCE_DATA_COLUMNS
-        )
-        query = sql.SQL(
-            "SELECT {cols}\nFROM {table}\nWHERE user_id = %s\nORDER BY date ASC;"
-        ).format(cols=select_cols, table=sql.Identifier(self.coherence_table_name))
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query, (user_id,))
-            rows = cur.fetchall()
-        return [
-            CoherenceResult(
-                date=str(row[0]),
-                coherence_score=row[1],
-                resonance_freq=row[2],
-                peak_power=row[3],
-                total_power_resonance=row[4],
-                rmssd=row[5],
-                sdnn=row[6],
-                mean_hr=row[7],
-                duration=row[8],
-                score=row[9] if row[9] is not None else 0.0,
-            )
-            for row in rows
-        ]
+        return self._select(_COHERENCE, user_id)
 
-    # ── Heart Rate Recovery — schema ──────────────────────────────────────
+    # ── Heart Rate Recovery ───────────────────────────────────────────────
 
     def create_hrr_table(self) -> None:
         """Create the Heart Rate Recovery session table if it does not exist.
@@ -1562,21 +1367,7 @@ class HRVRepository:
             psycopg2.Error: If the SQL statement is rejected.
 
         """
-        columns_sql = ",\n    ".join(f"{k} {v}" for k, v in _HRR_COLUMNS.items())
-        query = sql.SQL(
-            "CREATE TABLE IF NOT EXISTS {table} (\n"
-            "    id SERIAL PRIMARY KEY,\n"
-            "    {columns},\n"
-            "    UNIQUE(user_id, date)\n"
-            ");"
-        ).format(
-            table=sql.Identifier(self.hrr_table_name),
-            columns=sql.SQL(columns_sql),
-        )
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query)
-
-    # ── Heart Rate Recovery — write ───────────────────────────────────────
+        self._create(_HRR)
 
     def save_hrr(
         self,
@@ -1596,41 +1387,7 @@ class HRVRepository:
             psycopg2.Error: If the insert fails.
 
         """
-        all_cols = ["user_id", "date"] + _HRR_DATA_COLUMNS
-        col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
-        placeholders = sql.SQL(", ").join(
-            sql.Placeholder() for _ in range(len(all_cols))
-        )
-        update_set = sql.SQL(", ").join(
-            sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
-            for c in _HRR_DATA_COLUMNS
-        )
-        query = sql.SQL(
-            "INSERT INTO {table} ({cols}) VALUES ({vals})\n"
-            "ON CONFLICT (user_id, date) DO UPDATE SET {update};"
-        ).format(
-            table=sql.Identifier(self.hrr_table_name),
-            cols=col_identifiers,
-            vals=placeholders,
-            update=update_set,
-        )
-        row = (
-            user_id,
-            date,
-            result.hr_peak,
-            result.hr_at_60s,
-            result.hr_at_120s,
-            result.hrr_60,
-            result.hrr_120,
-            result.hrr_60_category,
-            result.hrr_120_category,
-            result.duration,
-            result.score,
-        )
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query, row)
-
-    # ── Heart Rate Recovery — read ────────────────────────────────────────
+        self._upsert(_HRR, (user_id, date, *_HRR.values(result)))
 
     def load_hrr(self, user_id: str) -> list[HRRResult]:
         """Load all Heart Rate Recovery session records for a user.
@@ -1646,32 +1403,9 @@ class HRVRepository:
             psycopg2.Error: If the query fails.
 
         """
-        select_cols = sql.SQL(", ").join(
-            sql.Identifier(c) for c in ["date"] + _HRR_DATA_COLUMNS
-        )
-        query = sql.SQL(
-            "SELECT {cols}\nFROM {table}\nWHERE user_id = %s\nORDER BY date ASC;"
-        ).format(cols=select_cols, table=sql.Identifier(self.hrr_table_name))
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query, (user_id,))
-            rows = cur.fetchall()
-        return [
-            HRRResult(
-                date=str(row[0]),
-                hr_peak=row[1],
-                hr_at_60s=row[2],
-                hr_at_120s=row[3] if row[3] is not None else float("nan"),
-                hrr_60=row[4],
-                hrr_120=row[5] if row[5] is not None else float("nan"),
-                hrr_60_category=row[6] or "",
-                hrr_120_category=row[7] or "",
-                duration=row[8],
-                score=row[9] if row[9] is not None else 0.0,
-            )
-            for row in rows
-        ]
+        return self._select(_HRR, user_id)
 
-    # ── Cardiac drift — schema ────────────────────────────────────────────
+    # ── Cardiac drift ─────────────────────────────────────────────────────
 
     def create_drift_table(self) -> None:
         """Create the cardiac drift session table if it does not exist.
@@ -1684,21 +1418,7 @@ class HRVRepository:
             psycopg2.Error: If the SQL statement is rejected.
 
         """
-        columns_sql = ",\n    ".join(f"{k} {v}" for k, v in _DRIFT_COLUMNS.items())
-        query = sql.SQL(
-            "CREATE TABLE IF NOT EXISTS {table} (\n"
-            "    id SERIAL PRIMARY KEY,\n"
-            "    {columns},\n"
-            "    UNIQUE(user_id, date)\n"
-            ");"
-        ).format(
-            table=sql.Identifier(self.drift_table_name),
-            columns=sql.SQL(columns_sql),
-        )
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query)
-
-    # ── Cardiac drift — write ─────────────────────────────────────────────
+        self._create(_DRIFT)
 
     def save_drift(
         self,
@@ -1718,42 +1438,7 @@ class HRVRepository:
             psycopg2.Error: If the insert fails.
 
         """
-        all_cols = ["user_id", "date"] + _DRIFT_DATA_COLUMNS
-        col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
-        placeholders = sql.SQL(", ").join(
-            sql.Placeholder() for _ in range(len(all_cols))
-        )
-        update_set = sql.SQL(", ").join(
-            sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
-            for c in _DRIFT_DATA_COLUMNS
-        )
-        query = sql.SQL(
-            "INSERT INTO {table} ({cols}) VALUES ({vals})\n"
-            "ON CONFLICT (user_id, date) DO UPDATE SET {update};"
-        ).format(
-            table=sql.Identifier(self.drift_table_name),
-            cols=col_identifiers,
-            vals=placeholders,
-            update=update_set,
-        )
-        row = (
-            user_id,
-            date,
-            result.drift_rate,
-            result.drift_magnitude,
-            result.r_squared,
-            result.drift_detected,
-            result.initial_hr,
-            result.final_hr,
-            result.n_windows,
-            result.interpretation,
-            result.duration,
-            result.score,
-        )
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query, row)
-
-    # ── Cardiac drift — read ──────────────────────────────────────────────
+        self._upsert(_DRIFT, (user_id, date, *_DRIFT.values(result)))
 
     def load_drift(self, user_id: str) -> list[DriftResult]:
         """Load all cardiac drift session records for a user.
@@ -1769,33 +1454,9 @@ class HRVRepository:
             psycopg2.Error: If the query fails.
 
         """
-        select_cols = sql.SQL(", ").join(
-            sql.Identifier(c) for c in ["date"] + _DRIFT_DATA_COLUMNS
-        )
-        query = sql.SQL(
-            "SELECT {cols}\nFROM {table}\nWHERE user_id = %s\nORDER BY date ASC;"
-        ).format(cols=select_cols, table=sql.Identifier(self.drift_table_name))
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query, (user_id,))
-            rows = cur.fetchall()
-        return [
-            DriftResult(
-                date=str(row[0]),
-                drift_rate=row[1],
-                drift_magnitude=row[2],
-                r_squared=row[3],
-                drift_detected=bool(row[4]),
-                initial_hr=row[5],
-                final_hr=row[6],
-                n_windows=int(row[7]),
-                interpretation=row[8] or "no_drift",
-                duration=row[9],
-                score=row[10] if row[10] is not None else 0.0,
-            )
-            for row in rows
-        ]
+        return self._select(_DRIFT, user_id)
 
-    # ── VO2max — schema ───────────────────────────────────────────────────
+    # ── VO2max ────────────────────────────────────────────────────────────
 
     def create_vo2max_table(self) -> None:
         """Create the VO2max estimation session table if it does not exist.
@@ -1808,21 +1469,7 @@ class HRVRepository:
             psycopg2.Error: If the SQL statement is rejected.
 
         """
-        columns_sql = ",\n    ".join(f"{k} {v}" for k, v in _VO2MAX_COLUMNS.items())
-        query = sql.SQL(
-            "CREATE TABLE IF NOT EXISTS {table} (\n"
-            "    id SERIAL PRIMARY KEY,\n"
-            "    {columns},\n"
-            "    UNIQUE(user_id, date)\n"
-            ");"
-        ).format(
-            table=sql.Identifier(self.vo2max_table_name),
-            columns=sql.SQL(columns_sql),
-        )
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query)
-
-    # ── VO2max — write ────────────────────────────────────────────────────
+        self._create(_VO2MAX)
 
     def save_vo2max(
         self,
@@ -1842,41 +1489,7 @@ class HRVRepository:
             psycopg2.Error: If the insert fails.
 
         """
-        all_cols = ["user_id", "date"] + _VO2MAX_DATA_COLUMNS
-        col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
-        placeholders = sql.SQL(", ").join(
-            sql.Placeholder() for _ in range(len(all_cols))
-        )
-        update_set = sql.SQL(", ").join(
-            sql.SQL("{col} = EXCLUDED.{col}").format(col=sql.Identifier(c))
-            for c in _VO2MAX_DATA_COLUMNS
-        )
-        query = sql.SQL(
-            "INSERT INTO {table} ({cols}) VALUES ({vals})\n"
-            "ON CONFLICT (user_id, date) DO UPDATE SET {update};"
-        ).format(
-            table=sql.Identifier(self.vo2max_table_name),
-            cols=col_identifiers,
-            vals=placeholders,
-            update=update_set,
-        )
-        row = (
-            user_id,
-            date,
-            result.vo2max_uth,
-            result.vo2max_esco_flatt,
-            result.vo2max_ln_rmssd,
-            result.hr_rest,
-            result.hr_max,
-            result.rmssd_used,
-            result.ln_rmssd_used,
-            result.fitness_category,
-            result.score,
-        )
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query, row)
-
-    # ── VO2max — read ─────────────────────────────────────────────────────
+        self._upsert(_VO2MAX, (user_id, date, *_VO2MAX.values(result)))
 
     def load_vo2max(self, user_id: str) -> list[VO2maxResult]:
         """Load all VO2max estimation session records for a user.
@@ -1892,30 +1505,7 @@ class HRVRepository:
             psycopg2.Error: If the query fails.
 
         """
-        select_cols = sql.SQL(", ").join(
-            sql.Identifier(c) for c in ["date"] + _VO2MAX_DATA_COLUMNS
-        )
-        query = sql.SQL(
-            "SELECT {cols}\nFROM {table}\nWHERE user_id = %s\nORDER BY date ASC;"
-        ).format(cols=select_cols, table=sql.Identifier(self.vo2max_table_name))
-        with self._conn_or_raise().cursor() as cur:
-            cur.execute(query, (user_id,))
-            rows = cur.fetchall()
-        return [
-            VO2maxResult(
-                date=str(row[0]),
-                vo2max_uth=row[1] if row[1] is not None else float("nan"),
-                vo2max_esco_flatt=row[2],
-                vo2max_ln_rmssd=row[3],
-                hr_rest=row[4],
-                hr_max=row[5] if row[5] is not None else float("nan"),
-                rmssd_used=row[6],
-                ln_rmssd_used=row[7],
-                fitness_category=row[8] or "poor",
-                score=row[9] if row[9] is not None else 0.0,
-            )
-            for row in rows
-        ]
+        return self._select(_VO2MAX, user_id)
 
     # ── Raw sessions — schema ────────────────────────────────────────────
 
@@ -2210,7 +1800,11 @@ class HRVRepository:
             user_id: User identifier.
             date: ISO date string (e.g. ``"2026-05-29"``).
             duration_min: Duration of the training session in minutes.
-            sport_type: Sport type label (e.g. ``"running"``, ``"cycling"``).
+            sport_type: Sport — a code of :data:`cardiolab.sports.SPORTS`
+                (``"running"``, ``"cycling"``…) or any name
+                :func:`cardiolab.sports.validate_sport` recognises
+                (« Course à pied », ``"vélo"``…). Always stored as the code.
+                ``None`` means no sport.
             trimp: Pre-computed TRIMP value. May be ``None`` when the
                 readiness score for the day is not available yet.
             notes: Free-text notes about the session.
@@ -2219,10 +1813,13 @@ class HRVRepository:
             The ``activity_id`` (UUID string) of the newly created row.
 
         Raises:
+            ValueError: If ``sport_type`` is not a known sport (the message
+                suggests the closest one) — nothing is written.
             RuntimeError: If called outside a ``with`` block.
             psycopg2.Error: If the insert fails.
 
         """
+        sport_type = validate_sport(sport_type)
         activity_id = str(uuid.uuid4())
         all_cols = ["activity_id", "user_id", "date"] + _TRAINING_SESSIONS_DATA_COLUMNS
         col_identifiers = sql.SQL(", ").join(sql.Identifier(c) for c in all_cols)
@@ -2314,8 +1911,10 @@ class HRVRepository:
         Args:
             user_id: User identifier.
             date: ISO date string (``"YYYY-MM-DD"``).
-            sport_type: Optional sport filter.  When ``None``, all activities
-                on the date are returned regardless of sport type.
+            sport_type: Optional sport filter (code or any name
+                :func:`cardiolab.sports.validate_sport` recognises). When
+                ``None``, all activities on the date are returned regardless
+                of sport type.
 
         Returns:
             List of matching activity dicts (same keys as
@@ -2323,6 +1922,7 @@ class HRVRepository:
             activity_id.  Empty list when nothing matches.
 
         Raises:
+            ValueError: If ``sport_type`` is not a known sport.
             RuntimeError: If called outside a ``with`` block.
             psycopg2.Error: If the query fails.
 
@@ -2330,6 +1930,7 @@ class HRVRepository:
         sel = sql.SQL(", ").join(
             sql.Identifier(c) for c in _TRAINING_SESSIONS_SELECT_COLUMNS
         )
+        sport_type = validate_sport(sport_type)
         if sport_type is not None:
             query = sql.SQL(
                 "SELECT {sel} FROM {table}\n"

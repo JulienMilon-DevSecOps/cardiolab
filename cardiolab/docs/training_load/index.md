@@ -12,6 +12,7 @@ and tracks the balance between fatigue and fitness over time.
 |------|---------|
 | [training_sessions.md](training_sessions.md) | What a training session is, how to log one, database schema, repository API |
 | [atl_ctl_tsb.md](atl_ctl_tsb.md) | ATL / CTL / TSB model — principle, formulas, TRIMP, protocol consistency rule, TSB zones, references |
+| [sports.md](sports.md) | Reference list of sports — codes, labels, colours, families, `normalize_sport()` |
 
 ---
 
