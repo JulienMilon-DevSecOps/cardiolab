@@ -23,6 +23,8 @@ Phase group keys for the orthostatic MultiIndex table use the prefix
 
 from __future__ import annotations
 
+from cardiolab.sports import FAMILIES, SPORTS
+
 # ── English ───────────────────────────────────────────────────────────────────
 
 LABELS_EN: dict[str, str] = {
@@ -294,6 +296,15 @@ LABELS_FR: dict[str, str] = {
     "protocol_drift": "Dérive cardiaque",
     "protocol_vo2max": "Estimation VO2max",
 }
+
+
+# ── Sports (generated from cardiolab.sports) ─────────────────────────────────
+# Keys ``sport_<code>`` and ``sport_family_<code>`` — e.g. LABELS_FR["sport_running"].
+
+LABELS_EN.update({f"sport_{code}": s.label_en for code, s in SPORTS.items()})
+LABELS_FR.update({f"sport_{code}": s.label_fr for code, s in SPORTS.items()})
+LABELS_EN.update({f"sport_family_{c}": en for c, (en, _fr) in FAMILIES.items()})
+LABELS_FR.update({f"sport_family_{c}": fr for c, (_en, fr) in FAMILIES.items()})
 
 
 # ── Public helper ─────────────────────────────────────────────────────────────

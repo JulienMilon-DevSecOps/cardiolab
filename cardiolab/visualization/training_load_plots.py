@@ -11,6 +11,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 
 from cardiolab.labels import lbl
+from cardiolab.sports import SPORTS, normalize_sport
 
 if TYPE_CHECKING:
     from cardiolab.analytics.training_load import TrainingLoad
@@ -44,14 +45,19 @@ _TSB_ZONE_KEYS = [
 
 # ── Default sport-type colour map ─────────────────────────────────────────────
 
-_DEFAULT_SPORT_COLORS: dict[str, str] = {
-    "running": "#e74c3c",
-    "cycling": "#2980b9",
-    "swimming": "#1abc9c",
-    "strength": "#8e44ad",
-    "trail": "#d35400",
-    "rowing": "#16a085",
-}
+# Taken from the sports reference list (cardiolab.sports) — the six colours
+# used before v0.3.4 (running, cycling, swimming, strength, trail, rowing) are
+# unchanged.
+_DEFAULT_SPORT_COLORS: dict[str, str] = {code: s.color for code, s in SPORTS.items()}
+
+
+def _sport_color(sport: str, colors_map: dict[str, str]) -> str:
+    """Colour of a sport: exact key first, then its normalised code, else default."""
+    if not sport:
+        return _TRIMP_COLOR
+    if sport in colors_map:
+        return colors_map[sport]
+    return colors_map.get(normalize_sport(sport), _TRIMP_COLOR)
 
 
 # ── Validation ────────────────────────────────────────────────────────────────
@@ -258,7 +264,7 @@ def plot_trimp_history(
                         i,
                         t,
                         bottom=bottom,
-                        color=colors_map.get(sport, _TRIMP_COLOR),
+                        color=_sport_color(sport, colors_map),
                         width=0.8,
                         alpha=0.80,
                         edgecolor="white",
@@ -272,7 +278,7 @@ def plot_trimp_history(
                 ax.bar(
                     i,
                     trimp[i],
-                    color=colors_map.get(sport, _TRIMP_COLOR),
+                    color=_sport_color(sport, colors_map),
                     width=0.8,
                     alpha=0.80,
                     zorder=3,
@@ -286,7 +292,10 @@ def plot_trimp_history(
             if sport and sport not in seen:
                 seen.add(sport)
                 patches.append(
-                    Patch(facecolor=colors_map.get(sport, _TRIMP_COLOR), label=sport)
+                    Patch(
+                        facecolor=_sport_color(sport, colors_map),
+                        label=lbl(labels, f"sport_{normalize_sport(sport)}", sport),
+                    )
                 )
     else:
         ax.bar(x, trimp, color=_TRIMP_COLOR, width=0.8, alpha=0.80, zorder=3)

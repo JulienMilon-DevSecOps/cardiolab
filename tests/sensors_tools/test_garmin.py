@@ -45,8 +45,12 @@ def _make_hrv_fitfile():
     return fitfile
 
 
-def _make_training_fitfile():
-    """Return a mock FitFile with record messages (training session)."""
+def _make_training_fitfile(session=None, sport_msg=None):
+    """Return a mock FitFile with record messages (training session).
+
+    ``session`` / ``sport_msg``: optional ``(sport, sub_sport)`` tuples for the
+    FIT ``session`` and ``sport`` messages.
+    """
 
     def _make_record(hr, ts):
         rec = MagicMock()
@@ -59,10 +63,21 @@ def _make_training_fitfile():
         _make_record(hr, ts) for hr, ts in zip(_HR_SAMPLES, _TIMESTAMPS, strict=False)
     ]
 
+    def _make_sport_msg(values):
+        sport, sub_sport = values
+        msg = MagicMock()
+        msg.get_value.side_effect = lambda field: (
+            sport if field == "sport" else sub_sport if field == "sub_sport" else None
+        )
+        return msg
+
+    messages = {
+        "record": records,
+        "session": [_make_sport_msg(session)] if session else [],
+        "sport": [_make_sport_msg(sport_msg)] if sport_msg else [],
+    }
     fitfile = MagicMock()
-    fitfile.get_messages.side_effect = lambda name: (
-        iter(records) if name == "record" else iter([])
-    )
+    fitfile.get_messages.side_effect = lambda name: iter(messages.get(name, []))
     return fitfile
 
 
@@ -265,7 +280,7 @@ class TestExtractTrainingSessionGarmin:
             yield
 
     def test_returns_dict(self, tmp_path):
-        """Returns a dict with the three expected keys."""
+        """Returns a dict with the expected keys (sport fields added in v0.3.4)."""
         fit_file = tmp_path / "activity.fit"
         fit_file.write_bytes(b"")
 
@@ -273,7 +288,13 @@ class TestExtractTrainingSessionGarmin:
             mock_fp.FitFile.return_value = _make_training_fitfile()
             result = extract_training_session_garmin(fit_file)
 
-        assert set(result.keys()) == {"duration_min", "hr_mean", "hr_max"}
+        assert set(result.keys()) == {
+            "duration_min",
+            "hr_mean",
+            "hr_max",
+            "sport",
+            "sport_raw",
+        }
 
     def test_hr_mean_computed(self, tmp_path):
         """hr_mean is the mean of all recorded HR values."""
@@ -347,6 +368,63 @@ class TestExtractTrainingSessionGarmin:
 # ======================
 # _require_fitparse
 # ======================
+
+
+class TestExtractTrainingSessionGarminSport:
+    """Sport read from the FIT session / sport messages (v0.3.4)."""
+
+    @pytest.fixture(autouse=True)
+    def _fitparse_available(self):
+        with patch("cardiolab.sensors_tools.garmin._FITPARSE_AVAILABLE", True):
+            yield
+
+    def _extract(self, tmp_path, **messages):
+        fit_file = tmp_path / "activity.fit"
+        fit_file.write_bytes(b"")
+        with patch("cardiolab.sensors_tools.garmin._fitparse") as mock_fp:
+            mock_fp.FitFile.return_value = _make_training_fitfile(**messages)
+            return extract_training_session_garmin(fit_file)
+
+    @pytest.mark.parametrize(
+        ("session", "expected"),
+        [
+            (("running", "generic"), "running"),
+            (("running", "trail"), "trail"),
+            (("cycling", "mountain"), "mountain_bike"),
+            (("swimming", "lap_swimming"), "swimming"),
+            (("training", "strength_training"), "strength"),
+            (("soccer", None), "football"),
+        ],
+    )
+    def test_sport_from_session_message(self, tmp_path, session, expected):
+        """FIT sport + sub-sport are normalised to a reference code."""
+        result = self._extract(tmp_path, session=session)
+        assert result["sport"] == expected
+        assert result["sport_raw"] == session[0]
+
+    def test_falls_back_to_sport_message(self, tmp_path):
+        """Without a session sport, the sport message is used."""
+        result = self._extract(tmp_path, sport_msg=("cycling", "road"))
+        assert result["sport"] == "cycling"
+
+    def test_session_message_takes_priority(self, tmp_path):
+        """The session message wins over the sport message."""
+        result = self._extract(
+            tmp_path, session=("running", "trail"), sport_msg=("cycling", None)
+        )
+        assert result["sport"] == "trail"
+
+    def test_no_sport_gives_other(self, tmp_path):
+        """A file without sport information gives "other" and no error."""
+        result = self._extract(tmp_path)
+        assert result["sport"] == "other"
+        assert result["sport_raw"] is None
+
+    def test_unknown_sport_gives_other(self, tmp_path):
+        """An unknown FIT sport value gives "other", raw value kept."""
+        result = self._extract(tmp_path, session=("kitesurfing", None))
+        assert result["sport"] == "other"
+        assert result["sport_raw"] == "kitesurfing"
 
 
 class TestRequireFitparse:

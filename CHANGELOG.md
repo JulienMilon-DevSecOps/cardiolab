@@ -7,6 +7,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [0.3.4] - 2026-10-16
+
+> Version 0.3.3 was prepared (generic repository) but not published: its changes ship in 0.3.4,
+> together with the sports reference list.
+
+### Added — Sports reference list (`cardiolab.sports`)
+
+- `Sport` (code, English / French label, colour, family), `SPORTS`, `FAMILIES`,
+  `get_sport()`, `list_sports(family=None)` and `normalize_sport(value, sub_sport=None)`,
+  also exported from the package root. 17 sports in 4 families (endurance, strength & fitness,
+  team & racket sports, other).
+- `normalize_sport()` maps codes, English / French labels, common synonyms (« Course à pied »,
+  `run`, `VTT`, `musculation`…) and Garmin FIT `sport` / `sub_sport` values to a code
+  (`running` + `trail` → `trail`); unknown or empty → `"other"`. `sport_type` stays a free
+  `TEXT` column — no schema change.
+- `labels.py`: keys `sport_<code>` and `sport_family_<code>` in `LABELS_EN` / `LABELS_FR`.
+- `validate_sport(value)`: strict variant — known names give their code, `None` / empty gives
+  `None`, anything else raises `ValueError` with the closest sport suggested
+  (« runing » → « Did you mean 'running'? »).
+- `docs/training_load/sports.md`.
+
+### Changed
+
+- **`HRVRepository.save_training_session()` validates `sport_type`** and stores the reference
+  code (« Course à pied » → `running`); an unknown sport raises `ValueError` before anything is
+  written, so typos can no longer break charts and filters. `find_training_sessions()` accepts
+  the same names for its sport filter. Sessions saved before 0.3.4 keep their text; charts
+  still colour them through `normalize_sport()`.
+
+- `extract_training_session_garmin()` also returns `"sport"` (normalised code) and
+  `"sport_raw"` (FIT value), read from the FIT `session` then `sport` messages.
+- `plot_trimp_history()`: colours come from the reference list (the six previous colours are
+  unchanged); a stored name that is not a code (« Course à pied ») gets its sport colour, an
+  unknown sport the `other` colour, a session without sport keeps the default colour;
+  `sport_colors` still overrides. With `labels=LABELS_FR` the legend shows French sport names.
+- Package docstring lists the `sports` and `datasets` submodules.
+
+### Tests
+
+- `tests/test_sports.py` (64): reference list, normalisation, strict validation, labels, chart
+  colours and legend.
+- `tests/database/test_repository.py`: sport validated and stored as a code on save, filter
+  converted (4); the save/load round trip now expects the code.
+- `tests/sensors_tools/test_garmin.py`: sport read from FIT files (10), keys of
+  `extract_training_session_garmin()` updated.
+
+No change to the public API nor to the stored data — internal refactoring of the database
+layer.
+
+### Changed — Generic `HRVRepository` (`database/repository.py`)
+
+- The six protocol tables keyed by `UNIQUE(user_id, date)` (resting, orthostatic, coherence,
+  HRR, drift, VO2max) are now described by `_ProtocolTable` specifications — column registry +
+  row → result function — and handled by three generic methods (`_create`, `_upsert`,
+  `_select`) built on three query builders. The 18 public `create_* / save_* / load_*`
+  methods are one-line wrappers with unchanged signatures and docstrings.
+- Metric columns are written and read **by name** (they match the result dataclass
+  attributes) instead of hand-maintained positional tuples; `_build_ortho_row` gathers its
+  73 values by column name, so a row can no longer drift out of sync with the schema.
+  The 19 HRV metrics are defined once (`_HRV_METRICS`) for resting and the three orthostatic
+  phases.
+- Code size: 1 448 → 993 lines of code (−31 %, docstrings kept); `repository.py`
+  2 590 → ~2 180 lines. Raw sessions, training sessions and user profiles (different keys)
+  are unchanged.
+- Verified: the SQL (statements and parameters) emitted by the 21 public table calls is
+  identical before / after on PostgreSQL 17, and rows written by 0.3.2 — including NULL
+  columns — are read back into identical objects.
+
+### Documentation
+
+- README: TSB zone table aligned with the code (5 zones: > +25 fresh / detraining, +5…+25
+  optimal, −10…+5 neutral, −30…−10 accumulated fatigue, < −30 overload); it still showed
+  the 4 zones of an early draft with other thresholds.
+- ROADMAP: new v0.3.4 « Sports » (reference list of sports, sport read from `.fit` files);
+  v0.4.0 bug — VO2max RMSSD model (Esco & Flatt) returns ~21 mL/kg/min where the other
+  models give ~50; v0.5.0 session-RPE load (migration V006) and age/sex-adjusted VO2max
+  categories; later migrations renumbered (V007 v0.6.0, V008 v0.8.0).
+- `docs/database/migration_guide.md`: new section *Adding a protocol table*; bundled
+  migrations list completed with `V004__add_user_profiles.sql`.
+
+---
+
+## [0.3.2] - 2026-10-13
+
 ### Added — Sample datasets (`cardiolab.datasets`)
 
 - `list_samples(protocol=None)` and `load_sample(protocol="resting", index=0)`: seven real

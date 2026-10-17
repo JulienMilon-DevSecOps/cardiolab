@@ -19,7 +19,7 @@ A session captures the minimum information needed to compute training load:
 | `user_id` | `TEXT` | yes | UUID identifying the athlete |
 | `date` | `DATE` | yes | Date of the session (one per day maximum) |
 | `duration_min` | `FLOAT` | recommended | Session duration in **minutes** |
-| `sport_type` | `TEXT` | optional | Label: `"running"`, `"cycling"`, `"strength"`, … |
+| `sport_type` | `TEXT` | optional | Code of the sports reference list (`"running"`, `"cycling"`, `"strength"`…) — validated on save, see [sports.md](sports.md) |
 | `trimp` | `FLOAT` | nullable | Training Impulse — computed separately, stored here |
 | `notes` | `TEXT` | optional | Free text (perceived exertion, conditions, …) |
 
