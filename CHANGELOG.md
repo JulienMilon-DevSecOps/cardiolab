@@ -35,6 +35,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `remove_outliers()`; example 07 compares deletion and correction. README no longer claims that
   every protocol has `auto_clean` (only resting and orthostatic).
 
+### Fixed — Notebooks
+
+- Notebooks 01, 02, 03, 05, 08, 09 use `correct_artifacts()` instead of `remove_outliers()`;
+  notebook 01 section 5 presents the correction (it wrongly described `remove_outliers()` as an
+  interpolation) and compares raw vs corrected signals.
+- Notebook 02 stored the **cleaned** series in `hrv_raw_sessions`: the raw series is now saved
+  unchanged (the raw table is the source for reprocessing), the corrected one is used for analysis.
+- Notebook 05 (never executed): `vo2max_from_hrv()` was called with a non-existent `hr_rest`
+  argument; the VO2max score now uses the Uth model (the RMSSD model is being fixed).
+- Notebook 09 (never executed): called functions that do not exist (`compute_time_domain`,
+  `compute_frequency_domain`, `RestingProtocol`, `cardiolab.storage.database`) and
+  `parse_rr_file(...).remove_outliers()` on a dict. Rewritten with the real API; the Polar demo
+  uses a real sample recording; saving to the database is off by default (`SAVE_TO_DB = False`).
+- Notebooks 01, 05 and 09 executed end to end, outputs saved.
+
 ### Tests
 
 - `tests/signals/test_artifacts.py` (61): acceptance criteria, classification, corrections,
