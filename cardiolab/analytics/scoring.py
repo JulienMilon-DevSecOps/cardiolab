@@ -7,7 +7,8 @@ the personal baseline:
 
 * :func:`readiness_score_multi` — classical multi-factor score combining
   time-domain metrics (RMSSD, HR) with the DFA α1 non-linear marker and a
-  short-term trend component. Robust and well-suited for daily monitoring.
+  7-day lnRMSSD trend component (Plews). Robust and well-suited for daily
+  monitoring.
 * :func:`readiness_score_nonlinear` — purely non-linear score built from the
   Poincaré and DFA metrics (SD1, SD1/SD2, DFA α1). Best used after at least
   7 sessions.
@@ -46,6 +47,7 @@ import math
 import numpy as np
 
 from cardiolab.analytics.baseline import Baseline
+from cardiolab.analytics.monitoring import ln_rmssd_trend_score
 from cardiolab.protocols.resting import HRVFeatures
 
 # ======================
@@ -153,18 +155,22 @@ def readiness_score_multi(
     * **DFA α1** (25 %) — short-term fractal scaling exponent; normal resting
       range 0.75–1.25. Values below 0.75 strongly penalise the score.
       Treated as neutral (50) when not available or not yet computed.
-    * **RMSSD trend** (20 %) — deviation from the rolling baseline median;
-      detects day-to-day deterioration before it becomes visible in the
-      absolute values.
+    * **lnRMSSD trend** (20 %) — change of the 7-day rolling mean of lnRMSSD
+      versus the previous week, in units of the athlete's smallest worthwhile
+      change (:func:`~cardiolab.analytics.monitoring.ln_rmssd_trend_score`,
+      Plews et al. 2013): 50 within ±1 SWC, towards 100 for a sustained
+      rise, towards 0 for a sustained decline; neutral (50) until ≈ 14 days
+      of data. Changed in 0.5.0: the trend compared today's RMSSD with the
+      median of the last 7 sessions — the same reference as the RMSSD
+      component, so no trend was actually measured.
 
     Returns 50.0 (neutral) when the baseline is empty or uninitialised.
 
     Args:
         current: HRV features of the session to score.
-        baseline: Personal reference built from previous sessions. A rolling
-            window of at least ``baseline.window`` sessions is needed to
-            activate the trend component; otherwise that component defaults
-            to 50.
+        baseline: Personal reference built from previous sessions. The
+            trend component needs dated sessions (``current.date`` included)
+            over ≈ 14 days; otherwise it defaults to 50.
 
     Returns:
         Readiness score as a float in [0, 100].
@@ -188,11 +194,8 @@ def readiness_score_multi(
     # DFA α1 (25 %) — absolute physiological threshold at 0.75
     dfa = _dfa_score(current.dfa_alpha1)
 
-    # Trend (20 %) — current RMSSD vs rolling median
-    rolling = baseline.rolling_rmssd_median()
-    trend_score = (
-        50.0 + 50.0 * np.tanh((current.rmssd - rolling[-1]) / 20.0) if rolling else 50.0
-    )
+    # Trend (20 %) — 7-day lnRMSSD mean vs previous week, in SWC units
+    trend_score = ln_rmssd_trend_score(current, baseline)
 
     score = 0.35 * rmssd_score + 0.20 * hr_score + 0.25 * dfa + 0.20 * trend_score
 
