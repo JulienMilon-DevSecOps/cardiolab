@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from cardiolab.protocols.resting import HRVFeatures, _compute_simple_score, resting_hrv
+from cardiolab.signals.rr import RRSeries
 
 
 class TestHRVFeatures:
@@ -193,17 +194,7 @@ class TestRestingHRV:
     def test_resting_hrv_duration_reflection(self, baseline_7days):
         """Test that duration is correctly reflected."""
         # Use first feature's RR intervals as approximation
-        result = resting_hrv(
-            type(
-                "obj",
-                (object,),
-                {
-                    "intervals": np.array([800] * 300),
-                    "duration": 300.0,
-                    "mean_hr": 75.0,
-                },
-            )()
-        )
+        result = resting_hrv(RRSeries(np.full(300, 800.0)))
 
         # Duration should match
         assert result.duration > 0

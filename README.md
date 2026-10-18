@@ -113,7 +113,7 @@ Heart rate variability is used to assess:
 | Frequency | HF% | HF as fraction of total power |
 | Frequency | LF_nu | LF in normalised units |
 | Frequency | HF_nu | HF in normalised units |
-| Frequency | Méthode | Spectral estimation method (`welch` / `ar`) |
+| Frequency | Méthode | Spectral estimation method (`welch` / `ar` / `lomb`) |
 | Composite | HF/FC | HF divided by mean HR (ms²/bpm) — HR-normalised vagal activity |
 | Non-linear | SD1 | Poincaré short-term variability = RMSSD / √2 (ms) |
 | Non-linear | SD2 | Poincaré long-term variability (ms) |
@@ -198,7 +198,7 @@ frequency, non-linear) and an optional recovery score.
 
 ```python
 from cardiolab.protocols import resting_hrv
-result = resting_hrv(rr, compute_score=True, method="welch")
+result = resting_hrv(rr, compute_score=True)  # spectral method: "lomb" (default), "welch", "ar"
 ```
 
 ### Orthostatic HRV

@@ -375,3 +375,39 @@ def test_remove_outliers_unknown_method():
     rr = RRSeries([800, 810, 790])
     with pytest.raises(ValueError, match="Method unknown"):
         rr.remove_outliers(method="median")
+
+
+# ======================
+# Beat times and cubic interpolation (v0.4.0)
+# ======================
+
+
+def test_beat_times_uses_increasing_timestamps():
+    """Strictly increasing timestamps are used as beat times."""
+    rr = RRSeries([800, 820, 810], timestamps=[10.0, 10.82, 11.63])
+    np.testing.assert_allclose(rr.beat_times(), [10.0, 10.82, 11.63])
+
+
+def test_beat_times_falls_back_to_cumsum():
+    """Without (or with non-increasing) timestamps, beat times are cumulated RR."""
+    np.testing.assert_allclose(RRSeries([800, 1000]).beat_times(), [0.8, 1.8])
+    rr = RRSeries([800, 1000, 900], timestamps=[1.0, 1.0, 2.0])
+    np.testing.assert_allclose(rr.beat_times(), [0.8, 1.8, 2.7])
+
+
+def test_interpolate_cubic_passes_through_beats():
+    """The cubic spline goes through the RR values and is smoother than linear."""
+    values = 900 + 50 * np.sin(np.arange(60) / 2)
+    rr = RRSeries(values)
+    t, cubic = rr.interpolate(fs=4.0)
+    _, linear = rr.interpolate(fs=4.0, kind="linear")
+    assert len(t) == len(cubic) == len(linear)
+    beats = rr.beat_times()
+    np.testing.assert_allclose(np.interp(beats[5:-5], t, cubic), values[5:-5], atol=2.0)
+    assert np.abs(np.diff(cubic, 2)).max() < np.abs(np.diff(linear, 2)).max()
+
+
+def test_interpolate_unknown_kind():
+    """Unknown kind → ValueError."""
+    with pytest.raises(ValueError):
+        RRSeries([800] * 10).interpolate(kind="quadratic")

@@ -11,7 +11,7 @@ values, and clinical interpretation.
 | Group | Indicators | Source |
 |-------|-----------|--------|
 | [Time-domain](time_domain.md) | RMSSD, ln_RMSSD, SDNN, pNN50, mean HR | RR intervals |
-| [Frequency-domain](frequency_domain.md) | VLF, LF, HF, LF/HF, LF_nu, HF_nu, HF%, HF/FC | Welch PSD on interpolated RR |
+| [Frequency-domain](frequency_domain.md) | VLF, LF, HF, LF/HF, LF_nu, HF_nu, HF%, HF/FC | Welch (default), AR or Lomb-Scargle PSD |
 | [Non-linear](nonlinear.md) | SD1, SD2, SD1/SD2, DFA α1 | Poincaré plot, DFA |
 | [Artefact correction](artefact_correction.md) | `correct_artifacts()` — extra, missed, ectopic, long/short beats | RR intervals, before any metric |
 

@@ -24,9 +24,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.patches import Wedge
-from scipy.signal import welch
 
-from cardiolab.features.frequency_domain import _ar_psd, _interpolate
+from cardiolab.features.frequency_domain import _ar_psd, _interpolate, _welch_psd
 from cardiolab.labels import lbl
 from cardiolab.protocols.cardiac_coherence import CoherenceResult
 from cardiolab.protocols.cardiac_drift import DriftResult
@@ -45,7 +44,6 @@ _ORANGE = "#e67e22"
 _RED = "#e74c3c"
 
 _FS: float = 4.0  # resampling frequency for PSD (Hz)
-_NPERSEG: int = 256  # Welch window length
 
 # Frequency band limits (Hz)
 _VLF_LO: float = 0.003
@@ -962,16 +960,16 @@ def _draw_poincare(
 
 def _draw_psd_welch(ax: plt.Axes, rr: RRSeries, title: str = "") -> None:
     """Draw a Welch PSD with VLF/LF/HF band colouring on ``ax``."""
-    vals = rr.intervals
-    t_s = np.cumsum(vals) / 1000.0
-    t_uniform = np.arange(t_s[0], t_s[-1], 1.0 / _FS)
-    rr_interp = np.interp(t_uniform, t_s, vals)
-    nperseg = min(_NPERSEG, len(rr_interp) // 2)
-    if nperseg < 4:
+    if len(rr.intervals) < 4:
         _draw_no_data(ax, "RR too short for PSD")
         ax.set_title(title, fontsize=8, fontweight="bold")
         return
-    freqs, psd = welch(rr_interp, fs=_FS, nperseg=nperseg)
+    _, rr_interp = _interpolate(rr, _FS)
+    if len(rr_interp) < 8:
+        _draw_no_data(ax, "RR too short for PSD")
+        ax.set_title(title, fontsize=8, fontweight="bold")
+        return
+    freqs, psd = _welch_psd(rr_interp, _FS)
     mask = freqs <= _HF_HI
     ax.semilogy(freqs[mask], psd[mask], color=_BLUE, linewidth=0.9)
     ax.axvspan(_VLF_LO, _VLF_HI, color=_VLF_COLOR, alpha=0.4)

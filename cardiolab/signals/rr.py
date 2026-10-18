@@ -318,32 +318,63 @@ class RRSeries:
     # INTERPOLATION
     # ======================
 
-    def interpolate(self, fs: float = 4.0) -> tuple[np.ndarray, np.ndarray]:
+    def beat_times(self) -> np.ndarray:
+        """Return the time (s) at the end of each interval.
+
+        Uses ``timestamps`` when they are strictly increasing; otherwise (no
+        timestamps, or duplicated / unordered ones as in some exports) the
+        cumulative sum of the intervals.
+
+        Returns:
+            One time per interval, in seconds.
+
+        """
+        if self.timestamps is not None and np.all(np.diff(self.timestamps) > 0):
+            return np.asarray(self.timestamps, dtype=float)
+        return np.cumsum(self.intervals) / 1000.0
+
+    def interpolate(
+        self, fs: float = 4.0, kind: str = "cubic"
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Resample the RR series onto a uniform time grid.
 
-        RR intervals are unevenly spaced in time. Frequency-domain analysis
-        (Welch PSD) requires a uniformly sampled signal. This method performs
-        linear interpolation to produce an evenly-spaced version.
+        RR intervals are unevenly spaced in time; Welch and AR spectral
+        estimates need a uniformly sampled signal. This is the **single
+        interpolation** used by cardiolab (frequency-domain metrics, cardiac
+        coherence, spectral plots): cubic spline at 4 Hz, as in Kubios HRV.
 
         Args:
             fs: Target sampling frequency in Hz. The HRV standard recommends
                 at least 4 Hz to capture the HF band (0.15–0.4 Hz).
                 Defaults to 4.0 Hz.
+            kind: ``"cubic"`` (default — cubic spline) or ``"linear"``.
+                Series of fewer than 4 intervals are always interpolated
+                linearly. Changed in 0.4.0: linear before.
 
         Returns:
             A tuple ``(t_interp, rr_interp)`` where:
 
-            * ``t_interp`` is the uniform time axis (seconds).
+            * ``t_interp`` is the uniform time axis (seconds), starting at the
+              first beat time (see :meth:`beat_times`).
             * ``rr_interp`` is the interpolated RR signal (ms).
 
-        """
-        if self.timestamps is None:
-            t = np.cumsum(self.intervals) / 1000.0
-        else:
-            t = self.timestamps
+        Raises:
+            ValueError: If ``kind`` is unknown.
 
+        """
+        if kind not in ("cubic", "linear"):
+            raise ValueError(
+                f"Unknown interpolation {kind!r}. Choose 'cubic' or 'linear'."
+            )
+
+        t = self.beat_times()
         t_interp = np.arange(t[0], t[-1], 1.0 / fs)
-        rr_interp = np.interp(t_interp, t, self.intervals)
+        if kind == "cubic" and len(t) >= 4:
+            from scipy.interpolate import CubicSpline
+
+            rr_interp = CubicSpline(t, self.intervals)(t_interp)
+        else:
+            rr_interp = np.interp(t_interp, t, self.intervals)
 
         return t_interp, rr_interp
 

@@ -32,7 +32,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from cardiolab.features.frequency_domain import _ar_psd
+from cardiolab.features.frequency_domain import _ar_psd, _interpolate
 from cardiolab.features.time_domain import rmssd as _rmssd
 from cardiolab.features.time_domain import sdnn as _sdnn
 from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
@@ -149,8 +149,7 @@ def cardiac_coherence(
             stacklevel=2,
         )
 
-    interp_time = np.arange(0, time_s[-1], 1.0 / fs)
-    interp_rr = np.interp(interp_time, time_s, rr_ms)
+    _, interp_rr = _interpolate(rr, fs)
 
     try:
         freqs, psd = _ar_psd(interp_rr, fs=fs, order=order)

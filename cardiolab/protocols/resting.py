@@ -68,7 +68,7 @@ class HRVFeatures:
             scale [0–1]) must **not** be written to this field — it uses a
             different scale and is not comparable across users.
         method: Spectral estimation method used for frequency-domain metrics.
-            ``"welch"`` (default) or ``"ar"``. Stored for traceability —
+            ``"lomb"`` (default), ``"welch"`` or ``"ar"``. Stored for traceability —
             LF/HF values computed with different methods are not directly
             comparable across sessions.
 
@@ -102,7 +102,7 @@ class HRVFeatures:
 
     duration: float = 0.0
     score: float = 0.0
-    method: str = "welch"
+    method: str = "lomb"
 
     def to_dataframe(self):
         """Return a one-row pandas DataFrame of all HRV features.
@@ -173,7 +173,7 @@ def resting_hrv(
     min_duration: float = 300.0,
     compute_score: bool = False,
     auto_clean: bool = False,
-    method: str = "welch",
+    method: str = "lomb",
 ) -> HRVFeatures:
     """Extract HRV features from a resting-state RR interval recording.
 
@@ -201,10 +201,12 @@ def resting_hrv(
             Changed in 0.4.0: earlier versions only deleted out-of-range
             values (``remove_outliers``).
         method: Spectral estimation method for frequency-domain features.
-            ``"welch"`` (default) is optimal for long recordings (≥ 5 min).
-            ``"ar"`` uses the autoregressive Yule-Walker method, which gives
+            ``"lomb"`` (default, Lomb-Scargle without interpolation) gives the
+            most stable estimates on 5-minute recordings. ``"welch"`` suits
+            long recordings (≥ 10 min). ``"ar"`` uses the autoregressive Yule-Walker method, which gives
             better spectral resolution on short segments (< 2 min) and is
-            recommended for the orthostatic transition phase.
+            recommended for the orthostatic transition phase. Changed in
+            0.4.0: the default was ``"welch"``.
 
     Returns:
         An ``HRVFeatures`` instance populated with all computed metrics.
