@@ -140,6 +140,9 @@ class SessionChange:
         after: Key metrics recomputed (empty for ``failed``).
         error: Error message for ``failed`` sessions.
         warnings: Physiological warnings raised during the analysis.
+        changed_fields: Every stored field whose value changed — the status
+            is ``changed`` as soon as one does, even outside ``before`` /
+            ``after`` (key metrics only).
 
     """
 
@@ -150,6 +153,7 @@ class SessionChange:
     after: dict = field(default_factory=dict)
     error: str | None = None
     warnings: list[str] = field(default_factory=list)
+    changed_fields: list[str] = field(default_factory=list)
 
     def deltas(self) -> dict[str, tuple[Any, Any]]:
         """Return the metrics whose value changed: ``{metric: (before, after)}``."""
@@ -233,6 +237,7 @@ class ReprocessReport:
                         "before": before,
                         "after": after,
                         "change_pct": _change_pct(before, after),
+                        "changed_fields": ";".join(s.changed_fields),
                         "error": s.error or "",
                     }
                 )
@@ -267,6 +272,48 @@ def _key_values(protocol: str, result) -> dict:
     quality = getattr(result, "quality", None)
     values["quality_grade"] = quality.grade if quality is not None else None
     return values
+
+
+def _stored_fields(protocol: str, result) -> dict:
+    """Every stored value of a result or record, flattened — used to detect changes.
+
+    Orthostatic sessions add the quality of each phase (stored in the JSONB
+    column, not in the flat dict).
+    """
+    flat = (
+        result.to_flat_dict() if hasattr(result, "to_flat_dict") else result.to_dict()
+    )
+    fields = {k: _native(v) for k, v in flat.items() if k != "date"}
+    if protocol == "orthostatic":
+        for prefix, features in _phase_features(result):
+            quality = getattr(features, "quality", None)
+            fields[f"{prefix}_quality"] = quality.to_dict() if quality else None
+    return fields
+
+
+def _phase_features(result) -> list[tuple[str, Any]]:
+    """Phase features of an ``OrthostaticResult`` or ``OrthostaticRecord``."""
+    if hasattr(result, "phases"):
+        p = result.phases
+        return [
+            ("supine", p.supine.features),
+            ("transition", p.transition.features),
+            ("standing", p.standing.features),
+        ]
+    if hasattr(result, "supine"):
+        return [
+            ("supine", result.supine),
+            ("transition", result.transition_features),
+            ("standing", result.standing),
+        ]
+    return []
+
+
+def _changed_fields(before: dict, after: dict) -> list[str]:
+    """Fields stored on both sides whose value differs."""
+    return sorted(
+        k for k in before.keys() & after.keys() if not _same(before[k], after[k])
+    )
 
 
 def _native(value):
@@ -453,12 +500,21 @@ def _reprocess_one(
     result.score = session_score(protocol, result, baseline)
 
     after = _key_values(protocol, result)
+    # Status from EVERY stored field (e.g. SampEn of each orthostatic phase),
+    # not only the key metrics shown in the report
+    changed = (
+        _changed_fields(
+            _stored_fields(protocol, stored), _stored_fields(protocol, result)
+        )
+        if stored is not None
+        else []
+    )
     if stored is None:
         status = "new"
-    elif all(_same(before.get(k), v) for k, v in after.items()):
-        status = "unchanged"
-    else:
+    elif changed:
         status = "changed"
+    else:
+        status = "unchanged"
     return _Outcome(
         SessionChange(
             protocol,
@@ -467,6 +523,7 @@ def _reprocess_one(
             before=before,
             after=after,
             warnings=sorted({str(w.message) for w in caught}),
+            changed_fields=changed,
         ),
         result,
     )

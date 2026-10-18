@@ -5,7 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-10-18
+
+> **Changes computed values.** Artefacts are corrected instead of deleted, Lomb-Scargle is the
+> default spectral method, every session gets a signal quality index (migration V005), SampEn
+> follows the reference convention and the faulty VO2max model is removed. After upgrading:
+> `repo.run_migrations()`, then `reprocess_sessions()` — see the migration note below.
 
 ### Added — Artefact correction (`cardiolab.signals.artifacts`)
 
@@ -82,7 +87,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   auto_clean=True, hr_max=None)` → `ReprocessReport`: recomputes stored sessions from
   `hrv_raw_sessions` with the current pipeline, in chronological order — resting readiness scores
   against the previous sessions, already reprocessed. Dry run by default; writes in the caller's
-  transaction; idempotent (a second run reports every session `unchanged`). Failed analyses keep
+  transaction; idempotent (a second run reports every session `unchanged`). A session is rewritten
+  as soon as any stored field changes (e.g. the SampEn of an orthostatic phase), not only the key
+  metrics shown in the report (`SessionChange.changed_fields`). Failed analyses keep
   their stored row; sessions without raw RR are listed in `report.skipped`.
 - `analyse_session(protocol, rr, *, method, auto_clean, hr_max)`: the single definition of how a
   session is computed (coherence and VO2max RR series corrected first when `auto_clean`).

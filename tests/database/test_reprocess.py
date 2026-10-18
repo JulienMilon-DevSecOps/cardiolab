@@ -225,6 +225,21 @@ class TestReprocess:
         assert repo.writes == []
         assert "failed" in report.summary() or "✗" in report.summary()
 
+    def test_change_outside_key_metrics_is_written(self):
+        """A change in a field not shown in the report (phase SampEn) is still written."""
+        repo = FakeRepo()
+        rr = load_sample("orthostatic", 0)
+        repo.add_raw("orthostatic", "2099-11-01", rr)
+        old = analyse_session("orthostatic", rr)
+        old.date, old.score = "2099-11-01", session_score("orthostatic", old)
+        old.phases.supine.features.sampen += 0.01  # e.g. former SampEn convention
+        repo.results["orthostatic"] = {"2099-11-01": old}
+        report = reprocess_sessions(repo, "u", protocol="orthostatic", dry_run=False)
+        change = report.sessions[0]
+        assert change.status == "changed"
+        assert change.changed_fields == ["supine_sampen"]
+        assert repo.writes == [("orthostatic", "2099-11-01")]
+
     def test_vo2max_keeps_stored_hr_max(self):
         """VO2max: the hr_max of the stored estimation is reused."""
         repo = FakeRepo()

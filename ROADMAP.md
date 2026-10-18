@@ -27,8 +27,8 @@ starts once the previous one is tagged. Each item maps to one GitLab issue
 | [v0.3.1](#v031--ci-pipeline-090-p0) | P0 | CI pipeline 0.9.0, TestPyPI pre-release — **released 2026-10-12** | — | No |
 | [v0.3.2](#v032--fixes-and-hygiene-p1) | P1 | Readiness consistency fix, hygiene, entropy speed-up, sample datasets — **released 2026-10-13** | — | TRIMP only |
 | [v0.3.3](#v033--generic-repository-p1) | P1 | Generic `HRVRepository` (prerequisite for new tables) — not published separately, **shipped in v0.3.4** | — | No |
-| [v0.3.4](#v034--sports-p1) | P1 | Sports reference list, sport validated on save, sport read from `.fit` files — **ready 2026-10-16** (includes v0.3.3) | — | No |
-| [v0.4.0](#v040--signal-reliability-p1) | P1 | Artefact correction, spectral fixes, signal quality, reprocessing | V005 | **Yes** |
+| [v0.3.4](#v034--sports-p1) | P1 | Sports reference list, sport validated on save, sport read from `.fit` files — **released 2026-10-16** (includes v0.3.3) | — | No |
+| [v0.4.0](#v040--signal-reliability-p1) | P1 | Artefact correction, spectral fixes, signal quality, reprocessing — **ready 2026-10-18** | V005 | **Yes** |
 | [v0.5.0](#v050--athlete-longitudinal-monitoring-p2) | P2 | 7-day lnRMSSD + CV + SWC, trend analysis, real trend component, effort-based load (session RPE) | V006 | **Yes** (readiness trend) |
 | [v0.6.0](#v060--exercise-protocols-p2) | P2 | DFA α1 thresholds (VT1/VT2), submaximal test | V007 | No (new protocols) |
 | [v0.7.0](#v070--statistical-intelligence-p3) | P3 | Multivariate anomaly, statistical plots | — | No |
@@ -60,7 +60,7 @@ Prepared 2026-10-13, not published separately: shipped in v0.3.4. No API change.
 
 ## v0.3.4 — Sports (P1)
 
-Ready 2026-10-16 — also ships v0.3.3. No schema change (`sport_type` stays a `TEXT` column, now holding normalised codes). No change to computed values. Needed by the cardioanalysis site (activity list of « Saisir une séance », colours of the weekly load chart).
+Released 2026-10-16 — also ships v0.3.3. No schema change (`sport_type` stays a `TEXT` column, now holding normalised codes). No change to computed values. Needed by the cardioanalysis site (activity list of « Saisir une séance », colours of the weekly load chart).
 
 * ✅ **Sports reference list**: one module (`cardiolab/sports.py`) defining each sport once — code (`running`, `cycling`, `swimming`, `trail`, `strength`, `rowing`, `hiking`, `skiing`, team sports…), FR / EN labels, colour, family (endurance, strength, team sports, other) — plus `normalize_sport()` mapping free text and import names (« Course à pied », `run`, Garmin FIT sport / sub-sport codes) to a code. `_DEFAULT_SPORT_COLORS` of `training_load_plots.py` and the labels read from it.
 * ✅ **Sport validated on save**: `save_training_session()` stores the reference code and rejects unknown sports with a suggestion (`validate_sport()`), so typos never reach the database.
@@ -68,7 +68,7 @@ Ready 2026-10-16 — also ships v0.3.3. No schema change (`sport_type` stays a `
 
 ## v0.4.0 — Signal reliability (P1)
 
-**Changes computed values** — the most important scientific version. DB: migration V005 (signal quality).
+Ready 2026-10-18. **Changes computed values** — the most important scientific version. DB: migration V005 (signal quality).
 
 * ✅ **Artefact correction by replacement (Lipponen & Tarvainen 2019)**: `RRSeries.correct_artifacts()` — extra beats merged, missed beats split, ectopic / long-short beats interpolated; used by `auto_clean`. One pass (as published) and a 20 % amplitude gate on ectopic / long-short beats, so that the respiratory arrhythmia of trained athletes is not corrected. Validated against injected artefacts (100 % detected, RMSSD within 3 %), clean signals (0 correction) and NeuroKit2 (identical classifications without the gate).
 * ✅ **Entropy convention**: `sampen` counted B over the N−m+1 m-length templates, whereas Richman & Moorman (2000) use the first N−m templates for both A and B. Small bias, but values change: align with the reference definition here (kept identical in v0.3.2, where only speed changed).
