@@ -33,6 +33,7 @@ example/
 ├── 01_setup_database.py      ← run_migrations() — initialise le schéma complet
 ├── 02_feed_database.py       ← calcule HRVFeatures et enregistre en base
 ├── 14_user_profiles.py       ← CRUD table user_profiles
+├── 16_reprocess_history.py   ← retraitement de l'historique depuis les RR bruts (v0.4.0)
 │
 │   ── 7. Pipeline complet ───────────────────────────────────────────────────────
 └── 15_full_daily_pipeline.py ← pipeline quotidien complet (synthétique, sans DB)
@@ -114,6 +115,10 @@ python examples/03_load_and_analyze.py
 
 # 4. Gérer les profils utilisateurs
 python examples/14_user_profiles.py
+
+# 5. Retraiter l'historique après une mise à jour qui change les valeurs (0.4.0)
+python examples/16_reprocess_history.py            # simulation
+python examples/16_reprocess_history.py --apply    # écriture
 ```
 
 ---
@@ -237,6 +242,12 @@ Voir [`docs/visualization/`](../docs/visualization/) pour les guides de lecture.
 #### `14_user_profiles.py` — Profils utilisateurs
 - Création, lecture, mise à jour, liste, suppression via `HRVRepository`.
 - Illustre le CRUD complet de la table `user_profiles`.
+
+#### `16_reprocess_history.py` — Retraitement de l'historique
+- `reprocess_sessions()` recalcule chaque séance depuis `hrv_raw_sessions` avec la
+  chaîne actuelle (correction d'artefacts, Lomb-Scargle, qualité, scores).
+- Simulation par défaut (rapport avant / après), `--apply` pour écrire ; relancer
+  ne change plus rien.
 
 ---
 

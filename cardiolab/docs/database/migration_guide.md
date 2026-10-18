@@ -4,6 +4,9 @@ cardiolab ships SQL migration files that evolve the PostgreSQL schema safely
 across versions. Migrations are applied with a single call and are tracked in a
 `schema_migrations` table so that they are never applied twice.
 
+> **Upgrading to v0.4.0**: after `run_migrations()`, recompute stored sessions
+> with the new pipeline — see [reprocessing.md](reprocessing.md).
+
 ---
 
 ## Quick start

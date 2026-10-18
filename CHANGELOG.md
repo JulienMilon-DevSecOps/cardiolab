@@ -76,6 +76,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `quality_n_beats`, `quality_effective_duration`. Labels `quality_*` (EN / FR).
 - `docs/features/signal_quality.md`.
 
+### Added — Reprocessing the history (`cardiolab.database.reprocess`)
+
+- `reprocess_sessions(repo, user_id, protocol=None, since=None, dry_run=True, *, method="lomb",
+  auto_clean=True, hr_max=None)` → `ReprocessReport`: recomputes stored sessions from
+  `hrv_raw_sessions` with the current pipeline, in chronological order — resting readiness scores
+  against the previous sessions, already reprocessed. Dry run by default; writes in the caller's
+  transaction; idempotent (a second run reports every session `unchanged`). Failed analyses keep
+  their stored row; sessions without raw RR are listed in `report.skipped`.
+- `analyse_session(protocol, rr, *, method, auto_clean, hr_max)`: the single definition of how a
+  session is computed (coherence and VO2max RR series corrected first when `auto_clean`).
+- `session_score(protocol, result, baseline=None)` (`cardiolab.analytics.scoring`): the [0–100]
+  score stored with a session, one entry point for the six protocols.
+- `ReprocessReport` (`summary()`, `to_rows()`, `count()`, `written`, `skipped`) and
+  `SessionChange` (`deltas()`), exported from `cardiolab.database`.
+- `examples/16_reprocess_history.py`; `docs/database/reprocessing.md`.
+
+### Migration note — from 0.3.x
+
+1. `repo.run_migrations()` — applies V005 (`quality` column) before any new session is saved.
+2. `reprocess_sessions(repo, user_id)` — dry run: check the before / after report.
+3. `reprocess_sessions(repo, user_id, dry_run=False)` — stored values follow the 0.4.0 pipeline.
+
+Without step 3, the history mixes two pipelines (artefact deletion vs correction, Welch vs
+Lomb-Scargle) and baselines, scores and trends are distorted.
+
 ### Changed
 
 - **Minimum dependency versions** (`pyproject.toml`): `numpy>=2.0` (`np.trapezoid`), `scipy>=1.13`
@@ -119,6 +144,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- `tests/database/test_reprocess.py` (19): pipeline, dry run, writes, idempotency, chronological
+  scores, `since`, sessions without raw RR, new / failed sessions, VO2max `hr_max`, report;
+  PostgreSQL run (dry run → apply → second apply unchanged).
 - `tests/signals/test_quality.py` (27): thresholds, uncorrected rule, serialisation, corrected /
   uncorrected series, real sample, protocols (per-phase orthostatic grading), baseline exclusion.
 - Integration (PostgreSQL): quality round trips on the four tables, `NULL` = unknown, migration

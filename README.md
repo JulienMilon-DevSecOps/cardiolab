@@ -152,6 +152,24 @@ sessions. Orthostatic phases are graded separately. Stored in a `quality` JSONB
 column (migration V005). Details:
 [`docs/features/signal_quality.md`](cardiolab/docs/features/signal_quality.md).
 
+### Upgrading to 0.4.0 — reprocess the history
+
+0.4.0 changes computed values (artefact correction, Lomb-Scargle default,
+signal quality). Apply the migrations, then recompute stored sessions from
+their raw RR intervals (`hrv_raw_sessions`) — dry run by default:
+
+```python
+from cardiolab.database import HRVRepository, reprocess_sessions
+
+with HRVRepository.from_env() as repo:
+    repo.run_migrations()
+    print(reprocess_sessions(repo, user_id).summary())          # dry run
+with HRVRepository.from_env() as repo:
+    reprocess_sessions(repo, user_id, dry_run=False)            # write
+```
+
+Details: [`docs/database/reprocessing.md`](cardiolab/docs/database/reprocessing.md).
+
 ```python
 from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
 import warnings
