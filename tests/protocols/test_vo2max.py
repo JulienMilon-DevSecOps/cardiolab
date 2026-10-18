@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from cardiolab.protocols.vo2max import VO2maxResult, _fitness_category, vo2max_from_hrv
+from cardiolab.signals.quality import quality_columns
 from cardiolab.signals.rr import RRSeries
 
 # ======================
@@ -55,6 +56,7 @@ class TestVO2maxResult:
             "ln_rmssd_used",
             "fitness_category",
             "score",
+            *quality_columns(None),
         }
         assert set(r.to_dict().keys()) == expected
 

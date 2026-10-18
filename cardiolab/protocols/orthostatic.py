@@ -7,6 +7,12 @@ from dataclasses import dataclass
 import numpy as np
 
 from cardiolab.protocols.resting import HRVFeatures, resting_hrv
+from cardiolab.signals.quality import (
+    SignalQuality,
+    artifact_indices,
+    quality_columns,
+    signal_quality,
+)
 from cardiolab.signals.rr import RRSeries
 
 # ── Physiological reference thresholds ───────────────────────────────────────
@@ -158,6 +164,9 @@ class OrthostaticResult:
             80 % weighted on ΔHR (Brignole 2018, Sheldon 2015) + 20 % on
             HF vagal withdrawal (Task Force 1996).  Set by the ETL pipeline
             before saving; defaults to 0.0 when not yet computed.
+        quality: Signal quality of the whole recording. Each phase carries
+            its own index in ``phases.<phase>.features.quality`` — a movement
+            artefact when standing up does not downgrade the supine phase.
 
     """
 
@@ -170,6 +179,7 @@ class OrthostaticResult:
     delta_rmssd: float
     interpretation: str
     score: float = 0.0
+    quality: SignalQuality | None = None
 
     def to_dict(self) -> dict:
         """Return a plain-Python dict of the full orthostatic result.
@@ -198,6 +208,7 @@ class OrthostaticResult:
             "delta_rmssd": self.delta_rmssd,
             "interpretation": self.interpretation,
             "score": self.score,
+            **quality_columns(self.quality),
         }
 
     def to_flat_dict(self) -> dict:
@@ -240,6 +251,7 @@ class OrthostaticResult:
         row["delta_rmssd"] = self.delta_rmssd
         row["interpretation"] = self.interpretation
         row["score"] = self.score
+        row.update(quality_columns(self.quality))
 
         return row
 
@@ -326,15 +338,25 @@ def orthostatic_hrv(
             ``min_phase_duration``.
 
     """
+    # Times (s from the start) of the beats flagged as artefacts, to grade each
+    # phase on its own; corrections keep the total duration, so these times
+    # match the phase boundaries of the analysed series
+    raw_times = np.cumsum(rr.intervals) / 1000.0
     if auto_clean:
-        rr, _ = rr.correct_artifacts()
+        rr, report = rr.correct_artifacts()
+        flagged = sorted({i for idx in report.indices.values() for i in idx})
         # Safety net: impossible values the classification cannot reach
         # (the last two beats of a series are never classified)
         rr = rr.remove_outliers()
+    else:
+        flagged = artifact_indices(rr.intervals)
+    flagged_times = raw_times[flagged]
 
     phases = detect_phases(
         rr, hr_threshold=hr_threshold, window_sec=window_sec, method=method
     )
+    for phase in (phases.supine, phases.transition, phases.standing):
+        phase.features.quality = _phase_quality(phase, flagged_times, auto_clean)
 
     if phases.supine.duration_sec < min_phase_duration:
         raise ValueError(
@@ -391,6 +413,22 @@ def orthostatic_hrv(
         lf_hr_pct_change=lf_hr_pct_change,
         delta_rmssd=delta_rmssd,
         interpretation=interpretation,
+        quality=signal_quality(rr),
+    )
+
+
+def _phase_quality(
+    phase: PhaseSegment | TransitionSegment,
+    flagged_times: np.ndarray,
+    corrected: bool,
+) -> SignalQuality:
+    """Grade one phase from the artefacts flagged within its time window."""
+    in_phase = (flagged_times > phase.start_sec) & (flagged_times <= phase.end_sec)
+    return SignalQuality.from_counts(
+        n_beats=len(phase.rr.intervals),
+        n_artifacts=int(np.sum(in_phase)),
+        corrected=corrected,
+        effective_duration=phase.duration_sec,
     )
 
 

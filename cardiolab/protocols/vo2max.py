@@ -61,6 +61,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from cardiolab.features.time_domain import rmssd as _rmssd
+from cardiolab.signals.quality import SignalQuality, quality_columns, signal_quality
 from cardiolab.signals.rr import RRSeries
 
 
@@ -96,6 +97,9 @@ class VO2maxResult:
         ln_rmssd_used: Natural log of the RMSSD (dimensionless).
         fitness_category: ACSM fitness category derived from the best
             available estimate. Priority: Uth → Esco-Flatt → ln-RMSSD.
+        quality: Signal quality index of the resting recording (see
+            :func:`~cardiolab.signals.quality.signal_quality`). ``None`` when
+            unknown (estimations stored before v0.4.0).
 
     """
 
@@ -109,6 +113,7 @@ class VO2maxResult:
     ln_rmssd_used: float = 0.0
     fitness_category: str = "poor"
     score: float = 0.0
+    quality: SignalQuality | None = None
 
     def to_dict(self) -> dict:
         """Return a flat dictionary of all result fields."""
@@ -123,6 +128,7 @@ class VO2maxResult:
             "ln_rmssd_used": self.ln_rmssd_used,
             "fitness_category": self.fitness_category,
             "score": self.score,
+            **quality_columns(self.quality),
         }
 
 
@@ -194,4 +200,5 @@ def vo2max_from_hrv(
         rmssd_used=rmssd_val,
         ln_rmssd_used=ln_rmssd_val,
         fitness_category=category,
+        quality=signal_quality(rr),
     )
