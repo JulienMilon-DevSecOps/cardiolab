@@ -282,7 +282,7 @@ def orthostatic_hrv(
     hr_threshold: float = 10.0,
     window_sec: float = 30.0,
     auto_clean: bool = False,
-    method: str = "welch",
+    method: str = "lomb",
 ) -> OrthostaticResult:
     """Run the orthostatic HRV protocol on a continuous RR recording.
 
@@ -311,9 +311,10 @@ def orthostatic_hrv(
             typically corrected. Defaults to ``False``. Changed in 0.4.0:
             earlier versions only deleted out-of-range values.
         method: Spectral estimation method passed to ``resting_hrv()`` for
-            each phase. ``"welch"`` (default) suits long phases (≥ 5 min);
+            each phase. ``"lomb"`` (default, changed in 0.4.0 — was
+            ``"welch"``) gives the most stable estimates on 3–5 min phases;
             ``"ar"`` offers better resolution on the short transition window
-            (< 2 min) — consider ``"ar"`` when the transition is brief.
+            (< 2 min); ``"welch"`` suits long phases (≥ 10 min).
 
     Returns:
         An ``OrthostaticResult`` with segmented phases, HRV features for each
@@ -404,7 +405,7 @@ def detect_phases(
     window_sec: float = 30.0,
     stabilization_window_sec: float = 20.0,
     stabilization_std_threshold: float = 5.0,
-    method: str = "welch",
+    method: str = "lomb",
 ) -> OrthostaticPhases:
     """Detect supine, transition, and standing phases in a continuous RR series.
 
@@ -425,7 +426,7 @@ def detect_phases(
             deviation (bpm) within the stabilisation window for the transition
             to be declared complete. Defaults to 5 bpm.
         method: Spectral estimation method forwarded to ``resting_hrv()`` for
-            each phase. Defaults to ``"welch"``.
+            each phase. Defaults to ``"lomb"``.
 
     Returns:
         An ``OrthostaticPhases`` with the three segments and their HRV features.
