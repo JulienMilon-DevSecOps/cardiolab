@@ -34,7 +34,7 @@ class TestVO2maxResult:
         r = VO2maxResult()
         assert r.date is None
         assert math.isnan(r.vo2max_uth)
-        assert r.vo2max_esco_flatt == 0.0
+        assert math.isnan(r.vo2max_esco_flatt)  # deprecated model (0.4.0)
         assert r.vo2max_ln_rmssd == 0.0
         assert r.hr_rest == 0.0
         assert math.isnan(r.hr_max)
@@ -122,12 +122,10 @@ class TestVO2maxFromHRV:
         result = vo2max_from_hrv(rr)
         assert isinstance(result, VO2maxResult)
 
-    def test_esco_flatt_non_nan(self):
-        """Esco-Flatt VO2max estimate is a positive finite number."""
+    def test_esco_flatt_no_longer_computed(self):
+        """The Esco-Flatt RMSSD model was removed in 0.4.0: always NaN."""
         rr = _make_rr()
-        result = vo2max_from_hrv(rr)
-        assert not math.isnan(result.vo2max_esco_flatt)
-        assert result.vo2max_esco_flatt > 0.0
+        assert math.isnan(vo2max_from_hrv(rr).vo2max_esco_flatt)
 
     def test_ln_rmssd_non_nan(self):
         """ln-RMSSD VO2max estimate is a positive finite number."""
@@ -158,12 +156,12 @@ class TestVO2maxFromHRV:
         expected = 15.3 * (180.0 / result.hr_rest)
         assert abs(result.vo2max_uth - expected) < 0.01
 
-    def test_esco_flatt_formula(self):
-        """Verify Esco-Flatt formula: 18.37 + 0.054 × RMSSD."""
+    def test_ln_rmssd_formula(self):
+        """Verify ln-RMSSD formula: 24.89 + 5.97 × ln(RMSSD)."""
         rr = _make_rr()
         result = vo2max_from_hrv(rr)
-        expected = 18.37 + 0.054 * result.rmssd_used
-        assert abs(result.vo2max_esco_flatt - expected) < 0.01
+        expected = 24.89 + 5.97 * math.log(result.rmssd_used)
+        assert abs(result.vo2max_ln_rmssd - expected) < 0.01
 
     def test_hr_rest_derived_from_rr(self):
         """HR rest is correctly derived from the mean RR interval."""
@@ -188,17 +186,41 @@ class TestVO2maxFromHRV:
         rr = _make_rr(n=300, mean_ms=1100)  # low HR → high VO2max estimate
         result_with = vo2max_from_hrv(rr, hr_max=200.0)
         result_without = vo2max_from_hrv(rr)
-        # When hr_max is provided, category derived from Uth; otherwise from Esco-Flatt
-        assert isinstance(result_with.fitness_category, str)
-        assert isinstance(result_without.fitness_category, str)
+        assert result_with.fitness_category == _fitness_category(result_with.vo2max_uth)
+        assert result_without.fitness_category == _fitness_category(
+            result_without.vo2max_ln_rmssd
+        )
 
-    def test_higher_rmssd_higher_esco_flatt(self):
-        """Higher RMSSD → higher VO2max prediction (monotone relationship)."""
+    def test_higher_rmssd_higher_ln_rmssd_estimate(self):
+        """Higher RMSSD → higher ln-RMSSD VO2max estimate (monotone relationship)."""
         rr_low = _make_rr(n=300, mean_ms=857, std_ms=10)
         rr_high = _make_rr(n=300, mean_ms=857, std_ms=80)
         res_low = vo2max_from_hrv(rr_low)
         res_high = vo2max_from_hrv(rr_high)
-        assert res_high.vo2max_esco_flatt >= res_low.vo2max_esco_flatt
+        assert res_high.vo2max_ln_rmssd >= res_low.vo2max_ln_rmssd
+
+    @pytest.mark.parametrize("sample", range(6))
+    def test_plausible_without_hr_max(self, sample):
+        """Bug v0.4.0-05: a trained athlete without hr_max is no longer "poor".
+
+        The author's recordings (RMSSD 41–75 ms, resting HR ≈ 50–60 bpm) gave
+        ≈ 21 mL/kg/min with the removed Esco-Flatt model (category "poor").
+        """
+        from cardiolab.datasets import load_sample
+
+        rr, _ = load_sample("resting", sample).correct_artifacts()
+        result = vo2max_from_hrv(rr)
+        assert 40.0 < result.vo2max_ln_rmssd < 60.0
+        assert result.fitness_category in ("good", "very_good", "excellent")
+
+    def test_models_agree_on_athlete_profile(self):
+        """Uth and ln-RMSSD stay within 25 % on a realistic athlete profile."""
+        from cardiolab.datasets import load_sample
+
+        rr, _ = load_sample("resting", 1).correct_artifacts()
+        result = vo2max_from_hrv(rr, hr_max=185.0)
+        ratio = result.vo2max_ln_rmssd / result.vo2max_uth
+        assert 0.75 < ratio < 1.25
 
     def test_rmssd_used_positive(self):
         """RMSSD used in the estimate is positive."""

@@ -960,8 +960,7 @@ fig.savefig("dfa_fluctuation.png", dpi=150, bbox_inches="tight")
 | Element | Meaning |
 |---|---|
 | Blue bar (Uth) | VO2max from Uth et al. 2004 — requires HR_max; omitted when not available |
-| Green bar (Esco-Flatt) | VO2max from Esco & Flatt 2014 using RMSSD directly |
-| Orange bar (ln-RMSSD) | VO2max from the ln(RMSSD) extended model (Nunan) |
+| Orange bar (ln-RMSSD) | Indicative VO2max from ln(RMSSD) — no verified published source (the Esco-Flatt bar was removed in v0.4.0) |
 | Coloured background bands | ACSM fitness zones: poor / fair / good / very good / excellent |
 | Dotted threshold lines | Zone boundaries at 28, 38, 48, 58 mL/kg/min |
 | Annotation box (top-left) | Category, RMSSD, HR rest, HR max (or n/a) |
@@ -1083,7 +1082,7 @@ category without reading any number.
 
 Use the **gauge** for a quick session summary or athlete dashboard.  Use the
 **comparison chart** when you need to evaluate model agreement or when `hr_max`
-was not measured and you want to see the Esco-Flatt estimate alongside ln-RMSSD.
+was measured and you want to compare Uth with the indicative ln-RMSSD estimate.
 
 ```python
 from cardiolab.visualization.vo2max_plots import (

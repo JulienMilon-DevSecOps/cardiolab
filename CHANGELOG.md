@@ -5,7 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-10-18
+
+> **Changes computed values.** Artefacts are corrected instead of deleted, Lomb-Scargle is the
+> default spectral method, every session gets a signal quality index (migration V005), SampEn
+> follows the reference convention and the faulty VO2max model is removed. After upgrading:
+> `repo.run_migrations()`, then `reprocess_sessions()` — see the migration note below.
 
 ### Added — Artefact correction (`cardiolab.signals.artifacts`)
 
@@ -76,6 +81,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `quality_n_beats`, `quality_effective_duration`. Labels `quality_*` (EN / FR).
 - `docs/features/signal_quality.md`.
 
+### Added — Reprocessing the history (`cardiolab.database.reprocess`)
+
+- `reprocess_sessions(repo, user_id, protocol=None, since=None, dry_run=True, *, method="lomb",
+  auto_clean=True, hr_max=None)` → `ReprocessReport`: recomputes stored sessions from
+  `hrv_raw_sessions` with the current pipeline, in chronological order — resting readiness scores
+  against the previous sessions, already reprocessed. Dry run by default; writes in the caller's
+  transaction; idempotent (a second run reports every session `unchanged`). A session is rewritten
+  as soon as any stored field changes (e.g. the SampEn of an orthostatic phase), not only the key
+  metrics shown in the report (`SessionChange.changed_fields`). Failed analyses keep
+  their stored row; sessions without raw RR are listed in `report.skipped`.
+- `analyse_session(protocol, rr, *, method, auto_clean, hr_max)`: the single definition of how a
+  session is computed (coherence and VO2max RR series corrected first when `auto_clean`).
+- `session_score(protocol, result, baseline=None)` (`cardiolab.analytics.scoring`): the [0–100]
+  score stored with a session, one entry point for the six protocols.
+- `ReprocessReport` (`summary()`, `to_rows()`, `count()`, `written`, `skipped`) and
+  `SessionChange` (`deltas()`), exported from `cardiolab.database`.
+- `examples/16_reprocess_history.py`; `docs/database/reprocessing.md`.
+
+### Migration note — from 0.3.x
+
+1. `repo.run_migrations()` — applies V005 (`quality` column) before any new session is saved.
+2. `reprocess_sessions(repo, user_id)` — dry run: check the before / after report.
+3. `reprocess_sessions(repo, user_id, dry_run=False)` — stored values follow the 0.4.0 pipeline.
+
+Without step 3, the history mixes two pipelines (artefact deletion vs correction, Welch vs
+Lomb-Scargle) and baselines, scores and trends are distorted.
+
 ### Changed
 
 - **Minimum dependency versions** (`pyproject.toml`): `numpy>=2.0` (`np.trapezoid`), `scipy>=1.13`
@@ -91,6 +123,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation (features, sensors, README) recommends `correct_artifacts()` instead of
   `remove_outliers()`; example 07 compares deletion and correction. README no longer claims that
   every protocol has `auto_clean` (only resting and orthostatic).
+
+### Fixed — Sample entropy convention
+
+- `sampen()` counted B over the N − m + 1 m-length templates and A over N − m: both now use the
+  same N − m starting points (Richman & Moorman 2000). Values are 0.05–1 % lower on the sample
+  recordings; a perfectly periodic series now gives SampEn = 0 (it gave log 2). No score uses
+  SampEn. Reference oracle of the tests updated accordingly.
+
+### Fixed — VO2max (issue v0.4.0-05)
+
+- **"Esco & Flatt (2014)" RMSSD model removed**: `18.37 + 0.054 × RMSSD` returned 20–24 mL/kg/min
+  over the whole normal RMSSD range, so every user without `hr_max` was classed "poor" / "fair"
+  (sample recordings of a trained athlete: ≈ 21 mL/kg/min, versus 47–54 with the other models).
+  The cited paper studies ultra-short HRV recordings and contains no VO2max equation.
+  `vo2max_esco_flatt` is kept for storage compatibility and is always `nan`; removed from the
+  reports and charts.
+- **Fitness category and score**: Uth when `hr_max` is known, otherwise the ln-RMSSD estimate,
+  now documented as **indicative** — no published source could be verified for its equation
+  either; resting HRV adds little to heart rate for predicting VO2max (Grant et al. 2013).
+- False references removed (Esco & Flatt 2014 "Sensors", Nunan et al. 2010 as source of a VO2max
+  equation); Tanaka HRmax formula corrected to `208 − 0.7 × age`.
+- Tests: plausible estimates and categories without `hr_max` on the six sample recordings; Uth
+  and ln-RMSSD within 25 % on an athlete profile.
 
 ### Fixed — Spectral analysis
 
@@ -119,6 +174,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- `tests/database/test_reprocess.py` (19): pipeline, dry run, writes, idempotency, chronological
+  scores, `since`, sessions without raw RR, new / failed sessions, VO2max `hr_max`, report;
+  PostgreSQL run (dry run → apply → second apply unchanged).
 - `tests/signals/test_quality.py` (27): thresholds, uncorrected rule, serialisation, corrected /
   uncorrected series, real sample, protocols (per-phase orthostatic grading), baseline exclusion.
 - Integration (PostgreSQL): quality round trips on the four tables, `NULL` = unknown, migration

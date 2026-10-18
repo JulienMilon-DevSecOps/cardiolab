@@ -324,6 +324,11 @@ For standard clinical parameters *m* = 2, *r* = 0.2 · std(RR):
    within *r*: total count = **A**.
 3. $$\text{SampEn}(m, r) = -\log\frac{A}{B}$$
 
+Both counts use the same N − m starting points (Richman & Moorman 2000). Changed
+in v0.4.0: B was counted over the N − m + 1 m-length templates — values are now
+0.05–1 % lower on 5-minute recordings, and a perfectly periodic series gives
+SampEn = 0 as expected.
+
 Self-matches are **excluded**, eliminating the length-dependent bias of ApEn.
 
 **Complexity**: O(*N*²) — may be slow for N > 1 000 beats.

@@ -132,7 +132,6 @@ _VO2_CAT_COLORS: dict[str, str] = {
 }
 _VO2_MODEL_COLORS: dict[str, str] = {
     "Uth": _BLUE,
-    "Esco-Flatt": _GREEN,
     "ln-RMSSD": _ORANGE,
 }
 
@@ -1271,7 +1270,6 @@ def _draw_vo2max_bars_ax(ax: plt.Axes, result: VO2maxResult, title: str = "") ->
     models: list[tuple[str, float]] = []
     if not math.isnan(result.vo2max_uth):
         models.append(("Uth", result.vo2max_uth))
-    models.append(("Esco-Flatt", result.vo2max_esco_flatt))
     models.append(("ln-RMSSD", result.vo2max_ln_rmssd))
 
     vals = [m[1] for m in models]

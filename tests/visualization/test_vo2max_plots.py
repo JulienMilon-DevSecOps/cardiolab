@@ -125,12 +125,11 @@ class TestPlotVo2maxComparison:
         bars = ax.patches
         assert len(bars) >= 3
 
-    def test_two_bars_without_uth(self, result_no_uth: VO2maxResult) -> None:
-        """Draw two bars when Uth is NaN."""
+    def test_single_model_without_uth(self, result_no_uth: VO2maxResult) -> None:
+        """Without Uth, only the ln-RMSSD estimate is drawn (Esco-Flatt removed)."""
         fig = plot_vo2max_comparison(result_no_uth)
-        ax = fig.axes[0]
-        # Only Esco-Flatt and ln-RMSSD bars
-        assert len(ax.patches) >= 2
+        ticks = [t.get_text() for t in fig.axes[0].get_xticklabels()]
+        assert ticks == ["ln-RMSSD"]
 
     def test_bar_count_with_uth(self, result_good: VO2maxResult) -> None:
         """Exactly 3 bars rendered when Uth available."""
@@ -142,11 +141,10 @@ class TestPlotVo2maxComparison:
         assert bar_count >= 2
 
     def test_xticklabels_with_uth(self, result_good: VO2maxResult) -> None:
-        """X-tick labels include Uth, Esco-Flatt, ln-RMSSD when Uth present."""
+        """X-tick labels are Uth and ln-RMSSD when Uth is present."""
         fig = plot_vo2max_comparison(result_good)
         tick_texts = [t.get_text() for t in fig.axes[0].get_xticklabels()]
-        assert any("Uth" in t for t in tick_texts)
-        assert any("Esco" in t or "RMSSD" in t for t in tick_texts)
+        assert tick_texts == ["Uth", "ln-RMSSD"]
 
     def test_xticklabels_without_uth(self, result_no_uth: VO2maxResult) -> None:
         """X-tick labels do not include Uth when Uth is NaN."""
