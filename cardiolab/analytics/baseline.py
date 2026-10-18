@@ -18,22 +18,36 @@ class Baseline:
     each new measurement. It is compatible with both live pipeline data and
     records loaded from a database.
 
+    Sessions whose signal quality is ``poor`` (more than 5 % of corrected
+    beats, or uncorrected artefacts — see
+    :func:`~cardiolab.signals.quality.signal_quality`) are left out of every
+    statistic by default: a faulty recording must not shift the personal
+    reference. Sessions without a quality index (stored before v0.4.0) are
+    kept.
+
     Attributes:
         history: Chronologically ordered list of ``HRVFeatures`` sessions.
         window: Number of most-recent sessions considered for rolling
             statistics. Defaults to 7 (one week of daily measurements).
+        include_poor: If ``True``, ``poor`` sessions are used like the others.
+            Defaults to ``False`` (added in v0.4.0).
 
     """
 
     history: list[HRVFeatures] = field(default_factory=list)
     window: int = 7
+    include_poor: bool = False
 
     # ======================
     # FACTORIES
     # ======================
 
     @classmethod
-    def from_features(cls, features_list: list[HRVFeatures]) -> Baseline:
+    def from_features(
+        cls,
+        features_list: list[HRVFeatures],
+        include_poor: bool = False,
+    ) -> Baseline:
         """Build a Baseline from an existing list of HRVFeatures.
 
         The list is sorted chronologically by ``date`` before being stored.
@@ -41,15 +55,20 @@ class Baseline:
 
         Args:
             features_list: List of ``HRVFeatures`` instances, in any order.
+            include_poor: Use ``poor``-quality sessions in the statistics.
+                Defaults to ``False``.
 
         Returns:
             A new ``Baseline`` with history sorted by ascending date.
 
         """
-        return cls(history=sorted(features_list, key=lambda x: x.date or ""))
+        return cls(
+            history=sorted(features_list, key=lambda x: x.date or ""),
+            include_poor=include_poor,
+        )
 
     @classmethod
-    def from_resting_results(cls, results) -> Baseline:
+    def from_resting_results(cls, results, include_poor: bool = False) -> Baseline:
         """Build a Baseline from a collection of resting protocol results.
 
         Convenience factory that delegates to ``from_features`` when the
@@ -58,26 +77,53 @@ class Baseline:
         Args:
             results: Iterable of ``HRVFeatures`` instances produced by the
                 resting protocol or loaded from storage.
+            include_poor: Use ``poor``-quality sessions in the statistics.
+                Defaults to ``False``.
 
         Returns:
             A new ``Baseline`` with history sorted by ascending date.
 
         """
-        return cls.from_features(list(results))
+        return cls.from_features(list(results), include_poor=include_poor)
+
+    # ======================
+    # SESSIONS USED
+    # ======================
+
+    @property
+    def sessions(self) -> list[HRVFeatures]:
+        """Sessions used by the statistics — ``history`` without ``poor`` ones.
+
+        Returns:
+            ``history`` minus the sessions graded ``poor``, unless
+            ``include_poor`` is ``True``. Sessions with no quality index are
+            kept.
+
+        """
+        if self.include_poor:
+            return self.history
+        return [s for s in self.history if not (s.quality and s.quality.is_poor)]
+
+    @property
+    def excluded(self) -> list[HRVFeatures]:
+        """Sessions left out of the statistics because their quality is ``poor``."""
+        if self.include_poor:
+            return []
+        return [s for s in self.history if s.quality and s.quality.is_poor]
 
     # ======================
     # INTERNAL
     # ======================
 
     def _get_recent(self) -> list[HRVFeatures]:
-        """Return the most recent sessions within the rolling window.
+        """Return the most recent usable sessions within the rolling window.
 
         Returns:
-            Slice of ``history`` containing the last ``window`` sessions.
-            Returns the full history if its length is less than ``window``.
+            The last ``window`` sessions of :attr:`sessions`, or all of them
+            if there are fewer than ``window``.
 
         """
-        return self.history[-self.window :]
+        return self.sessions[-self.window :]
 
     # ======================
     # EXPORT
@@ -237,7 +283,7 @@ class Baseline:
             contains fewer sessions than ``window``.
 
         """
-        values = [r.rmssd for r in self.history]
+        values = [r.rmssd for r in self.sessions]
 
         if len(values) < self.window:
             return []
@@ -260,7 +306,7 @@ class Baseline:
             contains fewer sessions than ``window``.
 
         """
-        values = [r.rmssd for r in self.history]
+        values = [r.rmssd for r in self.sessions]
 
         if len(values) < self.window:
             return []

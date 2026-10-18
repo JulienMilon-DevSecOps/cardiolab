@@ -24,6 +24,8 @@ from cardiolab.reporting._core import (
     gradient_bad,
     gradient_good,
     highlight_category,
+    quality_grade,
+    style_quality,
 )
 
 # ── Score label helpers (return internal English keys) ────────────────────────
@@ -352,6 +354,7 @@ _HISTORY_DEFAULT_COLS: list[str] = [
     "readiness_label",
     "autonomic_score",
     "autonomic_label",
+    "quality_grade",
 ]
 
 
@@ -442,6 +445,7 @@ def table_orthostatic_history(
                 "hf_hr_pct_change": r.hf_hr_pct_change,
                 "lf_hr_pct_change": r.lf_hr_pct_change,
                 "interpretation": r.interpretation,
+                "quality_grade": quality_grade(r),
             }
         # Inject pre-computed supine readiness score + label when provided
         r_score = readiness_scores[i] if readiness_scores else float("nan")
@@ -513,6 +517,7 @@ def table_orthostatic_history(
         styler = highlight_category(styler, "readiness_label", _READINESS_LABEL_COLORS)
     if "autonomic_label" in df.columns:
         styler = highlight_category(styler, "autonomic_label", _AUTONOMIC_LABEL_COLORS)
+    styler = style_quality(styler, labels)
     styler = apply_labels(styler, labels)
 
     return caption(styler, caption_text)

@@ -96,7 +96,7 @@ def _zscore(current: HRVFeatures, baseline: Baseline) -> dict:
         the standard deviation is zero.
 
     """
-    values = [r.rmssd for r in baseline.history[-baseline.window :]]
+    values = [r.rmssd for r in baseline.sessions[-baseline.window :]]
     if len(values) < 3:
         return {"status": "insufficient_data"}
 

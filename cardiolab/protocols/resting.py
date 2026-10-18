@@ -15,6 +15,7 @@ from cardiolab.features.nonlinear import sd1 as _sd1
 from cardiolab.features.nonlinear import sd2 as _sd2
 from cardiolab.features.nonlinear import sd_ratio as _sd_ratio
 from cardiolab.features.time_domain import ln_rmssd, pnn50, rmssd, sdnn
+from cardiolab.signals.quality import SignalQuality, quality_columns, signal_quality
 from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
 
 
@@ -71,6 +72,10 @@ class HRVFeatures:
             ``"lomb"`` (default), ``"welch"`` or ``"ar"``. Stored for traceability —
             LF/HF values computed with different methods are not directly
             comparable across sessions.
+        quality: Signal quality index (share of artefacts, grade ``good`` /
+            ``acceptable`` / ``poor``). ``None`` when unknown — sessions
+            stored before v0.4.0. ``poor`` sessions are left out of the
+            :class:`~cardiolab.analytics.baseline.Baseline` by default.
 
     """
 
@@ -103,6 +108,7 @@ class HRVFeatures:
     duration: float = 0.0
     score: float = 0.0
     method: str = "lomb"
+    quality: SignalQuality | None = None
 
     def to_dataframe(self):
         """Return a one-row pandas DataFrame of all HRV features.
@@ -133,7 +139,10 @@ class HRVFeatures:
 
         Returns:
             Dictionary with one key per field. ``date`` may be ``None``.
-            All numeric values are native Python ``float``.
+            All numeric values are native Python ``float``. The quality
+            index is flattened into ``quality_grade``, ``quality_artifact_pct``,
+            ``quality_corrected``, ``quality_n_beats`` and
+            ``quality_effective_duration`` (``None`` when unknown).
 
         """
         return {
@@ -160,6 +169,7 @@ class HRVFeatures:
             "duration": self.duration,
             "score": self.score,
             "method": self.method,
+            **quality_columns(self.quality),
         }
 
 
@@ -211,6 +221,8 @@ def resting_hrv(
     Returns:
         An ``HRVFeatures`` instance populated with all computed metrics.
         ``score`` is set to ``0.0`` when ``compute_score`` is ``False``.
+        ``quality`` is always set (:func:`~cardiolab.signals.quality.signal_quality`):
+        without ``auto_clean``, any artefact detected makes it ``poor``.
 
     """
     if auto_clean:
@@ -218,6 +230,8 @@ def resting_hrv(
         # Safety net: impossible values the classification cannot reach
         # (the last two beats of a series are never classified)
         rr = rr.remove_outliers()
+
+    quality = signal_quality(rr)
 
     # ======================
     # VALIDATION
@@ -288,6 +302,7 @@ def resting_hrv(
         duration=duration,
         score=score,
         method=method,
+        quality=quality,
     )
 
 

@@ -19,6 +19,8 @@ from cardiolab.reporting._core import (
     gradient_bad,
     gradient_good,
     highlight_category,
+    quality_grade,
+    style_quality,
 )
 
 # Coherence thresholds (McCraty / HeartMath standard)
@@ -92,6 +94,7 @@ def table_coherence_history(
                 "sdnn": r.sdnn,
                 "mean_hr": r.mean_hr,
                 "duration": r.duration,
+                "quality_grade": quality_grade(r),
             }
         )
 
@@ -115,6 +118,7 @@ def table_coherence_history(
     styler = gradient_good(styler, ["rmssd"])
     styler = gradient_bad(styler, ["mean_hr"])
     styler = highlight_category(styler, "category", _COH_CAT_COLORS)
+    styler = style_quality(styler, labels)
     styler = apply_labels(styler, labels)
 
     return caption(styler, caption_text)

@@ -4,6 +4,11 @@ This guide explains how to interpret each visualisation produced by
 `cardiolab.visualization`. All plots take an `RRSeries` as input and return
 a matplotlib `Figure` object that you can save or display.
 
+> **Red cross** (since v0.4.0) — on the evolution charts, a red cross marks a
+> session whose signal quality is `poor` (more than 5 % of corrected beats, or
+> uncorrected artefacts). Its values come from a faulty recording and are left
+> out of the baseline — see [signal quality](../features/signal_quality.md).
+
 ---
 
 ## 1. RR Tachogram — `plot_rr_tachogram`

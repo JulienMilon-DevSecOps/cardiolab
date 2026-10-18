@@ -88,6 +88,7 @@ from cardiolab.protocols.orthostatic import OrthostaticResult, orthostatic_hrv
 from cardiolab.protocols.resting import HRVFeatures, resting_hrv
 from cardiolab.protocols.vo2max import VO2maxResult, vo2max_from_hrv
 from cardiolab.signals.artifacts import ArtifactReport
+from cardiolab.signals.quality import SignalQuality, signal_quality
 from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
 from cardiolab.sports import (
     Sport,
@@ -103,6 +104,8 @@ __all__ = [
     "RRSeries",
     "PhysiologicalWarning",
     "ArtifactReport",
+    "SignalQuality",
+    "signal_quality",
     # ── Protocols — functions
     "resting_hrv",
     "orthostatic_hrv",

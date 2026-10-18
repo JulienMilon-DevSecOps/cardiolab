@@ -20,6 +20,7 @@ from cardiolab.reporting._core import (
     fmt_nan,
     gradient_bad,
     gradient_good,
+    style_quality,
 )
 
 # ── Default column selection ──────────────────────────────────────────────────
@@ -36,6 +37,7 @@ _HISTORY_COLS: list[str] = [
     "apen",
     "sampen",
     "score",
+    "quality_grade",
 ]
 
 
@@ -100,6 +102,7 @@ def table_resting_history(
     styler = gradient_good(styler, ["apen"], vmin=0.5, vmax=1.8)
     styler = gradient_good(styler, ["sampen"], vmin=0.5, vmax=2.0)
     styler = gradient_bad(styler, ["mean_hr"])
+    styler = style_quality(styler, labels)
     styler = apply_labels(styler, labels)
     return caption(styler, caption_text)
 

@@ -34,7 +34,7 @@ def trend_rmssd(baseline: Baseline) -> dict:
         ``{"status": "insufficient_data"}`` instead.
 
     """
-    values = [r.rmssd for r in baseline.history]
+    values = [r.rmssd for r in baseline.sessions]
 
     if len(values) < 5:
         return {"status": "insufficient_data"}

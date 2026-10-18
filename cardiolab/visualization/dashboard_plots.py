@@ -33,6 +33,7 @@ from cardiolab.protocols.hrr import HRRResult
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.protocols.vo2max import VO2maxResult
 from cardiolab.signals.rr import RRSeries
+from cardiolab.visualization._quality import mark_poor_sessions, session_qualities
 
 # ── Shared colour / style constants ──────────────────────────────────────────
 
@@ -504,6 +505,7 @@ def plot_readiness_evolution(
 
     # Score line
     ax.plot(xs, scores, color=_DARK, linewidth=1.8, zorder=3, label="Score")
+    mark_poor_sessions(ax, xs, scores, session_qualities(features), labels)
 
     # Session dots coloured by zone
     for x, s in zip(xs, scores, strict=False):
@@ -658,6 +660,7 @@ def plot_score_evolution(
 
     # Score line
     ax.plot(xs, scores, color=_DARK, linewidth=1.8, zorder=3, label="Score")
+    mark_poor_sessions(ax, xs, scores, session_qualities(results), labels)
 
     # Session dots coloured by zone
     for x, s in zip(xs, scores, strict=False):

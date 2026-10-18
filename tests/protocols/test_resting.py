@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from cardiolab.protocols.resting import HRVFeatures, _compute_simple_score, resting_hrv
+from cardiolab.signals.quality import quality_columns
 from cardiolab.signals.rr import RRSeries
 
 
@@ -43,6 +44,7 @@ class TestHRVFeatures:
             "duration",
             "score",
             "method",
+            "quality",
         }
 
         actual_fields = set(vars(normal_hrv_features).keys())
@@ -389,6 +391,7 @@ class TestHRVFeaturesToDict:
             "duration",
             "score",
             "method",
+            *quality_columns(None),
         }
         assert set(normal_hrv_features.to_dict().keys()) == expected_keys
 
@@ -408,7 +411,7 @@ class TestHRVFeaturesToDict:
         """Numeric fields must be native Python float; 'method' must be str."""
         d = normal_hrv_features.to_dict()
         for key, val in d.items():
-            if key == "date":
+            if key == "date" or key.startswith("quality_"):
                 continue
             if key == "method":
                 assert isinstance(val, str), f"Field {key!r} is {type(val)}"

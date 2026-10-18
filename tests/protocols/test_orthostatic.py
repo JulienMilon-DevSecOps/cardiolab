@@ -18,6 +18,7 @@ from cardiolab.protocols.orthostatic import (
     detect_phases,
     orthostatic_hrv,
 )
+from cardiolab.signals.quality import quality_columns
 from cardiolab.signals.rr import RRSeries
 
 # ======================
@@ -618,6 +619,7 @@ class TestOrthostaticToDict:
             "delta_rmssd",
             "interpretation",
             "score",
+            *quality_columns(None),
         }
         assert set(d.keys()) == expected
 
