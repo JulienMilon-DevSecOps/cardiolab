@@ -64,6 +64,7 @@ cardiolab/
 │   ├── protocols/    → resting.md, orthostatic.md, cardiac_coherence.md,
 │   │                   hrr.md, cardiac_drift.md, vo2max.md
 │   ├── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md, artefact_correction.md, signal_quality.md
+│   ├── analytics/    → monitoring.md — 7-day lnRMSSD, SWC, adaptation states
 │   ├── visualization/→ reading_charts.md — how to read each chart type
 │   ├── reporting/    → tables.md — reporting API reference
 │   └── training_load/→ index.md, training_sessions.md, atl_ctl_tsb.md, sports.md
@@ -783,7 +784,7 @@ from cardiolab.analytics import Baseline
 
 baseline = Baseline.from_features(previous_sessions)
 
-score = readiness_score_multi(current_session, baseline)      # RMSSD 35% + HR 20% + DFA α1 25% + trend 20%
+score = readiness_score_multi(current_session, baseline)      # RMSSD 35% + HR 20% + DFA α1 25% + 7-day lnRMSSD trend 20%
 score = readiness_score_nonlinear(current_session, baseline)  # DFA α1 40% + SD1 35% + SD1/SD2 25%
 score = readiness_score_composite(current_session, baseline)  # weighted combination of both
 ```
@@ -793,6 +794,31 @@ score = readiness_score_composite(current_session, baseline)  # weighted combina
 | > 60 | Above personal baseline — good recovery |
 | 40–60 | Near baseline — normal variability |
 | < 40 | Below baseline — possible fatigue or stress |
+
+The **trend** component (since 0.5.0) is the change of the 7-day rolling mean of
+lnRMSSD versus the previous week, in units of the athlete's smallest worthwhile
+change: 50 within ±1 SWC, towards 100 for a sustained rise, towards 0 for a
+sustained decline, neutral until 14 days of data.
+
+### Training adaptation monitoring — 7-day lnRMSSD (Plews)
+
+The reference approach for monitoring training adaptation (Plews et al. 2012,
+2013; Buchheit 2014): 7-day rolling mean of lnRMSSD, its coefficient of variation,
+and the smallest worthwhile change band (28-day baseline ± 0.5 SD). Each day gets
+a state — `coping`, `normal`, `maladaptation` or `overreaching_risk`.
+
+```python
+from cardiolab.analytics import Baseline, monitoring_series
+from cardiolab.visualization import plot_ln_rmssd_monitoring
+from cardiolab.reporting import table_weekly_monitoring
+
+baseline = Baseline.from_features(history)
+monitoring_series(baseline)[-1].state     # 'normal'
+plot_ln_rmssd_monitoring(baseline)        # 7-day mean, SWC band, CV
+table_weekly_monitoring(baseline)         # one row per week
+```
+
+Interpretation guide: [`docs/analytics/monitoring.md`](cardiolab/docs/analytics/monitoring.md).
 
 ### Protocol-specific scores — absolute clinical thresholds
 

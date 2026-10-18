@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — Training adaptation monitoring (`cardiolab.analytics.monitoring`)
+
+- 7-day rolling lnRMSSD and CV (`rolling_ln_rmssd`, `rolling_cv`), smallest worthwhile change band
+  (`swc_band`: 28-day baseline ± 0.5 SD) and adaptation state (`interpret_trend_state` →
+  `coping` / `normal` / `maladaptation` / `overreaching_risk`, after Plews et al. 2012, 2013 and
+  Buchheit 2014). Windows in calendar days, at least 3 measurements per week (Plews et al. 2014);
+  `poor`-quality sessions excluded. `monitoring_series()` gives everything per measurement day
+  (`MonitoringPoint`). Computed on the fly — no database change.
+- `plot_ln_rmssd_monitoring()` (7-day mean coloured by state, SWC band, CV on a second axis) and
+  `table_weekly_monitoring()` (one row per ISO week). Labels EN / FR.
+- `docs/analytics/monitoring.md` — definitions and interpretation guide.
+
+### Changed — Readiness score: a real trend component
+
+- The 20 % trend component of `readiness_score_multi()` compared today's RMSSD with the median of
+  the last 7 sessions — the same reference as the RMSSD component, so no trend was measured. It
+  is now the change of the 7-day rolling mean of lnRMSSD versus the previous week, in SWC units
+  (`ln_rmssd_trend_score()`): 50 within ±1 SWC, `50 ± 50 × tanh(|x| − 1)` beyond, neutral with
+  less than 14 days of data or undated sessions. **Readiness values change** — reprocess the
+  history (`reprocess_sessions()`).
+
+### Tests
+
+- `tests/analytics/test_monitoring.py` (26): exact rolling mean / CV / SWC on known histories,
+  calendar windows, poor sessions excluded, decision grid, designed histories (coping,
+  maladaptation, overreaching risk), trend score (exact value, neutral cases, sign) and its weight
+  in the readiness score, chart and weekly table.
+
+---
+
 ## [0.4.0] - 2026-10-18
 
 > **Changes computed values.** Artefacts are corrected instead of deleted, Lomb-Scargle is the

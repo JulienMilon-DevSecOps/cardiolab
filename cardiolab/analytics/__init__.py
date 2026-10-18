@@ -2,6 +2,16 @@
 
 from cardiolab.analytics.anomaly import detect_rmssd_anomaly
 from cardiolab.analytics.baseline import Baseline
+from cardiolab.analytics.monitoring import (
+    MonitoringPoint,
+    SWCBand,
+    interpret_trend_state,
+    ln_rmssd_trend_score,
+    monitoring_series,
+    rolling_cv,
+    rolling_ln_rmssd,
+    swc_band,
+)
 from cardiolab.analytics.scoring import (
     coherence_score_100,
     drift_score,
@@ -39,6 +49,14 @@ __all__ = [
     "orthostatic_score",
     "detect_rmssd_anomaly",
     "trend_rmssd",
+    "rolling_ln_rmssd",
+    "rolling_cv",
+    "swc_band",
+    "SWCBand",
+    "interpret_trend_state",
+    "monitoring_series",
+    "MonitoringPoint",
+    "ln_rmssd_trend_score",
     "trimp_hrv_based",
     "trimp_banister",
     "load_readiness_for_date",
