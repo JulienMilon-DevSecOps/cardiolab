@@ -111,6 +111,11 @@ A measurement is considered reliable when:
 * Duration is at least 1 minute (5 minutes recommended).
 * The sensor had stable contact throughout (no motion artefacts).
 
+Since v0.4.0 each session carries a signal quality index (`features.quality`):
+a `poor` session — more than 5 % of corrected beats, or artefacts left
+uncorrected without `auto_clean=True` — is left out of the baseline. See
+[signal quality](../features/signal_quality.md).
+
 ---
 
 ## Summary

@@ -19,6 +19,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+from psycopg2.extras import Json
 
 from cardiolab.database.repository import (
     _DATA_COLUMNS,
@@ -289,9 +290,10 @@ class TestColumnRegistries:
                    interpretation) = 7
         + spectral_method = 1
         + score = 1
-        Total = 73
+        + quality (JSONB, v0.4.0) = 1
+        Total = 74
         """
-        assert len(_ORTHO_DATA_COLUMNS) == 73  # noqa: PLR2004
+        assert len(_ORTHO_DATA_COLUMNS) == 74  # noqa: PLR2004
 
     def test_ortho_data_columns_is_subset_of_ortho_columns(self):
         """Every column in _ORTHO_DATA_COLUMNS must exist in _ORTHO_COLUMNS."""
@@ -405,13 +407,14 @@ class TestBuildOrthoRow:
         assert row[1] == "2026-05-15"
 
     def test_last_element_is_interpretation(self):
-        """Row layout: …, interpretation, spectral_method, score (float last)."""
+        """Row layout: …, interpretation, spectral_method, score, quality (last)."""
         result = _mock_ortho_result()
         result.interpretation = "elevated_response"
         row = _build_ortho_row(result, user_id="uid", date="2026-05-15")
-        assert row[-3] == "elevated_response"  # interpretation
-        assert isinstance(row[-2], str)  # spectral_method
-        assert isinstance(row[-1], float)  # score
+        assert row[-4] == "elevated_response"  # interpretation
+        assert isinstance(row[-3], str)  # spectral_method
+        assert isinstance(row[-2], float)  # score
+        assert row[-1] is None  # quality — none on the mocked result
 
     def test_hr_response_in_row(self):
         """hr_response must appear in the row."""
@@ -421,11 +424,12 @@ class TestBuildOrthoRow:
         assert 18.5 in row
 
     def test_all_elements_are_scalar(self):
-        """Every element must be a str or numeric type, not a nested object."""
+        """Every element must be a str or numeric type (quality: JSON or NULL)."""
         result = _mock_ortho_result()
         row = _build_ortho_row(result, user_id="uid", date="2026-05-15")
-        for val in row:
+        for val in row[:-1]:
             assert isinstance(val, (str, int, float)), f"Unexpected type: {type(val)}"
+        assert row[-1] is None or isinstance(row[-1], Json)
 
 
 # ======================
@@ -781,6 +785,7 @@ class TestLoadFeatures:
             300.0,  # [20]  duration
             72.5,  # [21]  score
             "welch",  # [22]  method
+            None,  # [23]  quality (NULL — stored before v0.4.0)
         )
 
     def test_returns_list_of_hrv_features(self):
@@ -946,6 +951,7 @@ class TestLoadOrthostatic:
             "normal",  # [65..71] derived
             "welch",  # [72]     spectral_method
             72.5,  # [73]     score
+            None,  # [74]     quality (NULL — stored before v0.4.0)
         )
 
     def test_returns_list_of_orthostatic_records(self):
@@ -2038,3 +2044,137 @@ class TestUserProfilesIntegration:
         assert profile["hr_max"] is None
         assert profile["hr_rest"] is None
         assert profile["weight_kg"] is None
+
+
+@pytest.mark.integration
+@_integration_skipif
+class TestSignalQualityIntegration:
+    """quality JSONB columns (v0.4.0): round trips, NULL rows, migration V005."""
+
+    _USER = "test-integration-user"
+    _TABLES = {
+        "table_name": "_cardiolab_test_q_hrv",
+        "ortho_table_name": "_cardiolab_test_q_ortho",
+        "coherence_table_name": "_cardiolab_test_q_coherence",
+        "vo2max_table_name": "_cardiolab_test_q_vo2max",
+    }
+    _SCHEMA = "_cardiolab_test_migrations"
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        for table in self._TABLES.values():
+            _test_table_drop(table)
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.create_table()
+            repo.create_orthostatic_table()
+            repo.create_coherence_table()
+            repo.create_vo2max_table()
+        yield
+        for table in self._TABLES.values():
+            _test_db_cleanup(table, self._USER)
+
+    def test_resting_quality_round_trip(self):
+        """A resting session keeps its quality index."""
+        from cardiolab.datasets import load_sample
+        from cardiolab.protocols.resting import resting_hrv
+
+        features = resting_hrv(load_sample("resting", 0), auto_clean=True)
+        features.date = "2099-10-01"
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_features(features, user_id=self._USER)
+            loaded = repo.load_features_for_date(self._USER, "2099-10-01")
+
+        assert loaded.quality == features.quality
+        assert loaded.quality.corrected
+
+    def test_null_quality_is_unknown(self):
+        """A row without quality (stored before v0.4.0) loads with quality=None."""
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_features(
+                HRVFeatures(date="2099-10-02", rmssd=50.0, mean_hr=60.0),
+                user_id=self._USER,
+            )
+            loaded = repo.load_features_for_date(self._USER, "2099-10-02")
+
+        assert loaded.quality is None
+
+    def test_orthostatic_phase_quality_round_trip(self):
+        """Each orthostatic phase keeps its own quality index."""
+        from cardiolab.datasets import load_sample
+        from cardiolab.protocols.orthostatic import orthostatic_hrv
+
+        result = orthostatic_hrv(
+            load_sample("orthostatic", 0), auto_clean=True, min_phase_duration=60.0
+        )
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_orthostatic(result, user_id=self._USER, date="2099-10-03")
+            record = repo.load_orthostatic_for_date(self._USER, "2099-10-03")
+
+        assert record.quality == result.quality
+        assert record.supine.quality == result.phases.supine.features.quality
+        assert record.standing.quality == result.phases.standing.features.quality
+        assert record.transition_features.quality == (
+            result.phases.transition.features.quality
+        )
+
+    def test_coherence_and_vo2max_quality_round_trip(self):
+        """Coherence and VO2max results keep their quality index."""
+        from cardiolab.datasets import load_sample
+        from cardiolab.protocols.cardiac_coherence import cardiac_coherence
+        from cardiolab.protocols.vo2max import vo2max_from_hrv
+
+        rr = load_sample("resting", 1)
+        coherence = cardiac_coherence(rr)
+        vo2 = vo2max_from_hrv(rr)
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_coherence(coherence, user_id=self._USER, date="2099-10-04")
+            repo.save_vo2max(vo2, user_id=self._USER, date="2099-10-04")
+            coherence_back = repo.load_coherence(self._USER)[0]
+            vo2_back = repo.load_vo2max(self._USER)[0]
+
+        assert coherence_back.quality == coherence.quality
+        assert vo2_back.quality == vo2.quality
+
+    def test_migration_v005_idempotent(self):
+        """V005 adds the column to pre-0.4.0 tables and can be re-run safely."""
+        import psycopg2
+
+        from cardiolab.database.migrator import MIGRATIONS_DIR
+
+        v005 = (MIGRATIONS_DIR / "V005__add_signal_quality.sql").read_text()
+        # Same statements on the test tables (default names in the migration)
+        for default, attr in (
+            ("hrv_features ", "table_name"),
+            ("hrv_orthostatic ", "ortho_table_name"),
+            ("hrv_coherence ", "coherence_table_name"),
+            ("hrv_vo2max ", "vo2max_table_name"),
+        ):
+            v005 = v005.replace(
+                f"ALTER TABLE {default}", f"ALTER TABLE {self._TABLES[attr]} "
+            )
+
+        conn = psycopg2.connect(
+            host=os.environ["DB_HOST_TEST"],
+            dbname=os.environ["DB_NAME_TEST"],
+            user=os.environ["DB_USER_TEST"],
+            password=os.environ["DB_PASSWORD_TEST"],
+            port=int(os.environ.get("DB_PORT_TEST", "5432")),
+        )
+        try:
+            with conn.cursor() as cur:
+                for table in self._TABLES.values():  # tables as before v0.4.0
+                    cur.execute(f"ALTER TABLE {table} DROP COLUMN quality;")  # noqa: S608
+                cur.execute(v005)
+                cur.execute(v005)  # second run: no error
+                cur.execute(
+                    "SELECT table_name FROM information_schema.columns "
+                    "WHERE column_name = 'quality' AND data_type = 'jsonb' "
+                    "AND table_name = ANY(%s);",
+                    (list(self._TABLES.values()),),
+                )
+                tables = {row[0] for row in cur.fetchall()}
+            conn.commit()
+        finally:
+            conn.close()
+
+        assert tables == set(self._TABLES.values())
