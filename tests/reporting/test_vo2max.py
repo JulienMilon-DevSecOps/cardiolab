@@ -116,8 +116,8 @@ class TestTableVo2maxHistory:
         """All VO2max columns are present."""
         styler = table_vo2max_history([one_result])
         cols = set(styler.data.columns)
+        assert "vo2max_esco_flatt" not in cols  # deprecated model, not shown
         for col in (
-            "vo2max_esco_flatt",
             "vo2max_ln_rmssd",
             "hr_rest",
             "rmssd_used",
@@ -166,10 +166,13 @@ class TestTableVo2maxHistory:
         styler = table_vo2max_history([one_result], caption_text="VO2 Test")
         assert styler.caption == "VO2 Test"
 
-    def test_esco_flatt_value(self, one_result: VO2maxResult) -> None:
-        """Esco-Flatt estimate is stored correctly."""
+    def test_ln_rmssd_value(self, one_result: VO2maxResult) -> None:
+        """ln-RMSSD estimate is stored correctly."""
         styler = table_vo2max_history([one_result])
-        assert pytest.approx(styler.data["vo2max_esco_flatt"].iloc[0], rel=1e-3) == 42.5
+        expected = one_result.vo2max_ln_rmssd
+        assert (
+            pytest.approx(styler.data["vo2max_ln_rmssd"].iloc[0], rel=1e-3) == expected
+        )
 
     def test_fitness_category_value(self, one_result: VO2maxResult) -> None:
         """Fitness category is stored correctly."""
@@ -204,10 +207,10 @@ class TestTableVo2maxSession:
         assert list(styler.data.columns) == ["Valeur", "Groupe"]
 
     def test_index_contains_models(self, one_result: VO2maxResult) -> None:
-        """All three model rows are present in the index."""
+        """Uth and ln-RMSSD rows are present; the removed Esco-Flatt model is not."""
         styler = table_vo2max_session(one_result)
         idx = set(styler.data.index)
-        assert "VO2max Esco-Flatt (mL/kg/min)" in idx
+        assert "VO2max Esco-Flatt (mL/kg/min)" not in idx
         assert "VO2max ln-RMSSD (mL/kg/min)" in idx
         assert "VO2max Uth (mL/kg/min)" in idx
 
@@ -217,11 +220,11 @@ class TestTableVo2maxSession:
         uth_val = styler.data.loc["VO2max Uth (mL/kg/min)", "Valeur"]
         assert uth_val == "n/a"
 
-    def test_esco_flatt_value_in_table(self, one_result: VO2maxResult) -> None:
-        """Esco-Flatt estimate is rendered in the table."""
+    def test_ln_rmssd_value_in_table(self, one_result: VO2maxResult) -> None:
+        """ln-RMSSD estimate is rendered in the table."""
         styler = table_vo2max_session(one_result)
-        val = styler.data.loc["VO2max Esco-Flatt (mL/kg/min)", "Valeur"]
-        assert "42" in val
+        val = styler.data.loc["VO2max ln-RMSSD (mL/kg/min)", "Valeur"]
+        assert f"{one_result.vo2max_ln_rmssd:.1f}" == val
 
     def test_fitness_category_in_table(self, one_result: VO2maxResult) -> None:
         """Fitness category row is present."""

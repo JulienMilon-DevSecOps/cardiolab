@@ -32,8 +32,8 @@ from cardiolab import (
     heart_rate_recovery,
     hrr_score,
     vo2max_from_hrv,
-    vo2max_score,
 )
+from cardiolab.analytics.scoring import session_score
 from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
 
 rng = np.random.default_rng(42)
@@ -130,11 +130,12 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore", PhysiologicalWarning)
     result_vo2 = vo2max_from_hrv(RRSeries(rr_rest), hr_max=185.0)
 
-print(f"  VO2max (Esco-Flatt) : {result_vo2.vo2max_esco_flatt:.1f} mL/kg/min")
-print(f"  VO2max (ln-RMSSD)   : {result_vo2.vo2max_ln_rmssd:.1f} mL/kg/min")
 if not np.isnan(result_vo2.vo2max_uth):
     print(f"  VO2max (Uth)        : {result_vo2.vo2max_uth:.1f} mL/kg/min")
+print(
+    f"  VO2max (ln-RMSSD)   : {result_vo2.vo2max_ln_rmssd:.1f} mL/kg/min  (indicative)"
+)
 print(f"  Fitness category    : {result_vo2.fitness_category}")
 print(f"  Resting HR          : {result_vo2.hr_rest:.1f} bpm")
-print(f"  Quality score       : {vo2max_score(result_vo2.vo2max_esco_flatt):.1f} / 100")
+print(f"  Quality score       : {session_score('vo2max', result_vo2):.1f} / 100")
 print()
