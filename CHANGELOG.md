@@ -117,6 +117,29 @@ Lomb-Scargle) and baselines, scores and trends are distorted.
   `remove_outliers()`; example 07 compares deletion and correction. README no longer claims that
   every protocol has `auto_clean` (only resting and orthostatic).
 
+### Fixed — Sample entropy convention
+
+- `sampen()` counted B over the N − m + 1 m-length templates and A over N − m: both now use the
+  same N − m starting points (Richman & Moorman 2000). Values are 0.05–1 % lower on the sample
+  recordings; a perfectly periodic series now gives SampEn = 0 (it gave log 2). No score uses
+  SampEn. Reference oracle of the tests updated accordingly.
+
+### Fixed — VO2max (issue v0.4.0-05)
+
+- **"Esco & Flatt (2014)" RMSSD model removed**: `18.37 + 0.054 × RMSSD` returned 20–24 mL/kg/min
+  over the whole normal RMSSD range, so every user without `hr_max` was classed "poor" / "fair"
+  (sample recordings of a trained athlete: ≈ 21 mL/kg/min, versus 47–54 with the other models).
+  The cited paper studies ultra-short HRV recordings and contains no VO2max equation.
+  `vo2max_esco_flatt` is kept for storage compatibility and is always `nan`; removed from the
+  reports and charts.
+- **Fitness category and score**: Uth when `hr_max` is known, otherwise the ln-RMSSD estimate,
+  now documented as **indicative** — no published source could be verified for its equation
+  either; resting HRV adds little to heart rate for predicting VO2max (Grant et al. 2013).
+- False references removed (Esco & Flatt 2014 "Sensors", Nunan et al. 2010 as source of a VO2max
+  equation); Tanaka HRmax formula corrected to `208 − 0.7 × age`.
+- Tests: plausible estimates and categories without `hr_max` on the six sample recordings; Uth
+  and ln-RMSSD within 25 % on an athlete profile.
+
 ### Fixed — Spectral analysis
 
 - **AR PSD**: evaluated on a 256-point grid (0.016 Hz at 4 Hz); AR peaks are narrow and the band

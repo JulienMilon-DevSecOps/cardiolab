@@ -433,8 +433,7 @@ table_vo2max_history(
 |---------|-------------|---------|
 | `date` | Date de session | — |
 | `vo2max_uth` | Modèle Uth et al. 2004 (n/a sans HR_max) | 🟢 vert (20–65) |
-| `vo2max_esco_flatt` | Modèle Esco & Flatt 2014 (mL/kg/min) | 🟢 vert (20–65) |
-| `vo2max_ln_rmssd` | Modèle ln-RMSSD (mL/kg/min) | 🟢 vert (20–65) |
+| `vo2max_ln_rmssd` | Estimation indicative ln-RMSSD (mL/kg/min) | 🟢 vert (20–65) |
 | `hr_rest` | FC repos (bpm) | — |
 | `hr_max` | FC max fournie (bpm, n/a si absente) | — |
 | `rmssd_used` | RMSSD utilisé (ms) | — |
@@ -470,7 +469,6 @@ table_vo2max_session(
 | Indicateur | Groupe |
 |------------|--------|
 | VO2max Uth (mL/kg/min) | Model |
-| VO2max Esco-Flatt (mL/kg/min) | Model |
 | VO2max ln-RMSSD (mL/kg/min) | Model |
 | HR repos (bpm) | Inputs |
 | HR max (bpm) | Inputs |

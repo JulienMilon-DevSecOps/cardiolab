@@ -49,7 +49,7 @@ cardiolab/
 │   ├── cardiac_coherence.py  → paced-breathing resonance score
 │   ├── hrr.py                → Heart Rate Recovery post-exercise
 │   ├── cardiac_drift.py      → progressive HR increase at constant load
-│   └── vo2max.py             → VO2max estimation from HRV (Uth, Esco-Flatt)
+│   └── vo2max.py             → VO2max estimation (Uth, indicative ln-RMSSD)
 ├── analytics/        → baseline, scoring, anomaly detection, trend analysis, training load (ATL/CTL/TSB)
 ├── sensors_tools/    → sensor imports: Polar, HRV4Training, Apple Health, Garmin (.fit / CSV)
 ├── sports.py         → sports reference list: codes, FR/EN labels, colours, normalize / validate
@@ -324,14 +324,16 @@ See [`docs/protocols/cardiac_drift.md`](cardiolab/docs/protocols/cardiac_drift.m
 
 ### VO2max estimation from HRV
 
-Estimates maximal oxygen uptake from a resting HRV recording using two
-complementary models:
+Estimates maximal oxygen uptake from a resting recording:
 
 | Model | Formula | Precision |
 |-------|---------|-----------|
-| **Uth et al. (2004)** | `15.3 × (HRmax / HRrest)` | ±10–15 % |
-| **Esco & Flatt (2014)** | `18.37 + 0.054 × RMSSD` | ±7–12 % |
-| **ln-RMSSD** | `24.89 + 5.97 × ln(RMSSD)` | ±7–12 % |
+| **Uth et al. (2004)** — reference, needs HRmax | `15.3 × (HRmax / HRrest)` | ±10–15 % |
+| **ln-RMSSD** — indicative, used without HRmax | `24.89 + 5.97 × ln(RMSSD)` | not established (no verified source) |
+
+The "Esco & Flatt (2014)" RMSSD model was removed in 0.4.0: it gave ≈ 21 mL/kg/min
+whatever the RMSSD and classed every user without HRmax as "poor" / "fair"
+(`vo2max_esco_flatt` is now always `nan`).
 
 Fitness categories (ACSM 2022):
 
@@ -346,7 +348,7 @@ Fitness categories (ACSM 2022):
 ```python
 from cardiolab.protocols import vo2max_from_hrv
 result = vo2max_from_hrv(rr_resting, hr_max=185.0)
-# result.vo2max_uth, result.vo2max_esco_flatt, result.fitness_category
+# result.vo2max_uth, result.vo2max_ln_rmssd, result.fitness_category
 ```
 
 See [`docs/protocols/vo2max.md`](cardiolab/docs/protocols/vo2max.md) for full protocol instructions.
@@ -574,7 +576,7 @@ Accepts both `OrthostaticResult` (file-based workflow) and `OrthostaticRecord`
 
 ```python
 from cardiolab.visualization.vo2max_plots import (
-    plot_vo2max_comparison,  # grouped bars (Uth / Esco-Flatt / ln-RMSSD) + ACSM zones
+    plot_vo2max_comparison,  # grouped bars (Uth / ln-RMSSD) + ACSM zones
     plot_vo2max_evolution,   # best-estimate timeline with ±10 % uncertainty band
     plot_vo2max_gauge,       # semi-circular fitness gauge (poor → excellent)
 )
@@ -598,7 +600,7 @@ All three functions return a `Figure`.  The best estimate used by the gauge and
 evolution chart follows the priority Uth > ln-RMSSD: Uth is the most validated
 model when `hr_max` is known, otherwise ln-RMSSD is preferred.  The ±10 %
 uncertainty band on the evolution chart reflects the typical model error range
-(Uth: ±10–15 %, ln-RMSSD / Esco-Flatt: ±7–12 %).  ACSM zones (< 28 poor,
+(Uth: ±10–15 %; ln-RMSSD: indicative, no verified source).  ACSM zones (< 28 poor,
 28–37 fair, 38–47 good, 48–57 very good, ≥ 58 excellent) are shown as coloured
 backgrounds in all three charts.
 
@@ -996,8 +998,7 @@ See [`examples/README.md`](examples/README.md) for the full step-by-step setup.
 ### VO2max estimation
 
 * Uth, N., Sørensen, H., Overgaard, K., & Pedersen, P. K. (2004). Estimation of VO2max from the ratio between HRmax and HRrest — the Heart Rate Ratio Method. *European Journal of Applied Physiology*, 91(1), 111–115. https://doi.org/10.1007/s00421-003-0988-y
-* Esco, M. R., & Flatt, A. A. (2014). Ultra-short-term heart rate variability indices for gender identification and automatic prediction of cardiorespiratory fitness. *Sensors*, 14(3), 3934–3952. https://doi.org/10.3390/s140303934
-* Nunan, D., Donovan, G., Jakovljevic, D. G., Hodges, L. D., Sandercock, G. R., & Brodie, D. A. (2010). Validity and reliability of short-term heart-rate variability from the Polar S810. *Medicine & Science in Sports & Exercise*, 42(2), 243–250. https://doi.org/10.1249/MSS.0b013e3181b6dd7a
+* Grant, C. C., Murray, C., Janse van Rensburg, D. C., & Fletcher, L. (2013). A comparison between heart rate and heart rate variability as indicators of cardiac health and fitness. *Frontiers in Physiology*, 4, 337. https://doi.org/10.3389/fphys.2013.00337
 * Tanaka, H., Monahan, K. D., & Seals, D. R. (2001). Age-predicted maximal heart rate revisited. *Journal of the American College of Cardiology*, 37(1), 153–156. https://doi.org/10.1016/S0735-1097(00)01054-8
 * American College of Sports Medicine. (2022). *ACSM's Guidelines for Exercise Testing and Prescription* (11th ed.). Lippincott Williams & Wilkins.
 
@@ -1031,7 +1032,7 @@ See [`examples/README.md`](examples/README.md) for the full step-by-step setup.
 * [x] Cardiac coherence 5-5 protocol
 * [x] Heart Rate Recovery (HRR) protocol
 * [x] Cardiac drift protocol
-* [x] VO2max estimation from HRV (Uth, Esco-Flatt, ln-RMSSD)
+* [x] VO2max estimation (Uth, indicative ln-RMSSD — Esco-Flatt removed in 0.4.0)
 * [x] Protocol documentation (`docs/protocols/`)
 * [x] CSV & JSON export for all protocols
 
