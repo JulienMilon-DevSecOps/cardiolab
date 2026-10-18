@@ -260,11 +260,16 @@ def sampen(rr, m: int = 2, r_coef: float = 0.2) -> float:
     indicates a more regular signal; a higher value reflects greater complexity.
 
     Algorithm (Richman & Moorman 2000):
-        1. Count all m-length template pairs (i ≠ j) within Chebyshev distance
+        1. Take the same N − m templates for both lengths (starting points
+           ``i = 1 … N − m``).
+        2. Count the m-length template pairs (i ≠ j) within Chebyshev distance
            ``r``: total count = **B**.
-        2. Count all (m+1)-length template pairs (i ≠ j) within the same ``r``:
+        3. Count the (m+1)-length template pairs (i ≠ j) within the same ``r``:
            total count = **A**.
-        3. ``SampEn = −log(A / B)``.
+        4. ``SampEn = −log(A / B)``.
+
+    Changed in 0.4.0: B was counted over all N − m + 1 m-length templates
+    (one more than A), a small bias — values are 0.05–1 % lower now.
 
     Standard clinical parameters: ``m = 2``, ``r = 0.2 · std(RR)``.
 
@@ -304,9 +309,9 @@ def sampen(rr, m: int = 2, r_coef: float = 0.2) -> float:
     if n < 2 * m + 2 or r == 0.0:
         return float("nan")
 
-    # B: m-length template pairs (i < j) over all N-m+1 templates;
-    # A: (m+1)-length template pairs (i < j) over all N-m templates.
-    b_count = _count_template_pairs(x, m, r)
+    # Same N-m starting points for both counts (Richman & Moorman 2000):
+    # B over the m-length templates of x[:-1], A over the (m+1)-length ones.
+    b_count = _count_template_pairs(x[:-1], m, r)
     a_count = _count_template_pairs(x, m + 1, r)
 
     if b_count == 0 or a_count == 0:
