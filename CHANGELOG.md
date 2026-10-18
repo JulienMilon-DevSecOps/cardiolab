@@ -5,7 +5,192 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-10-18
+
+> **Changes computed values.** Artefacts are corrected instead of deleted, Lomb-Scargle is the
+> default spectral method, every session gets a signal quality index (migration V005), SampEn
+> follows the reference convention and the faulty VO2max model is removed. After upgrading:
+> `repo.run_migrations()`, then `reprocess_sessions()` — see the migration note below.
+
+### Added — Artefact correction (`cardiolab.signals.artifacts`)
+
+- `RRSeries.correct_artifacts(method="lipponen2019", max_passes=1, min_deviation=0.20)` →
+  `(RRSeries, ArtifactReport)`: classifies abnormal beats (Lipponen & Tarvainen 2019 — time-varying
+  thresholds on successive differences and on the deviation from an 11-beat median) and **corrects**
+  them instead of deleting them: extra beats merged with the next interval, missed beats split in
+  two, ectopic and long / short beats replaced by cubic-spline interpolation. Timestamps follow
+  added / removed beats; the report is stored in `metadata["artifact_correction"]`.
+- **Amplitude gate** (`min_deviation=0.20`): ectopic / long-short beats are only corrected beyond
+  20 % of the local median. The published rules alone also flag the sharp physiological swings of a
+  strong respiratory arrhythmia (trained athletes at rest); `0` restores them unchanged.
+- `ArtifactReport` (counts per type, `corrected_pct`, `is_reliable`, `to_dict()`), exported from
+  `cardiolab` and `cardiolab.signals`. More than 5 % corrected → `PhysiologicalWarning`.
+- Validation: 100 % of injected artefacts detected, corrected RMSSD within 3 % of the truth,
+  0 correction on clean signals; classifications identical to NeuroKit2 (`signal_fixpeaks`,
+  method « kubios », one pass) without the gate. On the sample recordings: 0–1 % corrected.
+- `docs/features/artefact_correction.md`.
+
+### Added — Spectral analysis
+
+- `frequency_domain(method="lomb")`: Lomb-Scargle periodogram (`scipy.signal.lombscargle`) on the
+  beat times, without interpolation, linearly detrended, scaled to a one-sided PSD in ms²/Hz.
+  Accepted by `resting_hrv()` and `orthostatic_hrv()`.
+- `frequency_domain(..., window_sec=256.0)`: Welch window length in seconds.
+- `"VLF_reliable"` key in the `frequency_domain()` result: `False` below 5 minutes
+  (`VLF_MIN_DURATION_SEC`).
+- `RRSeries.beat_times()`: recorded timestamps when strictly increasing, else cumulated RR.
+
+### Changed — Spectral analysis
+
+- **Default spectral method: `"lomb"`** (was `"welch"`) for `frequency_domain()`, `resting_hrv()`,
+  `orthostatic_hrv()` and `HRVFeatures.method`. On 5-minute synthetic recordings with a known
+  spectrum, Lomb-Scargle is nearly unbiased with LF/HF ± 15 % across recordings, versus ± 33 % for
+  Welch (a single 256 s window, no averaging) and a + 15 to + 57 % bias for AR (VLF leakage).
+  Rows stored before 0.4.0 keep `spectral_method = "welch"`. Charts keep Welch.
+- **Welch**: 256 s windows (was 256 samples = 64 s), 50 % overlap, linear detrend per window —
+  resolution 0.016 → 0.004 Hz (Kubios standard).
+- **Single interpolation**: `RRSeries.interpolate(fs=4.0, kind="cubic")` (cubic spline, was linear)
+  on `beat_times()`; `frequency_domain._interpolate`, `cardiac_coherence()` and the dashboard PSD
+  use it — three separate linear interpolations removed.
+- **Computed values change**: HF power rises by 10–80 % on the sample recordings (linear
+  interpolation attenuated the HF band), LF/HF changes accordingly. Before / after table in
+  `docs/features/frequency_domain.md`. Time-domain, non-linear metrics and scores are unchanged.
+
+### Added — Signal quality (`cardiolab.signals.quality`) — migration V005
+
+- `SignalQuality` (`grade`, `artifact_pct`, `corrected`, `n_beats`, `effective_duration`) and
+  `signal_quality(rr, good_max=2.0, acceptable_max=5.0)`, exported from `cardiolab` and
+  `cardiolab.signals`. Corrected recordings: `good` < 2 %, `acceptable` < 5 %, `poor` ≥ 5 %
+  corrected beats; uncorrected recordings: `poor` as soon as one artefact is detected (one missed
+  beat in sample 2026-04-24 nearly doubles RMSSD).
+- `quality` attribute on `HRVFeatures`, `OrthostaticResult`, `CoherenceResult`, `VO2maxResult`,
+  set by `resting_hrv()`, `orthostatic_hrv()`, `cardiac_coherence()`, `vo2max_from_hrv()`.
+  Orthostatic phases are graded on the artefacts within their own time window — a movement
+  artefact when standing up does not downgrade the supine phase.
+- **Migration `V005__add_signal_quality.sql`**: `quality JSONB` on `hrv_features`,
+  `hrv_orthostatic` (one object per phase), `hrv_coherence`, `hrv_vo2max`; idempotent. Existing
+  rows keep `NULL` = unknown. Apply with `repo.run_migrations()` **before saving new sessions**.
+  HRR and cardiac drift (heart-rate based) are not graded.
+- `Baseline(include_poor=False)`: `poor` sessions are left out of every statistic by default;
+  `Baseline.sessions` / `Baseline.excluded`; `from_features(..., include_poor=)`. `trend_rmssd()`
+  and `detect_rmssd_anomaly()` use the same sessions. Sessions without quality are kept.
+- Reports: `quality_grade` column (coloured, translated, `n/a` when unknown) in the resting,
+  orthostatic, coherence and VO2max history tables. Charts: red cross on `poor` sessions in the
+  resting, readiness, generic score, coherence, VO2max and orthostatic dual-score evolutions.
+- `to_dict()` / CSV exports: `quality_grade`, `quality_artifact_pct`, `quality_corrected`,
+  `quality_n_beats`, `quality_effective_duration`. Labels `quality_*` (EN / FR).
+- `docs/features/signal_quality.md`.
+
+### Added — Reprocessing the history (`cardiolab.database.reprocess`)
+
+- `reprocess_sessions(repo, user_id, protocol=None, since=None, dry_run=True, *, method="lomb",
+  auto_clean=True, hr_max=None)` → `ReprocessReport`: recomputes stored sessions from
+  `hrv_raw_sessions` with the current pipeline, in chronological order — resting readiness scores
+  against the previous sessions, already reprocessed. Dry run by default; writes in the caller's
+  transaction; idempotent (a second run reports every session `unchanged`). A session is rewritten
+  as soon as any stored field changes (e.g. the SampEn of an orthostatic phase), not only the key
+  metrics shown in the report (`SessionChange.changed_fields`). Failed analyses keep
+  their stored row; sessions without raw RR are listed in `report.skipped`.
+- `analyse_session(protocol, rr, *, method, auto_clean, hr_max)`: the single definition of how a
+  session is computed (coherence and VO2max RR series corrected first when `auto_clean`).
+- `session_score(protocol, result, baseline=None)` (`cardiolab.analytics.scoring`): the [0–100]
+  score stored with a session, one entry point for the six protocols.
+- `ReprocessReport` (`summary()`, `to_rows()`, `count()`, `written`, `skipped`) and
+  `SessionChange` (`deltas()`), exported from `cardiolab.database`.
+- `examples/16_reprocess_history.py`; `docs/database/reprocessing.md`.
+
+### Migration note — from 0.3.x
+
+1. `repo.run_migrations()` — applies V005 (`quality` column) before any new session is saved.
+2. `reprocess_sessions(repo, user_id)` — dry run: check the before / after report.
+3. `reprocess_sessions(repo, user_id, dry_run=False)` — stored values follow the 0.4.0 pipeline.
+
+Without step 3, the history mixes two pipelines (artefact deletion vs correction, Welch vs
+Lomb-Scargle) and baselines, scores and trends are distorted.
+
+### Changed
+
+- **Minimum dependency versions** (`pyproject.toml`): `numpy>=2.0` (`np.trapezoid`), `scipy>=1.13`
+  and `matplotlib>=3.9` (numpy 2 binaries); `analysis` extra: `pandas>=2.2.2` (first release built
+  for numpy 2 — pandas 2.1 crashes on import with numpy 2) and `jinja2>=3.1.2` (pandas Styler).
+  Older versions installed without error, then failed at run time. Unit suite run on exactly
+  these minimum versions: all tests pass. `requirements.txt` removed —
+  the extras of `pyproject.toml` are the only dependency list (`pip install -e ".[dev,analysis,database,garmin]"`).
+- **`auto_clean=True`** (`resting_hrv`, `orthostatic_hrv`) now runs `correct_artifacts()` then
+  removes any remaining value outside 300–2000 ms; it only applied `remove_outliers()` before.
+  **Computed values change** for recordings analysed with `auto_clean=True`.
+- `PhysiologicalWarning` messages suggest `correct_artifacts()`.
+- Documentation (features, sensors, README) recommends `correct_artifacts()` instead of
+  `remove_outliers()`; example 07 compares deletion and correction. README no longer claims that
+  every protocol has `auto_clean` (only resting and orthostatic).
+
+### Fixed — Sample entropy convention
+
+- `sampen()` counted B over the N − m + 1 m-length templates and A over N − m: both now use the
+  same N − m starting points (Richman & Moorman 2000). Values are 0.05–1 % lower on the sample
+  recordings; a perfectly periodic series now gives SampEn = 0 (it gave log 2). No score uses
+  SampEn. Reference oracle of the tests updated accordingly.
+
+### Fixed — VO2max (issue v0.4.0-05)
+
+- **"Esco & Flatt (2014)" RMSSD model removed**: `18.37 + 0.054 × RMSSD` returned 20–24 mL/kg/min
+  over the whole normal RMSSD range, so every user without `hr_max` was classed "poor" / "fair"
+  (sample recordings of a trained athlete: ≈ 21 mL/kg/min, versus 47–54 with the other models).
+  The cited paper studies ultra-short HRV recordings and contains no VO2max equation.
+  `vo2max_esco_flatt` is kept for storage compatibility and is always `nan`; removed from the
+  reports and charts.
+- **Fitness category and score**: Uth when `hr_max` is known, otherwise the ln-RMSSD estimate,
+  now documented as **indicative** — no published source could be verified for its equation
+  either; resting HRV adds little to heart rate for predicting VO2max (Grant et al. 2013).
+- False references removed (Esco & Flatt 2014 "Sensors", Nunan et al. 2010 as source of a VO2max
+  equation); Tanaka HRmax formula corrected to `208 − 0.7 × age`.
+- Tests: plausible estimates and categories without `hr_max` on the six sample recordings; Uth
+  and ln-RMSSD within 25 % on an athlete profile.
+
+### Fixed — Spectral analysis
+
+- **AR PSD**: evaluated on a 256-point grid (0.016 Hz at 4 Hz); AR peaks are narrow and the band
+  integration missed most of their power (synthetic 0.1 Hz oscillation of 800 ms² → LF 277 ms²).
+  Now a 4 096-point grid (≈ 0.001 Hz) with linear detrend: 792 ms². A flat signal returns a zero
+  spectrum instead of numerical noise.
+- **Coherence score** (`cardiac_coherence()`, AR-based): underestimated for the same reason — a
+  regular 0.1 Hz breathing pattern scored ≈ 47 %, now ≈ 88 %; spontaneous breathing at rest gives
+  ≈ 50–60 % (was ≈ 30 %). Scores from earlier versions are not comparable.
+
+### Fixed — Notebooks
+
+- Notebooks 01, 02, 03, 05, 08, 09 use `correct_artifacts()` instead of `remove_outliers()`;
+  notebook 01 section 5 presents the correction (it wrongly described `remove_outliers()` as an
+  interpolation) and compares raw vs corrected signals.
+- Notebook 02 stored the **cleaned** series in `hrv_raw_sessions`: the raw series is now saved
+  unchanged (the raw table is the source for reprocessing), the corrected one is used for analysis.
+- Notebook 05 (never executed): `vo2max_from_hrv()` was called with a non-existent `hr_rest`
+  argument; the VO2max score now uses the Uth model (the RMSSD model is being fixed).
+- Notebook 09 (never executed): called functions that do not exist (`compute_time_domain`,
+  `compute_frequency_domain`, `RestingProtocol`, `cardiolab.storage.database`) and
+  `parse_rr_file(...).remove_outliers()` on a dict. Rewritten with the real API; the Polar demo
+  uses a real sample recording; saving to the database is off by default (`SAVE_TO_DB = False`).
+- Notebooks 01, 05 and 09 executed end to end, outputs saved.
+
+### Tests
+
+- `tests/database/test_reprocess.py` (19): pipeline, dry run, writes, idempotency, chronological
+  scores, `since`, sessions without raw RR, new / failed sessions, VO2max `hr_max`, report;
+  PostgreSQL run (dry run → apply → second apply unchanged).
+- `tests/signals/test_quality.py` (27): thresholds, uncorrected rule, serialisation, corrected /
+  uncorrected series, real sample, protocols (per-phase orthostatic grading), baseline exclusion.
+- Integration (PostgreSQL): quality round trips on the four tables, `NULL` = unknown, migration
+  V005 re-run on pre-0.4.0 tables. Charts and tables: `test_quality_marker.py`,
+  `test_quality_column.py`.
+- `tests/features/test_spectral_accuracy.py` (25): default method (bias and dispersion of the
+  three methods on 5-minute series with a known spectrum); peaks at 0.10 / 0.25 Hz within ±0.005 Hz and
+  band powers within 10 % of theory for welch, ar and lomb; Parseval within 10 %; methods agree;
+  `window_sec` resolution; `VLF_reliable`; flat AR spectrum; real sample.
+- `tests/signals/test_rr.py`: `beat_times()`, cubic interpolation.
+- `tests/signals/test_artifacts.py` (61): acceptance criteria, classification, corrections,
+  timestamps, edge cases, report, `RRSeries` wrapper, real sample with a missed beat.
+- `auto_clean` tests now compare with `correct_artifacts()` + `remove_outliers()`; new test:
+  a missed beat is corrected, not deleted (RMSSD within 5 % of the truth).
 
 ---
 

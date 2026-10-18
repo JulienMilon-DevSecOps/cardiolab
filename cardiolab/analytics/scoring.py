@@ -579,3 +579,65 @@ def orthostatic_score(hr_response: float, hf_response_pct: float = 0.0) -> float
     # ── Weighted combination ──────────────────────────────────────────────────
     combined = 0.80 * hr_score + 0.20 * (hf_sub * 100.0)
     return float(np.clip(combined, 0.0, 100.0))
+
+
+# ======================
+# SESSION SCORE (one entry point per protocol)
+# ======================
+
+SCORED_PROTOCOLS: tuple[str, ...] = (
+    "resting",
+    "orthostatic",
+    "coherence",
+    "hrr",
+    "drift",
+    "vo2max",
+)
+"""Protocols handled by :func:`session_score`."""
+
+
+def session_score(protocol: str, result, baseline: Baseline | None = None) -> float:
+    """Return the [0–100] score stored with a session of ``protocol``.
+
+    Single entry point used when a session is saved or reprocessed:
+
+    * ``resting`` — :func:`readiness_score_multi` against ``baseline`` (the
+      previous sessions); 50 (neutral) without baseline.
+    * ``orthostatic`` — :func:`orthostatic_score` (ΔHR + HF withdrawal).
+    * ``coherence`` — :func:`coherence_score_100`.
+    * ``hrr`` — :func:`hrr_score` on HRR at 60 s.
+    * ``drift`` — :func:`drift_score`.
+    * ``vo2max`` — :func:`vo2max_score` on the Uth estimate when available,
+      otherwise the indicative ln-RMSSD estimate.
+
+    Args:
+        protocol: One of :data:`SCORED_PROTOCOLS`.
+        result: Protocol result (``HRVFeatures``, ``OrthostaticResult``, …).
+        baseline: Personal baseline, used for ``resting`` only.
+
+    Returns:
+        Score in [0, 100].
+
+    Raises:
+        ValueError: If ``protocol`` is unknown.
+
+    """
+    if protocol == "resting":
+        if baseline is None or not baseline.sessions:
+            return 50.0
+        return readiness_score_multi(result, baseline)
+    if protocol == "orthostatic":
+        return orthostatic_score(result.hr_response, result.hf_response_pct)
+    if protocol == "coherence":
+        return coherence_score_100(result.coherence_score)
+    if protocol == "hrr":
+        return hrr_score(result.hrr_60)
+    if protocol == "drift":
+        return drift_score(result.drift_rate)
+    if protocol == "vo2max":
+        uth = result.vo2max_uth
+        best = uth if math.isfinite(uth) and uth > 0 else result.vo2max_ln_rmssd
+        return vo2max_score(best)
+    raise ValueError(
+        f"Unknown protocol {protocol!r}. Choose from {', '.join(SCORED_PROTOCOLS)}."
+    )

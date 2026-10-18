@@ -23,6 +23,8 @@ from cardiolab.reporting._core import (
     fmt_nan,
     gradient_good,
     highlight_category,
+    quality_grade,
+    style_quality,
 )
 
 
@@ -74,13 +76,13 @@ def table_vo2max_history(
             {
                 "date": date_label,
                 "vo2max_uth": r.vo2max_uth,
-                "vo2max_esco_flatt": r.vo2max_esco_flatt,
                 "vo2max_ln_rmssd": r.vo2max_ln_rmssd,
                 "hr_rest": r.hr_rest,
                 "hr_max": r.hr_max,
                 "rmssd_used": r.rmssd_used,
                 "ln_rmssd_used": r.ln_rmssd_used,
                 "fitness_category": r.fitness_category,
+                "quality_grade": quality_grade(r),
             }
         )
 
@@ -88,7 +90,6 @@ def table_vo2max_history(
 
     fmt: dict = {
         "vo2max_uth": nan_fmt,
-        "vo2max_esco_flatt": float1,
         "vo2max_ln_rmssd": float1,
         "hr_rest": float1,
         "hr_max": nan_fmt,
@@ -96,13 +97,14 @@ def table_vo2max_history(
         "ln_rmssd_used": float2,
     }
 
-    vo2_cols = ["vo2max_esco_flatt", "vo2max_ln_rmssd"]
+    vo2_cols = ["vo2max_ln_rmssd"]
     if any(not math.isnan(r.vo2max_uth) for r in results):
         vo2_cols.insert(0, "vo2max_uth")
 
     styler = df.style.format(fmt, na_rep="n/a")
     styler = gradient_good(styler, vo2_cols, vmin=20, vmax=65)
     styler = highlight_category(styler, "fitness_category", _VO2_CAT_COLORS)
+    styler = style_quality(styler, labels)
     styler = apply_labels(styler, labels)
 
     return caption(styler, caption_text)
@@ -142,7 +144,6 @@ def table_vo2max_session(
     rows = [
         # Model estimates
         ("VO2max Uth (mL/kg/min)", uth_val, "Model"),
-        ("VO2max Esco-Flatt (mL/kg/min)", f"{result.vo2max_esco_flatt:.1f}", "Model"),
         ("VO2max ln-RMSSD (mL/kg/min)", f"{result.vo2max_ln_rmssd:.1f}", "Model"),
         # Inputs
         ("HR repos (bpm)", f"{result.hr_rest:.1f}", "Inputs"),

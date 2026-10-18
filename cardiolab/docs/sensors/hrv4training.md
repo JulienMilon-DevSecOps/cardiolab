@@ -126,7 +126,7 @@ records = parse_hrv4training_csv("datasets/raw/hrv4training/hrv4training_export.
 
 for rec in records:
     if rec["rr_intervals"]:
-        rr = to_rrseries(rec).remove_outliers()
+        rr, report = to_rrseries(rec).correct_artifacts()
         features = compute_time_domain(rr)
         print(f"{rec['date']} — RMSSD recomputed: {features.rmssd:.1f} ms")
 ```

@@ -49,7 +49,7 @@ cardiolab/
 │   ├── cardiac_coherence.py  → paced-breathing resonance score
 │   ├── hrr.py                → Heart Rate Recovery post-exercise
 │   ├── cardiac_drift.py      → progressive HR increase at constant load
-│   └── vo2max.py             → VO2max estimation from HRV (Uth, Esco-Flatt)
+│   └── vo2max.py             → VO2max estimation (Uth, indicative ln-RMSSD)
 ├── analytics/        → baseline, scoring, anomaly detection, trend analysis, training load (ATL/CTL/TSB)
 ├── sensors_tools/    → sensor imports: Polar, HRV4Training, Apple Health, Garmin (.fit / CSV)
 ├── sports.py         → sports reference list: codes, FR/EN labels, colours, normalize / validate
@@ -63,7 +63,7 @@ cardiolab/
 ├── docs/             → protocol & feature documentation
 │   ├── protocols/    → resting.md, orthostatic.md, cardiac_coherence.md,
 │   │                   hrr.md, cardiac_drift.md, vo2max.md
-│   ├── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md
+│   ├── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md, artefact_correction.md, signal_quality.md
 │   ├── visualization/→ reading_charts.md — how to read each chart type
 │   ├── reporting/    → tables.md — reporting API reference
 │   └── training_load/→ index.md, training_sessions.md, atl_ctl_tsb.md, sports.md
@@ -74,7 +74,7 @@ cardiolab/
 
 examples/             → step-by-step usage scripts (01 – 15)
 notebooks/            → thematic Jupyter notebooks (00 – 09)
-tests/                → unit + PostgreSQL integration tests (1 701 tests)
+tests/                → unit + PostgreSQL integration tests (1 763 tests)
 ```
 
 ---
@@ -113,7 +113,7 @@ Heart rate variability is used to assess:
 | Frequency | HF% | HF as fraction of total power |
 | Frequency | LF_nu | LF in normalised units |
 | Frequency | HF_nu | HF in normalised units |
-| Frequency | Méthode | Spectral estimation method (`welch` / `ar`) |
+| Frequency | Méthode | Spectral estimation method (`welch` / `ar` / `lomb`) |
 | Composite | HF/FC | HF divided by mean HR (ms²/bpm) — HR-normalised vagal activity |
 | Non-linear | SD1 | Poincaré short-term variability = RMSSD / √2 (ms) |
 | Non-linear | SD2 | Poincaré long-term variability (ms) |
@@ -128,8 +128,47 @@ Heart rate variability is used to assess:
 
 `RRSeries` automatically emits a `PhysiologicalWarning` when any interval
 falls outside [300, 2000] ms (HR > 200 bpm or HR < 30 bpm), which almost
-always indicates artefacts. Use `remove_outliers()` to clean the signal, or
-pass `auto_clean=True` to any protocol function.
+always indicates artefacts.
+
+### Artefact correction
+
+`correct_artifacts()` classifies abnormal beats (Lipponen & Tarvainen 2019)
+and **corrects** them instead of deleting them — extra beats merged, missed
+beats split, ectopic and long / short beats interpolated — so that successive
+differences (RMSSD, pNN50, SD1, DFA α1) are not distorted. Ectopic and long /
+short beats are only corrected beyond 20 % of the local median, which keeps the
+strong respiratory arrhythmia of trained athletes. `resting_hrv()` and
+`orthostatic_hrv()` accept `auto_clean=True` to apply it. Validation and
+details: [`docs/features/artefact_correction.md`](cardiolab/docs/features/artefact_correction.md).
+
+### Signal quality
+
+Every session carries a `SignalQuality` (`features.quality`): share of
+artefacts, whether they were corrected, and a grade — `good` (< 2 % corrected),
+`acceptable` (< 5 %), `poor` (≥ 5 %, or any artefact left uncorrected).
+`Baseline` leaves `poor` sessions out by default (`include_poor=True` to keep
+them); history tables show a quality column and evolution charts flag `poor`
+sessions. Orthostatic phases are graded separately. Stored in a `quality` JSONB
+column (migration V005). Details:
+[`docs/features/signal_quality.md`](cardiolab/docs/features/signal_quality.md).
+
+### Upgrading to 0.4.0 — reprocess the history
+
+0.4.0 changes computed values (artefact correction, Lomb-Scargle default,
+signal quality). Apply the migrations, then recompute stored sessions from
+their raw RR intervals (`hrv_raw_sessions`) — dry run by default:
+
+```python
+from cardiolab.database import HRVRepository, reprocess_sessions
+
+with HRVRepository.from_env() as repo:
+    repo.run_migrations()
+    print(reprocess_sessions(repo, user_id).summary())          # dry run
+with HRVRepository.from_env() as repo:
+    reprocess_sessions(repo, user_id, dry_run=False)            # write
+```
+
+Details: [`docs/database/reprocessing.md`](cardiolab/docs/database/reprocessing.md).
 
 ```python
 from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
@@ -139,7 +178,8 @@ with warnings.catch_warnings(record=True) as w:
     warnings.simplefilter("always")
     rr = RRSeries(raw_intervals)  # PhysiologicalWarning if outliers present
 
-rr_clean = rr.remove_outliers()  # or: resting_hrv(rr, auto_clean=True)
+rr_clean, report = rr.correct_artifacts()  # or: resting_hrv(rr, auto_clean=True)
+report.corrected_pct  # above 5 %: PhysiologicalWarning, measure again
 ```
 
 ### Sample datasets
@@ -187,7 +227,7 @@ frequency, non-linear) and an optional recovery score.
 
 ```python
 from cardiolab.protocols import resting_hrv
-result = resting_hrv(rr, compute_score=True, method="welch")
+result = resting_hrv(rr, compute_score=True)  # spectral method: "lomb" (default), "welch", "ar"
 ```
 
 ### Orthostatic HRV
@@ -284,14 +324,16 @@ See [`docs/protocols/cardiac_drift.md`](cardiolab/docs/protocols/cardiac_drift.m
 
 ### VO2max estimation from HRV
 
-Estimates maximal oxygen uptake from a resting HRV recording using two
-complementary models:
+Estimates maximal oxygen uptake from a resting recording:
 
 | Model | Formula | Precision |
 |-------|---------|-----------|
-| **Uth et al. (2004)** | `15.3 × (HRmax / HRrest)` | ±10–15 % |
-| **Esco & Flatt (2014)** | `18.37 + 0.054 × RMSSD` | ±7–12 % |
-| **ln-RMSSD** | `24.89 + 5.97 × ln(RMSSD)` | ±7–12 % |
+| **Uth et al. (2004)** — reference, needs HRmax | `15.3 × (HRmax / HRrest)` | ±10–15 % |
+| **ln-RMSSD** — indicative, used without HRmax | `24.89 + 5.97 × ln(RMSSD)` | not established (no verified source) |
+
+The "Esco & Flatt (2014)" RMSSD model was removed in 0.4.0: it gave ≈ 21 mL/kg/min
+whatever the RMSSD and classed every user without HRmax as "poor" / "fair"
+(`vo2max_esco_flatt` is now always `nan`).
 
 Fitness categories (ACSM 2022):
 
@@ -306,7 +348,7 @@ Fitness categories (ACSM 2022):
 ```python
 from cardiolab.protocols import vo2max_from_hrv
 result = vo2max_from_hrv(rr_resting, hr_max=185.0)
-# result.vo2max_uth, result.vo2max_esco_flatt, result.fitness_category
+# result.vo2max_uth, result.vo2max_ln_rmssd, result.fitness_category
 ```
 
 See [`docs/protocols/vo2max.md`](cardiolab/docs/protocols/vo2max.md) for full protocol instructions.
@@ -534,7 +576,7 @@ Accepts both `OrthostaticResult` (file-based workflow) and `OrthostaticRecord`
 
 ```python
 from cardiolab.visualization.vo2max_plots import (
-    plot_vo2max_comparison,  # grouped bars (Uth / Esco-Flatt / ln-RMSSD) + ACSM zones
+    plot_vo2max_comparison,  # grouped bars (Uth / ln-RMSSD) + ACSM zones
     plot_vo2max_evolution,   # best-estimate timeline with ±10 % uncertainty band
     plot_vo2max_gauge,       # semi-circular fitness gauge (poor → excellent)
 )
@@ -558,7 +600,7 @@ All three functions return a `Figure`.  The best estimate used by the gauge and
 evolution chart follows the priority Uth > ln-RMSSD: Uth is the most validated
 model when `hr_max` is known, otherwise ln-RMSSD is preferred.  The ±10 %
 uncertainty band on the evolution chart reflects the typical model error range
-(Uth: ±10–15 %, ln-RMSSD / Esco-Flatt: ±7–12 %).  ACSM zones (< 28 poor,
+(Uth: ±10–15 %; ln-RMSSD: indicative, no verified source).  ACSM zones (< 28 poor,
 28–37 fair, 38–47 good, 48–57 very good, ≥ 58 excellent) are shown as coloured
 backgrounds in all three charts.
 
@@ -904,7 +946,7 @@ See [`examples/README.md`](examples/README.md) for the full step-by-step setup.
 | PPG signal support | Planned |
 | Training load — Phases 1-6 (DB / TRIMP / ATL-CTL-TSB / Viz / Reporting / Scripts) | Implemented |
 
-**Test coverage:** 1 701 tests (1 646 unit + 55 PostgreSQL integration), 0 failures — 96.9 % coverage (unit + integration, as measured in CI).
+**Test coverage:** 1 763 tests (1 708 unit + 55 PostgreSQL integration), 0 failures — 97.0 % coverage (unit + integration, as measured in CI).
 
 **CI/CD:** GitLab [centralised Python pipeline](https://gitlab.com/project-jmilon-devsecops/ci-cd/pipeline-python-centralisee) (CI/CD component `python-package@0.11.1`) — gitleaks, ruff (lint, format, security rules), pytest (with a throwaway PostgreSQL for integration tests), pip-audit, build + `twine check`. Tag `V-x.y.z` → PyPI; tag `V-x.y.z-rcN` → TestPyPI (Trusted Publishing). The tag must match `version` in `pyproject.toml` (`V-0.3.1-rc1` ↔ `0.3.1rc1`).
 
@@ -956,8 +998,7 @@ See [`examples/README.md`](examples/README.md) for the full step-by-step setup.
 ### VO2max estimation
 
 * Uth, N., Sørensen, H., Overgaard, K., & Pedersen, P. K. (2004). Estimation of VO2max from the ratio between HRmax and HRrest — the Heart Rate Ratio Method. *European Journal of Applied Physiology*, 91(1), 111–115. https://doi.org/10.1007/s00421-003-0988-y
-* Esco, M. R., & Flatt, A. A. (2014). Ultra-short-term heart rate variability indices for gender identification and automatic prediction of cardiorespiratory fitness. *Sensors*, 14(3), 3934–3952. https://doi.org/10.3390/s140303934
-* Nunan, D., Donovan, G., Jakovljevic, D. G., Hodges, L. D., Sandercock, G. R., & Brodie, D. A. (2010). Validity and reliability of short-term heart-rate variability from the Polar S810. *Medicine & Science in Sports & Exercise*, 42(2), 243–250. https://doi.org/10.1249/MSS.0b013e3181b6dd7a
+* Grant, C. C., Murray, C., Janse van Rensburg, D. C., & Fletcher, L. (2013). A comparison between heart rate and heart rate variability as indicators of cardiac health and fitness. *Frontiers in Physiology*, 4, 337. https://doi.org/10.3389/fphys.2013.00337
 * Tanaka, H., Monahan, K. D., & Seals, D. R. (2001). Age-predicted maximal heart rate revisited. *Journal of the American College of Cardiology*, 37(1), 153–156. https://doi.org/10.1016/S0735-1097(00)01054-8
 * American College of Sports Medicine. (2022). *ACSM's Guidelines for Exercise Testing and Prescription* (11th ed.). Lippincott Williams & Wilkins.
 
@@ -983,7 +1024,7 @@ See [`examples/README.md`](examples/README.md) for the full step-by-step setup.
 * [x] PostgreSQL persistence layer (7 tables — 6 protocol + raw RR intervals)
 * [x] Score [0–100] for all protocols (resting: baseline-relative; HRR / coherence / drift / VO2max / orthostatic: clinical thresholds)
 * [x] Physiological validation with `PhysiologicalWarning` on `RRSeries`
-* [x] `auto_clean` option in all protocols
+* [x] `auto_clean` option in the resting and orthostatic protocols
 * [x] `to_dict()` export on all result dataclasses
 * [x] SD1 / SD2 / SD1:SD2 / DFA α1 non-linear features
 * [x] ApEn / SampEn entropy features
@@ -991,7 +1032,7 @@ See [`examples/README.md`](examples/README.md) for the full step-by-step setup.
 * [x] Cardiac coherence 5-5 protocol
 * [x] Heart Rate Recovery (HRR) protocol
 * [x] Cardiac drift protocol
-* [x] VO2max estimation from HRV (Uth, Esco-Flatt, ln-RMSSD)
+* [x] VO2max estimation (Uth, indicative ln-RMSSD — Esco-Flatt removed in 0.4.0)
 * [x] Protocol documentation (`docs/protocols/`)
 * [x] CSV & JSON export for all protocols
 
@@ -1154,8 +1195,8 @@ The forward-looking roadmap, ordered by priority (P0 → P3), lives in **[ROADMA
 | v0.3.1 | P0 | CI pipeline 0.9.0, TestPyPI pre-release — released 2026-10-12 |
 | v0.3.2 | P1 | Readiness consistency fix, hygiene, entropy speed-up, sample datasets — released |
 | v0.3.3 | P1 | Generic `HRVRepository` — shipped in v0.3.4 |
-| v0.3.4 | P1 | Sports reference list, sport validated on save, sport from `.fit` files — ready |
-| v0.4.0 | P1 | Signal reliability — artefact correction, spectral fixes, signal quality |
+| v0.3.4 | P1 | Sports reference list, sport validated on save, sport from `.fit` files — released 2026-10-16 |
+| v0.4.0 | P1 | Signal reliability — artefact correction, spectral fixes, signal quality, reprocessing — ready 2026-10-18 |
 | v0.5.0 | P2 | Athlete longitudinal monitoring — 7-day lnRMSSD, CV, SWC, trends |
 | v0.6.0 | P2 | Exercise protocols — DFA α1 thresholds, submaximal test |
 | v0.7.0 | P3 | Statistical intelligence — Mahalanobis anomaly |

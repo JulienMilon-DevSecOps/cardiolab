@@ -1,27 +1,32 @@
-"""VO2max estimation from HRV and heart rate indices.
+"""VO2max estimation from heart rate and HRV indices.
 
-Two complementary regression models are provided:
+Two estimates are provided, in mL/kg/min:
 
-1. **Uth et al. (2004)** — simple ratio model requiring resting and maximal HR:
+1. **Uth et al. (2004)** — heart rate ratio model, the **reference** estimate:
 
        VO2max ≈ 15.3 × (HRmax / HRrest)
 
-   This model is valid for healthy adults (18–65 y). Accuracy: ±10–15 %.
+   Validated in healthy, trained men (Uth et al. 2004); accuracy ±10–15 %.
+   Requires the maximal heart rate (``hr_max``).
 
-2. **Esco & Flatt (2014)** — RMSSD-based model using a resting HRV measurement:
-
-       VO2max ≈ 18.37 + 0.054 × RMSSD
-
-   Validated in recreationally active adults. Accuracy: ±7–12 %.
-   An improved variant using ln(RMSSD) is also provided:
+2. **ln-RMSSD model** — indicative estimate from resting HRV alone:
 
        VO2max ≈ 24.89 + 5.97 × ln(RMSSD)
 
-   (Nunan et al. 2010, extended by Esco & Flatt 2014).
+   **No published source could be verified for this equation** — it is kept
+   as an indicative fallback when ``hr_max`` is unknown, and should be read
+   with caution. Resting HRV adds little to heart rate for predicting VO2max
+   (Grant et al. 2013).
 
-Both estimates are expressed in mL/kg/min. They are population-level
-predictions and should not replace a laboratory VO2max test for clinical
-decision-making.
+Removed in 0.4.0: the "Esco & Flatt (2014)" RMSSD model
+(``18.37 + 0.054 × RMSSD``). It returned ≈ 20–24 mL/kg/min over the whole
+normal RMSSD range, classing every user without ``hr_max`` as "poor" / "fair";
+the cited paper (Esco & Flatt 2014) studies ultra-short HRV recordings and
+contains no VO2max equation. ``vo2max_esco_flatt`` is kept for storage
+compatibility and is always ``nan``.
+
+These are population-level predictions; they do not replace a laboratory
+VO2max test.
 
 Fitness categories (general adult population, ACSM 2022):
 
@@ -39,14 +44,9 @@ References:
     Heart Rate Ratio Method. European Journal of Applied Physiology, 91(1),
     111–115.
 
-    Esco, M. R., & Flatt, A. A. (2014). Ultra-short-term heart rate variability
-    indices for gender identification and automatic prediction of cardiorespiratory
-    fitness. Sensors, 14(3), 3934–3952.
-
-    Nunan, D., Donovan, G., Jakovljevic, D. G., Hodges, L. D., Sandercock, G. R.,
-    & Brodie, D. A. (2010). Validity and reliability of short-term heart-rate
-    variability from the Polar S810. Medicine & Science in Sports & Exercise,
-    42(2), 243–250.
+    Grant, C. C., Murray, C., Janse van Rensburg, D. C., & Fletcher, L.
+    (2013). A comparison between heart rate and heart rate variability as
+    indicators of cardiac health and fitness. Frontiers in Physiology, 4, 337.
 
     American College of Sports Medicine. (2022). ACSM's Guidelines for Exercise
     Testing and Prescription (11th ed.). Lippincott Williams & Wilkins.
@@ -61,6 +61,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from cardiolab.features.time_domain import rmssd as _rmssd
+from cardiolab.signals.quality import SignalQuality, quality_columns, signal_quality
 from cardiolab.signals.rr import RRSeries
 
 
@@ -85,23 +86,27 @@ class VO2maxResult:
         date: ISO date string of the measurement.
         vo2max_uth: VO2max estimate from Uth et al. (2004) — requires HR_max
             and HR_rest (mL/kg/min). ``nan`` if ``hr_max`` was not provided.
-        vo2max_esco_flatt: VO2max estimate from Esco & Flatt (2014) using
-            RMSSD (mL/kg/min).
-        vo2max_ln_rmssd: VO2max estimate from the ln(RMSSD) variant
-            (Nunan/Esco-Flatt extended model, mL/kg/min).
+        vo2max_esco_flatt: **Deprecated** — always ``nan`` since 0.4.0 (the
+            RMSSD model was removed); kept for storage compatibility.
+        vo2max_ln_rmssd: Indicative VO2max estimate from ln(RMSSD)
+            (mL/kg/min) — no verified published source.
         hr_rest: Resting heart rate derived from the RR series (bpm).
         hr_max: Maximal heart rate provided by the user (bpm).
             ``nan`` if not provided.
         rmssd_used: RMSSD computed from the RR series (ms).
         ln_rmssd_used: Natural log of the RMSSD (dimensionless).
         fitness_category: ACSM fitness category derived from the best
-            available estimate. Priority: Uth → Esco-Flatt → ln-RMSSD.
+            available estimate: Uth when ``hr_max`` is known, otherwise the
+            indicative ln-RMSSD estimate (changed in 0.4.0 — was Esco-Flatt).
+        quality: Signal quality index of the resting recording (see
+            :func:`~cardiolab.signals.quality.signal_quality`). ``None`` when
+            unknown (estimations stored before v0.4.0).
 
     """
 
     date: str | None = None
     vo2max_uth: float = float("nan")
-    vo2max_esco_flatt: float = 0.0
+    vo2max_esco_flatt: float = float("nan")
     vo2max_ln_rmssd: float = 0.0
     hr_rest: float = 0.0
     hr_max: float = float("nan")
@@ -109,6 +114,7 @@ class VO2maxResult:
     ln_rmssd_used: float = 0.0
     fitness_category: str = "poor"
     score: float = 0.0
+    quality: SignalQuality | None = None
 
     def to_dict(self) -> dict:
         """Return a flat dictionary of all result fields."""
@@ -123,6 +129,7 @@ class VO2maxResult:
             "ln_rmssd_used": self.ln_rmssd_used,
             "fitness_category": self.fitness_category,
             "score": self.score,
+            **quality_columns(self.quality),
         }
 
 
@@ -134,19 +141,21 @@ def vo2max_from_hrv(
 
     Computes RMSSD, ln(RMSSD), and resting HR from ``rr``, then applies:
 
-    * **Esco & Flatt (2014)**: ``VO2max ≈ 18.37 + 0.054 × RMSSD``
-    * **ln-RMSSD variant**: ``VO2max ≈ 24.89 + 5.97 × ln(RMSSD)``
-    * **Uth et al. (2004)**: ``VO2max ≈ 15.3 × (HRmax / HRrest)``
-      (only when ``hr_max`` is provided)
+    * **Uth et al. (2004)**: ``VO2max ≈ 15.3 × (HRmax / HRrest)`` — the
+      reference estimate, only when ``hr_max`` is provided;
+    * **ln-RMSSD model**: ``VO2max ≈ 24.89 + 5.97 × ln(RMSSD)`` — indicative,
+      no verified published source.
 
-    For the fitness category, the Uth model takes priority when available,
-    otherwise the Esco-Flatt RMSSD estimate is used.
+    The fitness category uses Uth when available, otherwise the ln-RMSSD
+    estimate. Changed in 0.4.0: the Esco-Flatt RMSSD model is no longer
+    computed (``vo2max_esco_flatt`` is ``nan``) — it classed every user
+    without ``hr_max`` as "poor" / "fair".
 
     Args:
         rr: Resting RR series (ideally ≥ 5 min, lying or seated position).
             At least 30 intervals are required.
         hr_max: Maximal heart rate (bpm), measured during a VO2max test or
-            estimated (e.g. 220 − age). If ``None``, the Uth model is
+            estimated (208 − 0.7 × age, Tanaka et al. 2001). If ``None``, the Uth model is
             skipped and ``vo2max_uth`` is set to ``nan``.
 
     Returns:
@@ -169,10 +178,7 @@ def vo2max_from_hrv(
     rmssd_val = float(_rmssd(rr))
     ln_rmssd_val = math.log(rmssd_val) if rmssd_val > 0 else 0.0
 
-    # Esco & Flatt (2014) — RMSSD model
-    vo2_ef = 18.37 + 0.054 * rmssd_val
-
-    # ln-RMSSD variant (Nunan / Esco-Flatt extended)
+    # ln-RMSSD model — indicative, no verified published source
     vo2_ln = 24.89 + 5.97 * ln_rmssd_val
 
     # Uth et al. (2004) — HR ratio model
@@ -181,17 +187,17 @@ def vo2max_from_hrv(
         best = vo2_uth
     else:
         vo2_uth = float("nan")
-        best = vo2_ef
+        best = vo2_ln
 
     category = _fitness_category(best)
 
     return VO2maxResult(
         vo2max_uth=vo2_uth,
-        vo2max_esco_flatt=vo2_ef,
         vo2max_ln_rmssd=vo2_ln,
         hr_rest=hr_rest,
         hr_max=hr_max if hr_max is not None else float("nan"),
         rmssd_used=rmssd_val,
         ln_rmssd_used=ln_rmssd_val,
         fitness_category=category,
+        quality=signal_quality(rr),
     )

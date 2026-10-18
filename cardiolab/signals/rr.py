@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from cardiolab.signals.artifacts import ArtifactReport
 
 _RR_LOW: float = 300.0
 _RR_HIGH: float = 2000.0
@@ -17,7 +21,8 @@ class PhysiologicalWarning(UserWarning):
     Intervals below 300 ms correspond to HR > 200 bpm; intervals above 2000 ms
     to HR < 30 bpm. Both ranges are likely artefacts unless the subject has a
     documented extreme cardiac condition. Consider calling
-    ``RRSeries.remove_outliers()`` before further analysis.
+    ``RRSeries.correct_artifacts()`` before further analysis. Also raised when
+    more than 5 % of the beats had to be corrected.
     """
 
 
@@ -78,7 +83,7 @@ class RRSeries:
             warnings.warn(
                 f"{n_low} interval(s) below {_RR_LOW:.0f} ms "
                 f"(HR > {60000.0 / _RR_LOW:.0f} bpm) detected — possible artefacts. "
-                "Call remove_outliers() before analysis.",
+                "Call correct_artifacts() before analysis.",
                 PhysiologicalWarning,
                 stacklevel=3,
             )
@@ -86,7 +91,7 @@ class RRSeries:
             warnings.warn(
                 f"{n_high} interval(s) above {_RR_HIGH:.0f} ms "
                 f"(HR < {60000.0 / _RR_HIGH:.0f} bpm) detected — possible artefacts. "
-                "Call remove_outliers() before analysis.",
+                "Call correct_artifacts() before analysis.",
                 PhysiologicalWarning,
                 stacklevel=3,
             )
@@ -249,36 +254,127 @@ class RRSeries:
 
         return RRSeries(cleaned_rr, timestamps, self.metadata)
 
+    def correct_artifacts(
+        self,
+        method: str = "lipponen2019",
+        max_passes: int = 1,
+        min_deviation: float | None = 0.20,
+    ) -> tuple[RRSeries, ArtifactReport]:
+        """Return a new RRSeries with artefacts corrected instead of deleted.
+
+        Classifies abnormal beats (Lipponen & Tarvainen 2019) and corrects
+        each one according to its type: an **extra** beat is merged with the
+        next interval, a **missed** beat splits its interval in two, an
+        **ectopic** or **long / short** beat is replaced by a cubic-spline
+        interpolated value. Unlike :meth:`remove_outliers`, successive
+        differences (RMSSD, pNN50, SD1, DFA α1) are not distorted.
+
+        Ectopic and long / short beats are only corrected if they deviate by
+        at least ``min_deviation`` from the local median (20 % by default), so
+        that the strong respiratory arrhythmia of trained athletes is kept.
+
+        Args:
+            method: Correction method; only ``"lipponen2019"`` for now.
+            max_passes: Detection / correction passes (1, as published).
+            min_deviation: Amplitude gate for ectopic / long-short beats;
+                ``0`` or ``None`` applies the published rules unchanged.
+
+        Returns:
+            ``(corrected_series, report)``. The corrected series keeps the
+            metadata, plus ``metadata["artifact_correction"]`` (the report as
+            a dict); timestamps, if any, follow added / removed beats.
+
+        Raises:
+            ValueError: If ``method`` is unknown.
+
+        Warns:
+            PhysiologicalWarning: If more than 5 % of the beats were
+                corrected — the recording is unreliable and should be redone.
+
+        """
+        from cardiolab.signals.artifacts import correct_artifacts
+
+        if method != "lipponen2019":
+            raise ValueError(f"Unknown artefact correction method {method!r}.")
+
+        intervals, timestamps, report = correct_artifacts(
+            self.intervals,
+            self.timestamps,
+            max_passes=max_passes,
+            min_deviation=min_deviation,
+        )
+        if not report.is_reliable:
+            warnings.warn(
+                f"{report.corrected_pct:.1f} % of the beats were corrected "
+                f"({report.n_corrected} / {report.n_input}): the recording is "
+                "unreliable, consider measuring again.",
+                PhysiologicalWarning,
+                stacklevel=2,
+            )
+        metadata = {**self.metadata, "artifact_correction": report.to_dict()}
+        return RRSeries(intervals, timestamps, metadata), report
+
     # ======================
     # INTERPOLATION
     # ======================
 
-    def interpolate(self, fs: float = 4.0) -> tuple[np.ndarray, np.ndarray]:
+    def beat_times(self) -> np.ndarray:
+        """Return the time (s) at the end of each interval.
+
+        Uses ``timestamps`` when they are strictly increasing; otherwise (no
+        timestamps, or duplicated / unordered ones as in some exports) the
+        cumulative sum of the intervals.
+
+        Returns:
+            One time per interval, in seconds.
+
+        """
+        if self.timestamps is not None and np.all(np.diff(self.timestamps) > 0):
+            return np.asarray(self.timestamps, dtype=float)
+        return np.cumsum(self.intervals) / 1000.0
+
+    def interpolate(
+        self, fs: float = 4.0, kind: str = "cubic"
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Resample the RR series onto a uniform time grid.
 
-        RR intervals are unevenly spaced in time. Frequency-domain analysis
-        (Welch PSD) requires a uniformly sampled signal. This method performs
-        linear interpolation to produce an evenly-spaced version.
+        RR intervals are unevenly spaced in time; Welch and AR spectral
+        estimates need a uniformly sampled signal. This is the **single
+        interpolation** used by cardiolab (frequency-domain metrics, cardiac
+        coherence, spectral plots): cubic spline at 4 Hz, as in Kubios HRV.
 
         Args:
             fs: Target sampling frequency in Hz. The HRV standard recommends
                 at least 4 Hz to capture the HF band (0.15–0.4 Hz).
                 Defaults to 4.0 Hz.
+            kind: ``"cubic"`` (default — cubic spline) or ``"linear"``.
+                Series of fewer than 4 intervals are always interpolated
+                linearly. Changed in 0.4.0: linear before.
 
         Returns:
             A tuple ``(t_interp, rr_interp)`` where:
 
-            * ``t_interp`` is the uniform time axis (seconds).
+            * ``t_interp`` is the uniform time axis (seconds), starting at the
+              first beat time (see :meth:`beat_times`).
             * ``rr_interp`` is the interpolated RR signal (ms).
 
-        """
-        if self.timestamps is None:
-            t = np.cumsum(self.intervals) / 1000.0
-        else:
-            t = self.timestamps
+        Raises:
+            ValueError: If ``kind`` is unknown.
 
+        """
+        if kind not in ("cubic", "linear"):
+            raise ValueError(
+                f"Unknown interpolation {kind!r}. Choose 'cubic' or 'linear'."
+            )
+
+        t = self.beat_times()
         t_interp = np.arange(t[0], t[-1], 1.0 / fs)
-        rr_interp = np.interp(t_interp, t, self.intervals)
+        if kind == "cubic" and len(t) >= 4:
+            from scipy.interpolate import CubicSpline
+
+            rr_interp = CubicSpline(t, self.intervals)(t_interp)
+        else:
+            rr_interp = np.interp(t_interp, t, self.intervals)
 
         return t_interp, rr_interp
 

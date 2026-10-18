@@ -19,6 +19,7 @@ from cardiolab.features.frequency_domain import _ar_psd, _interpolate
 from cardiolab.labels import lbl
 from cardiolab.protocols.cardiac_coherence import CoherenceResult
 from cardiolab.signals.rr import RRSeries
+from cardiolab.visualization._quality import mark_poor_sessions, session_qualities
 
 # ── Band and score constants ──────────────────────────────────────────────────
 
@@ -285,6 +286,8 @@ def plot_coherence_score_evolution(
             _COHERENCE_ZONES, _COHERENCE_ZONE_KEYS, strict=True
         )
     ]
+    if mark_poor_sessions(ax, x, scores, session_qualities(results), labels):
+        legend_patches.append(ax.collections[-1])
     ax.legend(handles=legend_patches, loc="upper left", fontsize=8)
 
     fig.suptitle(title, fontsize=13, fontweight="bold", y=1.01)

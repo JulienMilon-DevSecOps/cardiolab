@@ -5,7 +5,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from cardiolab.features.frequency_domain import _ar_psd, _band_power, frequency_domain
+from cardiolab.features.frequency_domain import (
+    _AR_NFFT,
+    _ar_psd,
+    _band_power,
+    frequency_domain,
+)
 
 
 class TestFrequencyDomain:
@@ -28,6 +33,7 @@ class TestFrequencyDomain:
             "LF_pct",
             "LF_HF_sum",
             "LF_HF_over_TP",
+            "VLF_reliable",
         }
         assert set(result.keys()) == required_keys
 
@@ -231,6 +237,7 @@ class TestARMethod:
             "LF_pct",
             "LF_HF_sum",
             "LF_HF_over_TP",
+            "VLF_reliable",
         }
         assert set(result.keys()) == required_keys
 
@@ -282,9 +289,9 @@ class TestARMethod:
         interp_time = np.arange(0, time_s[-1], 1 / 4.0)
         interp_rr = np.interp(interp_time, time_s, rr_ms)
         freqs, psd = _ar_psd(interp_rr, fs=4.0, order=16)
-        # rfftfreq(256) → 129 points
-        assert len(freqs) == 129
-        assert len(psd) == 129
+        # rfftfreq(_AR_NFFT) → _AR_NFFT // 2 + 1 points
+        assert len(freqs) == _AR_NFFT // 2 + 1
+        assert len(psd) == _AR_NFFT // 2 + 1
 
     def test_ar_psd_non_negative(self, normal_rr_series):
         """AR PSD must be non-negative everywhere."""

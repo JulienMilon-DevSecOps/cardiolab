@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from cardiolab.protocols.cardiac_coherence import CoherenceResult, cardiac_coherence
+from cardiolab.signals.quality import quality_columns
 from cardiolab.signals.rr import RRSeries
 
 # ======================
@@ -64,6 +65,7 @@ class TestCoherenceResult:
             "mean_hr",
             "duration",
             "score",
+            *quality_columns(None),
         }
         assert set(d.keys()) == expected
 
@@ -182,6 +184,6 @@ class TestCardiacCoherence:
         result = cardiac_coherence(rr)
         d = result.to_dict()
         for key, val in d.items():
-            if key == "date":
+            if key == "date" or key.startswith("quality_"):
                 continue
             assert isinstance(val, (float, type(None))), f"{key} has wrong type"

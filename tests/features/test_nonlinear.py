@@ -322,6 +322,18 @@ class TestSampEn:
         assert v_sampen > 0.0
 
 
+@pytest.mark.unit
+def test_sampen_richman_moorman_convention():
+    """A perfectly periodic series is perfectly regular: SampEn = 0.
+
+    x = 10, 20, 10, 20, 10, 20 (N = 6, m = 2). Over the N − m = 4 shared
+    starting points, B = 2 and A = 2 → −log(1) = 0. Counting B over the
+    N − m + 1 = 5 m-length templates (before 0.4.0) gave B = 4 → log 2.
+    """
+    x = np.array([10.0, 20.0, 10.0, 20.0, 10.0, 20.0])
+    assert sampen(RRSeries(x), m=2, r_coef=0.1) == pytest.approx(0.0)
+
+
 # ======================
 # k-d tree implementation ≡ reference O(N²) loops (v0.3.2)
 # ======================
@@ -348,15 +360,19 @@ def _reference_apen(x: np.ndarray, m: int = 2, r_coef: float = 0.2) -> float:
 
 
 def _reference_sampen(x: np.ndarray, m: int = 2, r_coef: float = 0.2) -> float:
-    """Compute SampEn with the pairwise loop used up to v0.3.1 (reference oracle)."""
+    """Compute SampEn with a pairwise loop — Richman & Moorman 2000 (reference oracle).
+
+    A and B are counted over the same N − m starting points (changed in 0.4.0:
+    B used the N − m + 1 m-length templates).
+    """
     from numpy.lib.stride_tricks import sliding_window_view
 
     r = r_coef * float(np.std(x, ddof=1))
     if len(x) < 2 * m + 2 or r == 0.0:
         return float("nan")
-    templates_m = sliding_window_view(x, m)
     templates_m1 = sliding_window_view(x, m + 1)
     n_m1 = len(templates_m1)
+    templates_m = sliding_window_view(x, m)[:n_m1]  # same N − m starting points
     b_count = a_count = 0
     for i in range(n_m1):
         diffs_m = np.max(np.abs(templates_m[i + 1 :] - templates_m[i]), axis=1)

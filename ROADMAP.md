@@ -27,8 +27,8 @@ starts once the previous one is tagged. Each item maps to one GitLab issue
 | [v0.3.1](#v031--ci-pipeline-090-p0) | P0 | CI pipeline 0.9.0, TestPyPI pre-release — **released 2026-10-12** | — | No |
 | [v0.3.2](#v032--fixes-and-hygiene-p1) | P1 | Readiness consistency fix, hygiene, entropy speed-up, sample datasets — **released 2026-10-13** | — | TRIMP only |
 | [v0.3.3](#v033--generic-repository-p1) | P1 | Generic `HRVRepository` (prerequisite for new tables) — not published separately, **shipped in v0.3.4** | — | No |
-| [v0.3.4](#v034--sports-p1) | P1 | Sports reference list, sport validated on save, sport read from `.fit` files — **ready 2026-10-16** (includes v0.3.3) | — | No |
-| [v0.4.0](#v040--signal-reliability-p1) | P1 | Artefact correction, spectral fixes, signal quality, reprocessing | V005 | **Yes** |
+| [v0.3.4](#v034--sports-p1) | P1 | Sports reference list, sport validated on save, sport read from `.fit` files — **released 2026-10-16** (includes v0.3.3) | — | No |
+| [v0.4.0](#v040--signal-reliability-p1) | P1 | Artefact correction, spectral fixes, signal quality, reprocessing — **ready 2026-10-18** | V005 | **Yes** |
 | [v0.5.0](#v050--athlete-longitudinal-monitoring-p2) | P2 | 7-day lnRMSSD + CV + SWC, trend analysis, real trend component, effort-based load (session RPE) | V006 | **Yes** (readiness trend) |
 | [v0.6.0](#v060--exercise-protocols-p2) | P2 | DFA α1 thresholds (VT1/VT2), submaximal test | V007 | No (new protocols) |
 | [v0.7.0](#v070--statistical-intelligence-p3) | P3 | Multivariate anomaly, statistical plots | — | No |
@@ -60,7 +60,7 @@ Prepared 2026-10-13, not published separately: shipped in v0.3.4. No API change.
 
 ## v0.3.4 — Sports (P1)
 
-Ready 2026-10-16 — also ships v0.3.3. No schema change (`sport_type` stays a `TEXT` column, now holding normalised codes). No change to computed values. Needed by the cardioanalysis site (activity list of « Saisir une séance », colours of the weekly load chart).
+Released 2026-10-16 — also ships v0.3.3. No schema change (`sport_type` stays a `TEXT` column, now holding normalised codes). No change to computed values. Needed by the cardioanalysis site (activity list of « Saisir une séance », colours of the weekly load chart).
 
 * ✅ **Sports reference list**: one module (`cardiolab/sports.py`) defining each sport once — code (`running`, `cycling`, `swimming`, `trail`, `strength`, `rowing`, `hiking`, `skiing`, team sports…), FR / EN labels, colour, family (endurance, strength, team sports, other) — plus `normalize_sport()` mapping free text and import names (« Course à pied », `run`, Garmin FIT sport / sub-sport codes) to a code. `_DEFAULT_SPORT_COLORS` of `training_load_plots.py` and the labels read from it.
 * ✅ **Sport validated on save**: `save_training_session()` stores the reference code and rejects unknown sports with a suggestion (`validate_sport()`), so typos never reach the database.
@@ -68,14 +68,14 @@ Ready 2026-10-16 — also ships v0.3.3. No schema change (`sport_type` stays a `
 
 ## v0.4.0 — Signal reliability (P1)
 
-**Changes computed values** — the most important scientific version. DB: migration V005 (signal quality).
+Ready 2026-10-18. **Changes computed values** — the most important scientific version. DB: migration V005 (signal quality).
 
-* **Artefact correction by replacement (Lipponen & Tarvainen 2019)**: `remove_outliers` deletes beats, which creates spurious successive differences and biases RMSSD, pNN50, SD1 and DFA α1. Detect ectopic / missed / extra beats from dRR and replace them by interpolation; `auto_clean=True` uses it.
-* **Entropy convention**: `sampen` counts B over the N−m+1 m-length templates, whereas Richman & Moorman (2000) use the first N−m templates for both A and B. Small bias, but values change: align with the reference definition here (kept identical in v0.3.2, where only speed changed).
-* **Spectral analysis — Welch window, single interpolation, Lomb-Scargle**: Welch window 64 s → 256 s with 50 % overlap (resolution 0.016 → 0.004 Hz); merge `RRSeries.interpolate` and `frequency_domain._interpolate` (cubic spline, 4 Hz); add `method="lomb"` (no interpolation, suited to irregular / PPG data).
-* **Signal quality index per session**: share of corrected beats, effective duration, quality grade; stored (V005), shown in reports, and low-quality sessions excluded from the baseline by default.
-* **Bug — VO2max RMSSD model (Esco & Flatt)**: `vo2_ef = 18.37 + 0.054 × RMSSD` returns 19.5–23.8 mL/kg/min over the whole normal RMSSD range (20–100 ms), versus ~50 for the ln-RMSSD and Uth models on the same athlete — every user without `hr_max` is classed « poor » / « fair ». Check the coefficients against Esco & Flatt (2014) and fix (or drop the model); test that the three models agree within a plausible range on realistic profiles.
-* **Reprocess history from `hrv_raw_sessions`**: recompute features and scores of past sessions with the new pipeline, plus a migration note for users.
+* ✅ **Artefact correction by replacement (Lipponen & Tarvainen 2019)**: `RRSeries.correct_artifacts()` — extra beats merged, missed beats split, ectopic / long-short beats interpolated; used by `auto_clean`. One pass (as published) and a 20 % amplitude gate on ectopic / long-short beats, so that the respiratory arrhythmia of trained athletes is not corrected. Validated against injected artefacts (100 % detected, RMSSD within 3 %), clean signals (0 correction) and NeuroKit2 (identical classifications without the gate).
+* ✅ **Entropy convention**: `sampen` counted B over the N−m+1 m-length templates, whereas Richman & Moorman (2000) use the first N−m templates for both A and B. Small bias, but values change: align with the reference definition here (kept identical in v0.3.2, where only speed changed).
+* ✅ **Spectral analysis — Welch window, single interpolation, Lomb-Scargle**: Welch window 64 s → 256 s with 50 % overlap (resolution 0.016 → 0.004 Hz); merge `RRSeries.interpolate` and `frequency_domain._interpolate` (cubic spline, 4 Hz); add `method="lomb"` (no interpolation, suited to irregular / PPG data); `VLF_reliable` flag. Also fixed: the AR PSD grid (0.016 Hz) missed most of the power of narrow peaks — AR band powers and the coherence score were underestimated.
+* ✅ **Signal quality index per session**: share of corrected beats, effective duration, quality grade; stored (V005), shown in reports, and low-quality sessions excluded from the baseline by default. Orthostatic phases graded separately; uncorrected artefacts → `poor`; evolution charts flag `poor` sessions.
+* ✅ **Bug — VO2max RMSSD model (Esco & Flatt)** — model removed (the cited paper has no VO2max equation); category / score from Uth, otherwise the indicative ln-RMSSD estimate (no verified source either — see the follow-up idea below). `vo2_ef = 18.37 + 0.054 × RMSSD` returns 19.5–23.8 mL/kg/min over the whole normal RMSSD range (20–100 ms), versus ~50 for the ln-RMSSD and Uth models on the same athlete — every user without `hr_max` is classed « poor » / « fair ». Check the coefficients against Esco & Flatt (2014) and fix (or drop the model); test that the three models agree within a plausible range on realistic profiles.
+* ✅ **Reprocess history from `hrv_raw_sessions`**: recompute features and scores of past sessions with the new pipeline, plus a migration note for users. `reprocess_sessions()` (dry run by default, chronological resting scores, idempotent) and `analyse_session()` — the single analysis pipeline shared with imports.
 
 ## v0.5.0 — Athlete longitudinal monitoring (P2)
 
@@ -83,7 +83,7 @@ DB: migration V006 (`rpe` column on training sessions). Monitoring metrics are c
 
 * **7-day rolling lnRMSSD, CV and smallest worthwhile change (Plews, Buchheit)**: the reference approach for monitoring training adaptation. Rolling mean lnRMSSD, coefficient of variation, SWC band (±0.5 SD of the baseline) and interpretation (coping / maladaptation / overreaching).
 * **Readiness — a real trend component**: the 20 % « trend » of `readiness_score_multi` compares today's RMSSD with the median of the last 7 sessions — the same reference as the main RMSSD component (35 %), so RMSSD actually weighs ~55 % and no trend is measured. Replace it with the **change of the 7-day rolling mean of lnRMSSD versus the previous week**, scaled by the athlete's smallest worthwhile change (SWC): stable within ±SWC → ≈ 50, sustained rise → up to 100, sustained decline → down to 0; neutral (50) until 14 days of data. Changes readiness values → reprocessing note. Already described this way on the cardioanalysis site.
-* **VO2max — age- and sex-adjusted categories**: `_fitness_category()` and `vo2max_score()` use one fixed ACSM scale for everyone; use the ACSM norms by age and sex from the user profile (`birth_year`, `sex` already stored in `user_profiles`). The site already says the categories « do not yet take age and sex into account ».
+* **VO2max — age- and sex-adjusted categories**: `_fitness_category()` and `vo2max_score()` use one fixed ACSM scale for everyone; use the ACSM norms by age and sex from the user profile (`birth_year`, `sex` already stored in `user_profiles`). The site already says the categories « do not yet take age and sex into account ». Same item: **VO2max without a measured HRmax** — use the Uth model with an age-predicted HRmax (Tanaka 2001, `208 − 0.7 × age`, from `birth_year`) instead of the ln-RMSSD estimate, whose equation has no verified source (kept as indicative since v0.4.0).
 * **Effort-based load — session RPE (Foster 2001)**: load = duration × perceived effort (0–10 scale), for every sport and without heart rate. Heart-rate load (`trimp_banister`) suits endurance but underestimates strength and short intervals; the HRV method needs a morning measure. Adds `trimp_session_rpe()` and an `rpe` column on training sessions (migration V006); the site's « Saisir une séance » gets an effort field.
 * **Trend analysis**: refactor `trends.py` — slope, r², p-value over a sliding window, relative threshold, sustained-decline detection, trend report.
 

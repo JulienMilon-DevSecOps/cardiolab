@@ -7,6 +7,12 @@ from dataclasses import dataclass
 import numpy as np
 
 from cardiolab.protocols.resting import HRVFeatures, resting_hrv
+from cardiolab.signals.quality import (
+    SignalQuality,
+    artifact_indices,
+    quality_columns,
+    signal_quality,
+)
 from cardiolab.signals.rr import RRSeries
 
 # ── Physiological reference thresholds ───────────────────────────────────────
@@ -158,6 +164,9 @@ class OrthostaticResult:
             80 % weighted on ΔHR (Brignole 2018, Sheldon 2015) + 20 % on
             HF vagal withdrawal (Task Force 1996).  Set by the ETL pipeline
             before saving; defaults to 0.0 when not yet computed.
+        quality: Signal quality of the whole recording. Each phase carries
+            its own index in ``phases.<phase>.features.quality`` — a movement
+            artefact when standing up does not downgrade the supine phase.
 
     """
 
@@ -170,6 +179,7 @@ class OrthostaticResult:
     delta_rmssd: float
     interpretation: str
     score: float = 0.0
+    quality: SignalQuality | None = None
 
     def to_dict(self) -> dict:
         """Return a plain-Python dict of the full orthostatic result.
@@ -198,6 +208,7 @@ class OrthostaticResult:
             "delta_rmssd": self.delta_rmssd,
             "interpretation": self.interpretation,
             "score": self.score,
+            **quality_columns(self.quality),
         }
 
     def to_flat_dict(self) -> dict:
@@ -240,6 +251,7 @@ class OrthostaticResult:
         row["delta_rmssd"] = self.delta_rmssd
         row["interpretation"] = self.interpretation
         row["score"] = self.score
+        row.update(quality_columns(self.quality))
 
         return row
 
@@ -282,7 +294,7 @@ def orthostatic_hrv(
     hr_threshold: float = 10.0,
     window_sec: float = 30.0,
     auto_clean: bool = False,
-    method: str = "welch",
+    method: str = "lomb",
 ) -> OrthostaticResult:
     """Run the orthostatic HRV protocol on a continuous RR recording.
 
@@ -304,13 +316,17 @@ def orthostatic_hrv(
             triggers transition detection. Defaults to 10 bpm.
         window_sec: Duration of the rolling HR window used for smoothing.
             Defaults to 30 s.
-        auto_clean: If ``True``, removes physiological outliers (< 300 ms or
-            > 2000 ms) from ``rr`` before phase detection and feature
-            computation. Defaults to ``False``.
+        auto_clean: If ``True``, corrects artefacts before phase detection
+            and feature computation (:meth:`RRSeries.correct_artifacts` —
+            beats corrected, not deleted), then removes any remaining value
+            outside 300–2000 ms. Movement artefacts when standing up are
+            typically corrected. Defaults to ``False``. Changed in 0.4.0:
+            earlier versions only deleted out-of-range values.
         method: Spectral estimation method passed to ``resting_hrv()`` for
-            each phase. ``"welch"`` (default) suits long phases (≥ 5 min);
+            each phase. ``"lomb"`` (default, changed in 0.4.0 — was
+            ``"welch"``) gives the most stable estimates on 3–5 min phases;
             ``"ar"`` offers better resolution on the short transition window
-            (< 2 min) — consider ``"ar"`` when the transition is brief.
+            (< 2 min); ``"welch"`` suits long phases (≥ 10 min).
 
     Returns:
         An ``OrthostaticResult`` with segmented phases, HRV features for each
@@ -322,12 +338,25 @@ def orthostatic_hrv(
             ``min_phase_duration``.
 
     """
+    # Times (s from the start) of the beats flagged as artefacts, to grade each
+    # phase on its own; corrections keep the total duration, so these times
+    # match the phase boundaries of the analysed series
+    raw_times = np.cumsum(rr.intervals) / 1000.0
     if auto_clean:
+        rr, report = rr.correct_artifacts()
+        flagged = sorted({i for idx in report.indices.values() for i in idx})
+        # Safety net: impossible values the classification cannot reach
+        # (the last two beats of a series are never classified)
         rr = rr.remove_outliers()
+    else:
+        flagged = artifact_indices(rr.intervals)
+    flagged_times = raw_times[flagged]
 
     phases = detect_phases(
         rr, hr_threshold=hr_threshold, window_sec=window_sec, method=method
     )
+    for phase in (phases.supine, phases.transition, phases.standing):
+        phase.features.quality = _phase_quality(phase, flagged_times, auto_clean)
 
     if phases.supine.duration_sec < min_phase_duration:
         raise ValueError(
@@ -384,6 +413,22 @@ def orthostatic_hrv(
         lf_hr_pct_change=lf_hr_pct_change,
         delta_rmssd=delta_rmssd,
         interpretation=interpretation,
+        quality=signal_quality(rr),
+    )
+
+
+def _phase_quality(
+    phase: PhaseSegment | TransitionSegment,
+    flagged_times: np.ndarray,
+    corrected: bool,
+) -> SignalQuality:
+    """Grade one phase from the artefacts flagged within its time window."""
+    in_phase = (flagged_times > phase.start_sec) & (flagged_times <= phase.end_sec)
+    return SignalQuality.from_counts(
+        n_beats=len(phase.rr.intervals),
+        n_artifacts=int(np.sum(in_phase)),
+        corrected=corrected,
+        effective_duration=phase.duration_sec,
     )
 
 
@@ -398,7 +443,7 @@ def detect_phases(
     window_sec: float = 30.0,
     stabilization_window_sec: float = 20.0,
     stabilization_std_threshold: float = 5.0,
-    method: str = "welch",
+    method: str = "lomb",
 ) -> OrthostaticPhases:
     """Detect supine, transition, and standing phases in a continuous RR series.
 
@@ -419,7 +464,7 @@ def detect_phases(
             deviation (bpm) within the stabilisation window for the transition
             to be declared complete. Defaults to 5 bpm.
         method: Spectral estimation method forwarded to ``resting_hrv()`` for
-            each phase. Defaults to ``"welch"``.
+            each phase. Defaults to ``"lomb"``.
 
     Returns:
         An ``OrthostaticPhases`` with the three segments and their HRV features.

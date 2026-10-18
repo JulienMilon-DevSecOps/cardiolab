@@ -18,6 +18,11 @@ import numpy as np
 from matplotlib.figure import Figure
 
 from cardiolab.labels import lbl
+from cardiolab.visualization._quality import (
+    mark_poor_sessions,
+    session_qualities,
+    supine_qualities,
+)
 
 _SUPINE_COLOR = "#2980b9"
 _TRANSITION_COLOR = "#e67e22"
@@ -404,6 +409,8 @@ def plot_orthostatic_dual_score_evolution(
     ax_read.set_ylabel(
         lbl(labels, "readiness_score", "Readiness Score") + " (0–100)", fontsize=10
     )
+    # Readiness comes from the supine phase: its own quality matters
+    mark_poor_sessions(ax_read, xs, read_scores, supine_qualities(results), labels)
     ax_read.legend(loc="upper left", fontsize=8)
     ax_read.grid(alpha=0.20, linestyle=":", axis="y")
 
@@ -417,6 +424,8 @@ def plot_orthostatic_dual_score_evolution(
         ax_auto.axhline(y, color=_GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
 
     ax_auto.plot(xs, auto_scores, color=_DARK, zorder=3, **mk)
+    if mark_poor_sessions(ax_auto, xs, auto_scores, session_qualities(results), labels):
+        ax_auto.legend(loc="upper left", fontsize=8)
     for x, s in zip(xs, auto_scores, strict=False):
         if s >= 70.0:
             dot_c = _STANDING_COLOR

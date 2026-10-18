@@ -3,7 +3,7 @@
 Three public functions cover the VO2max domain:
 
 * :func:`plot_vo2max_comparison` — Grouped bars for the three model estimates
-                                    (Uth / Esco-Flatt / ln-RMSSD) with ACSM
+                                    (Uth / ln-RMSSD) with ACSM
                                     fitness zone backgrounds.
 * :func:`plot_vo2max_evolution`  — Multi-session best-estimate line with ±10 %
                                     model-uncertainty band and zone thresholds.
@@ -22,6 +22,7 @@ from matplotlib.patches import Wedge
 
 from cardiolab.labels import lbl
 from cardiolab.protocols.vo2max import VO2maxResult
+from cardiolab.visualization._quality import mark_poor_sessions, session_qualities
 
 # ── ACSM fitness thresholds (mL/kg/min) ──────────────────────────────────────
 
@@ -62,7 +63,6 @@ _CATEGORY_COLORS: dict[str, str] = {
 
 _MODEL_COLORS: dict[str, str] = {
     "Uth": "#2980b9",
-    "Esco-Flatt": "#27ae60",
     "ln-RMSSD": "#e67e22",
 }
 
@@ -90,7 +90,7 @@ def plot_vo2max_comparison(
 ) -> Figure:
     """Plot grouped bars for all available VO2max model estimates.
 
-    Draws one bar per model (Uth when ``hr_max`` was provided, Esco & Flatt,
+    Draws one bar per model (Uth when ``hr_max`` was provided, indicative
     ln-RMSSD) against ACSM fitness-zone coloured backgrounds.  Zone threshold
     lines and right-margin labels allow immediate clinical positioning.
 
@@ -117,7 +117,6 @@ def plot_vo2max_comparison(
     models: list[tuple[str, float]] = []
     if not math.isnan(result.vo2max_uth):
         models.append(("Uth", result.vo2max_uth))
-    models.append(("Esco-Flatt", result.vo2max_esco_flatt))
     models.append(("ln-RMSSD", result.vo2max_ln_rmssd))
 
     model_names = [m[0] for m in models]
@@ -218,7 +217,7 @@ def plot_vo2max_evolution(
 
     The best estimate per session is Uth when available, otherwise ln-RMSSD.
     A ±10 % shaded band reflects typical model uncertainty (Uth: ±10–15 %,
-    Esco-Flatt / ln-RMSSD: ±7–12 %).  ACSM zone backgrounds and threshold
+    ln-RMSSD: indicative, no verified source).  ACSM zone backgrounds and threshold
     lines allow immediate fitness-category reading.
 
     Args:
@@ -278,6 +277,7 @@ def plot_vo2max_evolution(
 
     # Best estimate line
     ax.plot(xs, best, color=_DARK, linewidth=1.8, zorder=3, label="Best estimate")
+    mark_poor_sessions(ax, xs, best, session_qualities(results), labels)
 
     # Session dots coloured by category
     for x, val, cat in zip(xs, best, categories, strict=False):
@@ -493,7 +493,7 @@ def _angle_from_vo2max(value: float) -> float:
 
 
 def _best_estimate(result: VO2maxResult) -> float:
-    """Return the best available VO2max estimate: Uth > ln-RMSSD > Esco-Flatt."""
+    """Return the best available VO2max estimate: Uth, otherwise ln-RMSSD."""
     if not math.isnan(result.vo2max_uth):
         return result.vo2max_uth
     return result.vo2max_ln_rmssd

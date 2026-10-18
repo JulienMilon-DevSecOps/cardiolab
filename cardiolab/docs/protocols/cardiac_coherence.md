@@ -66,6 +66,13 @@ coherence_score = (peak_window_power / total_resonance_power) × 100
 where the peak window is centred on the dominant frequency with a half-width of
 ±0.015 Hz.
 
+> Changed in v0.4.0: the AR spectrum is evaluated on a ≈ 0.001 Hz grid (it was
+> 0.016 Hz, which left only one or two bins in the ±0.015 Hz window and
+> underestimated the peak power) and the RR series is interpolated with a cubic
+> spline. **Scores are higher than before v0.4.0** — a regular 0.1 Hz breathing
+> pattern scored ≈ 47 % and now scores ≈ 88 %; spontaneous breathing at rest now
+> gives ≈ 50–60 %. Scores computed with earlier versions are not comparable.
+
 ## Interpreting results
 
 ### Coherence score

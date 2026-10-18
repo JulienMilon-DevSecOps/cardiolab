@@ -53,6 +53,13 @@ LABELS_EN: dict[str, str] = {
     # ── Score / readiness ────────────────────────────────────────────────
     "score": "Readiness",
     "date": "Date",
+    # ── Signal quality ───────────────────────────────────────────────────
+    "quality_grade": "Signal quality",
+    "quality_artifact_pct": "Artefacts (%)",
+    "quality_good": "Good",
+    "quality_acceptable": "Acceptable",
+    "quality_poor": "Poor",
+    "quality_poor_marker": "Poor signal quality",
     # ── Orthostatic — response metrics ───────────────────────────────────
     "hr_response": "ΔHR (bpm)",
     "hf_response_pct": "HF Δ (%)",
@@ -189,6 +196,13 @@ LABELS_FR: dict[str, str] = {
     # ── Score / forme ────────────────────────────────────────────────────
     "score": "Score de forme",
     "date": "Date",
+    # ── Qualité du signal ────────────────────────────────────────────────
+    "quality_grade": "Qualité du signal",
+    "quality_artifact_pct": "Artefacts (%)",
+    "quality_good": "Bonne",
+    "quality_acceptable": "Acceptable",
+    "quality_poor": "Mauvaise",
+    "quality_poor_marker": "Signal de mauvaise qualité",
     # ── Orthostatique — métriques de réponse ─────────────────────────────
     "hr_response": "ΔFC (bpm)",
     "hf_response_pct": "Δ HF (%)",

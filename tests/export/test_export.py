@@ -21,13 +21,16 @@ from cardiolab.protocols.orthostatic import (  # noqa: E402
     orthostatic_hrv,
 )
 from cardiolab.protocols.resting import HRVFeatures  # noqa: E402
+from cardiolab.signals.quality import quality_columns  # noqa: E402
 from cardiolab.signals.rr import RRSeries  # noqa: E402
 
 # ======================
 # SHARED HELPERS
 # ======================
 
-_HRV_FIELD_COUNT = 23  # matches HRVFeatures field count (date + 19 metrics + duration + score + method)
+_HRV_FIELD_COUNT = (
+    28  # date + 19 metrics + duration + score + method + 5 quality_* columns
+)
 
 
 def _make_features(**kw) -> HRVFeatures:
@@ -214,6 +217,7 @@ class TestOrthostaticResultToDict:
             "delta_rmssd",
             "interpretation",
             "score",
+            *quality_columns(None),
         }
 
     def test_phases_keys(self, ortho_result):
@@ -239,7 +243,7 @@ class TestOrthostaticResultToDict:
         d = ortho_result.to_dict()
         sup_feats = d["phases"]["supine"]["features"]
         for key, val in sup_feats.items():
-            if key in ("date", "method"):
+            if key in ("date", "method") or key.startswith("quality_"):
                 continue
             assert isinstance(val, float), f"{key} is not float: {type(val)}"
 

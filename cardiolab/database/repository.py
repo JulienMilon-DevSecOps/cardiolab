@@ -72,6 +72,7 @@ from cardiolab.protocols.hrr import HRRResult
 from cardiolab.protocols.orthostatic import OrthostaticResult
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.protocols.vo2max import VO2maxResult
+from cardiolab.signals.quality import SignalQuality, quality_columns
 from cardiolab.signals.rr import RRSeries
 from cardiolab.sports import validate_sport
 
@@ -147,6 +148,7 @@ _HRV_COLUMNS: dict[str, str] = {
     "duration": "FLOAT",
     "score": "FLOAT",
     "method": "TEXT",
+    "quality": "JSONB",
 }
 
 _DATA_COLUMNS: list[str] = _data_columns(_HRV_COLUMNS)
@@ -207,6 +209,9 @@ _ORTHO_COLUMNS: dict[str, str] = {
     "spectral_method": "TEXT",
     # ── Autonomic score ───────────────────────────────────────────────────
     "score": "FLOAT DEFAULT 0.0",
+    # ── Signal quality (v0.4.0) ───────────────────────────────────────────
+    # {"overall": …, "supine": …, "transition": …, "standing": …}
+    "quality": "JSONB",
 }
 
 _ORTHO_DATA_COLUMNS: list[str] = _data_columns(_ORTHO_COLUMNS)
@@ -225,6 +230,7 @@ _COHERENCE_COLUMNS: dict[str, str] = {
     "mean_hr": "FLOAT",
     "duration": "FLOAT",
     "score": "FLOAT DEFAULT 0.0",
+    "quality": "JSONB",
 }
 
 # ── Heart Rate Recovery ──────────────────────────────────────────────────────
@@ -274,6 +280,7 @@ _VO2MAX_COLUMNS: dict[str, str] = {
     "ln_rmssd_used": "FLOAT",
     "fitness_category": "TEXT",
     "score": "FLOAT DEFAULT 0.0",
+    "quality": "JSONB",
 }
 
 
@@ -368,6 +375,9 @@ class OrthostaticRecord:
         score: Composite autonomic score [0–100] computed by
             :func:`cardiolab.analytics.scoring.orthostatic_score`. Defaults to
             0.0 for rows imported before the score column was added.
+        quality: Signal quality of the whole recording; each phase carries its
+            own index in ``supine.quality`` etc. ``None`` for rows stored
+            before v0.4.0.
 
     """
 
@@ -388,6 +398,7 @@ class OrthostaticRecord:
     delta_rmssd: float
     interpretation: str
     score: float = 0.0
+    quality: SignalQuality | None = None
 
     def to_flat_dict(self) -> dict:
         """Return a flat dict of all fields (one row per session).
@@ -445,6 +456,7 @@ class OrthostaticRecord:
             "delta_rmssd": self.delta_rmssd,
             "interpretation": self.interpretation,
             "score": self.score,
+            **quality_columns(self.quality),
         }
 
     def to_reporting_row(self) -> dict:
@@ -473,6 +485,7 @@ class OrthostaticRecord:
             "delta_rmssd": self.delta_rmssd,
             "interpretation": self.interpretation,
             "score": self.score,
+            "quality_grade": self.quality.grade if self.quality else None,
         }
 
 
@@ -533,6 +546,7 @@ def _phase_features(
     values = tuple(r[f"{prefix}_{metric}"] for metric in _HRV_METRICS)
     features = _features_from_row(values, offset=0, date=date, duration=duration)
     features.method = r["spectral_method"] or "welch"
+    features.quality = SignalQuality.from_dict((r.get("quality") or {}).get(prefix))
     return features
 
 
@@ -585,8 +599,22 @@ def _build_ortho_row(
         # Same spectral method for all phases — stored once
         spectral_method=p.supine.features.method,
         score=result.score,
+        quality=_ortho_quality(result),
     )
     return tuple(values[c] for c in _ORTHO_COLUMNS)
+
+
+def _ortho_quality(result: OrthostaticResult) -> Json | None:
+    """Quality JSON of an orthostatic session: whole recording + each phase."""
+    p = result.phases
+    data = {
+        "overall": result.quality,
+        "supine": p.supine.features.quality,
+        "transition": p.transition.features.quality,
+        "standing": p.standing.features.quality,
+    }
+    data = {k: q.to_dict() for k, q in data.items() if isinstance(q, SignalQuality)}
+    return Json(data) if data else None
 
 
 # ── Row → result object (one per protocol table) ─────────────────────────────
@@ -600,8 +628,15 @@ def _or(value, default):
 
 
 def _resting_from_row(r: dict) -> HRVFeatures:
-    """Rebuild a resting session."""
-    return HRVFeatures(**r | {"date": str(r["date"]), "method": r["method"] or "welch"})
+    """Rebuild a resting session (quality ``None`` for rows stored before v0.4.0)."""
+    return HRVFeatures(
+        **r
+        | {
+            "date": str(r["date"]),
+            "method": r["method"] or "welch",
+            "quality": SignalQuality.from_dict(r["quality"]),
+        }
+    )
 
 
 def _ortho_record_from_row(r: dict) -> OrthostaticRecord:
@@ -625,13 +660,19 @@ def _ortho_record_from_row(r: dict) -> OrthostaticRecord:
         delta_rmssd=r["delta_rmssd"],
         interpretation=r["interpretation"],
         score=r["score"] or 0.0,
+        quality=SignalQuality.from_dict((r["quality"] or {}).get("overall")),
     )
 
 
 def _coherence_from_row(r: dict) -> CoherenceResult:
     """Rebuild a cardiac coherence session."""
     return CoherenceResult(
-        **r | {"date": str(r["date"]), "score": _or(r["score"], 0.0)}
+        **r
+        | {
+            "date": str(r["date"]),
+            "score": _or(r["score"], 0.0),
+            "quality": SignalQuality.from_dict(r["quality"]),
+        }
     )
 
 
@@ -671,9 +712,12 @@ def _vo2max_from_row(r: dict) -> VO2maxResult:
         | {
             "date": str(r["date"]),
             "vo2max_uth": _or(r["vo2max_uth"], math.nan),
+            # Deprecated model (0.4.0): NULL / NaN — rows stored before keep it
+            "vo2max_esco_flatt": _or(r["vo2max_esco_flatt"], math.nan),
             "hr_max": _or(r["hr_max"], math.nan),
             "fitness_category": r["fitness_category"] or "poor",
             "score": _or(r["score"], 0.0),
+            "quality": SignalQuality.from_dict(r["quality"]),
         }
     )
 
@@ -816,6 +860,13 @@ def _register_numpy_adapters() -> None:
         register_adapter(np.bool_, lambda v: AsIs(bool(v)))
     except ImportError:
         pass  # NumPy non installé — aucune action requise
+
+
+def _register_quality_adapter() -> None:
+    """Store :class:`SignalQuality` values as JSONB (``quality`` columns)."""
+    from psycopg2.extensions import register_adapter
+
+    register_adapter(SignalQuality, lambda q: Json(q.to_dict()))
 
 
 # ======================
@@ -979,6 +1030,7 @@ class HRVRepository:
         """Open the database connection and register NumPy type adapters."""
         self._conn = connect(**self._dsn)
         _register_numpy_adapters()
+        _register_quality_adapter()
         return self
 
     def __exit__(self, exc_type, _exc_val, _exc_tb) -> None:
@@ -1461,7 +1513,7 @@ class HRVRepository:
     def create_vo2max_table(self) -> None:
         """Create the VO2max estimation session table if it does not exist.
 
-        Stores VO2max estimates from HRV-based models (Uth, Esco-Flatt,
+        Stores VO2max estimates (Uth, deprecated Esco-Flatt,
         ln-RMSSD). A ``UNIQUE(user_id, date)`` constraint supports safe upserts.
 
         Raises:

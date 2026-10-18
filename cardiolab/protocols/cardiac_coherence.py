@@ -32,9 +32,10 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from cardiolab.features.frequency_domain import _ar_psd
+from cardiolab.features.frequency_domain import _ar_psd, _interpolate
 from cardiolab.features.time_domain import rmssd as _rmssd
 from cardiolab.features.time_domain import sdnn as _sdnn
+from cardiolab.signals.quality import SignalQuality, quality_columns, signal_quality
 from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
 
 
@@ -58,6 +59,9 @@ class CoherenceResult:
         score: Readiness score on a **[0–100]** scale derived from the
             coherence score (Lehrer & Gevirtz 2014). Defaults to 0.0.
             Must be populated by ``coherence_score_100()`` before saving.
+        quality: Signal quality index (see
+            :func:`~cardiolab.signals.quality.signal_quality`). ``None`` when
+            unknown (sessions stored before v0.4.0).
 
     """
 
@@ -71,6 +75,7 @@ class CoherenceResult:
     mean_hr: float = 0.0
     duration: float = 0.0
     score: float = 0.0
+    quality: SignalQuality | None = None
 
     def to_dict(self) -> dict:
         """Return a flat dictionary of all result fields."""
@@ -85,6 +90,7 @@ class CoherenceResult:
             "mean_hr": self.mean_hr,
             "duration": self.duration,
             "score": self.score,
+            **quality_columns(self.quality),
         }
 
 
@@ -149,8 +155,7 @@ def cardiac_coherence(
             stacklevel=2,
         )
 
-    interp_time = np.arange(0, time_s[-1], 1.0 / fs)
-    interp_rr = np.interp(interp_time, time_s, rr_ms)
+    _, interp_rr = _interpolate(rr, fs)
 
     try:
         freqs, psd = _ar_psd(interp_rr, fs=fs, order=order)
@@ -161,6 +166,7 @@ def cardiac_coherence(
         return CoherenceResult(
             mean_hr=mean_hr,
             duration=float(time_s[-1]) if len(time_s) > 0 else 0.0,
+            quality=signal_quality(rr),
         )
 
     mask_band = (freqs >= resonance_low) & (freqs < resonance_high)
@@ -210,4 +216,5 @@ def cardiac_coherence(
         sdnn=float(_sdnn(rr)),
         mean_hr=mean_hr,
         duration=float(time_s[-1]) if len(time_s) > 0 else 0.0,
+        quality=signal_quality(rr),
     )

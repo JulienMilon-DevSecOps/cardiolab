@@ -5,6 +5,8 @@ from __future__ import annotations
 import numpy as np
 
 from cardiolab.protocols.resting import HRVFeatures, _compute_simple_score, resting_hrv
+from cardiolab.signals.quality import quality_columns
+from cardiolab.signals.rr import RRSeries
 
 
 class TestHRVFeatures:
@@ -42,6 +44,7 @@ class TestHRVFeatures:
             "duration",
             "score",
             "method",
+            "quality",
         }
 
         actual_fields = set(vars(normal_hrv_features).keys())
@@ -193,17 +196,7 @@ class TestRestingHRV:
     def test_resting_hrv_duration_reflection(self, baseline_7days):
         """Test that duration is correctly reflected."""
         # Use first feature's RR intervals as approximation
-        result = resting_hrv(
-            type(
-                "obj",
-                (object,),
-                {
-                    "intervals": np.array([800] * 300),
-                    "duration": 300.0,
-                    "mean_hr": 75.0,
-                },
-            )()
-        )
+        result = resting_hrv(RRSeries(np.full(300, 800.0)))
 
         # Duration should match
         assert result.duration > 0
@@ -398,6 +391,7 @@ class TestHRVFeaturesToDict:
             "duration",
             "score",
             "method",
+            *quality_columns(None),
         }
         assert set(normal_hrv_features.to_dict().keys()) == expected_keys
 
@@ -417,7 +411,7 @@ class TestHRVFeaturesToDict:
         """Numeric fields must be native Python float; 'method' must be str."""
         d = normal_hrv_features.to_dict()
         for key, val in d.items():
-            if key == "date":
+            if key == "date" or key.startswith("quality_"):
                 continue
             if key == "method":
                 assert isinstance(val, str), f"Field {key!r} is {type(val)}"
@@ -444,7 +438,7 @@ class TestRestingHRVAutoClean:
         assert len(normal_rr_series) == n_before
 
     def test_auto_clean_removes_outliers_before_computation(self):
-        """auto_clean=True must produce the same result as cleaning manually."""
+        """auto_clean=True = correct_artifacts() then remove_outliers() (0.4.0)."""
         import warnings
 
         rng = np.random.default_rng(0)
@@ -454,14 +448,30 @@ class TestRestingHRVAutoClean:
         from cardiolab.signals.rr import RRSeries
 
         dirty = RRSeries(base)
-        clean = dirty.remove_outliers()
-
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
+            clean = dirty.correct_artifacts()[0].remove_outliers()
             result_auto = resting_hrv(dirty, min_duration=0.0, auto_clean=True)
         result_manual = resting_hrv(clean, min_duration=0.0)
 
         assert abs(result_auto.rmssd - result_manual.rmssd) < 1e-6
+
+    def test_auto_clean_corrects_rather_than_deletes(self):
+        """A missed beat is split, not deleted: RMSSD stays close to the truth."""
+        import warnings
+
+        from cardiolab.signals.rr import RRSeries
+
+        rng = np.random.default_rng(1)
+        t = np.arange(300)
+        truth = 900 + 30 * np.sin(2 * np.pi * t / 4.2) + rng.normal(0, 10, 300)
+        dirty = list(truth)
+        dirty[100:102] = [dirty[100] + dirty[101]]  # missed beat (~1 800 ms)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            auto = resting_hrv(RRSeries(dirty), min_duration=0.0, auto_clean=True)
+            ref = resting_hrv(RRSeries(truth), min_duration=0.0)
+        assert abs(auto.rmssd - ref.rmssd) / ref.rmssd < 0.05
 
     def test_auto_clean_suppresses_warning(self):
         """After auto_clean, PhysiologicalWarning must not propagate further."""

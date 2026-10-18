@@ -11,8 +11,10 @@ values, and clinical interpretation.
 | Group | Indicators | Source |
 |-------|-----------|--------|
 | [Time-domain](time_domain.md) | RMSSD, ln_RMSSD, SDNN, pNN50, mean HR | RR intervals |
-| [Frequency-domain](frequency_domain.md) | VLF, LF, HF, LF/HF, LF_nu, HF_nu, HF%, HF/FC | Welch PSD on interpolated RR |
+| [Frequency-domain](frequency_domain.md) | VLF, LF, HF, LF/HF, LF_nu, HF_nu, HF%, HF/FC | Lomb-Scargle (default), Welch or AR PSD |
 | [Non-linear](nonlinear.md) | SD1, SD2, SD1/SD2, DFA α1 | Poincaré plot, DFA |
+| [Artefact correction](artefact_correction.md) | `correct_artifacts()` — extra, missed, ectopic, long/short beats | RR intervals, before any metric |
+| [Signal quality](signal_quality.md) | `SignalQuality` — share of artefacts, grade good / acceptable / poor | Every session; `poor` ones left out of the baseline |
 
 ---
 
@@ -63,7 +65,8 @@ Each feature page follows the same structure:
   but frequency-domain estimates are less reliable.
 - **Long-term recordings** (≥ 24 h) are required for reliable VLF and SDNN in
   the clinical sense; cardiolab targets 5-minute resting segments.
-- Artefacts (ectopic beats, motion) inflate RMSSD and SDNN — always clean with
-  `remove_outliers()` or `auto_clean=True` before analysis.
+- Artefacts (ectopic beats, motion) inflate RMSSD and SDNN — always correct them
+  with `correct_artifacts()` or `auto_clean=True` before analysis
+  (see [artefact_correction.md](artefact_correction.md)).
 - RMSSD and HF reflect **parasympathetic** activity. LF, SDNN, and SD2 reflect
   **mixed** autonomic activity. DFA α1 reflects **fractal organisation**.

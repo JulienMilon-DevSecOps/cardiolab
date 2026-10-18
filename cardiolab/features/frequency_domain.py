@@ -1,9 +1,9 @@
-"""Frequency-domain HRV metrics via Welch's method or the AR (Yule-Walker) method."""
+"""Frequency-domain HRV metrics — Welch, autoregressive (Yule-Walker) or Lomb-Scargle."""
 
 from __future__ import annotations
 
 import numpy as np
-from scipy.signal import welch
+from scipy.signal import lombscargle, welch
 
 # ── Physiological frequency band definitions (Task Force ESC/NASPE 1996) ─────
 # These are the authoritative constants for the whole package.
@@ -18,18 +18,30 @@ _LF_BAND: tuple[float, float] = (0.04, 0.15)
 _HF_BAND: tuple[float, float] = (0.15, 0.40)
 """High-frequency band (Hz): respiratory sinus arrhythmia, vagal tone."""
 
+DEFAULT_WINDOW_SEC = 256.0
+"""Welch segment length (s): frequency resolution 1/256 ≈ 0.004 Hz (Kubios-like)."""
+
+VLF_MIN_DURATION_SEC = 300.0
+"""Below this recording length, VLF power is flagged as unreliable."""
+
+_LOMB_FMAX = 0.5
+"""Upper frequency of the Lomb-Scargle grid (Hz) — covers the HF band."""
+
+_AR_NFFT = 4096
+"""FFT length of the AR PSD grid (≈ 0.001 Hz resolution at 4 Hz)."""
+
 
 def frequency_domain(
     rr,
     fs: float = 4.0,
-    method: str = "welch",
+    method: str = "lomb",
     order: int = 16,
+    window_sec: float = DEFAULT_WINDOW_SEC,
 ) -> dict:
     """Compute frequency-domain HRV metrics from an RR interval series.
 
-    The RR interval series is first linearly interpolated onto a uniform time
-    grid at ``fs`` Hz, then the Power Spectral Density (PSD) is estimated by
-    the chosen method and integrated over three physiological frequency bands:
+    The Power Spectral Density (PSD) is estimated by the chosen method and
+    integrated over three physiological frequency bands:
 
     * **VLF** (0.003 – 0.04 Hz): very-low-frequency power, linked to
       thermoregulation and hormonal activity.
@@ -38,13 +50,25 @@ def frequency_domain(
     * **HF** (0.15 – 0.40 Hz): high-frequency power, driven by respiratory
       sinus arrhythmia and considered a marker of parasympathetic activity.
 
-    Two PSD methods are supported:
+    Three PSD methods are supported:
 
-    * ``"welch"`` (default): Welch's periodogram — optimal for long recordings
-      (≥ 5 min). Requires ≥ 256 interpolated samples for full resolution.
-    * ``"ar"``: Autoregressive model (Yule-Walker, order ``order``) — better
-      spectral resolution on short segments (< 2 min), recommended for the
-      orthostatic transition phase.
+    * ``"lomb"`` (default): Lomb-Scargle periodogram computed directly on
+      the beat times — **no interpolation**. On 5-minute recordings it gives
+      the best trade-off between bias and session-to-session variability
+      (see ``docs/features/frequency_domain.md``); also suited to irregular
+      or gappy series (PPG, corrected artefacts).
+    * ``"welch"``: Welch's periodogram on the RR series interpolated
+      at ``fs`` Hz (cubic spline, :meth:`RRSeries.interpolate`), Hann
+      segments of ``window_sec`` seconds (256 s → resolution ≈ 0.004 Hz) with
+      50 % overlap and linear detrending. On a 5-minute recording this is a
+      single 256-s segment, as in Kubios HRV.
+    * ``"ar"``: Autoregressive model (Yule-Walker, order ``order``) on the
+      same interpolated signal — smooth spectrum and better resolution on
+      short segments (< 2 min), e.g. the orthostatic transition.
+
+    Changed in 0.4.0: Welch used 64-s segments (``nperseg=256`` samples at
+    4 Hz, resolution ≈ 0.016 Hz) on a linearly interpolated signal and was the
+    default; ``lomb`` (now the default) and ``window_sec`` are new.
 
     References:
         Task Force of ESC/NASPE (1996). Heart rate variability: Standards of
@@ -54,14 +78,25 @@ def frequency_domain(
         Marple, S. L. (1987). *Digital Spectral Analysis with Applications*.
         Prentice-Hall.
 
+        Lomb, N. R. (1976). Least-squares frequency analysis of unequally
+        spaced data. *Astrophysics and Space Science*, 39(2), 447–462.
+
+        Tarvainen, M. P., et al. (2014). Kubios HRV — heart rate variability
+        analysis software. *Computer Methods and Programs in Biomedicine*,
+        113(1), 210–220.
+
     Args:
         rr: An ``RRSeries`` instance.
         fs: Interpolation and analysis sampling frequency in Hz.
             Defaults to 4.0 Hz.
-        method: PSD estimation method — ``"welch"`` or ``"ar"``.
-            Defaults to ``"welch"``.
+        method: PSD estimation method — ``"welch"``, ``"ar"`` or
+            ``"lomb"``. Defaults to ``"lomb"`` (changed in 0.4.0, was
+            ``"welch"``).
         order: AR model order, used only when ``method="ar"``.
             Defaults to 16 (Task Force 1996 recommendation).
+        window_sec: Welch segment length in seconds, used only when
+            ``method="welch"``; bounded by the recording length.
+            Defaults to 256 s.
 
     Returns:
         Dictionary with the following keys (absolute powers in ms²):
@@ -77,20 +112,26 @@ def frequency_domain(
         * ``"LF_pct"``        — LF as a fraction of total power.
         * ``"LF_HF_sum"``     — LF + HF combined power (ms²).
         * ``"LF_HF_over_TP"`` — (LF + HF) / TP ratio.
+        * ``"VLF_reliable"``  — ``False`` when the recording is shorter than
+          5 minutes (:data:`VLF_MIN_DURATION_SEC`): the VLF band
+          (periods of 25–333 s) cannot be estimated. Even at 5 minutes, the
+          Task Force advises against interpreting VLF.
 
     Raises:
-        ValueError: If ``method`` is not ``"welch"`` or ``"ar"``.
+        ValueError: If ``method`` is not ``"welch"``, ``"ar"`` or ``"lomb"``.
 
     """
-    if method not in ("welch", "ar"):
-        raise ValueError(f"Unknown method {method!r}. Choose 'welch' or 'ar'.")
+    if method not in ("welch", "ar", "lomb"):
+        raise ValueError(f"Unknown method {method!r}. Choose 'welch', 'ar' or 'lomb'.")
 
-    _, interp_rr = _interpolate(rr, fs)
-
-    if method == "welch":
-        freqs, psd = _welch_psd(interp_rr, fs)
+    if method == "lomb":
+        freqs, psd = _lomb_psd(rr)
     else:
-        freqs, psd = _ar_psd(interp_rr, fs=fs, order=order)
+        _, interp_rr = _interpolate(rr, fs)
+        if method == "welch":
+            freqs, psd = _welch_psd(interp_rr, fs, window_sec=window_sec)
+        else:
+            freqs, psd = _ar_psd(interp_rr, fs=fs, order=order)
 
     # ======================
     # Band power integration
@@ -114,39 +155,84 @@ def frequency_domain(
         "LF_pct": lf / tp if tp > 0 else 0,
         "LF_HF_sum": lf + hf,
         "LF_HF_over_TP": (lf + hf) / tp if tp > 0 else 0,
+        "VLF_reliable": bool(np.sum(rr.intervals) / 1000.0 >= VLF_MIN_DURATION_SEC),
     }
 
 
 def _interpolate(rr, fs: float = 4.0) -> tuple[np.ndarray, np.ndarray]:
-    """Linearly interpolate an RRSeries onto a uniform time grid at ``fs`` Hz.
+    """Resample an RRSeries at ``fs`` Hz with the package-wide interpolation.
+
+    Thin wrapper around :meth:`RRSeries.interpolate` (cubic spline) whose time
+    axis starts at 0, as expected by the spectral functions and plots.
 
     Args:
         rr: An ``RRSeries`` instance.
         fs: Target sampling frequency in Hz.
 
     Returns:
-        Tuple ``(t_interp, rr_interp)``: time axis (s) and interpolated RR (ms).
+        Tuple ``(t_interp, rr_interp)``: time axis (s, from 0) and RR (ms).
 
     """
-    rr_ms = np.array(rr.intervals)
-    t = np.cumsum(rr_ms) / 1000.0
-    t = t - t[0]
-    t_interp = np.arange(0, t[-1], 1.0 / fs)
-    return t_interp, np.interp(t_interp, t, rr_ms)
+    t_interp, rr_interp = rr.interpolate(fs)
+    if len(t_interp):
+        t_interp = t_interp - t_interp[0]
+    return t_interp, rr_interp
 
 
-def _welch_psd(signal: np.ndarray, fs: float = 4.0) -> tuple[np.ndarray, np.ndarray]:
+def _welch_psd(
+    signal: np.ndarray,
+    fs: float = 4.0,
+    window_sec: float = DEFAULT_WINDOW_SEC,
+) -> tuple[np.ndarray, np.ndarray]:
     """Return ``(freqs, psd)`` using Welch's method on a uniformly sampled signal.
+
+    Hann segments of ``window_sec`` seconds (bounded by the signal length),
+    50 % overlap, linear detrending of each segment.
 
     Args:
         signal: Uniformly sampled RR signal (ms) on a regular time grid.
         fs: Sampling frequency in Hz.
+        window_sec: Segment length in seconds. Defaults to 256 s.
 
     Returns:
         Tuple ``(freqs, psd)``: one-sided frequency axis (Hz) and PSD (ms²/Hz).
 
     """
-    freqs, psd = welch(signal, fs=fs, nperseg=min(256, len(signal)))
+    nperseg = max(1, min(int(round(window_sec * fs)), len(signal)))
+    freqs, psd = welch(
+        signal, fs=fs, nperseg=nperseg, noverlap=nperseg // 2, detrend="linear"
+    )
+    return freqs, psd
+
+
+def _lomb_psd(rr, fmax: float = _LOMB_FMAX) -> tuple[np.ndarray, np.ndarray]:
+    """One-sided Lomb-Scargle PSD (ms²/Hz) computed on the beat times.
+
+    No interpolation: each RR value is placed at its beat time
+    (:meth:`RRSeries.beat_times`), after linear detrending. The unnormalised periodogram ``P`` is scaled
+    like a classical periodogram, ``PSD = 2 · T · P / N`` (``T`` duration,
+    ``N`` beats), so that integrating the PSD gives back the variance of the
+    series (Parseval). The frequency grid is 4× oversampled (``1 / 4T``).
+
+    Args:
+        rr: An ``RRSeries`` instance.
+        fmax: Highest frequency of the grid (Hz). Defaults to 0.5 Hz.
+
+    Returns:
+        Tuple ``(freqs, psd)``: frequency axis (Hz) and PSD (ms²/Hz).
+
+    """
+    t = rr.beat_times()
+    x = np.asarray(rr.intervals, dtype=float)
+    duration = float(t[-1] - t[0])
+    if len(x) < 3 or duration <= 0:
+        return np.array([0.0, fmax]), np.zeros(2)
+    # Linear detrending, as for Welch, so that VLF powers stay comparable
+    x = x - np.polyval(np.polyfit(t, x, 1), t)
+    df = 1.0 / (4.0 * duration)
+    freqs = np.arange(df, fmax + df / 2, df)
+    power = lombscargle(t, x, 2.0 * np.pi * freqs)  # unnormalised
+    psd = 2.0 * duration * power / len(x)
     return freqs, psd
 
 
@@ -159,8 +245,8 @@ def _ar_psd(
 
     Solves the Yule-Walker equations (Levinson-Durbin, via scipy's
     ``solve_toeplitz``) to fit an AR(p) model of the given order, then
-    evaluates the one-sided power spectral density on a 256-point frequency
-    grid compatible with the Welch output from the same ``fs``.
+    evaluates the one-sided power spectral density on a frequency grid of ``_AR_NFFT`` points (≈ 0.001 Hz resolution at 4 Hz), after linear
+    detrending.
 
     The one-sided convention doubles power in all bins except DC (0 Hz) and
     Nyquist (fs/2), ensuring that integrating with ``_band_power()`` yields
@@ -176,13 +262,19 @@ def _ar_psd(
 
     """
     from scipy.linalg import solve_toeplitz
+    from scipy.signal import detrend
 
     n = len(signal)
-    x = signal - signal.mean()
+    x = detrend(signal, type="linear")
 
     # Biased autocorrelation: R[k] = (1/N) Σ x[i] x[i+k]
     corr_full = np.correlate(x, x, mode="full")
     r = corr_full[n - 1 :] / n  # lags 0, 1, 2, ...
+
+    # Fine grid (≈ 0.001 Hz at 4 Hz): narrow AR peaks must not fall between bins
+    freqs = np.fft.rfftfreq(_AR_NFFT, d=1.0 / fs)
+    if r[0] <= 1e-9:  # flat signal once detrended: no variability, no spectrum
+        return freqs, np.zeros_like(freqs)
 
     safe_order = min(order, n // 2 - 1)
 
@@ -194,10 +286,7 @@ def _ar_psd(
     # Residual noise variance (prediction error power)
     sigma2 = max(r[0] - float(np.dot(a_coeffs, r_rhs)), 0.0)
 
-    # 256-point one-sided PSD: P(f) = σ² / (fs · |A(f)|²)
-    nfft = 256
-    freqs = np.fft.rfftfreq(nfft, d=1.0 / fs)
-
+    # One-sided PSD: P(f) = σ² / (fs · |A(f)|²)
     k = np.arange(1, safe_order + 1, dtype=float)
     exp_mat = np.exp(-2j * np.pi * freqs[:, np.newaxis] * k / fs)
     a_poly = 1.0 - exp_mat @ a_coeffs  # AR denominator polynomial A(f)
