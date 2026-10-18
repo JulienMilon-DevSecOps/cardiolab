@@ -46,7 +46,7 @@ to the integrated power annotated in the legend box.
 
 | Method | Characteristics |
 |---|---|
-| Welch | Smoothed estimate, optimal for recordings ≥ 5 min. Default choice. |
+| Welch | Smoothed estimate (256 s windows, 50 % overlap), the clearest curve to read. Default for the charts — the stored metrics use Lomb-Scargle by default (`docs/features/frequency_domain.md`). |
 | AR (Yule-Walker) | Sharper peaks, better for short recordings (1–3 min). Order 16 is a good default. |
 
 ### Healthy resting PSD
@@ -76,7 +76,8 @@ frequencies, the result is reliable regardless of method choice.
 
 **Divergence**: large differences indicate a recording at the edge of one
 method's validity range:
-- Welch needs ≥ 256 interpolated samples (≈ 64 s at 4 Hz) for full resolution.
+- Welch uses 256 s windows (0.004 Hz resolution): a 5-minute recording holds a
+  single window, so its estimate is not averaged.
 - AR over-fits on very long recordings if the model order is too low.
 
 ### When to use this chart

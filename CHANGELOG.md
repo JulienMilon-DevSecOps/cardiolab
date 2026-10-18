@@ -25,6 +25,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   method « kubios », one pass) without the gate. On the sample recordings: 0–1 % corrected.
 - `docs/features/artefact_correction.md`.
 
+### Added — Spectral analysis
+
+- `frequency_domain(method="lomb")`: Lomb-Scargle periodogram (`scipy.signal.lombscargle`) on the
+  beat times, without interpolation, linearly detrended, scaled to a one-sided PSD in ms²/Hz.
+  Accepted by `resting_hrv()` and `orthostatic_hrv()`.
+- `frequency_domain(..., window_sec=256.0)`: Welch window length in seconds.
+- `"VLF_reliable"` key in the `frequency_domain()` result: `False` below 5 minutes
+  (`VLF_MIN_DURATION_SEC`).
+- `RRSeries.beat_times()`: recorded timestamps when strictly increasing, else cumulated RR.
+
+### Changed — Spectral analysis
+
+- **Default spectral method: `"lomb"`** (was `"welch"`) for `frequency_domain()`, `resting_hrv()`,
+  `orthostatic_hrv()` and `HRVFeatures.method`. On 5-minute synthetic recordings with a known
+  spectrum, Lomb-Scargle is nearly unbiased with LF/HF ± 15 % across recordings, versus ± 33 % for
+  Welch (a single 256 s window, no averaging) and a + 15 to + 57 % bias for AR (VLF leakage).
+  Rows stored before 0.4.0 keep `spectral_method = "welch"`. Charts keep Welch.
+- **Welch**: 256 s windows (was 256 samples = 64 s), 50 % overlap, linear detrend per window —
+  resolution 0.016 → 0.004 Hz (Kubios standard).
+- **Single interpolation**: `RRSeries.interpolate(fs=4.0, kind="cubic")` (cubic spline, was linear)
+  on `beat_times()`; `frequency_domain._interpolate`, `cardiac_coherence()` and the dashboard PSD
+  use it — three separate linear interpolations removed.
+- **Computed values change**: HF power rises by 10–80 % on the sample recordings (linear
+  interpolation attenuated the HF band), LF/HF changes accordingly. Before / after table in
+  `docs/features/frequency_domain.md`. Time-domain, non-linear metrics and scores are unchanged.
+
 ### Changed
 
 - **`auto_clean=True`** (`resting_hrv`, `orthostatic_hrv`) now runs `correct_artifacts()` then
@@ -34,6 +60,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation (features, sensors, README) recommends `correct_artifacts()` instead of
   `remove_outliers()`; example 07 compares deletion and correction. README no longer claims that
   every protocol has `auto_clean` (only resting and orthostatic).
+
+### Fixed — Spectral analysis
+
+- **AR PSD**: evaluated on a 256-point grid (0.016 Hz at 4 Hz); AR peaks are narrow and the band
+  integration missed most of their power (synthetic 0.1 Hz oscillation of 800 ms² → LF 277 ms²).
+  Now a 4 096-point grid (≈ 0.001 Hz) with linear detrend: 792 ms². A flat signal returns a zero
+  spectrum instead of numerical noise.
+- **Coherence score** (`cardiac_coherence()`, AR-based): underestimated for the same reason — a
+  regular 0.1 Hz breathing pattern scored ≈ 47 %, now ≈ 88 %; spontaneous breathing at rest gives
+  ≈ 50–60 % (was ≈ 30 %). Scores from earlier versions are not comparable.
 
 ### Fixed — Notebooks
 
@@ -52,6 +88,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- `tests/features/test_spectral_accuracy.py` (25): default method (bias and dispersion of the
+  three methods on 5-minute series with a known spectrum); peaks at 0.10 / 0.25 Hz within ±0.005 Hz and
+  band powers within 10 % of theory for welch, ar and lomb; Parseval within 10 %; methods agree;
+  `window_sec` resolution; `VLF_reliable`; flat AR spectrum; real sample.
+- `tests/signals/test_rr.py`: `beat_times()`, cubic interpolation.
 - `tests/signals/test_artifacts.py` (61): acceptance criteria, classification, corrections,
   timestamps, edge cases, report, `RRSeries` wrapper, real sample with a missed beat.
 - `auto_clean` tests now compare with `correct_artifacts()` + `remove_outliers()`; new test:
