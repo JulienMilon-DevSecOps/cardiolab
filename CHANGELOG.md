@@ -78,6 +78,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Minimum dependency versions** (`pyproject.toml`): `numpy>=2.0` (`np.trapezoid`), `scipy>=1.13`
+  and `matplotlib>=3.9` (numpy 2 binaries); `analysis` extra: `pandas>=2.2.2` (first release built
+  for numpy 2 — pandas 2.1 crashes on import with numpy 2) and `jinja2>=3.1.2` (pandas Styler).
+  Older versions installed without error, then failed at run time. Unit suite run on exactly
+  these minimum versions: all tests pass. `requirements.txt` removed —
+  the extras of `pyproject.toml` are the only dependency list (`pip install -e ".[dev,analysis,database,garmin]"`).
 - **`auto_clean=True`** (`resting_hrv`, `orthostatic_hrv`) now runs `correct_artifacts()` then
   removes any remaining value outside 300–2000 ms; it only applied `remove_outliers()` before.
   **Computed values change** for recordings analysed with `auto_clean=True`.
