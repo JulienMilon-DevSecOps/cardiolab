@@ -79,6 +79,13 @@ _TSB_ZONE_COLORS: dict[str, str] = {
 }
 
 
+_QUALITY_COLORS: dict[str, str] = {
+    "good": "#d5f5e3",
+    "acceptable": "#fdebd0",
+    "poor": "#fadbd8",
+}
+
+
 # ── Value formatters ──────────────────────────────────────────────────────────
 
 
@@ -156,6 +163,30 @@ def highlight_category(
         return f"background-color: {bg}" if bg else ""
 
     return styler.map(_colour, subset=[col])
+
+
+def quality_grade(result) -> str | None:
+    """Return the signal quality grade of a result, ``None`` when unknown."""
+    quality = getattr(result, "quality", None)
+    return quality.grade if quality is not None else None
+
+
+def style_quality(styler: pd.Styler, labels: dict[str, str] | None) -> pd.Styler:
+    """Colour the ``quality_grade`` column (good / acceptable / poor) and translate it.
+
+    ``None`` (sessions stored before v0.4.0) is shown as ``n/a``.
+    """
+    col = "quality_grade"
+    if col not in styler.data.columns:
+        return styler
+
+    def _fmt(val) -> str:
+        if val is None or (isinstance(val, float) and math.isnan(val)):
+            return "n/a"
+        return labels.get(f"quality_{val}", val) if labels else str(val)
+
+    styler = styler.format(_fmt, subset=[col])
+    return highlight_category(styler, col, _QUALITY_COLORS)
 
 
 def caption(styler: pd.Styler, text: str) -> pd.Styler:

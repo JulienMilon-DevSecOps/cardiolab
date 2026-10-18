@@ -8,6 +8,7 @@ from matplotlib.figure import Figure
 
 from cardiolab.labels import lbl
 from cardiolab.protocols.resting import HRVFeatures
+from cardiolab.visualization._quality import mark_poor_sessions, session_qualities
 
 # ── Colour palette ────────────────────────────────────────────────────────────
 
@@ -120,6 +121,8 @@ def plot_resting_evolution(
         label=f"Mean {mean_rmssd:.1f} ms",
     )
     ax_rmssd.set_ylabel(lbl(labels, "rmssd", "RMSSD (ms)"), fontsize=10)
+    qualities = session_qualities(features_list)
+    mark_poor_sessions(ax_rmssd, x, rmssd, qualities, labels)
     ax_rmssd.legend(loc="upper left", fontsize=8)
     ax_rmssd.grid(alpha=0.20, linestyle=":")
 
@@ -134,6 +137,8 @@ def plot_resting_evolution(
         markersize=5,
         zorder=4,
     )
+    if mark_poor_sessions(ax_score, x, scores_arr, qualities, labels):
+        ax_score.legend(loc="lower left", fontsize=8)
     ax_score.set_ylim(0, 105)
     ax_score.set_ylabel(lbl(labels, "score", "Readiness score"), fontsize=10)
     ax_score.set_xticks(x)
@@ -240,6 +245,8 @@ def plot_resting_evolution_rolling(
         zorder=3,
     )
     ax_rmssd.set_ylabel(lbl(labels, "rmssd", "RMSSD (ms)"), fontsize=10)
+    qualities = session_qualities(features_list)
+    mark_poor_sessions(ax_rmssd, x, rmssd, qualities, labels)
     ax_rmssd.legend(loc="upper left", fontsize=8)
     ax_rmssd.grid(alpha=0.20, linestyle=":")
 
@@ -254,6 +261,8 @@ def plot_resting_evolution_rolling(
         markersize=5,
         zorder=4,
     )
+    if mark_poor_sessions(ax_score, x, scores_arr, qualities, labels):
+        ax_score.legend(loc="lower left", fontsize=8)
     ax_score.set_ylim(0, 105)
     ax_score.set_ylabel(lbl(labels, "score", "Readiness score"), fontsize=10)
     ax_score.set_xticks(x)

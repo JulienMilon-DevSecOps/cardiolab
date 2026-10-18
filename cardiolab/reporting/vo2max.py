@@ -23,6 +23,8 @@ from cardiolab.reporting._core import (
     fmt_nan,
     gradient_good,
     highlight_category,
+    quality_grade,
+    style_quality,
 )
 
 
@@ -81,6 +83,7 @@ def table_vo2max_history(
                 "rmssd_used": r.rmssd_used,
                 "ln_rmssd_used": r.ln_rmssd_used,
                 "fitness_category": r.fitness_category,
+                "quality_grade": quality_grade(r),
             }
         )
 
@@ -103,6 +106,7 @@ def table_vo2max_history(
     styler = df.style.format(fmt, na_rep="n/a")
     styler = gradient_good(styler, vo2_cols, vmin=20, vmax=65)
     styler = highlight_category(styler, "fitness_category", _VO2_CAT_COLORS)
+    styler = style_quality(styler, labels)
     styler = apply_labels(styler, labels)
 
     return caption(styler, caption_text)

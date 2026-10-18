@@ -22,6 +22,7 @@ from matplotlib.patches import Wedge
 
 from cardiolab.labels import lbl
 from cardiolab.protocols.vo2max import VO2maxResult
+from cardiolab.visualization._quality import mark_poor_sessions, session_qualities
 
 # ── ACSM fitness thresholds (mL/kg/min) ──────────────────────────────────────
 
@@ -278,6 +279,7 @@ def plot_vo2max_evolution(
 
     # Best estimate line
     ax.plot(xs, best, color=_DARK, linewidth=1.8, zorder=3, label="Best estimate")
+    mark_poor_sessions(ax, xs, best, session_qualities(results), labels)
 
     # Session dots coloured by category
     for x, val, cat in zip(xs, best, categories, strict=False):
