@@ -51,6 +51,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   interpolation attenuated the HF band), LF/HF changes accordingly. Before / after table in
   `docs/features/frequency_domain.md`. Time-domain, non-linear metrics and scores are unchanged.
 
+### Added — Signal quality (`cardiolab.signals.quality`) — migration V005
+
+- `SignalQuality` (`grade`, `artifact_pct`, `corrected`, `n_beats`, `effective_duration`) and
+  `signal_quality(rr, good_max=2.0, acceptable_max=5.0)`, exported from `cardiolab` and
+  `cardiolab.signals`. Corrected recordings: `good` < 2 %, `acceptable` < 5 %, `poor` ≥ 5 %
+  corrected beats; uncorrected recordings: `poor` as soon as one artefact is detected (one missed
+  beat in sample 2026-04-24 nearly doubles RMSSD).
+- `quality` attribute on `HRVFeatures`, `OrthostaticResult`, `CoherenceResult`, `VO2maxResult`,
+  set by `resting_hrv()`, `orthostatic_hrv()`, `cardiac_coherence()`, `vo2max_from_hrv()`.
+  Orthostatic phases are graded on the artefacts within their own time window — a movement
+  artefact when standing up does not downgrade the supine phase.
+- **Migration `V005__add_signal_quality.sql`**: `quality JSONB` on `hrv_features`,
+  `hrv_orthostatic` (one object per phase), `hrv_coherence`, `hrv_vo2max`; idempotent. Existing
+  rows keep `NULL` = unknown. Apply with `repo.run_migrations()` **before saving new sessions**.
+  HRR and cardiac drift (heart-rate based) are not graded.
+- `Baseline(include_poor=False)`: `poor` sessions are left out of every statistic by default;
+  `Baseline.sessions` / `Baseline.excluded`; `from_features(..., include_poor=)`. `trend_rmssd()`
+  and `detect_rmssd_anomaly()` use the same sessions. Sessions without quality are kept.
+- Reports: `quality_grade` column (coloured, translated, `n/a` when unknown) in the resting,
+  orthostatic, coherence and VO2max history tables. Charts: red cross on `poor` sessions in the
+  resting, readiness, generic score, coherence, VO2max and orthostatic dual-score evolutions.
+- `to_dict()` / CSV exports: `quality_grade`, `quality_artifact_pct`, `quality_corrected`,
+  `quality_n_beats`, `quality_effective_duration`. Labels `quality_*` (EN / FR).
+- `docs/features/signal_quality.md`.
+
 ### Changed
 
 - **`auto_clean=True`** (`resting_hrv`, `orthostatic_hrv`) now runs `correct_artifacts()` then
@@ -88,6 +113,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- `tests/signals/test_quality.py` (27): thresholds, uncorrected rule, serialisation, corrected /
+  uncorrected series, real sample, protocols (per-phase orthostatic grading), baseline exclusion.
+- Integration (PostgreSQL): quality round trips on the four tables, `NULL` = unknown, migration
+  V005 re-run on pre-0.4.0 tables. Charts and tables: `test_quality_marker.py`,
+  `test_quality_column.py`.
 - `tests/features/test_spectral_accuracy.py` (25): default method (bias and dispersion of the
   three methods on 5-minute series with a known spectrum); peaks at 0.10 / 0.25 Hz within ±0.005 Hz and
   band powers within 10 % of theory for welch, ar and lomb; Parseval within 10 %; methods agree;

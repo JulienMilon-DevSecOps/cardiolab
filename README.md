@@ -63,7 +63,7 @@ cardiolab/
 ├── docs/             → protocol & feature documentation
 │   ├── protocols/    → resting.md, orthostatic.md, cardiac_coherence.md,
 │   │                   hrr.md, cardiac_drift.md, vo2max.md
-│   ├── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md
+│   ├── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md, artefact_correction.md, signal_quality.md
 │   ├── visualization/→ reading_charts.md — how to read each chart type
 │   ├── reporting/    → tables.md — reporting API reference
 │   └── training_load/→ index.md, training_sessions.md, atl_ctl_tsb.md, sports.md
@@ -140,6 +140,17 @@ short beats are only corrected beyond 20 % of the local median, which keeps the
 strong respiratory arrhythmia of trained athletes. `resting_hrv()` and
 `orthostatic_hrv()` accept `auto_clean=True` to apply it. Validation and
 details: [`docs/features/artefact_correction.md`](cardiolab/docs/features/artefact_correction.md).
+
+### Signal quality
+
+Every session carries a `SignalQuality` (`features.quality`): share of
+artefacts, whether they were corrected, and a grade — `good` (< 2 % corrected),
+`acceptable` (< 5 %), `poor` (≥ 5 %, or any artefact left uncorrected).
+`Baseline` leaves `poor` sessions out by default (`include_poor=True` to keep
+them); history tables show a quality column and evolution charts flag `poor`
+sessions. Orthostatic phases are graded separately. Stored in a `quality` JSONB
+column (migration V005). Details:
+[`docs/features/signal_quality.md`](cardiolab/docs/features/signal_quality.md).
 
 ```python
 from cardiolab.signals.rr import PhysiologicalWarning, RRSeries

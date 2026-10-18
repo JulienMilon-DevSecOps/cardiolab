@@ -63,6 +63,7 @@ conn.close()
 | `V002__add_apen_sampen_ortho_metrics.sql` | v0.1.x→v0.2.0 | Adds `apen`/`sampen` + orthostatic enrichment columns |
 | `V003__add_training_sessions.sql` | v0.2.0 | Adds `hrv_training_sessions` table |
 | `V004__add_user_profiles.sql` | v0.2.4 | Adds `user_profiles` table |
+| `V005__add_signal_quality.sql` | v0.4.0 | Adds `quality JSONB` to `hrv_features`, `hrv_orthostatic`, `hrv_coherence`, `hrv_vo2max` ([signal quality](../features/signal_quality.md)) |
 
 ---
 
@@ -77,13 +78,13 @@ subclass `HRVRepository` and override `run_migrations`.
 
 ## Writing your own migration
 
-Create a file `V005__<description>.sql` (next free number) in `cardiolab/database/migrations/`
+Create a file `V006__<description>.sql` (next free number) in `cardiolab/database/migrations/`
 (or in a local copy of the migrations directory) and apply it via
 `run_migrations`. Use `ADD COLUMN IF NOT EXISTS` to make alterations idempotent:
 
 ```sql
--- V005__add_signal_quality.sql
-ALTER TABLE hrv_features ADD COLUMN IF NOT EXISTS quality JSONB;
+-- V006__add_my_column.sql
+ALTER TABLE hrv_features ADD COLUMN IF NOT EXISTS my_column FLOAT;
 ```
 
 > **Note:** only increment the version number — never modify an already-applied
