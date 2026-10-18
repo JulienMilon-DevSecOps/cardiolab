@@ -712,6 +712,8 @@ def _vo2max_from_row(r: dict) -> VO2maxResult:
         | {
             "date": str(r["date"]),
             "vo2max_uth": _or(r["vo2max_uth"], math.nan),
+            # Deprecated model (0.4.0): NULL / NaN — rows stored before keep it
+            "vo2max_esco_flatt": _or(r["vo2max_esco_flatt"], math.nan),
             "hr_max": _or(r["hr_max"], math.nan),
             "fitness_category": r["fitness_category"] or "poor",
             "score": _or(r["score"], 0.0),
@@ -1511,7 +1513,7 @@ class HRVRepository:
     def create_vo2max_table(self) -> None:
         """Create the VO2max estimation session table if it does not exist.
 
-        Stores VO2max estimates from HRV-based models (Uth, Esco-Flatt,
+        Stores VO2max estimates (Uth, deprecated Esco-Flatt,
         ln-RMSSD). A ``UNIQUE(user_id, date)`` constraint supports safe upserts.
 
         Raises:

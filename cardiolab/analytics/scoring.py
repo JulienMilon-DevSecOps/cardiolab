@@ -608,7 +608,7 @@ def session_score(protocol: str, result, baseline: Baseline | None = None) -> fl
     * ``hrr`` — :func:`hrr_score` on HRR at 60 s.
     * ``drift`` — :func:`drift_score`.
     * ``vo2max`` — :func:`vo2max_score` on the Uth estimate when available,
-      otherwise Esco-Flatt.
+      otherwise the indicative ln-RMSSD estimate.
 
     Args:
         protocol: One of :data:`SCORED_PROTOCOLS`.
@@ -636,7 +636,7 @@ def session_score(protocol: str, result, baseline: Baseline | None = None) -> fl
         return drift_score(result.drift_rate)
     if protocol == "vo2max":
         uth = result.vo2max_uth
-        best = uth if math.isfinite(uth) and uth > 0 else result.vo2max_esco_flatt
+        best = uth if math.isfinite(uth) and uth > 0 else result.vo2max_ln_rmssd
         return vo2max_score(best)
     raise ValueError(
         f"Unknown protocol {protocol!r}. Choose from {', '.join(SCORED_PROTOCOLS)}."

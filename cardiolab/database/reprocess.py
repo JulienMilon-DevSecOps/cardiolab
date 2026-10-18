@@ -55,7 +55,7 @@ KEY_METRICS: dict[str, tuple[str, ...]] = {
     "coherence": ("coherence_score", "rmssd", "score"),
     "hrr": ("hrr_60", "hrr_120", "score"),
     "drift": ("drift_rate", "score"),
-    "vo2max": ("vo2max_esco_flatt", "vo2max_ln_rmssd", "vo2max_uth", "score"),
+    "vo2max": ("vo2max_uth", "vo2max_ln_rmssd", "fitness_category", "score"),
 }
 """Metrics compared before / after, per protocol (plus ``quality_grade``)."""
 
