@@ -83,7 +83,7 @@ from cardiolab.signals.rr import RRSeries
 
 data = parse_rr_file("cardiolab/datasets/raw/resting/2026-01-10 07-30-00.txt")
 rr = RRSeries(data["rr_intervals"])  # parse_rr_file returns a dict
-rr_clean = rr.remove_outliers()
+rr_clean, report = rr.correct_artifacts()  # extra / missed / ectopic beats corrected
 
 print(f"RMSSD : {rmssd(rr_clean):.1f} ms | SDNN : {sdnn(rr_clean):.1f} ms")
 ```
@@ -122,11 +122,11 @@ cardiolab/datasets/
 ## Known limitations / Limites connues
 
 **EN**
-- **Motion artefacts**: the H10 is very accurate, but abrupt movements at session start generate outliers. Always call `remove_outliers()`.
+- **Motion artefacts**: the H10 is very accurate, but abrupt movements at session start generate artefacts. Always call `correct_artifacts()` (or `auto_clean=True`).
 - **Unstable connection**: Bluetooth dropout creates gaps. Intervals > 2000 ms are automatically flagged by `PhysiologicalWarning`.
 - **Third-party apps**: files exported by Elite HRV or HRV4Training may differ slightly in format. Use the dedicated parsers (`parse_hrv4training_csv`) when applicable.
 
 **FR**
-- **Artefacts de mouvement** : le H10 est très précis, mais les mouvements brusques en début de session génèrent des artefacts. Toujours appeler `remove_outliers()`.
+- **Artefacts de mouvement** : le H10 est très précis, mais les mouvements brusques en début de session génèrent des artefacts. Toujours appeler `correct_artifacts()` (ou `auto_clean=True`).
 - **Connexion instable** : une coupure Bluetooth crée des gaps dans les données. Les intervalles > 2000 ms sont automatiquement signalés par `PhysiologicalWarning`.
 - **Applications tierces** : les fichiers exportés par Elite HRV ou HRV4Training peuvent avoir un format légèrement différent. Utiliser les parsers dédiés (`parse_hrv4training_csv`) si nécessaire.

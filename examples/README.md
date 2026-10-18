@@ -10,7 +10,7 @@ example/
 │
 │   ── 1. Signal ───────────────────────────────────────────────────────────────
 ├── 06_rr_validation.py       ← PhysiologicalWarning et validation du signal RR
-├── 07_auto_clean.py          ← paramètre auto_clean dans les protocoles
+├── 07_auto_clean.py          ← correction des artefacts, paramètre auto_clean
 │
 │   ── 2. Protocoles ────────────────────────────────────────────────────────────
 ├── 04_resting_protocol.py    ← resting_hrv() → HRVFeatures + readiness scoring
@@ -127,9 +127,9 @@ python examples/14_user_profiles.py
   hors de la plage physiologique [300, 2000] ms.
 - Comment capturer, filtrer et supprimer l'avertissement après nettoyage.
 
-#### `07_auto_clean.py` — Nettoyage automatique
+#### `07_auto_clean.py` — Correction des artefacts
+- `correct_artifacts()` : battements surnuméraires, manqués, ectopiques corrigés au lieu d'être supprimés — comparaison avec `remove_outliers()` (seuil et z-score).
 - Paramètre `auto_clean=True` dans `resting_hrv()` et `orthostatic_hrv()`.
-- Quand utiliser `auto_clean` vs `remove_outliers()` manuel.
 
 ---
 

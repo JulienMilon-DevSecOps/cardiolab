@@ -35,7 +35,8 @@
 ```python
 # Polar H10 — full RR access / accès RR complet
 from cardiolab.sensors_tools import parse_rr_file
-rr = parse_rr_file("datasets/raw/polar/session.txt").remove_outliers()
+from cardiolab.signals.rr import RRSeries
+rr, report = RRSeries(parse_rr_file("datasets/raw/polar/session.txt")["rr_intervals"]).correct_artifacts()
 
 # HRV4Training — RR + RMSSD from CSV
 from cardiolab.sensors_tools import parse_hrv4training_csv, to_rrseries
@@ -50,7 +51,7 @@ samples = extract_hrv_samples("datasets/raw/apple_health/export.xml")
 # Garmin FIT — requires fitparse / nécessite fitparse
 # pip install cardiolab[garmin]
 from cardiolab.sensors_tools import parse_garmin_fit
-rr = parse_garmin_fit("datasets/raw/garmin/activity.fit").remove_outliers()
+rr, report = parse_garmin_fit("datasets/raw/garmin/activity.fit").correct_artifacts()
 ```
 
 ---

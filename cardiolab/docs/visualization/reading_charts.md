@@ -109,7 +109,7 @@ The goal is to confirm that **artefacts are few and isolated**.
 | Observation | Recommended action |
 |---|---|
 | 0 red crosses | Clean signal — proceed with analysis normally |
-| 1 – 3 isolated artefacts | Acceptable — `remove_outliers()` removes them without biasing metrics |
+| 1 – 3 isolated artefacts | Acceptable — `correct_artifacts()` corrects them without biasing metrics |
 | > 5 % artefacts | Degraded signal — check sensor placement or signal quality |
 | Clustered artefacts | Likely sensor disconnection — consider trimming that segment |
 

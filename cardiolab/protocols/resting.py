@@ -194,9 +194,12 @@ def resting_hrv(
             300 s (5 minutes).
         compute_score: If ``True``, computes a simple normalised readiness
             score (0–1) based on RMSSD and mean HR. Defaults to ``False``.
-        auto_clean: If ``True``, removes physiological outliers (< 300 ms or
-            > 2000 ms) from ``rr`` before computing features using the default
-            ``threshold`` method. Defaults to ``False``.
+        auto_clean: If ``True``, corrects artefacts before computing features
+            (:meth:`RRSeries.correct_artifacts` — extra / missed / ectopic /
+            long-short beats corrected, not deleted), then removes any
+            remaining value outside 300–2000 ms. Defaults to ``False``.
+            Changed in 0.4.0: earlier versions only deleted out-of-range
+            values (``remove_outliers``).
         method: Spectral estimation method for frequency-domain features.
             ``"welch"`` (default) is optimal for long recordings (≥ 5 min).
             ``"ar"`` uses the autoregressive Yule-Walker method, which gives
@@ -209,6 +212,9 @@ def resting_hrv(
 
     """
     if auto_clean:
+        rr, _ = rr.correct_artifacts()
+        # Safety net: impossible values the classification cannot reach
+        # (the last two beats of a series are never classified)
         rr = rr.remove_outliers()
 
     # ======================
