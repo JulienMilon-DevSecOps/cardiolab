@@ -47,33 +47,16 @@ import math
 import numpy as np
 
 from cardiolab.analytics.baseline import Baseline
-from cardiolab.analytics.monitoring import ln_rmssd_trend_score
+from cardiolab.analytics.monitoring import (
+    dfa_alpha1_score,
+    ln_rmssd_day_score,
+    ln_rmssd_trend_score,
+)
 from cardiolab.protocols.resting import HRVFeatures
 
 # ======================
 # INTERNAL HELPERS
 # ======================
-
-
-def _dfa_score(dfa_alpha1: float) -> float:
-    """Convert a DFA α1 value to a 0–100 score.
-
-    Uses an absolute physiological threshold: α1 = 0.75 is the lower boundary
-    of the normal resting range. Values below this threshold score < 50;
-    values in the normal zone (0.75–1.25) score 50–95. A value of 0.0 is
-    treated as "not computed" and returns the neutral 50.0.
-
-    Args:
-        dfa_alpha1: DFA short-term scaling exponent.
-
-    Returns:
-        Score in [0, 100].
-
-    """
-    if dfa_alpha1 <= 0.0 or math.isnan(dfa_alpha1):
-        return 50.0
-
-    return float(np.clip(50.0 + 50.0 * np.tanh((dfa_alpha1 - 0.75) * 3.0), 0.0, 100.0))
 
 
 def _sd_ratio_score(sd_ratio: float) -> float:
@@ -145,32 +128,38 @@ def readiness_score_multi(
     current: HRVFeatures,
     baseline: Baseline,
 ) -> float:
-    """Compute a multi-factor readiness score combining linear and non-linear signals.
+    """Compute the readiness score from four components, each against the athlete's own history.
 
-    Integrates four independent components:
-
-    * **RMSSD** (35 %) — primary vagal activity, deviation from personal
-      baseline median.
-    * **Resting HR** (20 %) — elevated HR penalises the score.
-    * **DFA α1** (25 %) — short-term fractal scaling exponent; normal resting
-      range 0.75–1.25. Values below 0.75 strongly penalise the score.
-      Treated as neutral (50) when not available or not yet computed.
+    * **lnRMSSD of the day** (45 %) — today's lnRMSSD against the daily
+      values of the previous 28 days, in units of the athlete's variability
+      (:func:`~cardiolab.analytics.monitoring.ln_rmssd_day_score`; Kiviniemi
+      et al. 2007, Plews et al. 2013).
+    * **Resting HR** (25 %) — elevated HR penalises the score (vs the mean of
+      the last 7 sessions). HR and HRV carry complementary information
+      (Buchheit 2014).
     * **lnRMSSD trend** (20 %) — change of the 7-day rolling mean of lnRMSSD
-      versus the previous week, in units of the athlete's smallest worthwhile
-      change (:func:`~cardiolab.analytics.monitoring.ln_rmssd_trend_score`,
-      Plews et al. 2013): 50 within ±1 SWC, towards 100 for a sustained
-      rise, towards 0 for a sustained decline; neutral (50) until ≈ 14 days
-      of data. Changed in 0.5.0: the trend compared today's RMSSD with the
-      median of the last 7 sessions — the same reference as the RMSSD
-      component, so no trend was actually measured.
+      versus the previous week, in SWC units
+      (:func:`~cardiolab.analytics.monitoring.ln_rmssd_trend_score`).
+    * **DFA α1** (10 %) — today's α1 against the previous 28 days, lower is
+      better (:func:`~cardiolab.analytics.monitoring.dfa_alpha1_score`).
 
-    Returns 50.0 (neutral) when the baseline is empty or uninitialised.
+    Components without enough history are neutral (50): lnRMSSD and DFA α1
+    need 6 previous measurements, the trend ≈ 14 days. Their weight is not
+    redistributed. Returns 50.0 when the baseline is empty.
+
+    The weights are cardiolab's heuristic — no study validates a precise
+    weighting of these markers.
+
+    Changed in 0.5.0: weights were RMSSD 35 / HR 20 / DFA α1 25 / trend 20;
+    RMSSD was scored as a ratio to the median of 7 sessions, DFA α1 against the
+    fixed 0.75 threshold (higher is better), and the trend compared today's
+    RMSSD with the same median.
 
     Args:
-        current: HRV features of the session to score.
-        baseline: Personal reference built from previous sessions. The
-            trend component needs dated sessions (``current.date`` included)
-            over ≈ 14 days; otherwise it defaults to 50.
+        current: HRV features of the session to score (dated, for the
+            history-based components).
+        baseline: Personal reference built from previous sessions
+            (``poor`` sessions excluded).
 
     Returns:
         Readiness score as a float in [0, 100].
@@ -179,25 +168,24 @@ def readiness_score_multi(
         < 50 = worse than baseline.
 
     """
-    base_rmssd = baseline.median_rmssd()
     base_hr = baseline.mean_hr()
 
-    if base_rmssd is None or base_hr is None:
+    if base_hr is None:
         return 50.0
 
-    # RMSSD (35 %) — deviation from personal baseline median
-    rmssd_score = 50.0 + 50.0 * np.tanh((current.rmssd / base_rmssd - 1.0) * 2.0)
+    # lnRMSSD of the day (45 %) — vs the athlete's previous 28 days
+    rmssd_score = ln_rmssd_day_score(current, baseline)
 
-    # HR (20 %) — elevated HR penalises the score
+    # HR (25 %) — elevated HR penalises the score
     hr_score = 50.0 - 50.0 * np.tanh((current.mean_hr - base_hr) / 10.0)
-
-    # DFA α1 (25 %) — absolute physiological threshold at 0.75
-    dfa = _dfa_score(current.dfa_alpha1)
 
     # Trend (20 %) — 7-day lnRMSSD mean vs previous week, in SWC units
     trend_score = ln_rmssd_trend_score(current, baseline)
 
-    score = 0.35 * rmssd_score + 0.20 * hr_score + 0.25 * dfa + 0.20 * trend_score
+    # DFA α1 (10 %) — vs the athlete's previous 28 days, lower is better
+    dfa = dfa_alpha1_score(current, baseline)
+
+    score = 0.45 * rmssd_score + 0.25 * hr_score + 0.20 * trend_score + 0.10 * dfa
 
     return float(np.clip(score, 0.0, 100.0))
 
@@ -216,10 +204,12 @@ def readiness_score_nonlinear(
     Integrates three non-linear components that capture information
     orthogonal to time-domain metrics:
 
-    * **DFA α1** (40 %) — short-term fractal scaling exponent. Normal resting
-      range: 0.75–1.25. Below 0.75 strongly penalises the score. This
-      component uses absolute physiological thresholds and does not require
-      a personal baseline.
+    * **DFA α1** (40 %) — short-term scaling exponent, against the athlete's
+      previous 28 days, **lower is better** (vagal activity lowers α1,
+      sympathetic activity raises it — Castiglioni et al. 2011); see
+      :func:`~cardiolab.analytics.monitoring.dfa_alpha1_score`. Neutral with
+      fewer than 6 previous values. Changed in 0.5.0: fixed 0.75 threshold,
+      higher is better.
     * **SD1** (35 %) — Poincaré short-term variability (= RMSSD / √2),
       expressed as a deviation from the personal baseline median SD1. Captures
       the same parasympathetic signal as RMSSD but within a non-linear
@@ -246,8 +236,8 @@ def readiness_score_nonlinear(
         < 50 = below baseline or below reference thresholds.
 
     """
-    # DFA α1 (40 %) — absolute threshold, no personal baseline required
-    dfa = _dfa_score(current.dfa_alpha1)
+    # DFA α1 (40 %) — vs the athlete's previous 28 days, lower is better
+    dfa = dfa_alpha1_score(current, baseline)
 
     # SD1 (35 %) — deviation from personal baseline
     base_sd1 = baseline.median_sd1()

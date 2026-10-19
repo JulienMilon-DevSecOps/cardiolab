@@ -64,7 +64,7 @@ cardiolab/
 │   ├── protocols/    → resting.md, orthostatic.md, cardiac_coherence.md,
 │   │                   hrr.md, cardiac_drift.md, vo2max.md
 │   ├── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md, artefact_correction.md, signal_quality.md
-│   ├── analytics/    → monitoring.md — 7-day lnRMSSD, SWC, adaptation states
+│   ├── analytics/    → monitoring.md (7-day lnRMSSD, SWC, adaptation states), trends.md
 │   ├── visualization/→ reading_charts.md — how to read each chart type
 │   ├── reporting/    → tables.md — reporting API reference
 │   └── training_load/→ index.md, training_sessions.md, atl_ctl_tsb.md, sports.md
@@ -784,8 +784,8 @@ from cardiolab.analytics import Baseline
 
 baseline = Baseline.from_features(previous_sessions)
 
-score = readiness_score_multi(current_session, baseline)      # RMSSD 35% + HR 20% + DFA α1 25% + 7-day lnRMSSD trend 20%
-score = readiness_score_nonlinear(current_session, baseline)  # DFA α1 40% + SD1 35% + SD1/SD2 25%
+score = readiness_score_multi(current_session, baseline)      # lnRMSSD 45% + HR 25% + 7-day trend 20% + DFA α1 10%
+score = readiness_score_nonlinear(current_session, baseline)  # DFA α1 40% (vs history) + SD1 35% + SD1/SD2 25%
 score = readiness_score_composite(current_session, baseline)  # weighted combination of both
 ```
 
@@ -795,10 +795,12 @@ score = readiness_score_composite(current_session, baseline)  # weighted combina
 | 40–60 | Near baseline — normal variability |
 | < 40 | Below baseline — possible fatigue or stress |
 
-The **trend** component (since 0.5.0) is the change of the 7-day rolling mean of
-lnRMSSD versus the previous week, in units of the athlete's smallest worthwhile
-change: 50 within ±1 SWC, towards 100 for a sustained rise, towards 0 for a
-sustained decline, neutral until 14 days of data.
+Since 0.5.0 every component is scored against the athlete's own history:
+today's **lnRMSSD** (45 %) and **DFA α1** (10 %, lower is better) against the
+previous 28 days in units of the athlete's variability; **resting HR** (25 %);
+the **trend** (20 %) — change of the 7-day lnRMSSD mean versus the previous week
+in SWC units. Components without enough history stay at 50 (about two weeks).
+Details: [`docs/analytics/monitoring.md`](cardiolab/docs/analytics/monitoring.md).
 
 ### Training adaptation monitoring — 7-day lnRMSSD (Plews)
 
@@ -877,8 +879,12 @@ from cardiolab.analytics import hrr_score, coherence_score_100, drift_score, vo2
 * **Baseline** — rolling 7-session RMSSD mean, median, mean HR
 * **Anomaly detection** — three methods: `simple` (% deviation), `zscore`,
   `rolling` (sliding median)
-* **Trend** — linear regression on RMSSD history (`increasing`, `stable`,
-  `decreasing`)
+* **Trend** (since 0.5.0) — `linear_trend()`: slope, r² and p-value over a window
+  of calendar days; `increasing` / `decreasing` only when significant (p < 0.05)
+  **and** the fitted change reaches 5 % of the mean (relative threshold).
+  `detect_sustained_decline()` (≥ 5 consecutive values below mean − 0.5 SD),
+  `trend_report()` (rolling 7 / 30-day slopes per session). See
+  [`docs/analytics/trends.md`](cardiolab/docs/analytics/trends.md).
 
 ---
 

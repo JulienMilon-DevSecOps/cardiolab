@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from cardiolab.analytics.trends import _interpret_trend, trend_rmssd
+from cardiolab.analytics.trends import trend_rmssd
 
 
 class TestTrendRmssd:
@@ -202,57 +202,6 @@ class TestTrendRmssd:
             assert np.isclose(result1["slope"], result2["slope"])
 
         assert result1.get("trend") == result2.get("trend")
-
-
-class TestInterpretTrend:
-    """Test suite for _interpret_trend() helper function."""
-
-    def test_interpret_trend_positive_slope(self):
-        """Test interpretation of positive slope."""
-        trend = _interpret_trend(2.5)
-
-        assert trend == "increasing"
-
-    def test_interpret_trend_negative_slope(self):
-        """Test interpretation of negative slope."""
-        trend = _interpret_trend(-2.5)
-
-        assert trend == "decreasing"
-
-    def test_interpret_trend_zero_slope(self):
-        """Test interpretation of zero slope."""
-        trend = _interpret_trend(0.0)
-
-        assert trend == "stable"
-
-    def test_interpret_trend_very_small_positive(self):
-        """Test interpretation of very small positive slope."""
-        trend = _interpret_trend(0.5)
-
-        assert trend == "stable"
-
-    def test_interpret_trend_very_small_negative(self):
-        """Test interpretation of very small negative slope."""
-        trend = _interpret_trend(-0.5)
-
-        assert trend == "stable"
-
-    def test_interpret_trend_boundary_values(self):
-        """Test interpretation at boundary (slope = 1)."""
-        # Exactly at boundary: slope = ±1 is not strictly > or < so still "stable"
-        assert _interpret_trend(1.0) == "stable"
-        assert _interpret_trend(-1.0) == "stable"
-        # Just beyond boundary should flip interpretation
-        assert _interpret_trend(1.1) == "increasing"
-        assert _interpret_trend(-1.1) == "decreasing"
-
-    def test_interpret_trend_large_slope(self):
-        """Test interpretation with large slope."""
-        trend_large_positive = _interpret_trend(100.0)
-        trend_large_negative = _interpret_trend(-100.0)
-
-        assert trend_large_positive == "increasing"
-        assert trend_large_negative == "decreasing"
 
 
 class TestTrendsIntegration:

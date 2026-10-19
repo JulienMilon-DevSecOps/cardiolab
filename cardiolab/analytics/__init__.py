@@ -5,7 +5,10 @@ from cardiolab.analytics.baseline import Baseline
 from cardiolab.analytics.monitoring import (
     MonitoringPoint,
     SWCBand,
+    baseline_relative_score,
+    dfa_alpha1_score,
     interpret_trend_state,
+    ln_rmssd_day_score,
     ln_rmssd_trend_score,
     monitoring_series,
     rolling_cv,
@@ -33,7 +36,14 @@ from cardiolab.analytics.training_load import (
     trimp_banister,
     trimp_hrv_based,
 )
-from cardiolab.analytics.trends import trend_rmssd
+from cardiolab.analytics.trends import (
+    SustainedDecline,
+    TrendResult,
+    detect_sustained_decline,
+    linear_trend,
+    trend_report,
+    trend_rmssd,
+)
 
 __all__ = [
     "Baseline",
@@ -49,6 +59,11 @@ __all__ = [
     "orthostatic_score",
     "detect_rmssd_anomaly",
     "trend_rmssd",
+    "linear_trend",
+    "TrendResult",
+    "detect_sustained_decline",
+    "SustainedDecline",
+    "trend_report",
     "rolling_ln_rmssd",
     "rolling_cv",
     "swc_band",
@@ -57,6 +72,9 @@ __all__ = [
     "monitoring_series",
     "MonitoringPoint",
     "ln_rmssd_trend_score",
+    "ln_rmssd_day_score",
+    "dfa_alpha1_score",
+    "baseline_relative_score",
     "trimp_hrv_based",
     "trimp_banister",
     "load_readiness_for_date",

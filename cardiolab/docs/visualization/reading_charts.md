@@ -916,8 +916,8 @@ fig.savefig("drift_zones.png", dpi=150, bbox_inches="tight")
 | α1 range | Interpretation |
 |---|---|
 | ≈ 0.5 | White noise — no correlation structure, pathological at rest |
-| < 0.75 | Below normal — possible overtraining, autonomic impairment |
-| 0.75 – 1.25 | **Normal** fractal long-range correlations (green zone) |
+| < 0.75 | Low — strong vagal modulation, irregular rhythm or artefacts |
+| 0.75 – 1.25 | **Usual** resting range (green zone) |
 | > 1.25 | Strongly correlated — typical during exercise or with artefacts |
 | ≈ 1.5 | Brownian noise — maximal correlation |
 
@@ -930,7 +930,7 @@ fig.savefig("drift_zones.png", dpi=150, bbox_inches="tight")
 | Points well-aligned with the regression line (high R²) | Clean fractal structure — reliable α1 estimate |
 | Scattered points, poor alignment | Irregular HR behaviour or short signal |
 | Regression line inside the green band | Normal autonomic regulation |
-| Line below the green band (α1 < 0.75) | Possible fatigue, overtraining, or pathology |
+| Line below the green band (α1 < 0.75) | Strong vagal modulation, irregular rhythm or artefacts — check signal quality |
 | Line above the green band (α1 > 1.25) | Possible exercise residue, strong trend, or artefacts |
 
 ### Signal length note

@@ -181,30 +181,34 @@ long-range correlations. The degree of this correlation is captured by α1:
   This is the target zone for healthy resting HR.
 - **α1 ≈ 1.5**: Brownian motion (random walk) — seen during vigorous exercise
   when heart rate follows a strongly correlated trajectory.
-- **α1 < 0.75**: possible pathological or overtraining state — loss of fractal
-  organisation in the HR control.
+- **Autonomic balance**: vagal activity adds white-noise-like fluctuations and
+  lowers the short-term exponent; cardiac sympathetic activity adds
+  Brownian-like components and raises it (Castiglioni et al. 2011). At rest, an
+  α1 **above** the athlete's usual level therefore points to a less vagal
+  state.
 
 ### Reference values
 
 | α1 | Interpretation |
 |----|----------------|
-| < 0.5 | Pathological — arrhythmia, severe autonomic dysfunction |
-| 0.5 – 0.75 | Low — possible overtraining, illness, or poor recovery |
-| 0.75 – 1.25 | Normal resting range — healthy fractal organisation |
-| 1.25 – 1.5 | Elevated — transitional state, moderate exercise |
+| < 0.5 | Very low — irregular rhythm or artefacts: check signal quality |
+| 0.5 – 0.75 | Low — strong vagal (respiratory) modulation, or irregular rhythm |
+| 0.75 – 1.25 | Usual resting range |
+| 1.25 – 1.5 | Elevated — sympathetic predominance (standing, stress), moderate exercise |
 | > 1.5 | Very high — vigorous exercise or non-stationary recording |
 
 ### DFA α1 in sports monitoring
 
-DFA α1 at rest < 0.75 is an early indicator of overreaching and has been
-validated as a marker of accumulated training stress:
+Evidence for resting DFA α1 as a recovery or overreaching marker is **limited**:
+no fixed resting threshold is validated, and the 0.75 value comes from exercise
+studies (aerobic threshold, see below). cardiolab therefore uses α1 only:
 
-- **Fresh / well-recovered**: α1 ≈ 1.0–1.2.
-- **Moderately fatigued**: α1 ≈ 0.75–1.0.
-- **Overreaching**: α1 < 0.75.
+- **relative to the athlete's own history** — today's value against the previous
+  28 days, **lower is better** (more vagal, see above);
+- with a **small weight** — 10 % of the readiness score (changed in v0.5.0: 25 %
+  against the fixed 0.75 threshold, higher is better).
 
-A **trending decrease in α1 over a training block** (e.g. 1.1 → 0.8 over 3
-weeks) signals that recovery is not keeping pace with load.
+Read α1 together with lnRMSSD and resting HR, never alone.
 
 ### DFA α1 during exercise
 
@@ -213,6 +217,17 @@ transitions from ≈ 1.0 toward 1.5 and above. The threshold where α1 = 0.75 ha
 been proposed as a non-invasive intensity marker for the **aerobic threshold**
 (Gronwald & Hoos, 2020 review). This application requires sub-maximal exercise
 protocols and is not the primary use case in cardiolab's resting protocol.
+
+#### References
+
+> Castiglioni, P., Parati, G., Di Rienzo, M., Carabalona, R., Cividjian, A., &
+> Quintin, L. (2011). Scale exponents of blood pressure and heart rate during
+> autonomic blockade as assessed by detrended fluctuation analysis. *The Journal
+> of Physiology*, 589(2), 355–369.
+
+> Gronwald, T., & Hoos, O. (2020). Correlation properties of heart rate
+> variability during endurance exercise: a systematic review. *Annals of
+> Noninvasive Electrocardiology*, 25(1), e12697.
 
 ### Minimum requirements
 
@@ -391,7 +406,7 @@ literature.
 |-----------|-------------|-------|---------|---------|--------|
 | Good recovery | High | Low | Normal | ≈ 1.0–1.2 | High |
 | Acute stress | Low | High | Low | ↓ or ↑ | ↓ |
-| Overtraining | Low | Variable | Low | < 0.75 | ↓ |
+| Overtraining | Low | Variable | Low | Variable (limited evidence) | ↓ |
 | Endurance athlete (trained) | High | Low | Normal | ≈ 1.0–1.1 | High |
 | Vigorous exercise | ↓ | ↑ | Low | > 1.5 | Variable |
 | Illness | Low | Variable | Low | Variable | ↓ |
