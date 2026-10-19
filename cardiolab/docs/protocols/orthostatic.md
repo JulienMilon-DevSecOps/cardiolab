@@ -158,6 +158,16 @@ HF%, LF_nu, HF_nu, HF/FC, duration, score).
 | `hf_response_pct` | (HF standing − HF supine) / HF supine × 100 | Relative vagal withdrawal (%) |
 | `hf_hr_pct_change` | (HF/FC standing − HF/FC supine) / HF/FC supine × 100 | HR-normalised vagal withdrawal (%) |
 
+### Two scores per session
+
+| Field | What it measures | Reference |
+|-------|------------------|-----------|
+| `score` | **Autonomic response** to standing — ΔHR (80 %) + HF withdrawal (20 %), absolute thresholds (`orthostatic_score`) | Brignole 2018, Sheldon 2015, Task Force 1996 |
+| `readiness_score` | **Score de forme** of the day — the supine phase against the previous supine phases (`orthostatic_readiness_score`), when the orthostatic test is the main daily measurement | The athlete's own history |
+
+`readiness_score` is stored since v0.5.0 (migration V006): computed at import and
+by `reprocess_sessions()`; `None` for older rows until they are reprocessed.
+
 ---
 
 ## Interpreting results
