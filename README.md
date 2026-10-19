@@ -785,7 +785,7 @@ from cardiolab.analytics import Baseline
 baseline = Baseline.from_features(previous_sessions)
 
 score = readiness_score_multi(current_session, baseline)      # lnRMSSD 45% + HR 25% + 7-day trend 20% + DFA α1 10%
-score = readiness_score_nonlinear(current_session, baseline)  # DFA α1 40% + SD1 35% + SD1/SD2 25%
+score = readiness_score_nonlinear(current_session, baseline)  # DFA α1 40% (vs history) + SD1 35% + SD1/SD2 25%
 score = readiness_score_composite(current_session, baseline)  # weighted combination of both
 ```
 

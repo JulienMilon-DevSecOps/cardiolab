@@ -55,6 +55,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   identical values cannot give extreme scores; neutral with fewer than 6 previous values; undated
   sessions use the last 28 sessions.
 - Components without enough history stay at 50; their weight is not redistributed.
+- `readiness_score_nonlinear()` (and so `readiness_score_composite()`): its DFA α1 component (40 %)
+  uses the same `dfa_alpha1_score()` — against the previous 28 days, lower is better — instead of
+  the fixed 0.75 threshold; `_dfa_score()` removed.
 - **SWC band baseline**: the 28 days **preceding** the 7-day window `(d − 35, d − 7]` (it included
   the evaluated week, so a decline dragged its own band down). Applies to the monitoring states,
   the trend component and `swc_band()` (new `window` parameter).

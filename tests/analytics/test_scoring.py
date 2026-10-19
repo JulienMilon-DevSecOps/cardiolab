@@ -453,12 +453,21 @@ class TestReadinessScoreNonlinear:
         score = readiness_score_nonlinear(current, base)
         assert score > 50.0
 
-    def test_poor_dfa_below_threshold_lowers_score(self):
-        """DFA α1 = 0.5 must produce a lower score than DFA α1 = 1.0."""
+    def test_dfa_relative_lower_is_better(self):
+        """DFA α1 vs the personal baseline (1.0): lower raises, higher lowers (0.5.0)."""
         base = _make_baseline()
-        score_good = readiness_score_nonlinear(_make_features(dfa_alpha1=1.0), base)
-        score_poor = readiness_score_nonlinear(_make_features(dfa_alpha1=0.5), base)
-        assert score_good > score_poor
+        usual = readiness_score_nonlinear(_make_features(dfa_alpha1=1.0), base)
+        lower = readiness_score_nonlinear(_make_features(dfa_alpha1=0.9), base)
+        higher = readiness_score_nonlinear(_make_features(dfa_alpha1=1.2), base)
+        assert lower > usual > higher
+
+    def test_consistent_with_multi_dfa(self):
+        """Same DFA α1 component as readiness_score_multi (no fixed 0.75 threshold)."""
+        from cardiolab.analytics.monitoring import dfa_alpha1_score
+
+        base = _make_baseline()
+        current = _make_features(dfa_alpha1=0.5)
+        assert dfa_alpha1_score(current, base) > 50.0
 
     def test_low_sd_ratio_lowers_score(self):
         """SD1/SD2 = 0.1 (sympathetic dominance) must score lower than 0.4 (normal)."""

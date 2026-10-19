@@ -59,27 +59,6 @@ from cardiolab.protocols.resting import HRVFeatures
 # ======================
 
 
-def _dfa_score(dfa_alpha1: float) -> float:
-    """Convert a DFA α1 value to a 0–100 score.
-
-    Uses an absolute physiological threshold: α1 = 0.75 is the lower boundary
-    of the normal resting range. Values below this threshold score < 50;
-    values in the normal zone (0.75–1.25) score 50–95. A value of 0.0 is
-    treated as "not computed" and returns the neutral 50.0.
-
-    Args:
-        dfa_alpha1: DFA short-term scaling exponent.
-
-    Returns:
-        Score in [0, 100].
-
-    """
-    if dfa_alpha1 <= 0.0 or math.isnan(dfa_alpha1):
-        return 50.0
-
-    return float(np.clip(50.0 + 50.0 * np.tanh((dfa_alpha1 - 0.75) * 3.0), 0.0, 100.0))
-
-
 def _sd_ratio_score(sd_ratio: float) -> float:
     """Convert an SD1/SD2 ratio to a 0–100 score.
 
@@ -225,10 +204,12 @@ def readiness_score_nonlinear(
     Integrates three non-linear components that capture information
     orthogonal to time-domain metrics:
 
-    * **DFA α1** (40 %) — short-term fractal scaling exponent. Normal resting
-      range: 0.75–1.25. Below 0.75 strongly penalises the score. This
-      component uses absolute physiological thresholds and does not require
-      a personal baseline.
+    * **DFA α1** (40 %) — short-term scaling exponent, against the athlete's
+      previous 28 days, **lower is better** (vagal activity lowers α1,
+      sympathetic activity raises it — Castiglioni et al. 2011); see
+      :func:`~cardiolab.analytics.monitoring.dfa_alpha1_score`. Neutral with
+      fewer than 6 previous values. Changed in 0.5.0: fixed 0.75 threshold,
+      higher is better.
     * **SD1** (35 %) — Poincaré short-term variability (= RMSSD / √2),
       expressed as a deviation from the personal baseline median SD1. Captures
       the same parasympathetic signal as RMSSD but within a non-linear
@@ -255,8 +236,8 @@ def readiness_score_nonlinear(
         < 50 = below baseline or below reference thresholds.
 
     """
-    # DFA α1 (40 %) — absolute threshold, no personal baseline required
-    dfa = _dfa_score(current.dfa_alpha1)
+    # DFA α1 (40 %) — vs the athlete's previous 28 days, lower is better
+    dfa = dfa_alpha1_score(current, baseline)
 
     # SD1 (35 %) — deviation from personal baseline
     base_sd1 = baseline.median_sd1()
