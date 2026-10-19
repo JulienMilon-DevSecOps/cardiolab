@@ -38,21 +38,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   RMSSD; it used a fixed ±1 ms/session threshold, so noise alone often produced a "trend".
   `_interpret_trend()` removed.
 
-### Changed — Readiness score: a real trend component
+### Changed — Readiness score: every component against the athlete's own history
 
-- The 20 % trend component of `readiness_score_multi()` compared today's RMSSD with the median of
-  the last 7 sessions — the same reference as the RMSSD component, so no trend was measured. It
-  is now the change of the 7-day rolling mean of lnRMSSD versus the previous week, in SWC units
-  (`ln_rmssd_trend_score()`): 50 within ±1 SWC, `50 ± 50 × tanh(|x| − 1)` beyond, neutral with
-  less than 14 days of data or undated sessions. **Readiness values change** — reprocess the
-  history (`reprocess_sessions()`).
+`readiness_score_multi()` — **readiness values change**, reprocess the history
+(`reprocess_sessions()`).
+
+| Component | Before | From 0.5.0 |
+|-----------|--------|------------|
+| RMSSD | 35 %, ratio to the median of the last 7 sessions (`tanh(2 × (ratio − 1))`) | **45 %**, today's lnRMSSD against the previous 28 days, `50 + 50 × tanh(Δ / 2 SD)` (`ln_rmssd_day_score()`, Kiviniemi et al. 2007, Plews et al. 2013) |
+| Resting HR | 20 % | **25 %** (formula unchanged) |
+| Trend | 20 %, today's RMSSD vs the same median — no trend measured | 20 %, 7-day lnRMSSD mean vs previous week, in SWC units (`ln_rmssd_trend_score()`) |
+| DFA α1 | 25 %, fixed 0.75 threshold (an exercise threshold), higher is better | **10 %**, against the previous 28 days, **lower is better** — vagal activity lowers α1, sympathetic activity raises it (Castiglioni et al. 2011) (`dfa_alpha1_score()`) |
+
+- `baseline_relative_score(value, reference, higher_is_better, min_count=6, min_sd=0.05)`: shared
+  scale (±½ SD → 62 / 38, ±1 SD → 73 / 27, ±2 SD → 88 / 12); SD floor so that a few nearly
+  identical values cannot give extreme scores; neutral with fewer than 6 previous values; undated
+  sessions use the last 28 sessions.
+- Components without enough history stay at 50; their weight is not redistributed.
+- **SWC band baseline**: the 28 days **preceding** the 7-day window `(d − 35, d − 7]` (it included
+  the evaluated week, so a decline dragged its own band down). Applies to the monitoring states,
+  the trend component and `swc_band()` (new `window` parameter).
+- lnRMSSD is taken as `log(rmssd)` (the `ln_rmssd` field only as a fallback).
+- Docs: DFA α1 interpretation corrected (`docs/features/nonlinear.md`, `reading_charts.md`) — the
+  claim that a resting α1 < 0.75 is a validated overreaching marker had no support.
 
 ### Tests
 
 - `tests/analytics/test_trends_stats.py` (23): known slope recovered exactly, pure noise not
   significant (fixed seeds) and ≈ 5 % false positives over 300 series, relative threshold, windows
   in calendar days, sustained decline, report, `trend_rmssd()` wrapper.
-- `tests/analytics/test_monitoring.py` (26): exact rolling mean / CV / SWC on known histories,
+- `tests/analytics/test_monitoring.py` (37): exact rolling mean / CV / SWC on known histories,
   calendar windows, poor sessions excluded, decision grid, designed histories (coping,
   maladaptation, overreaching risk), trend score (exact value, neutral cases, sign) and its weight
   in the readiness score, chart and weekly table.

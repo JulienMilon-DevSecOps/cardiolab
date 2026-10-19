@@ -26,10 +26,14 @@ points[-1].mean_7d, points[-1].cv_7d, points[-1].state
 | Daily value | lnRMSSD of each measurement day (mean if several sessions that day). `poor` sessions excluded |
 | 7-day mean | Mean of the daily values over the calendar days `(d − 7, d]` — at least **3** measurements, otherwise `nan` |
 | 7-day CV | SD / mean × 100 of the same daily values (%) |
-| Baseline | Daily values of the last **28 days** — at least 6 measurements |
+| Baseline | Daily values of the **28 days preceding the 7-day window** — `(d − 35, d − 7]`, at least 6 measurements. With less history, every day before the window is used |
 | SWC | **0.5 × SD** of the baseline (Buchheit 2014) |
 | SWC band | Baseline mean ± SWC — the athlete's normal range |
-| Elevated CV | 7-day CV above the mean + 1 SD of the 7-day CVs of the same 28 days (cardiolab's operational threshold) |
+| Elevated CV | 7-day CV above the mean + 1 SD of the 7-day CVs of the same baseline days (cardiolab's operational threshold) |
+
+**The evaluated week is not part of its own reference**: a decline in progress
+does not drag the band down with it. States appear after about 13 days of daily
+measurements (6 baseline days + a 7-day window).
 
 Windows are counted in **calendar days**, not in sessions: a missing day does not
 stretch the window. Three measurements a week are enough for a valid 7-day mean
@@ -60,10 +64,47 @@ with context:
 
 ---
 
-## In the readiness score — trend component
+## In the readiness score
 
-The 20 % *trend* component of `readiness_score_multi()` uses the same quantities
-(`ln_rmssd_trend_score()`):
+`readiness_score_multi()` (changed in v0.5.0) scores each component against the
+athlete's own history:
+
+| Component | Weight | Score |
+|-----------|--------|-------|
+| **lnRMSSD of the day** | 45 % | Today's lnRMSSD against the daily values of the previous 28 days (`ln_rmssd_day_score()`), higher is better |
+| **Resting HR** | 25 % | `50 − 50 × tanh((HR − mean HR of the last 7 sessions) / 10)` |
+| **Trend of the week** | 20 % | 7-day mean versus the previous week, in SWC units (`ln_rmssd_trend_score()`) |
+| **DFA α1** | 10 % | Today's α1 against the previous 28 days (`dfa_alpha1_score()`), **lower is better** |
+
+### Day components — individual reference band
+
+Comparing the day's value with the athlete's usual range is the basis of
+HRV-guided training — with HF power in Kiviniemi et al. (2007), with lnRMSSD in
+later work (Plews et al. 2013):
+
+```
+score = 50 ± 50 × tanh(Δ / (2 × SD))      Δ = today − mean of the previous 28 days
+```
+
+| Deviation from the usual level | Score (higher is better) |
+|--------------------------------|--------------------------|
+| 0 | 50 |
+| ±½ SD (±1 SWC) | 62 / 38 |
+| ±1 SD | 73 / 27 |
+| ±2 SD | 88 / 12 |
+
+The deviation is measured in units of **the athlete's own variability**: the same
+change in ms means more for a very stable athlete than for a naturally variable
+one. The SD has a floor of 0.05 (≈ 5 % of RMSSD) so that a few nearly identical
+previous values cannot turn a small change into an extreme score. Neutral (50)
+with fewer than 6 previous measurements; undated sessions use the last 28 sessions.
+
+**DFA α1 — lower is better.** Vagal activity lowers the short-term exponent and
+sympathetic activity raises it (Castiglioni et al. 2011): an α1 above the usual
+level points to a less vagal state. Evidence for resting α1 as a recovery marker
+is limited, hence its 10 % weight.
+
+### Trend of the week
 
 ```
 x = (7-day mean today − 7-day mean one week earlier) / SWC
@@ -78,14 +119,27 @@ trend = 50                                  if |x| ≤ 1  (normal fluctuation)
 | −2 SWC | ≈ 12 |
 | ±3 SWC | ≈ 98 / 2 |
 
-It stays **neutral (50)** with less than 14 days since the first measurement, or
-when either week has fewer than 3 measurements.
+Neutral (50) with less than 14 days since the first measurement, or when either
+week has fewer than 3 measurements.
 
-Changed in v0.5.0: the component compared today's RMSSD with the median of the
-last 7 sessions — the same reference as the main RMSSD component (35 %), so RMSSD
-actually weighed ≈ 55 % and no trend was measured. **Readiness values change**:
-reprocess the history (`reprocess_sessions()`, see
-[reprocessing](../database/reprocessing.md)).
+### Early days
+
+Components without enough history stay at 50 and their weight is **not
+redistributed**: during the first two weeks the score moves within a narrower
+range (it starts from the heart rate component alone), then uses the full scale.
+
+### What changed in v0.5.0
+
+| | Before | From v0.5.0 |
+|---|---|---|
+| RMSSD | 35 %, ratio to the median of the last 7 sessions | 45 %, lnRMSSD against the previous 28 days, in SD units |
+| Resting HR | 20 % | 25 % |
+| Trend | 20 %, today's RMSSD vs the same median (no trend measured) | 20 %, 7-day mean vs previous week in SWC units |
+| DFA α1 | 25 %, fixed 0.75 threshold, higher is better | 10 %, against the previous 28 days, lower is better |
+
+**Readiness values change**: reprocess the history (`reprocess_sessions()`, see
+[reprocessing](../database/reprocessing.md)). The weights remain cardiolab's
+heuristic — no study validates a precise weighting of these markers.
 
 ---
 
@@ -144,3 +198,12 @@ Physiology and Performance*, 9(5), 783–790.
 
 Buchheit, M. (2014). Monitoring training status with HR measures: do all roads
 lead to Rome? *Frontiers in Physiology*, 5, 73.
+
+Castiglioni, P., Parati, G., Di Rienzo, M., Carabalona, R., Cividjian, A., &
+Quintin, L. (2011). Scale exponents of blood pressure and heart rate during
+autonomic blockade as assessed by detrended fluctuation analysis. *The Journal of
+Physiology*, 589(2), 355–369.
+
+Kiviniemi, A. M., Hautala, A. J., Kinnunen, H., & Tulppo, M. P. (2007).
+Endurance training guided individually by daily heart rate variability
+measurements. *European Journal of Applied Physiology*, 101(6), 743–751.
