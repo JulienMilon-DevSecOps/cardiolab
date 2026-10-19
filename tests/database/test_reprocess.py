@@ -21,6 +21,7 @@ from cardiolab.database.reprocess import (
 )
 from cardiolab.datasets import load_sample
 from cardiolab.protocols.resting import HRVFeatures, resting_hrv
+from cardiolab.protocols.vo2max import vo2max_from_hrv
 from cardiolab.signals.rr import RRSeries
 
 # ======================
@@ -103,7 +104,7 @@ def _repo_with_resting(n: int = 4) -> FakeRepo:
     repo = FakeRepo()
     for i in range(n):
         date = f"2099-11-0{i + 1}"
-        rr = load_sample("resting", i)
+        rr = load_sample("resting", i % 6)  # 6 resting samples
         repo.add_raw("resting", date, rr)
         repo.save_features(_old_resting(rr, date), "u")
     repo.writes.clear()
@@ -190,11 +191,12 @@ class TestReprocess:
 
     def test_since(self):
         """since: earlier sessions are not reprocessed but feed the baseline."""
-        repo = _repo_with_resting()
-        report = reprocess_sessions(repo, "u", since="2099-11-03", dry_run=False)
-        assert [s.date for s in report.sessions] == ["2099-11-03", "2099-11-04"]
+        repo = _repo_with_resting(8)
+        report = reprocess_sessions(repo, "u", since="2099-11-07", dry_run=False)
+        assert [s.date for s in report.sessions] == ["2099-11-07", "2099-11-08"]
         assert repo.results["resting"]["2099-11-01"].method == "welch"
-        assert repo.results["resting"]["2099-11-03"].score != 50.0
+        # 6 earlier stored days: the history-based components are active
+        assert repo.results["resting"]["2099-11-07"].score != 50.0
 
     def test_stored_without_raw_skipped(self):
         """A stored session without raw RR is listed as skipped, untouched."""
@@ -251,6 +253,30 @@ class TestReprocess:
         repo.results["vo2max"] = {"2099-11-01": old}
         reprocess_sessions(repo, "u", protocol="vo2max", dry_run=False)
         assert repo.results["vo2max"]["2099-11-01"].hr_max == 190.0
+
+    def test_vo2max_tanaka_and_norms_from_profile(self):
+        """VO2max without hr_max: Tanaka from the profile's birth year, norms by sex."""
+        repo = _RepoWithLoads({"birth_year": 2059, "sex": "female"})
+        rr = load_sample("resting", 1)
+        repo.add_raw("vo2max", "2099-11-01", rr)
+        reprocess_sessions(repo, "u", protocol="vo2max", dry_run=False)
+        new = repo.results["vo2max"]["2099-11-01"]
+        assert new.hr_max_source == "tanaka"
+        assert new.hr_max == pytest.approx(208 - 0.7 * 40)
+        expected = vo2max_from_hrv(rr.correct_artifacts()[0], age=40, sex="female")
+        assert new.fitness_category == expected.fitness_category
+        assert new.score == pytest.approx(expected.percentile)
+
+    def test_vo2max_tanaka_not_reused_as_provided(self):
+        """A stored Tanaka HRmax is predicted again, not kept as a provided value."""
+        repo = _RepoWithLoads({"birth_year": 2049})
+        rr = load_sample("resting", 1)
+        repo.add_raw("vo2max", "2099-11-01", rr)
+        old = analyse_session("vo2max", rr, age=40)
+        old.date, old.quality = "2099-11-01", None
+        repo.results["vo2max"] = {"2099-11-01": old}
+        reprocess_sessions(repo, "u", protocol="vo2max", dry_run=False)
+        assert repo.results["vo2max"]["2099-11-01"].hr_max == pytest.approx(173.0)
 
     def test_only_protocols_with_raw_are_queried(self):
         """Protocols without raw sessions are not loaded at all."""

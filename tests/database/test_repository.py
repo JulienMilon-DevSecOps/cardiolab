@@ -2187,13 +2187,14 @@ class TestSignalQualityIntegration:
 @pytest.mark.integration
 @_integration_skipif
 class TestV006Integration:
-    """Migration V006 (v0.5.0): rpe + orthostatic readiness_score."""
+    """Migration V006 (v0.5.0): load data, orthostatic readiness, VO2max HRmax source."""
 
     _USER = "test-integration-user"
     _TABLES = {
         "ortho_table_name": "_cardiolab_test_v006_ortho",
         "training_sessions_table_name": "_cardiolab_test_v006_training",
         "user_profiles_table_name": "_cardiolab_test_v006_profiles",
+        "vo2max_table_name": "_cardiolab_test_v006_vo2max",
     }
 
     @pytest.fixture(autouse=True)
@@ -2204,9 +2205,22 @@ class TestV006Integration:
             repo.create_orthostatic_table()
             repo.create_training_sessions_table()
             repo.create_user_profiles_table()
+            repo.create_vo2max_table()
         yield
         for table in self._TABLES.values():
             _test_table_drop(table)
+
+    def test_vo2max_hr_max_source_round_trip(self):
+        """hr_max_source survives save / load ('tanaka' from the age)."""
+        from cardiolab.datasets import load_sample
+        from cardiolab.protocols.vo2max import vo2max_from_hrv
+
+        result = vo2max_from_hrv(load_sample("resting", 0), age=40, sex="male")
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_vo2max(result, user_id=self._USER, date="2099-11-01")
+            stored = repo.load_vo2max(self._USER)[0]
+        assert stored.hr_max_source == "tanaka"
+        assert stored.hr_max == pytest.approx(180.0)
 
     def test_ortho_readiness_round_trip(self):
         """readiness_score survives save / load."""
@@ -2263,6 +2277,10 @@ class TestV006Integration:
                 "ALTER TABLE user_profiles ",
                 f"ALTER TABLE {self._TABLES['user_profiles_table_name']} ",
             )
+            .replace(
+                "ALTER TABLE hrv_vo2max ",
+                f"ALTER TABLE {self._TABLES['vo2max_table_name']} ",
+            )
         )
         conn = psycopg2.connect(
             host=os.environ["DB_HOST_TEST"],
@@ -2285,11 +2303,16 @@ class TestV006Integration:
                     f"ALTER TABLE {self._TABLES['user_profiles_table_name']} "  # noqa: S608
                     "DROP COLUMN IF EXISTS load_method;"
                 )
+                cur.execute(
+                    f"ALTER TABLE {self._TABLES['vo2max_table_name']} "  # noqa: S608
+                    "DROP COLUMN IF EXISTS hr_max_source;"
+                )
                 cur.execute(sql_text)
                 cur.execute(sql_text)  # second run: no error
                 cur.execute(
                     "SELECT table_name, column_name FROM information_schema.columns "
-                    "WHERE column_name IN ('rpe', 'readiness_score', 'hr_mean', 'load_method') "
+                    "WHERE column_name IN ('rpe', 'readiness_score', 'hr_mean', 'load_method', "
+                    "'hr_max_source') "
                     "AND table_name = ANY(%s);",
                     (list(self._TABLES.values()),),
                 )
@@ -2302,6 +2325,7 @@ class TestV006Integration:
             (self._TABLES["training_sessions_table_name"], "rpe"),
             (self._TABLES["training_sessions_table_name"], "hr_mean"),
             (self._TABLES["user_profiles_table_name"], "load_method"),
+            (self._TABLES["vo2max_table_name"], "hr_max_source"),
         }
 
     def test_load_method_and_hr_mean(self):

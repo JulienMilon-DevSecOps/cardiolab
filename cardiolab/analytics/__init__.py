@@ -11,8 +11,10 @@ from cardiolab.analytics.monitoring import (
     ln_rmssd_day_score,
     ln_rmssd_trend_score,
     monitoring_series,
+    resting_hr_score,
     rolling_cv,
     rolling_ln_rmssd,
+    sd_ratio_score,
     swc_band,
 )
 from cardiolab.analytics.scoring import (
@@ -66,6 +68,7 @@ __all__ = [
     "SustainedDecline",
     "trend_report",
     "rolling_ln_rmssd",
+    "sd_ratio_score",
     "rolling_cv",
     "swc_band",
     "SWCBand",
@@ -75,6 +78,7 @@ __all__ = [
     "ln_rmssd_trend_score",
     "ln_rmssd_day_score",
     "dfa_alpha1_score",
+    "resting_hr_score",
     "baseline_relative_score",
     "trimp_hrv_based",
     "trimp_banister",

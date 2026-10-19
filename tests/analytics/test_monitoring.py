@@ -23,8 +23,10 @@ from cardiolab.analytics.monitoring import (
     ln_rmssd_day_score,
     ln_rmssd_trend_score,
     monitoring_series,
+    resting_hr_score,
     rolling_cv,
     rolling_ln_rmssd,
+    sd_ratio_score,
     swc_band,
 )
 from cardiolab.analytics.scoring import readiness_score_multi
@@ -351,3 +353,46 @@ class TestDayComponents:
         assert dfa_alpha1_score(_session(10, 4.1, dfa_alpha1=1.3), history) < 50
         assert dfa_alpha1_score(_session(10, 4.1, dfa_alpha1=0.8), history) > 50
         assert dfa_alpha1_score(_session(10, 4.1, dfa_alpha1=0.0), history) == 50.0
+
+    def test_resting_hr_lower_is_better(self):
+        """HR vs the previous 28 days in SD units: +1 SD → 27, −1 SD → 73."""
+        hrs = [53.0, 57.0] * 5  # SD ≈ 2.1 bpm, above the floor
+        history = [_session(d, 4.1) for d in range(10)]
+        for s, hr in zip(history, hrs, strict=True):
+            s.mean_hr = hr
+        sd = np.std(hrs, ddof=1)
+        above = _session(10, 4.1)
+        above.mean_hr = 55.0 + sd
+        below = _session(10, 4.1)
+        below.mean_hr = 55.0 - sd
+        assert resting_hr_score(above, history) == pytest.approx(26.89, abs=0.01)
+        assert resting_hr_score(below, history) == pytest.approx(73.11, abs=0.01)
+
+    def test_resting_hr_floor_and_neutral(self):
+        """Identical HRs: 1.5 bpm SD floor; fewer than 6 days → 50."""
+        history = [_session(d, 4.1) for d in range(8)]
+        current = _session(8, 4.1)
+        current.mean_hr = 56.5
+        assert resting_hr_score(current, history) == pytest.approx(
+            50 - 50 * math.tanh(1.5 / 3.0)
+        )
+        assert resting_hr_score(current, history[:5]) == 50.0
+
+    def test_readiness_hr_component_is_relative(self):
+        """+3 bpm weighs more for a very stable athlete than for a variable one."""
+        stable = [_session(d, 4.1) for d in range(10)]
+        variable = [_session(d, 4.1) for d in range(10)]
+        for i, s in enumerate(variable):
+            s.mean_hr = 55.0 + (5.0 if i % 2 else -5.0)
+        current = _session(10, 4.1)
+        current.mean_hr = 58.0
+        assert readiness_score_multi(current, Baseline.from_features(stable)) < (
+            readiness_score_multi(current, Baseline.from_features(variable))
+        )
+
+    def test_sd_ratio_higher_is_better(self):
+        """SD1/SD2 below the usual level → below 50; not computed → 50."""
+        history = [_session(d, 4.1, sd_ratio=0.40 + 0.02 * (d % 3)) for d in range(10)]
+        assert sd_ratio_score(_session(10, 4.1, sd_ratio=0.30), history) < 50
+        assert sd_ratio_score(_session(10, 4.1, sd_ratio=0.50), history) > 50
+        assert sd_ratio_score(_session(10, 4.1, sd_ratio=0.0), history) == 50.0
