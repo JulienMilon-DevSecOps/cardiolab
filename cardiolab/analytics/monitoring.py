@@ -19,10 +19,11 @@ Definitions used here:
   :attr:`Baseline.sessions <cardiolab.analytics.baseline.Baseline.sessions>`).
 * **7-day mean / CV** — over the calendar days ``(d − 7, d]``; at least 3
   measurements (Plews et al. 2014), otherwise ``nan``. CV = SD / mean × 100 of the daily lnRMSSD.
-* **SWC band** — baseline = daily lnRMSSD over the last 28 days (at least 6
-  measurements); SWC = 0.5 × SD; band = baseline mean ± SWC.
+* **SWC band** — baseline = daily lnRMSSD over the 28 days **preceding** the
+  7-day window (at least 6 measurements); SWC = 0.5 × SD; band = baseline
+  mean ± SWC. The evaluated week is not part of its own reference.
 * **Elevated CV** — 7-day CV above the mean + 1 SD of the 7-day CVs of the
-  same 28 days (cardiolab's operational threshold).
+  same baseline days (cardiolab's operational threshold).
 
 References:
     Plews, D. J., Laursen, P. B., Kilding, A. E., & Buchheit, M. (2012).
@@ -67,6 +68,12 @@ BASELINE_DAYS = 28
 MIN_BASELINE_MEASURES = 6
 """Minimum measurements in the baseline (two valid weeks)."""
 
+MIN_SD = 0.05
+"""Floor of the reference SD in :func:`baseline_relative_score` (≈ 5 % of RMSSD).
+
+Six nearly identical previous values would otherwise turn any small change
+into an extreme score."""
+
 SWC_FACTOR = 0.5
 """SWC = ``SWC_FACTOR`` × SD of the baseline daily lnRMSSD."""
 
@@ -95,11 +102,11 @@ def _day(value) -> date | None:
 
 
 def _ln_rmssd(session: HRVFeatures) -> float | None:
-    """Return the lnRMSSD of a session, from ``ln_rmssd`` or ``rmssd``."""
+    """Return the lnRMSSD of a session — ``log(rmssd)``, else ``ln_rmssd``."""
+    if session.rmssd and session.rmssd > 0 and math.isfinite(session.rmssd):
+        return math.log(session.rmssd)
     if session.ln_rmssd and math.isfinite(session.ln_rmssd):
         return float(session.ln_rmssd)
-    if session.rmssd and session.rmssd > 0:
-        return math.log(session.rmssd)
     return None
 
 
@@ -234,16 +241,24 @@ def swc_band(
     baseline_days: int = BASELINE_DAYS,
     at: str | None = None,
     min_count: int = MIN_BASELINE_MEASURES,
+    window: int = WINDOW_DAYS,
 ) -> SWCBand | None:
     """SWC band of the athlete: baseline mean lnRMSSD ± ``factor`` × SD.
+
+    The band judges the 7-day window ending on ``at``; its baseline is made
+    of the ``baseline_days`` days **before** that window — ``(at − window −
+    baseline_days, at − window]`` — so that a change in progress does not
+    shift its own reference.
 
     Args:
         baseline: ``Baseline`` or list of ``HRVFeatures``.
         factor: SWC as a fraction of the baseline SD. Defaults to 0.5.
         baseline_days: Baseline length in calendar days. Defaults to 28.
-        at: ISO date the baseline ends on (inclusive). Defaults to the last
+        at: Last day of the evaluated window (ISO). Defaults to the last
             measurement day.
         min_count: Minimum measurements in the baseline.
+        window: Length of the evaluated window, excluded from the baseline.
+            ``0`` → baseline ending on ``at``.
 
     Returns:
         The :class:`SWCBand`, or ``None`` without enough measurements.
@@ -253,7 +268,9 @@ def swc_band(
     if not daily:
         return None
     end = _day(at) if at else daily[-1][0]
-    return _swc_band(daily, end, factor, baseline_days, min_count)
+    return _swc_band(
+        daily, end - timedelta(days=window), factor, baseline_days, min_count
+    )
 
 
 # ======================
@@ -362,12 +379,15 @@ def monitoring_series(
     points = []
     for d, value, w in stats:
         mean, cv = means_cvs[d]
-        band = _swc_band(daily, d, factor, baseline_days, MIN_BASELINE_MEASURES)
-        start = d - timedelta(days=baseline_days)
+        # Baseline = the days BEFORE the 7-day window, so that a change in
+        # progress does not drag its own reference along
+        base_end = d - timedelta(days=window)
+        band = _swc_band(daily, base_end, factor, baseline_days, MIN_BASELINE_MEASURES)
+        start = base_end - timedelta(days=baseline_days)
         past_cvs = [
             c
             for dd, (_, c) in means_cvs.items()
-            if start < dd <= d and math.isfinite(c)
+            if start < dd <= base_end and math.isfinite(c)
         ]
         threshold = (
             float(np.mean(past_cvs) + cv_sd_factor * np.std(past_cvs, ddof=1))
@@ -410,8 +430,135 @@ def as_monitoring_points(source) -> list[MonitoringPoint]:
 
 
 # ======================
-# READINESS TREND COMPONENT
+# READINESS COMPONENTS
 # ======================
+
+
+def baseline_relative_score(
+    value: float,
+    reference: list[float],
+    *,
+    higher_is_better: bool = True,
+    min_count: int = MIN_BASELINE_MEASURES,
+    min_sd: float = MIN_SD,
+) -> float:
+    """Score a value against the athlete's own reference, in [0, 100].
+
+    ``50 ± 50 × tanh(Δ / (2 × SD))`` with ``Δ`` = value − reference mean —
+    i.e. ``Δ / (4 × SWC)`` with SWC = 0.5 × SD: ±1 SWC → 62 / 38, ±1 SD →
+    73 / 27, ±2 SD → 88 / 12 (Kiviniemi et al. 2007; Plews et al. 2013).
+
+    Args:
+        value: Today's value.
+        reference: Previous values (the baseline).
+        higher_is_better: Direction of the score.
+        min_count: Minimum reference values, otherwise 50 (neutral).
+        min_sd: Floor of the reference SD.
+
+    Returns:
+        Score in [0, 100]; 50 = equal to the usual level.
+
+    """
+    values = [v for v in reference if v is not None and math.isfinite(v)]
+    if value is None or not math.isfinite(value) or len(values) < min_count:
+        return 50.0
+    sd = max(float(np.std(values, ddof=1)), min_sd)
+    z = (value - float(np.mean(values))) / (2.0 * sd)
+    return float(50.0 + 50.0 * math.tanh(z if higher_is_better else -z))
+
+
+def _previous_days(
+    baseline, today: date | None, days: int
+) -> list[tuple[object, list]]:
+    """Sessions of the ``days`` days before ``today`` (today excluded), by day.
+
+    Without a date for today, the last ``days`` sessions (one group each).
+    """
+    if today is None:
+        return [(i, [s]) for i, s in enumerate(_sessions(baseline)[-days:])]
+    start = today - timedelta(days=days + 1)
+    by_day: dict[date, list] = {}
+    for s in _sessions(baseline):
+        day = _day(s.date)
+        if day is not None and start < day < today:
+            by_day.setdefault(day, []).append(s)
+    return sorted(by_day.items())
+
+
+def ln_rmssd_day_score(
+    current: HRVFeatures,
+    baseline,
+    *,
+    baseline_days: int = BASELINE_DAYS,
+) -> float:
+    """LnRMSSD component of the readiness score, in [0, 100].
+
+    Today's lnRMSSD against the daily lnRMSSD of the ``baseline_days`` days
+    before today (:func:`baseline_relative_score`, higher is better): the
+    individual reference band of HRV-guided training (Kiviniemi et al. 2007;
+    Plews et al. 2013). Neutral (50) with fewer than 6 previous measurement
+    days. Undated sessions: the last ``baseline_days`` sessions are the
+    reference.
+
+    Args:
+        current: Session being scored.
+        baseline: Previous sessions (``Baseline`` — ``poor`` excluded — or a
+            list of ``HRVFeatures``).
+        baseline_days: Reference length in calendar days. Defaults to 28.
+
+    Returns:
+        Score in [0, 100].
+
+    """
+    today, value = _day(current.date), _ln_rmssd(current)
+    if value is None:
+        return 50.0
+    reference = [
+        float(np.mean([v for s in day_sessions if (v := _ln_rmssd(s)) is not None]))
+        for _, day_sessions in _previous_days(baseline, today, baseline_days)
+        if any(_ln_rmssd(s) is not None for s in day_sessions)
+    ]
+    return baseline_relative_score(value, reference)
+
+
+def dfa_alpha1_score(
+    current: HRVFeatures,
+    baseline,
+    *,
+    baseline_days: int = BASELINE_DAYS,
+) -> float:
+    """DFA α1 component of the readiness score, in [0, 100].
+
+    Today's DFA α1 against the values of the ``baseline_days`` days before
+    today, **lower is better**: vagal activity lowers the short-term scaling
+    exponent and sympathetic activity raises it (Castiglioni et al. 2011),
+    so an α1 above the usual level points to a less vagal state. Neutral (50)
+    with fewer than 6 previous values or when α1 was not computed (0 / nan).
+    Undated sessions: the last ``baseline_days`` sessions are the reference.
+
+    Changed in 0.5.0: α1 was scored against the fixed 0.75 threshold — a
+    threshold of exercise studies (aerobic threshold), not a resting norm —
+    with "higher is better".
+
+    Args:
+        current: Session being scored.
+        baseline: Previous sessions.
+        baseline_days: Reference length in calendar days. Defaults to 28.
+
+    Returns:
+        Score in [0, 100].
+
+    """
+    today, value = _day(current.date), current.dfa_alpha1
+    if not value or not math.isfinite(value) or value <= 0:
+        return 50.0
+    reference = [
+        s.dfa_alpha1
+        for _, day_sessions in _previous_days(baseline, today, baseline_days)
+        for s in day_sessions
+        if s.dfa_alpha1 and math.isfinite(s.dfa_alpha1) and s.dfa_alpha1 > 0
+    ]
+    return baseline_relative_score(value, reference, higher_is_better=False)
 
 
 def ln_rmssd_trend_score(
@@ -458,7 +605,13 @@ def ln_rmssd_trend_score(
     before, _ = _mean_cv(
         _window(daily, today - timedelta(days=window), window), min_count
     )
-    band = _swc_band(daily, today, factor, baseline_days, MIN_BASELINE_MEASURES)
+    band = _swc_band(
+        daily,
+        today - timedelta(days=window),
+        factor,
+        baseline_days,
+        MIN_BASELINE_MEASURES,
+    )
     if (
         band is None
         or band.swc <= 0

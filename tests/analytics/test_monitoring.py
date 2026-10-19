@@ -16,8 +16,11 @@ import pytest
 from cardiolab.analytics.baseline import Baseline
 from cardiolab.analytics.monitoring import (
     SWCBand,
+    baseline_relative_score,
     daily_ln_rmssd,
+    dfa_alpha1_score,
     interpret_trend_state,
+    ln_rmssd_day_score,
     ln_rmssd_trend_score,
     monitoring_series,
     rolling_cv,
@@ -110,14 +113,30 @@ class TestRollingStatistics:
         assert means[(START + timedelta(days=22)).isoformat()] == pytest.approx(5.0)
 
     def test_swc_band_exact(self):
-        """SWC band = mean ± 0.5 × SD of the last 28 days."""
-        band = swc_band(_history(ALTERNATING))
-        values = list(ALTERNATING.values())
+        """SWC band = mean ± 0.5 × SD of the 28 days BEFORE the 7-day window."""
+        band = swc_band(_history(ALTERNATING))  # window = days 21..27
+        values = [ALTERNATING[d] for d in range(21)]  # baseline = days 0..20
         swc = 0.5 * np.std(values, ddof=1)
-        assert band.mean == pytest.approx(4.1)
+        assert band.mean == pytest.approx(np.mean(values))
         assert band.swc == pytest.approx(swc)
-        assert (band.low, band.high) == pytest.approx((4.1 - swc, 4.1 + swc))
+        assert (band.low, band.high) == pytest.approx(
+            (band.mean - swc, band.mean + swc)
+        )
+        assert band.n == 21
+
+    def test_swc_band_without_gap(self):
+        """window=0 → baseline ending on the day itself (28 days)."""
+        band = swc_band(_history(ALTERNATING), window=0)
+        assert band.mean == pytest.approx(4.1)
         assert band.n == 28
+
+    def test_evaluated_week_not_in_its_baseline(self):
+        """A drop in the last week does not pull its own band down."""
+        values = {d: 4.0 if d % 2 == 0 else 4.2 for d in range(28)}
+        values |= {d: 3.6 for d in range(28, 35)}
+        last = monitoring_series(_history(values))[-1]
+        assert last.band.mean == pytest.approx(4.1)
+        assert last.state in ("maladaptation", "overreaching_risk")
 
     def test_swc_band_needs_six_measures(self):
         """Fewer than 6 measurements in the baseline → None."""
@@ -204,7 +223,9 @@ class TestTrendScore:
         score = ln_rmssd_trend_score(current, history[:-1])
         now = np.mean([values[d] for d in range(21, 28)])
         before = np.mean([values[d] for d in range(14, 21)])
-        swc = 0.5 * np.std(list(values.values()), ddof=1)
+        swc = 0.5 * np.std(
+            [values[d] for d in range(21)], ddof=1
+        )  # days before the window
         x = (now - before) / swc
         assert score == pytest.approx(50 + 50 * math.tanh(abs(x) - 1))
         assert score > 90
@@ -275,3 +296,58 @@ class TestOutputs:
         ).to_html()
         assert "Normal" in html
         assert "Semaine" in html
+
+
+# ======================
+# Day components of the readiness score (0.5.0)
+# ======================
+
+
+@pytest.mark.unit
+class TestDayComponents:
+    """baseline_relative_score, ln_rmssd_day_score, dfa_alpha1_score."""
+
+    REF = [4.0, 4.2] * 5  # mean 4.1, SD ≈ 0.105
+
+    @pytest.mark.parametrize(
+        ("sds", "expected"), [(0, 50.0), (0.5, 62.25), (1, 73.11), (2, 88.08)]
+    )
+    def test_scale(self, sds, expected):
+        """+½ SD (1 SWC) → 62, +1 SD → 73, +2 SD → 88."""
+        sd = np.std(self.REF, ddof=1)
+        score = baseline_relative_score(4.1 + sds * sd, self.REF)
+        assert score == pytest.approx(expected, abs=0.01)
+
+    def test_direction_and_neutral(self):
+        """Lower-is-better mirrors the score; fewer than 6 values → 50."""
+        sd = np.std(self.REF, ddof=1)
+        assert baseline_relative_score(4.1 + sd, self.REF, higher_is_better=False) == (
+            pytest.approx(100 - 73.11, abs=0.01)
+        )
+        assert baseline_relative_score(5.0, self.REF[:5]) == 50.0
+
+    def test_sd_floor(self):
+        """Identical previous values: the 0.05 SD floor keeps the score finite."""
+        assert baseline_relative_score(4.15, [4.1] * 8) == pytest.approx(
+            50 + 50 * math.tanh(0.5)
+        )
+
+    def test_ln_rmssd_day_score_previous_days_only(self):
+        """Reference = the 28 days before today; today's value excluded."""
+        history = _history({d: 4.0 if d % 2 == 0 else 4.2 for d in range(30)})
+        current = _session(30, 4.1 + np.std([4.0, 4.2] * 14, ddof=1))
+        assert ln_rmssd_day_score(current, history) == pytest.approx(73.11, abs=0.2)
+
+    def test_ln_rmssd_day_score_undated(self):
+        """Undated session: the last 28 sessions are the reference."""
+        sessions = [HRVFeatures(rmssd=math.exp(v)) for v in self.REF]
+        assert ln_rmssd_day_score(
+            HRVFeatures(rmssd=math.exp(4.1)), sessions
+        ) == pytest.approx(50.0)
+
+    def test_dfa_lower_is_better(self):
+        """α1 above the usual level → below 50; not computed → 50."""
+        history = [_session(d, 4.1, dfa_alpha1=1.0 + 0.02 * (d % 3)) for d in range(10)]
+        assert dfa_alpha1_score(_session(10, 4.1, dfa_alpha1=1.3), history) < 50
+        assert dfa_alpha1_score(_session(10, 4.1, dfa_alpha1=0.8), history) > 50
+        assert dfa_alpha1_score(_session(10, 4.1, dfa_alpha1=0.0), history) == 50.0

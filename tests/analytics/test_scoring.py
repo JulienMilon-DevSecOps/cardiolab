@@ -373,19 +373,26 @@ def _make_baseline(n: int = 7, rmssd: float = 60.0, sd1: float = 42.43) -> Basel
 class TestReadinessScoreMultiDFA:
     """Tests for the DFA α1 component added to readiness_score_multi."""
 
-    def test_good_dfa_boosts_score(self):
-        """DFA α1 = 1.0 (optimal) must give a score above 50 for baseline-equal RMSSD."""
-        base = _make_baseline()
-        current = _make_features(dfa_alpha1=1.0)
-        score = readiness_score_multi(current, base)
-        assert score > 50.0
+    def test_dfa_below_usual_raises_score(self):
+        """α1 below the personal baseline (more vagal) raises the score (0.5.0)."""
+        base = _make_baseline()  # α1 = 1.0 every day
+        usual = readiness_score_multi(_make_features(dfa_alpha1=1.0), base)
+        lower = readiness_score_multi(_make_features(dfa_alpha1=0.9), base)
+        assert lower > usual
 
-    def test_poor_dfa_penalises_score(self):
-        """DFA α1 = 0.5 (below threshold) must lower the score vs. good DFA."""
+    def test_dfa_above_usual_lowers_score(self):
+        """α1 above the personal baseline (less vagal) lowers the score (0.5.0)."""
         base = _make_baseline()
-        score_good = readiness_score_multi(_make_features(dfa_alpha1=1.0), base)
-        score_poor = readiness_score_multi(_make_features(dfa_alpha1=0.5), base)
-        assert score_good > score_poor
+        usual = readiness_score_multi(_make_features(dfa_alpha1=1.0), base)
+        higher = readiness_score_multi(_make_features(dfa_alpha1=1.2), base)
+        assert higher < usual
+
+    def test_dfa_weight_is_ten_percent(self):
+        """The DFA component moves the score by at most ±5 points (10 % × ±50)."""
+        base = _make_baseline()
+        lowest = readiness_score_multi(_make_features(dfa_alpha1=0.3), base)
+        highest = readiness_score_multi(_make_features(dfa_alpha1=2.0), base)
+        assert 0 < lowest - highest <= 10.0
 
     def test_dfa_zero_treated_as_neutral(self):
         """DFA α1 = 0.0 (not computed) must not penalise the score."""
