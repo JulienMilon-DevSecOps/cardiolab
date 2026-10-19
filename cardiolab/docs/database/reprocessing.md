@@ -65,8 +65,11 @@ For each session of `hrv_raw_sessions`, in chronological order:
    phases, already reprocessed.
 3. The result replaces the stored one (upsert on `(user_id, date)`).
 
-VO2max sessions keep the `hr_max` of their stored estimation (Uth model);
-`hr_max=` provides one for estimations that have none.
+VO2max sessions keep the HRmax **provided** with their stored estimation (Uth
+model); otherwise `hr_max=`, then the profile's `hr_max`, then the Tanaka
+prediction from the profile's `birth_year` (a stored Tanaka value is predicted
+again, never kept as a provided one). Categories and scores use the profile's age
+and sex (FRIEND norms, v0.5.0) — fill them in before reprocessing.
 
 ---
 
