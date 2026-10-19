@@ -66,7 +66,7 @@ from typing import Any
 from psycopg2 import connect, sql
 from psycopg2.extras import Json
 
-from cardiolab.analytics.training_load import validate_rpe
+from cardiolab.analytics.training_load import validate_load_method, validate_rpe
 from cardiolab.protocols.cardiac_coherence import CoherenceResult
 from cardiolab.protocols.cardiac_drift import DriftResult
 from cardiolab.protocols.hrr import HRRResult
@@ -300,6 +300,8 @@ _TRAINING_SESSIONS_COLUMNS: dict[str, str] = {
     "notes": "TEXT",
     # Perceived effort of the session, CR-10 (v0.5.0) — NULL = not entered
     "rpe": "SMALLINT CHECK (rpe IS NULL OR rpe BETWEEN 0 AND 10)",
+    # Mean heart rate of the session (v0.5.0) — Banister load
+    "hr_mean": "FLOAT",
 }
 
 # Columns writable by save_training_session() (excludes activity_id, user_id, date)
@@ -316,6 +318,7 @@ _TRAINING_SESSIONS_SELECT_COLUMNS: list[str] = [
     "trimp",
     "notes",
     "rpe",
+    "hr_mean",
 ]
 
 
@@ -331,6 +334,8 @@ _USER_PROFILES_COLUMNS: dict[str, str] = {
     "hr_max": "INT",
     "hr_rest": "INT",
     "weight_kg": "FLOAT",
+    # Load method of every session (v0.5.0): hrv / banister / rpe
+    "load_method": "TEXT NOT NULL DEFAULT 'hrv' CHECK (load_method IN ('hrv', 'banister', 'rpe'))",
 }
 
 # Fields that can be updated via update_user_profile() — excludes user_id and timestamps
@@ -1821,6 +1826,7 @@ class HRVRepository:
             trimp        FLOAT              -- nullable: computed later if readiness absent
             notes        TEXT               -- free-text notes
             rpe          SMALLINT           -- perceived effort 0–10 (v0.5.0), nullable
+            hr_mean      FLOAT              -- mean HR of the session (v0.5.0), nullable
 
         Design rationale: one row per **activity**, not per day.  Multiple
         activities on the same day are each stored as independent rows, each
@@ -1859,6 +1865,7 @@ class HRVRepository:
         trimp: float | None = None,
         notes: str | None = None,
         rpe: int | None = None,
+        hr_mean: float | None = None,
     ) -> str:
         """Insert a new training activity and return its ``activity_id``.
 
@@ -1882,6 +1889,8 @@ class HRVRepository:
             notes: Free-text notes about the session.
             rpe: Perceived effort of the whole session, whole number 0–10
                 (CR-10, Foster 2001). ``None`` = not entered. Added in 0.5.0.
+            hr_mean: Mean heart rate of the session (bpm), for the Banister
+                load. ``None`` = unknown. Added in 0.5.0.
 
         Returns:
             The ``activity_id`` (UUID string) of the newly created row.
@@ -1907,10 +1916,62 @@ class HRVRepository:
             cols=col_identifiers,
             vals=placeholders,
         )
-        row = (activity_id, user_id, date, duration_min, sport_type, trimp, notes, rpe)
+        row = (
+            activity_id,
+            user_id,
+            date,
+            duration_min,
+            sport_type,
+            trimp,
+            notes,
+            rpe,
+            hr_mean,
+        )
         with self._conn_or_raise().cursor() as cur:
             cur.execute(query, row)
         return activity_id
+
+    def update_training_session(self, activity_id: str, **fields) -> bool:
+        """Update fields of an existing training activity (e.g. its recomputed load).
+
+        Args:
+            activity_id: Identifier returned by :meth:`save_training_session`.
+            **fields: Among ``duration_min``, ``sport_type``, ``trimp``,
+                ``notes``, ``rpe``, ``hr_mean``. ``sport_type`` and ``rpe`` are
+                validated as in :meth:`save_training_session`.
+
+        Returns:
+            ``True`` if the activity existed and was updated.
+
+        Raises:
+            ValueError: If ``fields`` is empty, a field is unknown, or a value
+                is invalid.
+            RuntimeError: If called outside a ``with`` block.
+
+        """
+        if not fields:
+            raise ValueError("At least one field must be provided.")
+        unknown = set(fields) - set(_TRAINING_SESSIONS_DATA_COLUMNS)
+        if unknown:
+            raise ValueError(
+                f"Unknown field(s): {sorted(unknown)}. "
+                f"Accepted: {sorted(_TRAINING_SESSIONS_DATA_COLUMNS)}"
+            )
+        if "sport_type" in fields:
+            fields["sport_type"] = validate_sport(fields["sport_type"])
+        if "rpe" in fields:
+            fields["rpe"] = validate_rpe(fields["rpe"])
+        query = sql.SQL(
+            "UPDATE {table} SET {set_clause} WHERE activity_id = %s;"
+        ).format(
+            table=sql.Identifier(self.training_sessions_table_name),
+            set_clause=sql.SQL(", ").join(
+                sql.SQL("{} = %s").format(sql.Identifier(k)) for k in fields
+            ),
+        )
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute(query, (*fields.values(), activity_id))
+            return cur.rowcount > 0
 
     def delete_training_session(self, activity_id: str) -> bool:
         """Delete a training activity by its unique ``activity_id``.
@@ -1944,7 +2005,8 @@ class HRVRepository:
         Returns:
             List of dicts, one per activity, sorted ascending by date.
             Each dict has keys: ``activity_id``, ``date``, ``duration_min``,
-            ``sport_type``, ``trimp``, ``notes``, ``rpe`` (``None`` if not entered).
+            ``sport_type``, ``trimp``, ``notes``, ``rpe``, ``hr_mean`` (``None`` if
+            not entered).
             Multiple activities on the same day appear as distinct rows.
 
         Raises:
@@ -2046,6 +2108,7 @@ class HRVRepository:
                 hr_max           INT,
                 hr_rest          INT,
                 weight_kg        FLOAT,
+                load_method      TEXT      NOT NULL DEFAULT 'hrv',  -- v0.5.0
                 created_at       TIMESTAMP DEFAULT NOW(),
                 updated_at       TIMESTAMP DEFAULT NOW()
             )
@@ -2089,6 +2152,7 @@ class HRVRepository:
         hr_max: int | None = None,
         hr_rest: int | None = None,
         weight_kg: float | None = None,
+        load_method: str = "hrv",
     ) -> None:
         """Insert or update a user profile (upsert on ``user_id``).
 
@@ -2107,12 +2171,18 @@ class HRVRepository:
                 and Uth VO2max estimation.
             hr_rest: Resting heart rate (bpm). Required for Banister TRIMP.
             weight_kg: Body weight in kilograms.
+            load_method: Load method applied to every session — ``"hrv"``
+                (score de forme of the day, default), ``"banister"`` (session
+                heart rate) or ``"rpe"`` (perceived effort). One method per
+                athlete keeps ATL / CTL / TSB on one scale. Added in 0.5.0.
 
         Raises:
+            ValueError: If ``load_method`` is unknown.
             RuntimeError: If called outside a ``with`` block.
             psycopg2.Error: If the upsert fails.
 
         """
+        validate_load_method(load_method)
         cols = ["user_id", *_USER_PROFILES_COLUMNS.keys()]
         values = (
             user_id,
@@ -2123,6 +2193,7 @@ class HRVRepository:
             hr_max,
             hr_rest,
             weight_kg,
+            load_method,
         )
         placeholders = sql.SQL(", ").join(sql.Placeholder() * len(cols))
         col_ids = sql.SQL(", ").join(sql.Identifier(c) for c in cols)
@@ -2155,7 +2226,8 @@ class HRVRepository:
             user_id: Unique user identifier.
             **fields: Field names and their new values. Accepted keys:
                 ``primary_protocol``, ``sex``, ``birth_year``,
-                ``height_cm``, ``hr_max``, ``hr_rest``, ``weight_kg``.
+                ``height_cm``, ``hr_max``, ``hr_rest``, ``weight_kg``,
+                ``load_method``.
 
         Returns:
             ``True`` if a profile with ``user_id`` existed and was updated,
@@ -2176,6 +2248,8 @@ class HRVRepository:
                 f"Unknown field(s): {sorted(unknown)}. "
                 f"Accepted: {sorted(_USER_PROFILES_UPDATABLE)}"
             )
+        if "load_method" in fields:
+            validate_load_method(fields["load_method"])
         set_clause = sql.SQL(", ").join(
             sql.SQL("{} = %s").format(sql.Identifier(k)) for k in fields
         )

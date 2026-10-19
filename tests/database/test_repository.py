@@ -2193,6 +2193,7 @@ class TestV006Integration:
     _TABLES = {
         "ortho_table_name": "_cardiolab_test_v006_ortho",
         "training_sessions_table_name": "_cardiolab_test_v006_training",
+        "user_profiles_table_name": "_cardiolab_test_v006_profiles",
     }
 
     @pytest.fixture(autouse=True)
@@ -2202,6 +2203,7 @@ class TestV006Integration:
         with _repo_from_test_env(**self._TABLES) as repo:
             repo.create_orthostatic_table()
             repo.create_training_sessions_table()
+            repo.create_user_profiles_table()
         yield
         for table in self._TABLES.values():
             _test_table_drop(table)
@@ -2246,14 +2248,21 @@ class TestV006Integration:
         from cardiolab.database.migrator import MIGRATIONS_DIR
 
         sql_text = (
-            MIGRATIONS_DIR / "V006__add_session_rpe_and_ortho_readiness.sql"
+            MIGRATIONS_DIR / "V006__training_load_and_ortho_readiness.sql"
         ).read_text()
-        sql_text = sql_text.replace(
-            "ALTER TABLE hrv_training_sessions ",
-            f"ALTER TABLE {self._TABLES['training_sessions_table_name']} ",
-        ).replace(
-            "ALTER TABLE hrv_orthostatic ",
-            f"ALTER TABLE {self._TABLES['ortho_table_name']} ",
+        sql_text = (
+            sql_text.replace(
+                "ALTER TABLE hrv_training_sessions ",
+                f"ALTER TABLE {self._TABLES['training_sessions_table_name']} ",
+            )
+            .replace(
+                "ALTER TABLE hrv_orthostatic ",
+                f"ALTER TABLE {self._TABLES['ortho_table_name']} ",
+            )
+            .replace(
+                "ALTER TABLE user_profiles ",
+                f"ALTER TABLE {self._TABLES['user_profiles_table_name']} ",
+            )
         )
         conn = psycopg2.connect(
             host=os.environ["DB_HOST_TEST"],
@@ -2270,13 +2279,17 @@ class TestV006Integration:
                 )
                 cur.execute(
                     f"ALTER TABLE {self._TABLES['training_sessions_table_name']} "  # noqa: S608
-                    "DROP COLUMN IF EXISTS rpe;"
+                    "DROP COLUMN IF EXISTS rpe, DROP COLUMN IF EXISTS hr_mean;"
+                )
+                cur.execute(
+                    f"ALTER TABLE {self._TABLES['user_profiles_table_name']} "  # noqa: S608
+                    "DROP COLUMN IF EXISTS load_method;"
                 )
                 cur.execute(sql_text)
                 cur.execute(sql_text)  # second run: no error
                 cur.execute(
                     "SELECT table_name, column_name FROM information_schema.columns "
-                    "WHERE column_name IN ('rpe', 'readiness_score') "
+                    "WHERE column_name IN ('rpe', 'readiness_score', 'hr_mean', 'load_method') "
                     "AND table_name = ANY(%s);",
                     (list(self._TABLES.values()),),
                 )
@@ -2287,4 +2300,26 @@ class TestV006Integration:
         assert found == {
             (self._TABLES["ortho_table_name"], "readiness_score"),
             (self._TABLES["training_sessions_table_name"], "rpe"),
+            (self._TABLES["training_sessions_table_name"], "hr_mean"),
+            (self._TABLES["user_profiles_table_name"], "load_method"),
         }
+
+    def test_load_method_and_hr_mean(self):
+        """load_method defaults to 'hrv', is validated; hr_mean and updates round-trip."""
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_user_profile(self._USER)
+            assert repo.load_user_profile(self._USER)["load_method"] == "hrv"
+            repo.update_user_profile(self._USER, load_method="rpe")
+            assert repo.load_user_profile(self._USER)["load_method"] == "rpe"
+            with pytest.raises(ValueError, match="load method"):
+                repo.update_user_profile(self._USER, load_method="watts")
+            aid = repo.save_training_session(
+                self._USER, "2099-11-05", 50, "running", hr_mean=142.0, rpe=4
+            )
+            assert repo.update_training_session(aid, trimp=200.0)
+            session = repo.load_training_sessions(self._USER)[0]
+        assert (session["hr_mean"], session["rpe"], session["trimp"]) == (
+            142.0,
+            4,
+            200.0,
+        )
