@@ -26,8 +26,8 @@ from cardiolab.visualization._quality import mark_poor_sessions, session_qualiti
 _RESONANCE_LOW = 0.04  # Hz — lower bound of cardiac resonance band
 _RESONANCE_HIGH = 0.26  # Hz — upper bound of cardiac resonance band
 _RESONANCE_TARGET = 0.1  # Hz — expected peak for 6 breaths/min (5-5 pattern)
-_SCORE_GOOD = 60  # % — good coherence threshold
-_SCORE_MODERATE = 40  # % — moderate / low coherence boundary
+_SCORE_GOOD = 50  # % — good coherence threshold (CR ≥ 1, cardiolab 0.5.0)
+_SCORE_MODERATE = 30  # % — moderate / low coherence boundary
 _MIN_INTERVALS_PSD = 5  # minimum intervals needed for PSD computation
 
 _AR_FS: float = 4.0  # resampling frequency (Hz), matches cardiac_coherence default
@@ -205,8 +205,8 @@ def plot_coherence_score_evolution(
     """Plot cardiac coherence score evolution over multiple sessions.
 
     Draws the coherence score as a line with coloured background interpretation
-    bands (green ≥ 60 %, yellow 40–60 %, red < 40 %).  Threshold lines at
-    40 % and 60 % are drawn for quick reading.  Each point is annotated with
+    bands (green ≥ 50 %, yellow 30–50 %, red < 30 %).  Threshold lines at
+    30 % and 50 % are drawn for quick reading.  Each point is annotated with
     its numeric score.
 
     Args:

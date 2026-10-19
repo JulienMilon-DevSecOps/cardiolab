@@ -187,3 +187,36 @@ class TestCardiacCoherence:
             if key == "date" or key.startswith("quality_"):
                 continue
             assert isinstance(val, (float, type(None))), f"{key} has wrong type"
+
+
+@pytest.mark.unit
+class TestCoherenceRatio:
+    """Share of the whole spectrum, HeartMath ratio, real peak (0.5.0)."""
+
+    def test_ratio_matches_score(self):
+        """coherence_ratio = score / (100 − score)."""
+        result = CoherenceResult(coherence_score=60.0)
+        assert result.coherence_ratio == pytest.approx(1.5)
+        assert CoherenceResult(coherence_score=100.0).coherence_ratio == float("inf")
+
+    def test_paced_breathing_good(self):
+        """Regular oscillation (0.1 cycle per beat ≈ 0.117 Hz at 857 ms): score ≥ 50 %."""
+        result = cardiac_coherence(_make_sinusoidal_rr())
+        assert result.resonance_freq == pytest.approx(0.1 / 0.857, abs=0.01)
+        assert result.coherence_score >= 50.0
+
+    def test_resting_recordings_low(self):
+        """Spontaneous breathing at rest (bundled samples): below 30 %."""
+        from cardiolab.datasets import load_sample
+
+        for i in range(6):
+            rr, _ = load_sample("resting", i).correct_artifacts()
+            assert cardiac_coherence(rr).coherence_score < 30.0
+
+    def test_peak_is_not_band_edge(self):
+        """A spectrum falling from VLF has no peak at 0.04 Hz taken as resonance."""
+        rng = np.random.default_rng(3)
+        walk = np.cumsum(rng.normal(0, 8, 400))  # random walk: power ∝ 1/f²
+        rr = RRSeries(900 + walk - walk.mean() + rng.normal(0, 5, 400))
+        result = cardiac_coherence(rr)
+        assert result.coherence_score < 30.0
