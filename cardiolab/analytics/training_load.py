@@ -218,6 +218,100 @@ def trimp_session_rpe(duration_min: float, rpe: int) -> float:
     return float(duration_min * value)
 
 
+LOAD_METHODS: tuple[str, ...] = ("hrv", "banister", "rpe")
+"""Load methods an athlete can choose (``user_profiles.load_method``)."""
+
+LOAD_METHOD_REQUIREMENTS: dict[str, dict[str, str]] = {
+    "hrv": {
+        "session": "duration",
+        "other": "the morning measurement of the same day (score de forme of the main protocol)",
+    },
+    "banister": {
+        "session": "duration, mean heart rate of the session",
+        "other": "profile: maximal HR, resting HR, sex",
+    },
+    "rpe": {
+        "session": "duration, perceived effort 0–10 rated about 30 minutes after the session",
+        "other": "—",
+    },
+}
+"""Minimum data of each load method — without them the load stays pending (``None``)."""
+
+
+def validate_load_method(method: str) -> str:
+    """Check a load method name.
+
+    Args:
+        method: ``"hrv"`` (score de forme of the day), ``"banister"`` (session
+            heart rate) or ``"rpe"`` (perceived effort).
+
+    Returns:
+        The method.
+
+    Raises:
+        ValueError: If the method is unknown.
+
+    """
+    if method not in LOAD_METHODS:
+        raise ValueError(
+            f"Unknown load method {method!r}. Choose from {', '.join(LOAD_METHODS)}."
+        )
+    return method
+
+
+def session_load(
+    method: str,
+    duration_min: float | None,
+    *,
+    readiness: float | None = None,
+    hr_mean: float | None = None,
+    hr_max: float | None = None,
+    hr_rest: float | None = None,
+    sex: str | None = "male",
+    rpe: int | None = None,
+) -> float | None:
+    """Load of one session with the athlete's method — ``None`` when data is missing.
+
+    One method per athlete (``user_profiles.load_method``), applied to every
+    session so that ATL / CTL / TSB stay on one scale:
+
+    * ``"hrv"`` — :func:`trimp_hrv_based` (needs the day's ``readiness``);
+    * ``"banister"`` — :func:`trimp_banister` (needs ``hr_mean``, ``hr_max``,
+      ``hr_rest``);
+    * ``"rpe"`` — :func:`trimp_session_rpe` (needs ``rpe``).
+
+    A session without the data its method needs is **pending** (``None``):
+    its load is never computed with another method.
+
+    Args:
+        method: Load method (:data:`LOAD_METHODS`).
+        duration_min: Session duration in minutes.
+        readiness: Score de forme of the day (``"hrv"``).
+        hr_mean: Mean HR of the session (``"banister"``).
+        hr_max: Maximal HR of the athlete (``"banister"``).
+        hr_rest: Resting HR of the athlete (``"banister"``).
+        sex: ``"male"`` / ``"female"`` (``"banister"`` coefficient).
+        rpe: Perceived effort 0–10 (``"rpe"``).
+
+    Returns:
+        The load, or ``None`` when a required value is missing.
+
+    Raises:
+        ValueError: If ``method`` is unknown or a value is out of range.
+
+    """
+    validate_load_method(method)
+    if not duration_min or duration_min <= 0:
+        return None
+    if method == "hrv":
+        return None if readiness is None else trimp_hrv_based(duration_min, readiness)
+    if method == "banister":
+        if None in (hr_mean, hr_max, hr_rest):
+            return None
+        return trimp_banister(duration_min, hr_mean, hr_max, hr_rest, sex=sex or "male")
+    return None if rpe is None else trimp_session_rpe(duration_min, rpe)
+
+
 def load_readiness_for_date(
     user_id: str,
     date: str,
