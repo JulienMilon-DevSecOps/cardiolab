@@ -33,7 +33,14 @@ from cardiolab.analytics.training_load import (
     trimp_banister,
     trimp_hrv_based,
 )
-from cardiolab.analytics.trends import trend_rmssd
+from cardiolab.analytics.trends import (
+    SustainedDecline,
+    TrendResult,
+    detect_sustained_decline,
+    linear_trend,
+    trend_report,
+    trend_rmssd,
+)
 
 __all__ = [
     "Baseline",
@@ -49,6 +56,11 @@ __all__ = [
     "orthostatic_score",
     "detect_rmssd_anomaly",
     "trend_rmssd",
+    "linear_trend",
+    "TrendResult",
+    "detect_sustained_decline",
+    "SustainedDecline",
+    "trend_report",
     "rolling_ln_rmssd",
     "rolling_cv",
     "swc_band",
