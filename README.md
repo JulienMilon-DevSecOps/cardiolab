@@ -153,6 +153,26 @@ sessions. Orthostatic phases are graded separately. Stored in a `quality` JSONB
 column (migration V005). Details:
 [`docs/features/signal_quality.md`](cardiolab/docs/features/signal_quality.md).
 
+### Upgrading to 0.5.0 — profile, then reprocess
+
+0.5.0 changes computed values again (score de forme against your own history, coherence,
+VO2max by age and sex, HRR, cardiac drift, training loads). Apply the migrations (V006),
+fill in the user profile, then reprocess:
+
+```python
+from cardiolab.database import HRVRepository, reprocess_sessions
+
+with HRVRepository.from_env() as repo:
+    repo.run_migrations()                                        # V006
+    repo.update_user_profile(user_id, birth_year=1990, sex="male", load_method="rpe")
+    print(reprocess_sessions(repo, user_id).summary())           # dry run
+with HRVRepository.from_env() as repo:
+    reprocess_sessions(repo, user_id, dry_run=False)             # write
+```
+
+Use `save_user_profile(user_id, …)` when the profile does not exist yet. Details: CHANGELOG
+« Migration note — from 0.4.x ».
+
 ### Upgrading to 0.4.0 — reprocess the history
 
 0.4.0 changes computed values (artefact correction, Lomb-Scargle default,
@@ -1238,8 +1258,8 @@ The forward-looking roadmap, ordered by priority (P0 → P3), lives in **[ROADMA
 | v0.3.2 | P1 | Readiness consistency fix, hygiene, entropy speed-up, sample datasets — released |
 | v0.3.3 | P1 | Generic `HRVRepository` — shipped in v0.3.4 |
 | v0.3.4 | P1 | Sports reference list, sport validated on save, sport from `.fit` files — released 2026-10-16 |
-| v0.4.0 | P1 | Signal reliability — artefact correction, spectral fixes, signal quality, reprocessing — ready 2026-10-18 |
-| v0.5.0 | P2 | Athlete longitudinal monitoring — 7-day lnRMSSD, CV, SWC, trends |
+| v0.4.0 | P1 | Signal reliability — artefact correction, spectral fixes, signal quality, reprocessing — released 2026-10-18 |
+| v0.5.0 | P2 | Athlete longitudinal monitoring — 7-day lnRMSSD, CV, SWC, trends, load methods, calculation review — ready 2026-10-19 |
 | v0.6.0 | P2 | Exercise protocols — DFA α1 thresholds, submaximal test |
 | v0.7.0 | P3 | Statistical intelligence — Mahalanobis anomaly |
 | v0.8.0 | P3 | Autonomic function tests (Ewing battery) |

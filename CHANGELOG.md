@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-19
+
+Athlete longitudinal monitoring and a full review of the calculations. **Computed values change**
+(score de forme, coherence, VO2max, HRR, cardiac drift, training loads): see the migration note
+at the end of this section.
+
 ### Added — Training adaptation monitoring (`cardiolab.analytics.monitoring`)
 
 - 7-day rolling lnRMSSD and CV (`rolling_ln_rmssd`, `rolling_cv`), smallest worthwhile change band
@@ -205,6 +211,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   calendar windows, poor sessions excluded, decision grid, designed histories (coping,
   maladaptation, overreaching risk), trend score (exact value, neutral cases, sign) and its weight
   in the readiness score, chart and weekly table.
+- VO2max FRIEND percentiles and Tanaka HRmax, HR and SD1/SD2 components, autocorrelated trends,
+  coherence ratio on real resting recordings, relative form and cropping, HRR robustness to one bad
+  beat, drift warm-up, pending loads in reprocessing, lnRMSSD z-score — 1 996 tests.
+
+### Migration note — from 0.4.x
+
+1. `repo.run_migrations()` — applies **V006**: `rpe` and `hr_mean` on training sessions,
+   `load_method` on user profiles, `readiness_score` on orthostatic sessions, `hr_max_source` on
+   VO2max estimations. A development database that applied an earlier V006 needs the
+   `hr_max_source` column once by hand (`docs/database/migration_guide.md`).
+2. Fill in the **user profile**: `birth_year` and `sex` (VO2max norms and Tanaka HRmax),
+   `load_method` (`hrv` by default — `rpe` recommended, see `docs/training_load/atl_ctl_tsb.md`),
+   `hr_max` / `hr_rest` if known (`banister` method, VO2max).
+3. `reprocess_sessions(repo, user_id)` — dry run: check the report, including the `training` line.
+4. `reprocess_sessions(repo, user_id, dry_run=False)` — stored scores and loads follow the 0.5.0
+   calculations. Without a profile, training loads are left untouched.
 
 ---
 

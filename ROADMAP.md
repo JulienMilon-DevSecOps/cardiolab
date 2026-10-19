@@ -28,8 +28,8 @@ starts once the previous one is tagged. Each item maps to one GitLab issue
 | [v0.3.2](#v032--fixes-and-hygiene-p1) | P1 | Readiness consistency fix, hygiene, entropy speed-up, sample datasets — **released 2026-10-13** | — | TRIMP only |
 | [v0.3.3](#v033--generic-repository-p1) | P1 | Generic `HRVRepository` (prerequisite for new tables) — not published separately, **shipped in v0.3.4** | — | No |
 | [v0.3.4](#v034--sports-p1) | P1 | Sports reference list, sport validated on save, sport read from `.fit` files — **released 2026-10-16** (includes v0.3.3) | — | No |
-| [v0.4.0](#v040--signal-reliability-p1) | P1 | Artefact correction, spectral fixes, signal quality, reprocessing — **ready 2026-10-18** | V005 | **Yes** |
-| [v0.5.0](#v050--athlete-longitudinal-monitoring-p2) | P2 | 7-day lnRMSSD + CV + SWC, trend analysis, real trend component, effort-based load (session RPE) | V006 | **Yes** (readiness trend) |
+| [v0.4.0](#v040--signal-reliability-p1) | P1 | Artefact correction, spectral fixes, signal quality, reprocessing — **released 2026-10-18** | V005 | **Yes** |
+| [v0.5.0](#v050--athlete-longitudinal-monitoring-p2) | P2 | 7-day lnRMSSD + CV + SWC, trend analysis, real trend component, effort-based load (session RPE), load method per athlete, calculation review — **ready 2026-10-19** | V006 | **Yes** (readiness trend) |
 | [v0.6.0](#v060--exercise-protocols-p2) | P2 | DFA α1 thresholds (VT1/VT2), submaximal test | V007 | No (new protocols) |
 | [v0.7.0](#v070--statistical-intelligence-p3) | P3 | Multivariate anomaly, statistical plots | — | No |
 | [v0.8.0](#v080--autonomic-function-tests-p3) | P3 | Ewing battery (E/I, Valsalva, 30:15) | V008 | No (new protocol) |
