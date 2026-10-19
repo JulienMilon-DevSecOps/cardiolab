@@ -64,7 +64,7 @@ cardiolab/
 │   ├── protocols/    → resting.md, orthostatic.md, cardiac_coherence.md,
 │   │                   hrr.md, cardiac_drift.md, vo2max.md
 │   ├── features/     → index.md, time_domain.md, frequency_domain.md, nonlinear.md, artefact_correction.md, signal_quality.md
-│   ├── analytics/    → monitoring.md — 7-day lnRMSSD, SWC, adaptation states
+│   ├── analytics/    → monitoring.md (7-day lnRMSSD, SWC, adaptation states), trends.md
 │   ├── visualization/→ reading_charts.md — how to read each chart type
 │   ├── reporting/    → tables.md — reporting API reference
 │   └── training_load/→ index.md, training_sessions.md, atl_ctl_tsb.md, sports.md
@@ -877,8 +877,12 @@ from cardiolab.analytics import hrr_score, coherence_score_100, drift_score, vo2
 * **Baseline** — rolling 7-session RMSSD mean, median, mean HR
 * **Anomaly detection** — three methods: `simple` (% deviation), `zscore`,
   `rolling` (sliding median)
-* **Trend** — linear regression on RMSSD history (`increasing`, `stable`,
-  `decreasing`)
+* **Trend** (since 0.5.0) — `linear_trend()`: slope, r² and p-value over a window
+  of calendar days; `increasing` / `decreasing` only when significant (p < 0.05)
+  **and** the fitted change reaches 5 % of the mean (relative threshold).
+  `detect_sustained_decline()` (≥ 5 consecutive values below mean − 0.5 SD),
+  `trend_report()` (rolling 7 / 30-day slopes per session). See
+  [`docs/analytics/trends.md`](cardiolab/docs/analytics/trends.md).
 
 ---
 

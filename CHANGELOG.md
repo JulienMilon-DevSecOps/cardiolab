@@ -19,6 +19,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `table_weekly_monitoring()` (one row per ISO week). Labels EN / FR.
 - `docs/analytics/monitoring.md` — definitions and interpretation guide.
 
+### Added — Statistically qualified trends (`cardiolab.analytics.trends`)
+
+- `linear_trend(series, window_days=None, *, end, min_points=5, alpha=0.05, min_change_pct=5.0)` →
+  `TrendResult` (slope per calendar day, intercept, r², p-value, n, fitted change in % of the
+  mean, label). `increasing` / `decreasing` only when the slope is significant **and** the change
+  reaches 5 % of the mean — a relative threshold instead of an absolute one.
+- `detect_sustained_decline(scores, min_sessions=5, threshold=-0.5)` → `SustainedDecline`: the
+  last values all below mean − 0.5 SD of the preceding ones.
+- `trend_report(history, metric="score")` → DataFrame `date | <metric> | slope_7d | slope_30d |
+  change_30d_pct | p_30d | trend_label` (`poor` sessions excluded).
+- `docs/analytics/trends.md`.
+
+### Changed — `trend_rmssd()`
+
+- Kept with the same keys (`slope` in ms per session, `trend`) plus `p_value`, `r2`, `change_pct`.
+  The label now requires a significant slope (p < 0.05) and a change of at least 5 % of the mean
+  RMSSD; it used a fixed ±1 ms/session threshold, so noise alone often produced a "trend".
+  `_interpret_trend()` removed.
+
 ### Changed — Readiness score: a real trend component
 
 - The 20 % trend component of `readiness_score_multi()` compared today's RMSSD with the median of
@@ -30,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- `tests/analytics/test_trends_stats.py` (23): known slope recovered exactly, pure noise not
+  significant (fixed seeds) and ≈ 5 % false positives over 300 series, relative threshold, windows
+  in calendar days, sustained decline, report, `trend_rmssd()` wrapper.
 - `tests/analytics/test_monitoring.py` (26): exact rolling mean / CV / SWC on known histories,
   calendar windows, poor sessions excluded, decision grid, designed histories (coping,
   maladaptation, overreaching risk), trend score (exact value, neutral cases, sign) and its weight
