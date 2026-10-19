@@ -42,7 +42,7 @@ from cardiolab.protocols.cardiac_drift import cardiac_drift
 from cardiolab.protocols.hrr import heart_rate_recovery
 from cardiolab.protocols.orthostatic import orthostatic_hrv
 from cardiolab.protocols.resting import resting_hrv
-from cardiolab.protocols.vo2max import vo2max_from_hrv
+from cardiolab.protocols.vo2max import age_at, vo2max_from_hrv
 from cardiolab.signals.rr import RRSeries
 
 PROTOCOLS: tuple[str, ...] = SCORED_PROTOCOLS
@@ -81,6 +81,8 @@ def analyse_session(
     method: str = "lomb",
     auto_clean: bool = True,
     hr_max: float | None = None,
+    age: int | None = None,
+    sex: str | None = None,
 ) -> Any:
     """Analyse one raw recording with the current pipeline (score not set).
 
@@ -100,6 +102,8 @@ def analyse_session(
         method: Spectral method (resting, orthostatic). Defaults to ``"lomb"``.
         auto_clean: Correct artefacts before analysis. Defaults to ``True``.
         hr_max: Maximal heart rate, for the Uth VO2max model.
+        age: Age at the session (VO2max — Tanaka HRmax and norms).
+        sex: ``"male"`` / ``"female"`` (VO2max norms).
 
     Returns:
         The protocol result.
@@ -118,7 +122,7 @@ def analyse_session(
     if protocol == "coherence":
         return cardiac_coherence(rr)
     if protocol == "vo2max":
-        return vo2max_from_hrv(rr, hr_max=hr_max)
+        return vo2max_from_hrv(rr, hr_max=hr_max, age=age, sex=sex)
     if protocol == "hrr":
         return heart_rate_recovery(rr)
     if protocol == "drift":
@@ -373,9 +377,18 @@ def _storage(repo, user_id: str) -> dict[str, tuple[Callable, Callable]]:
 
 
 def _hr_max(stored, raw_meta: dict, default: float | None) -> float | None:
-    """hr_max for VO2max: stored estimation → raw metadata → ``default``."""
+    """Return the provided hr_max for VO2max: stored → raw metadata → ``default``.
+
+    A stored HRmax predicted from the age (``hr_max_source = "tanaka"``) is
+    not a provided value: it is predicted again from the profile.
+    """
     value = getattr(stored, "hr_max", None)
-    if value is not None and math.isfinite(value) and value > 0:
+    if (
+        getattr(stored, "hr_max_source", None) != "tanaka"
+        and value is not None
+        and math.isfinite(value)
+        and value > 0
+    ):
         return float(value)
     value = raw_meta.get("hr_max")
     return float(value) if value else default
@@ -415,7 +428,9 @@ def reprocess_sessions(
             Defaults to ``"lomb"`` (the v0.4.0 default).
         auto_clean: Correct artefacts before analysis. Defaults to ``True``.
         hr_max: Maximal heart rate for VO2max sessions whose stored
-            estimation has none.
+            estimation has none. Otherwise the profile's ``hr_max``, then
+            Tanaka (``208 − 0.7 × age``) from its ``birth_year``; VO2max
+            categories use the profile's age and sex.
 
     Returns:
         A :class:`ReprocessReport` with before / after values per session.
@@ -433,6 +448,9 @@ def reprocess_sessions(
 
     report = ReprocessReport(user_id=user_id, dry_run=dry_run, method=method)
     storage = _storage(repo, user_id)
+    profile = (
+        repo.load_user_profile(user_id) if hasattr(repo, "load_user_profile") else None
+    ) or {}
     # Final score de forme per protocol and date — feeds the training loads
     readiness: dict[str, dict[str, float]] = {"resting": {}, "orthostatic": {}}
 
@@ -470,7 +488,8 @@ def reprocess_sessions(
                 history,
                 method=method,
                 auto_clean=auto_clean,
-                hr_max=hr_max,
+                hr_max=hr_max if hr_max is not None else profile.get("hr_max"),
+                profile=profile,
             )
             report.sessions.append(change.session)
             source = change.result if change.result is not None else stored.get(date)
@@ -483,7 +502,7 @@ def reprocess_sessions(
 
     if protocol is None:
         _reprocess_training_loads(
-            repo, user_id, readiness, report, since=since, dry_run=dry_run
+            repo, user_id, profile, readiness, report, since=since, dry_run=dry_run
         )
 
     return report
@@ -504,6 +523,7 @@ def _note_readiness(readiness: dict, protocol: str, date: str, item) -> None:
 def _reprocess_training_loads(
     repo,
     user_id: str,
+    profile: dict,
     readiness: dict[str, dict[str, float]],
     report: ReprocessReport,
     *,
@@ -517,11 +537,8 @@ def _reprocess_training_loads(
     reprocessed. A session missing the data of its method keeps its stored
     load (status ``kept``). Without a profile, loads are left untouched.
     """
-    if not hasattr(repo, "load_training_sessions") or not hasattr(
-        repo, "load_user_profile"
-    ):
+    if not hasattr(repo, "load_training_sessions"):
         return
-    profile = repo.load_user_profile(user_id)
     if not profile:
         report.notes.append("No user profile: training loads left untouched.")
         return
@@ -595,6 +612,7 @@ def _reprocess_one(
     method: str,
     auto_clean: bool,
     hr_max: float | None,
+    profile: dict | None = None,
 ) -> _Outcome:
     """Analyse and score one session; compare with the stored result."""
     before = _key_values(protocol, stored) if stored is not None else {}
@@ -606,9 +624,15 @@ def _reprocess_one(
                 rr,
                 method=method,
                 auto_clean=auto_clean,
-                hr_max=_hr_max(stored, raw_meta, hr_max)
-                if protocol == "vo2max"
-                else None,
+                **(
+                    {
+                        "hr_max": _hr_max(stored, raw_meta, hr_max),
+                        "age": age_at((profile or {}).get("birth_year"), date),
+                        "sex": (profile or {}).get("sex"),
+                    }
+                    if protocol == "vo2max"
+                    else {}
+                ),
             )
     except Exception as exc:  # noqa: BLE001 — reported, stored row kept
         return _Outcome(

@@ -279,6 +279,7 @@ _VO2MAX_COLUMNS: dict[str, str] = {
     "vo2max_ln_rmssd": "FLOAT",
     "hr_rest": "FLOAT",
     "hr_max": "FLOAT",
+    "hr_max_source": "TEXT",
     "rmssd_used": "FLOAT",
     "ln_rmssd_used": "FLOAT",
     "fitness_category": "TEXT",

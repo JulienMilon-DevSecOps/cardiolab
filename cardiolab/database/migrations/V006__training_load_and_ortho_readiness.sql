@@ -1,4 +1,4 @@
--- V006 — Training load methods + orthostatic score de forme (cardiolab v0.5.0)
+-- V006 — Training load methods + orthostatic score de forme + VO2max HRmax source (cardiolab v0.5.0)
 -- All statements use ADD COLUMN IF NOT EXISTS — safe to re-run.
 
 -- ── hrv_training_sessions : data of each load method ──────────────────────────
@@ -21,3 +21,9 @@ ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS load_method TEXT NOT NULL DEF
 -- (supine phase vs previous supine phases). Distinct from `score` (autonomic
 -- response to standing). NULL for rows stored before v0.5.0 until reprocessed.
 ALTER TABLE hrv_orthostatic ADD COLUMN IF NOT EXISTS readiness_score FLOAT;
+
+-- ── hrv_vo2max : origin of the HRmax used by the Uth model ───────────────────
+-- provided (given by the user) · tanaka (208 − 0.7 × age, from birth_year)
+-- NULL = no HRmax, or rows stored before v0.5.0 (HRmax was always provided).
+ALTER TABLE hrv_vo2max ADD COLUMN IF NOT EXISTS hr_max_source TEXT
+    CHECK (hr_max_source IS NULL OR hr_max_source IN ('provided', 'tanaka'));
