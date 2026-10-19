@@ -2,19 +2,21 @@
 
 Three load formulas are provided:
 
-* :func:`trimp_hrv_based` — HRV-readiness-weighted TRIMP. Primary method
-  when a daily HRV protocol is in place. The readiness score is computed
-  from the protocol that was chosen as primary for the user (``"resting"``
-  or ``"orthostatic"``); the two are never mixed (see protocol consistency
-  rule in ``docs/training_load/atl_ctl_tsb.md``).
-* :func:`trimp_banister` — Classical Banister (1991) formula using effort HR
-  from a sensor. Fallback when no HRV readiness is available.
+* :func:`trimp_hrv_based` — HRV-readiness-weighted TRIMP (cardiolab
+  heuristic). The readiness score is computed from the protocol that was
+  chosen as primary for the user (``"resting"`` or ``"orthostatic"``); the
+  two are never mixed (see protocol consistency rule in
+  ``docs/training_load/atl_ctl_tsb.md``).
+* :func:`trimp_banister` — Classical Banister (1991) formula using the mean
+  HR of the session from a sensor.
 * :func:`trimp_session_rpe` — session RPE (Foster et al. 2001): duration ×
   perceived effort on the CR-10 scale. Valid for every sport, no heart rate
   needed (strength, intervals, team sports).
 
-The three formulas have **different scales** — use one method consistently
-for a given athlete's ATL / CTL / TSB.
+The three formulas have **different scales**: each athlete has one method
+(``user_profiles.load_method``), applied to every session by
+:func:`session_load` — a session missing its data stays pending, it is never
+computed with another method.
 
 ATL / CTL / TSB — Banister impulse-response model:
 
@@ -75,10 +77,9 @@ def trimp_hrv_based(duration_min: float, readiness_score: float) -> float:
         ValueError: If ``duration_min`` ≤ 0 or ``readiness_score`` is outside
             [0, 100].
 
-    References:
-        Manzi V et al. (2009). Dose–response relationship of autonomic nervous
-        system responses to individualized training impulse in marathon runners.
-        *J Strength Cond Res*, 23(9), 2722–2729.
+    This is a cardiolab heuristic, not a published TRIMP: it weights the
+    duration by the morning state of the athlete, not by the intensity of
+    the session (see ``docs/training_load/atl_ctl_tsb.md``).
 
     """
     if duration_min <= 0.0:
@@ -105,8 +106,7 @@ def trimp_banister(
     where ``b = 1.92`` for males and ``b = 1.67`` for females (sex-specific
     weighting constants from Banister 1991).
 
-    Requires an HR monitor that provides mean effort HR. Intended as a
-    fallback when no HRV readiness is available.
+    Requires an HR monitor that provides the mean HR of the session.
 
     Args:
         duration_min: Workout duration in minutes. Must be strictly positive.
@@ -228,7 +228,7 @@ LOAD_METHOD_REQUIREMENTS: dict[str, dict[str, str]] = {
     },
     "banister": {
         "session": "duration, mean heart rate of the session",
-        "other": "profile: maximal HR, resting HR, sex",
+        "other": "profile: maximal HR, resting HR (sex: male coefficient if missing)",
     },
     "rpe": {
         "session": "duration, perceived effort 0–10 rated about 30 minutes after the session",

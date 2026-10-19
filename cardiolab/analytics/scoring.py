@@ -282,14 +282,13 @@ def readiness_score_composite(
 
     * ``readiness_score_multi`` is sensitive to **acute day-to-day changes**
       in RMSSD and HR and provides the RMSSD trend signal.
-    * ``readiness_score_nonlinear`` adds the **structural complexity** of the
-      heartbeat series (fractal correlations, Poincaré geometry) and is
-      particularly useful for detecting overreaching before classical markers
-      change.
+    * ``readiness_score_nonlinear`` adds the **structure** of the heartbeat
+      series (fractal correlations, Poincaré geometry). Its evidence as a
+      recovery marker at rest is weaker than for lnRMSSD, and SD1 repeats the
+      RMSSD signal (SD1 = RMSSD / √2).
 
-    Custom weights allow you to emphasise one dimension over the other — e.g.
-    increase ``w_nonlinear`` during high-load training blocks where DFA α1 is
-    known to be the earliest fatigue marker.
+    Custom weights allow you to emphasise one dimension over the other. The
+    stored score de forme is :func:`readiness_score_multi`, not this one.
 
     Args:
         current: HRV features of the session to score.

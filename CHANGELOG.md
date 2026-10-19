@@ -100,7 +100,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the trend component and `swc_band()` (new `window` parameter).
 - lnRMSSD is taken as `log(rmssd)` (the `ln_rmssd` field only as a fallback).
 - Docs: DFA α1 interpretation corrected (`docs/features/nonlinear.md`, `reading_charts.md`) — the
-  claim that a resting α1 < 0.75 is a validated overreaching marker had no support.
+  claim that a resting α1 < 0.75 is a validated overreaching marker had no support. Same
+  correction in the `dfa_alpha1()` docstring and the labels of `plot_dfa_fluctuation()`
+  (« Usual resting range », « Low — strong vagal modulation »…), and in the
+  `readiness_score_composite()` docstring (DFA α1 is not an "earliest fatigue marker").
+- `trimp_hrv_based()`: documented as a cardiolab heuristic (the Manzi et al. 2009 reference,
+  about an HR-based individualised TRIMP, was removed); `trimp_banister()` is no longer
+  described as a fallback — one load method per athlete.
 
 ### Tests
 

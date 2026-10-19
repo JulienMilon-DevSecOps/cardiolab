@@ -79,7 +79,7 @@ Ready 2026-10-18. **Changes computed values** — the most important scientific 
 
 ## v0.5.0 — Athlete longitudinal monitoring (P2)
 
-DB: migration V006 (`rpe` column on training sessions). Monitoring metrics are computed from the existing history; the real trend component changes readiness values (reprocessing note).
+DB: migration V006 (`rpe` and `hr_mean` on training sessions, `load_method` on user profiles, `readiness_score` on orthostatic sessions). Monitoring metrics are computed from the existing history; the real trend component changes readiness values (reprocessing note).
 
 * ✅ **7-day rolling lnRMSSD, CV and smallest worthwhile change (Plews, Buchheit)**: the reference approach for monitoring training adaptation. Rolling mean lnRMSSD, coefficient of variation, SWC band (±0.5 SD of the baseline) and interpretation (coping / maladaptation / overreaching).
 * ✅ **Readiness — a real trend component**: the 20 % « trend » of `readiness_score_multi` compares today's RMSSD with the median of the last 7 sessions — the same reference as the main RMSSD component (35 %), so RMSSD actually weighs ~55 % and no trend is measured. Replace it with the **change of the 7-day rolling mean of lnRMSSD versus the previous week**, scaled by the athlete's smallest worthwhile change (SWC): stable within ±SWC → ≈ 50, sustained rise → up to 100, sustained decline → down to 0; neutral (50) until 14 days of data. Changes readiness values → reprocessing note. Already described this way on the cardioanalysis site.

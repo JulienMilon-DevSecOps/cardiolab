@@ -51,7 +51,7 @@ by the morning state, not by the intensity of the effort itself. Published
 individualised loads (e.g. the iTRIMP of Manzi et al. 2009) weigh the effort
 heart rate instead — see Banister below.
 
-### Banister TRIMP (fallback for HR-sensor data)
+### Banister TRIMP (heart rate of the session)
 
 When an HR sensor provides effort heart rate but no HRV readiness is available:
 
@@ -117,7 +117,7 @@ protocol, and is applied to **every** session:
 | `load_method` | Minimum data per session | Other data | Without them |
 |---------------|--------------------------|------------|--------------|
 | `hrv` (default for existing profiles) | duration | the morning measurement of the same day (score de forme of the main protocol) | load pending |
-| `banister` | duration + mean heart rate of the session | profile: maximal HR, resting HR, sex | load pending |
+| `banister` | duration + mean heart rate of the session | profile: maximal HR, resting HR (sex: male coefficient if missing) | load pending |
 | `rpe` | duration + perceived effort 0–10, rated about 30 min after the session | — | load pending |
 
 ```python
