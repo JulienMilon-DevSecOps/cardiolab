@@ -19,11 +19,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `table_weekly_monitoring()` (one row per ISO week). Labels EN / FR.
 - `docs/analytics/monitoring.md` — definitions and interpretation guide.
 
-### Added — Session RPE load and orthostatic score de forme — migration V006
+### Added — Load methods, session RPE and orthostatic score de forme — migration V006
 
-- **Migration `V006__add_session_rpe_and_ortho_readiness.sql`** (idempotent): `rpe` SMALLINT 0–10 on
-  `hrv_training_sessions`, `readiness_score` FLOAT on `hrv_orthostatic`. Apply with
+- **Migration `V006__training_load_and_ortho_readiness.sql`** (idempotent): `rpe` SMALLINT 0–10 and
+  `hr_mean` FLOAT on `hrv_training_sessions`; `load_method` TEXT (`hrv` / `banister` / `rpe`,
+  default `hrv`) on `user_profiles`; `readiness_score` FLOAT on `hrv_orthostatic`. Apply with
   `repo.run_migrations()` before saving new sessions.
+- **One load method per athlete** — `user_profiles.load_method`, applied to every session so that
+  ATL / CTL / TSB stay on one scale (the three methods differ by up to ×10).
+  `session_load(method, duration, …)` returns the load, or `None` (pending) when the data of the
+  method is missing — never another method. `LOAD_METHODS`, `LOAD_METHOD_REQUIREMENTS`,
+  `validate_load_method()`. `save_user_profile(..., load_method=)` / `update_user_profile()`
+  validate it; `save_training_session(..., hr_mean=)`; `update_training_session(activity_id, …)`.
+- `reprocess_sessions()` (full run) **recomputes the training loads** with the profile's method,
+  `hrv` loads with the score de forme of the day just reprocessed; sessions missing their data keep
+  their stored load (`kept`). Report: `training` line, `notes`.
+- `local/main_training_load.py`: the profile's method by default, warning when another one is
+  forced; stores the session heart rate.
+- **Fixed `examples/14_user_profiles.py`**: it called a non-existent API (`first_name`, `email`,
+  `birth_date`, attribute access on the returned dict) and **deleted the profile of the `.env`
+  `USER_ID`** at the end. Rewritten with the real API and a temporary demo id.
 - `trimp_session_rpe(duration_min, rpe)` — load = duration × perceived effort on the CR-10 scale
   (Foster et al. 2001): every sport, no heart rate. `validate_rpe()`, `RPE_SCALE`.
   `save_training_session(..., rpe=None)` validates and stores it; `load_training_sessions()` /
