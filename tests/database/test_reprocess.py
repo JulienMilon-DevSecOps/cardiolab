@@ -21,6 +21,7 @@ from cardiolab.database.reprocess import (
 )
 from cardiolab.datasets import load_sample
 from cardiolab.protocols.resting import HRVFeatures, resting_hrv
+from cardiolab.protocols.vo2max import vo2max_from_hrv
 from cardiolab.signals.rr import RRSeries
 
 # ======================
@@ -103,7 +104,7 @@ def _repo_with_resting(n: int = 4) -> FakeRepo:
     repo = FakeRepo()
     for i in range(n):
         date = f"2099-11-0{i + 1}"
-        rr = load_sample("resting", i)
+        rr = load_sample("resting", i % 6)  # 6 resting samples
         repo.add_raw("resting", date, rr)
         repo.save_features(_old_resting(rr, date), "u")
     repo.writes.clear()
@@ -190,11 +191,12 @@ class TestReprocess:
 
     def test_since(self):
         """since: earlier sessions are not reprocessed but feed the baseline."""
-        repo = _repo_with_resting()
-        report = reprocess_sessions(repo, "u", since="2099-11-03", dry_run=False)
-        assert [s.date for s in report.sessions] == ["2099-11-03", "2099-11-04"]
+        repo = _repo_with_resting(8)
+        report = reprocess_sessions(repo, "u", since="2099-11-07", dry_run=False)
+        assert [s.date for s in report.sessions] == ["2099-11-07", "2099-11-08"]
         assert repo.results["resting"]["2099-11-01"].method == "welch"
-        assert repo.results["resting"]["2099-11-03"].score != 50.0
+        # 6 earlier stored days: the history-based components are active
+        assert repo.results["resting"]["2099-11-07"].score != 50.0
 
     def test_stored_without_raw_skipped(self):
         """A stored session without raw RR is listed as skipped, untouched."""
@@ -232,6 +234,7 @@ class TestReprocess:
         repo.add_raw("orthostatic", "2099-11-01", rr)
         old = analyse_session("orthostatic", rr)
         old.date, old.score = "2099-11-01", session_score("orthostatic", old)
+        old.readiness_score = 50.0  # first session: no previous supine phase
         old.phases.supine.features.sampen += 0.01  # e.g. former SampEn convention
         repo.results["orthostatic"] = {"2099-11-01": old}
         report = reprocess_sessions(repo, "u", protocol="orthostatic", dry_run=False)
@@ -250,6 +253,30 @@ class TestReprocess:
         repo.results["vo2max"] = {"2099-11-01": old}
         reprocess_sessions(repo, "u", protocol="vo2max", dry_run=False)
         assert repo.results["vo2max"]["2099-11-01"].hr_max == 190.0
+
+    def test_vo2max_tanaka_and_norms_from_profile(self):
+        """VO2max without hr_max: Tanaka from the profile's birth year, norms by sex."""
+        repo = _RepoWithLoads({"birth_year": 2059, "sex": "female"})
+        rr = load_sample("resting", 1)
+        repo.add_raw("vo2max", "2099-11-01", rr)
+        reprocess_sessions(repo, "u", protocol="vo2max", dry_run=False)
+        new = repo.results["vo2max"]["2099-11-01"]
+        assert new.hr_max_source == "tanaka"
+        assert new.hr_max == pytest.approx(208 - 0.7 * 40)
+        expected = vo2max_from_hrv(rr.correct_artifacts()[0], age=40, sex="female")
+        assert new.fitness_category == expected.fitness_category
+        assert new.score == pytest.approx(expected.percentile)
+
+    def test_vo2max_tanaka_not_reused_as_provided(self):
+        """A stored Tanaka HRmax is predicted again, not kept as a provided value."""
+        repo = _RepoWithLoads({"birth_year": 2049})
+        rr = load_sample("resting", 1)
+        repo.add_raw("vo2max", "2099-11-01", rr)
+        old = analyse_session("vo2max", rr, age=40)
+        old.date, old.quality = "2099-11-01", None
+        repo.results["vo2max"] = {"2099-11-01": old}
+        reprocess_sessions(repo, "u", protocol="vo2max", dry_run=False)
+        assert repo.results["vo2max"]["2099-11-01"].hr_max == pytest.approx(173.0)
 
     def test_only_protocols_with_raw_are_queried(self):
         """Protocols without raw sessions are not loaded at all."""
@@ -314,6 +341,9 @@ class TestReprocessIntegration:
         "table_name": "_cardiolab_test_rp_hrv",
         "ortho_table_name": "_cardiolab_test_rp_ortho",
         "raw_sessions_table_name": "_cardiolab_test_rp_raw",
+        # Never created: a database without profile / training tables (as in CI)
+        "user_profiles_table_name": "_cardiolab_test_rp_profiles",
+        "training_sessions_table_name": "_cardiolab_test_rp_training",
     }
 
     @pytest.fixture(autouse=True)
@@ -350,6 +380,8 @@ class TestReprocessIntegration:
         with self._repo() as repo:
             applied = reprocess_sessions(repo, self._USER, dry_run=False)
         assert applied.written == 4
+        # No user_profiles / training tables: skipped, not an error
+        assert not [s for s in applied.sessions if s.protocol == "training"]
         with self._repo() as repo:
             stored = repo.load_features(self._USER)
             ortho = repo.load_orthostatic(self._USER)
@@ -361,3 +393,155 @@ class TestReprocessIntegration:
             again = reprocess_sessions(repo, self._USER, dry_run=False)
         assert again.count("unchanged") == 4
         assert again.written == 0
+
+
+@pytest.mark.unit
+class TestOrthostaticReadiness:
+    """readiness_score of orthostatic sessions (0.5.0)."""
+
+    def test_supine_phases_feed_the_baseline(self):
+        """Each session is scored against the previous supine phases, in order."""
+        from cardiolab.analytics.scoring import orthostatic_readiness_score
+
+        repo = FakeRepo()
+        rr = load_sample("orthostatic", 0)
+        for day in range(1, 9):
+            repo.add_raw("orthostatic", f"2099-11-0{day}", rr)
+        report = reprocess_sessions(repo, "u", protocol="orthostatic", dry_run=False)
+        assert {s.status for s in report.sessions} == {"new"}
+        stored = [repo.results["orthostatic"][f"2099-11-0{d}"] for d in range(1, 9)]
+        assert stored[0].readiness_score == 50.0
+        supines = [r.phases.supine.features for r in stored]
+        expected = orthostatic_readiness_score(
+            supines[-1], Baseline.from_features(supines[:-1])
+        )
+        assert stored[-1].readiness_score == pytest.approx(expected)
+        assert stored[-1].phases.supine.features.date == "2099-11-08"
+
+    def test_idempotent(self):
+        """A second run leaves readiness scores unchanged."""
+        repo = FakeRepo()
+        rr = load_sample("orthostatic", 0)
+        for day in range(1, 4):
+            repo.add_raw("orthostatic", f"2099-11-0{day}", rr)
+        reprocess_sessions(repo, "u", protocol="orthostatic", dry_run=False)
+        again = reprocess_sessions(repo, "u", protocol="orthostatic")
+        assert again.count("unchanged") == 3
+
+
+class _RepoWithLoads(FakeRepo):
+    """FakeRepo with a profile and training sessions."""
+
+    def __init__(self, profile):
+        """Store the profile."""
+        super().__init__()
+        self.profile = profile
+        self.sessions: list[dict] = []
+
+    def load_user_profile(self, user_id):
+        """Return the profile."""
+        return self.profile
+
+    def load_training_sessions(self, user_id):
+        """Return copies of the sessions."""
+        return [dict(s) for s in self.sessions]
+
+    def update_training_session(self, activity_id, **fields):
+        """Update one session."""
+        for s in self.sessions:
+            if s["activity_id"] == activity_id:
+                s.update(fields)
+        self.writes.append(("training", activity_id))
+        return True
+
+
+@pytest.mark.unit
+class TestTrainingLoads:
+    """Loads recomputed with the profile's method (0.5.0)."""
+
+    def _repo(self, method, **profile):
+        repo = _RepoWithLoads(
+            {"load_method": method, "primary_protocol": "resting", **profile}
+        )
+        for i in range(4):
+            date = f"2099-11-0{i + 1}"
+            rr = load_sample("resting", i)
+            repo.add_raw("resting", date, rr)
+            repo.save_features(_old_resting(rr, date), "u")
+        repo.writes.clear()
+        repo.sessions = [
+            {
+                "activity_id": "a1",
+                "date": "2099-11-03",
+                "duration_min": 60,
+                "trimp": 99.0,
+                "rpe": 5,
+                "hr_mean": 140.0,
+            },
+            {
+                "activity_id": "a2",
+                "date": "2099-11-09",
+                "duration_min": 45,
+                "trimp": 12.0,
+                "rpe": None,
+                "hr_mean": None,
+            },
+        ]
+        return repo
+
+    def test_hrv_uses_reprocessed_score(self):
+        """hrv: load = duration × (1 − new score of the day / 100); no measure → pending."""
+        repo = self._repo("hrv")
+        report = reprocess_sessions(repo, "u", dry_run=False)
+        new_score = repo.results["resting"]["2099-11-03"].score
+        loads = {s.date: s for s in report.sessions if s.protocol == "training"}
+        assert repo.sessions[0]["trimp"] == pytest.approx(60 * (1 - new_score / 100))
+        assert loads["2099-11-09"].status == "pending"
+        assert repo.sessions[1]["trimp"] is None  # never kept from another method
+
+    def test_rpe(self):
+        """rpe: duration × RPE; a session without RPE becomes pending (load cleared)."""
+        repo = self._repo("rpe")
+        report = reprocess_sessions(repo, "u", dry_run=False)
+        assert repo.sessions[0]["trimp"] == 300.0
+        assert repo.sessions[1]["trimp"] is None
+        assert report.written >= 2  # the cleared load counts as a write
+
+    def test_banister_needs_profile_hr(self):
+        """banister: needs hr_max / hr_rest of the profile."""
+        repo = self._repo("banister", hr_max=185, hr_rest=50, sex="male")
+        reprocess_sessions(repo, "u", dry_run=False)
+        from cardiolab.analytics.training_load import trimp_banister
+
+        assert repo.sessions[0]["trimp"] == pytest.approx(
+            trimp_banister(60, 140, 185, 50)
+        )
+        repo = self._repo("banister")
+        report = reprocess_sessions(repo, "u")
+        assert {s.status for s in report.sessions if s.protocol == "training"} == {
+            "pending"
+        }
+
+    def test_dry_run_and_summary(self):
+        """Dry run writes no load; the summary has a training line."""
+        repo = self._repo("rpe")
+        report = reprocess_sessions(repo, "u")
+        assert ("training", "a1") not in repo.writes
+        assert "training" in report.summary()
+        assert "pending (data missing — load cleared)" in report.summary()
+        assert repo.sessions[1]["trimp"] == 12.0  # dry run: nothing cleared
+
+    def test_single_protocol_leaves_loads(self):
+        """protocol='resting' only → loads not touched."""
+        repo = self._repo("rpe")
+        report = reprocess_sessions(repo, "u", protocol="resting", dry_run=False)
+        assert not [s for s in report.sessions if s.protocol == "training"]
+        assert repo.sessions[0]["trimp"] == 99.0
+
+    def test_no_profile(self):
+        """Without a profile, loads are untouched and a note explains why."""
+        repo = self._repo("rpe")
+        repo.profile = None
+        report = reprocess_sessions(repo, "u", dry_run=False)
+        assert repo.sessions[0]["trimp"] == 99.0
+        assert any("profile" in n for n in report.notes)

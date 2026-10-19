@@ -13,7 +13,21 @@ Label: ``increasing`` / ``decreasing`` when p < ``alpha`` and the change
 exceeds ``min_change_pct``; ``stable`` otherwise; ``insufficient_data`` with
 fewer than ``min_points`` values.
 
+Successive HRV values are not independent (a low day is often followed by
+another low day): with positively autocorrelated residuals, the ordinary
+least-squares p-value is too optimistic. The p-value therefore uses the
+**effective sample size** ``n_eff = n × (1 − r1) / (1 + r1)``, ``r1`` being
+the lag-1 autocorrelation of the residuals (Santer et al. 2000).
+
+References:
+    Santer, B. D., Wigley, T. M. L., Boyle, J. S., Gaffen, D. J., Hnilo,
+    J. J., Nychka, D., Parker, D. E., & Taylor, K. E. (2000). Statistical
+    significance of trends and trend differences in layer-average
+    atmospheric temperature time series. *Journal of Geophysical Research*,
+    105(D6), 7337–7356.
+
 Day-to-day HRV is noisy: no predictive model (ARIMA, HMM…) is attempted.
+
 """
 
 from __future__ import annotations
@@ -25,6 +39,7 @@ from datetime import date, timedelta
 
 import numpy as np
 from scipy.stats import linregress
+from scipy.stats import t as student_t
 
 from cardiolab.analytics.baseline import Baseline
 
@@ -50,7 +65,8 @@ class TrendResult:
             the unit of the series.
         intercept: Fitted value at the first point of the window.
         r2: Coefficient of determination.
-        p_value: Two-sided p-value of the slope (H0: slope = 0).
+        p_value: Two-sided p-value of the slope (H0: slope = 0), corrected
+            for the autocorrelation of the residuals.
         n: Number of values used.
         span_days: Days between the first and last value (sessions − 1
             without dates).
@@ -58,6 +74,8 @@ class TrendResult:
         change_pct: Fitted change over the window, in % of ``mean``.
         label: ``increasing``, ``decreasing``, ``stable`` or
             ``insufficient_data``.
+        n_eff: Effective sample size used for the p-value (``n`` when the
+            residuals are not positively autocorrelated).
 
     """
 
@@ -70,6 +88,7 @@ class TrendResult:
     mean: float
     change_pct: float
     label: str
+    n_eff: float = math.nan
 
     @property
     def significant(self) -> bool:
@@ -87,6 +106,27 @@ _INSUFFICIENT = dict(
     change_pct=math.nan,
     label="insufficient_data",
 )
+
+
+def _effective_n(residuals: np.ndarray) -> float:
+    """Return ``n × (1 − r1) / (1 + r1)`` — ``n`` when ``r1 ≤ 0`` (Santer et al. 2000)."""
+    n = len(residuals)
+    denom = float(np.sum(residuals**2))
+    r1 = float(np.sum(residuals[:-1] * residuals[1:]) / denom) if denom > 0 else 0.0
+    return n * (1.0 - r1) / (1.0 + r1) if r1 > 0 else float(n)
+
+
+def _slope_p_value(fit, x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
+    """Two-sided p-value of the slope with the effective sample size, and ``n_eff``."""
+    n = len(y)
+    n_eff = _effective_n(y - (fit.intercept + fit.slope * x))
+    if n_eff >= n:
+        return float(fit.pvalue), float(n)
+    if n_eff <= 2.0:
+        return 1.0, n_eff  # nearly all values redundant: no evidence of a trend
+    se = fit.stderr * math.sqrt((n - 2) / (n_eff - 2))
+    p = 2.0 * float(student_t.sf(abs(fit.slope) / se, n_eff - 2)) if se > 0 else 0.0
+    return p, n_eff
 
 
 def _to_day(value) -> date:
@@ -125,6 +165,9 @@ def linear_trend(
 ) -> TrendResult:
     """Fit a linear trend and qualify it (slope, r², p-value, relative change).
 
+    Changed in 0.5.0: the p-value accounts for the autocorrelation of the
+    residuals (effective sample size, Santer et al. 2000).
+
     Args:
         series: ``[(date, value), …]`` (ISO strings or ``date``) — the x axis
             is in calendar days, so gaps are respected — or plain values (x =
@@ -155,11 +198,12 @@ def linear_trend(
 
     mean = float(np.mean(y))
     if np.ptp(y) == 0:  # perfectly flat: no trend, linregress is undefined
-        slope, intercept, r2, p = 0.0, mean, 0.0, 1.0
+        slope, intercept, r2, p, n_eff = 0.0, mean, 0.0, 1.0, float(n)
     else:
         fit = linregress(x, y)
         slope, intercept = float(fit.slope), float(fit.intercept)
-        r2, p = float(fit.rvalue**2), float(fit.pvalue)
+        r2 = float(fit.rvalue**2)
+        p, n_eff = _slope_p_value(fit, x, y)
     span = float(x[-1] - x[0])
     change_pct = 100.0 * slope * span / abs(mean) if mean else math.nan
 
@@ -177,6 +221,7 @@ def linear_trend(
         mean=mean,
         change_pct=change_pct,
         label=label,
+        n_eff=n_eff,
     )
 
 

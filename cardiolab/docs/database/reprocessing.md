@@ -60,11 +60,16 @@ For each session of `hrv_raw_sessions`, in chronological order:
 2. The score is recomputed with `session_score()`. The resting readiness
    score uses a baseline made of the **previous** sessions, already
    reprocessed (`poor` sessions excluded); the other protocols use absolute
-   thresholds.
+   thresholds. Orthostatic sessions also get their **score de forme**
+   (`readiness_score`, v0.5.0): the supine phase against the previous supine
+   phases, already reprocessed.
 3. The result replaces the stored one (upsert on `(user_id, date)`).
 
-VO2max sessions keep the `hr_max` of their stored estimation (Uth model);
-`hr_max=` provides one for estimations that have none.
+VO2max sessions keep the HRmax **provided** with their stored estimation (Uth
+model); otherwise `hr_max=`, then the profile's `hr_max`, then the Tanaka
+prediction from the profile's `birth_year` (a stored Tanaka value is predicted
+again, never kept as a provided one). Categories and scores use the profile's age
+and sex (FRIEND norms, v0.5.0) — fill them in before reprocessing.
 
 ---
 
@@ -78,6 +83,7 @@ VO2max sessions keep the `hr_max` of their stored estimation (Uth model);
 | Failed analysis | Session reported `failed` (e.g. no orthostatic transition); its stored row is kept |
 | No raw RR | Stored sessions without raw intervals (Apple Health import, SDNN only) are listed in `report.skipped`, left untouched — and still used in the resting baseline |
 | `since=` | Only sessions on or after the date are reprocessed; earlier ones still feed the baseline |
+| Training loads | Full run only (`protocol=None`): every load recomputed with the profile's `load_method`; a session without the data of that method becomes **pending** — its load is cleared, never kept from another method. No profile → loads untouched (`report.notes`) |
 
 ---
 

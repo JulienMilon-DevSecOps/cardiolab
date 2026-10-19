@@ -72,7 +72,7 @@ athlete's own history:
 | Component | Weight | Score |
 |-----------|--------|-------|
 | **lnRMSSD of the day** | 45 % | Today's lnRMSSD against the daily values of the previous 28 days (`ln_rmssd_day_score()`), higher is better |
-| **Resting HR** | 25 % | `50 − 50 × tanh((HR − mean HR of the last 7 sessions) / 10)` |
+| **Resting HR** | 25 % | Today's mean HR against the daily values of the previous 28 days (`resting_hr_score()`), **lower is better** |
 | **Trend of the week** | 20 % | 7-day mean versus the previous week, in SWC units (`ln_rmssd_trend_score()`) |
 | **DFA α1** | 10 % | Today's α1 against the previous 28 days (`dfa_alpha1_score()`), **lower is better** |
 
@@ -95,9 +95,15 @@ score = 50 ± 50 × tanh(Δ / (2 × SD))      Δ = today − mean of the previou
 
 The deviation is measured in units of **the athlete's own variability**: the same
 change in ms means more for a very stable athlete than for a naturally variable
-one. The SD has a floor of 0.05 (≈ 5 % of RMSSD) so that a few nearly identical
-previous values cannot turn a small change into an extreme score. Neutral (50)
-with fewer than 6 previous measurements; undated sessions use the last 28 sessions.
+one. The SD has a floor — 0.05 for lnRMSSD (≈ 5 % of RMSSD), 1.5 bpm for HR — so
+that a few nearly identical previous values cannot turn a small change into an
+extreme score. Neutral (50) with fewer than 6 previous measurement days; undated
+sessions use the last 28 sessions.
+
+**Resting HR — lower is better.** Same scale as lnRMSSD, mirrored: +1 SD of the
+athlete's usual HR → 27, −1 SD → 73. An HR above the usual level points to
+incomplete recovery (Buchheit 2014); +3 bpm weighs more for an athlete whose HR
+varies by ±1 bpm than for one whose HR varies by ±4 bpm.
 
 **DFA α1 — lower is better.** Vagal activity lowers the short-term exponent and
 sympathetic activity raises it (Castiglioni et al. 2011): an α1 above the usual
@@ -126,16 +132,26 @@ week has fewer than 3 measurements.
 
 Components without enough history stay at 50 and their weight is **not
 redistributed**: during the first two weeks the score moves within a narrower
-range (it starts from the heart rate component alone), then uses the full scale.
+range, then uses the full scale. Every day component needs 6 previous
+measurement days, the trend about 14 days: **the first ~6 scores are 50**.
 
 ### What changed in v0.5.0
 
 | | Before | From v0.5.0 |
 |---|---|---|
 | RMSSD | 35 %, ratio to the median of the last 7 sessions | 45 %, lnRMSSD against the previous 28 days, in SD units |
-| Resting HR | 20 % | 25 % |
+| Resting HR | 20 %, fixed 10 bpm scale vs the mean of the last 7 sessions | 25 %, against the previous 28 days, in SD units |
 | Trend | 20 %, today's RMSSD vs the same median (no trend measured) | 20 %, 7-day mean vs previous week in SWC units |
 | DFA α1 | 25 %, fixed 0.75 threshold, higher is better | 10 %, against the previous 28 days, lower is better |
+
+### Non-linear score — `readiness_score_nonlinear()`
+
+Not the stored score de forme: an alternative view, also against the athlete's
+previous 28 days — **DFA α1** 50 % (lower is better) and **SD1/SD2** 50 % (higher
+is better; a marker of autonomic balance correlated with LF/HF — Shaffer &
+Ginsberg 2017). Changed in v0.5.0: it also counted SD1 (35 %), which is RMSSD / √2
+— the RMSSD signal a second time — and scored SD1/SD2 on a fixed scale.
+`readiness_score_composite()` averages it with `readiness_score_multi()`.
 
 **Readiness values change**: reprocess the history (`reprocess_sessions()`, see
 [reprocessing](../database/reprocessing.md)). The weights remain cardiolab's
@@ -174,6 +190,7 @@ table_weekly_monitoring(baseline, labels=LABELS_FR)
 | `interpret_trend_state(mean_7d, band, cv_7d, cv_threshold)` | `"coping"`, `"normal"`, `"maladaptation"`, `"overreaching_risk"` or `None` |
 | `monitoring_series(baseline)` | `[MonitoringPoint, …]` — everything above, per day |
 | `ln_rmssd_trend_score(current, baseline)` | Trend component [0–100] |
+| `ln_rmssd_day_score`, `resting_hr_score`, `dfa_alpha1_score`, `sd_ratio_score` | Day components [0–100], each against the previous 28 days |
 
 `baseline` is a `Baseline` (its `sessions`: `poor` quality excluded) or a list of
 `HRVFeatures`. Computed on the fly — no database change.
@@ -203,6 +220,9 @@ Castiglioni, P., Parati, G., Di Rienzo, M., Carabalona, R., Cividjian, A., &
 Quintin, L. (2011). Scale exponents of blood pressure and heart rate during
 autonomic blockade as assessed by detrended fluctuation analysis. *The Journal of
 Physiology*, 589(2), 355–369.
+
+Shaffer, F., & Ginsberg, J. P. (2017). An overview of heart rate variability
+metrics and norms. *Frontiers in Public Health*, 5, 258.
 
 Kiviniemi, A. M., Hautala, A. J., Kinnunen, H., & Tulppo, M. P. (2007).
 Endurance training guided individually by daily heart rate variability

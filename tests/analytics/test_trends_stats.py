@@ -7,6 +7,7 @@ from datetime import date, timedelta
 
 import numpy as np
 import pytest
+from scipy.stats import linregress
 
 from cardiolab.analytics.baseline import Baseline
 from cardiolab.analytics.trends import (
@@ -72,6 +73,35 @@ class TestLinearTrend:
             linear_trend(_dated(rng.normal(55, 8, 30))).significant for _ in range(300)
         )
         assert 0.02 < hits / 300 < 0.09
+
+    def test_autocorrelated_noise_false_positive_rate(self):
+        """AR(1) noise (φ = 0.7, no trend): far fewer false trends with n_eff.
+
+        Measured over 1 000 series of 30 values: ≈ 13 % significant with the
+        correction (r1 is underestimated on short series), ≈ 39 % without.
+        """
+        rng = np.random.default_rng(321)
+
+        def ar1(n: int) -> np.ndarray:
+            e = np.empty(n)
+            e[0] = rng.normal()
+            for i in range(1, n):
+                e[i] = 0.7 * e[i - 1] + rng.normal()
+            return 55 + 4 * e
+
+        series = [ar1(30) for _ in range(300)]
+        rate = sum(linear_trend(_dated(y)).significant for y in series) / 300
+        naive = sum(linregress(np.arange(30), y).pvalue < 0.05 for y in series) / 300
+        assert rate < 0.18
+        assert naive > 0.25
+
+    def test_n_eff_reported(self):
+        """Independent noise: n_eff close to n; smooth wave: n_eff much smaller."""
+        rng = np.random.default_rng(5)
+        noise = linear_trend(_dated(rng.normal(55, 8, 40)))
+        wave = linear_trend(_dated([55 + 5 * math.sin(d / 4) for d in range(40)]))
+        assert noise.n_eff > 30
+        assert wave.n_eff < 10
 
     def test_relative_threshold(self):
         """Significant but tiny (< 5 % of the mean) → stable."""

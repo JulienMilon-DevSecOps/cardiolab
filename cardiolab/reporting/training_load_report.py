@@ -5,14 +5,18 @@ Public functions:
 * :func:`table_training_load_history` — dense ATL/CTL/TSB history table with
   gradient colouring and TSB zone highlighting.
 * :func:`summary_training_load` — scalar summary of the latest training load
-  state: ATL, CTL, TSB, TSB zone, and CTL trend.
+  state: ATL, CTL, TSB, relative form and its zone, and CTL trend.
+
+Changed in 0.5.0: the zone is read on the relative form (TSB in % of CTL,
+:func:`~cardiolab.analytics.training_load.form_zone`), no longer on TSB
+against fixed thresholds (+25 / +5 / −10 / −30) that only suit one load scale.
 """
 
 from __future__ import annotations
 
 import pandas as pd
 
-from cardiolab.analytics.training_load import TrainingLoad
+from cardiolab.analytics.training_load import TrainingLoad, form_zone
 from cardiolab.reporting._core import (
     _TSB_ZONE_COLORS,
     apply_labels,
@@ -22,23 +26,6 @@ from cardiolab.reporting._core import (
     gradient_good,
     highlight_category,
 )
-
-# ── TSB zone classification ────────────────────────────────────────────────────
-# Thresholds from Coggan 2003 / Plews et al. 2013.
-
-_TSB_THRESHOLDS: list[tuple[float, str]] = [
-    (25.0, "fresh_detraining"),
-    (5.0, "optimal"),
-    (-10.0, "neutral"),
-    (-30.0, "accumulated_fatigue"),
-]
-
-
-def _tsb_zone_label(tsb: float) -> str:
-    for threshold, zone in _TSB_THRESHOLDS:
-        if tsb > threshold:
-            return zone
-    return "overload"
 
 
 def _ctl_trend(
@@ -67,8 +54,8 @@ def table_training_load_history(
     """Build a daily ATL / CTL / TSB history table.
 
     One row per day.  CTL (fitness) is highlighted green when high; ATL
-    (fatigue) is highlighted red when high; the TSB zone column is coloured
-    by physiological band (Coggan 2003 / Plews 2013).
+    (fatigue) is highlighted red when high; ``form_pct`` is TSB in % of CTL
+    and the ``tsb_zone`` column its zone (empty during the first 42 days).
 
     Args:
         training_load: A populated
@@ -89,15 +76,16 @@ def table_training_load_history(
 
     rows = []
     for i, date in enumerate(training_load.dates):
-        tsb_val = float(training_load.tsb[i])
+        form = float(training_load.form[i])
         rows.append(
             {
                 "date": date,
                 "trimp": float(training_load.trimp[i]),
                 "atl": float(training_load.atl[i]),
                 "ctl": float(training_load.ctl[i]),
-                "tsb": tsb_val,
-                "tsb_zone": _tsb_zone_label(tsb_val),
+                "tsb": float(training_load.tsb[i]),
+                "form_pct": form,
+                "tsb_zone": form_zone(form),
             }
         )
 
@@ -108,6 +96,7 @@ def table_training_load_history(
         "atl": fmt_float(2),
         "ctl": fmt_float(2),
         "tsb": fmt_float(2),
+        "form_pct": fmt_float(0),
     }
 
     styler = df.style.format(fmt, na_rep="n/a")
@@ -134,7 +123,10 @@ def summary_training_load(training_load: TrainingLoad) -> dict:
         * ``atl`` — latest Acute Training Load (fatigue), rounded to 2 d.p.
         * ``ctl`` — latest Chronic Training Load (fitness), rounded to 2 d.p.
         * ``tsb`` — latest Training Stress Balance (form), rounded to 2 d.p.
-        * ``tsb_zone`` — physiological zone label (str).
+        * ``form_pct`` — TSB in % of CTL, rounded to 1 d.p. (``None``
+          during the first 42 days).
+        * ``load_ratio`` — ATL / CTL, rounded to 2 d.p. (``None`` likewise).
+        * ``tsb_zone`` — zone of ``form_pct`` (``None`` likewise).
         * ``ctl_trend`` — ``"increasing"`` / ``"stable"`` / ``"decreasing"``
           based on the 7-day CTL change.
 
@@ -148,11 +140,15 @@ def summary_training_load(training_load: TrainingLoad) -> dict:
     atl = round(float(training_load.atl[-1]), 2)
     ctl = round(float(training_load.ctl[-1]), 2)
     tsb = round(float(training_load.tsb[-1]), 2)
+    form = float(training_load.form[-1])
+    known = form == form  # not nan
 
     return {
         "atl": atl,
         "ctl": ctl,
         "tsb": tsb,
-        "tsb_zone": _tsb_zone_label(tsb),
+        "form_pct": round(form, 1) if known else None,
+        "load_ratio": round(1.0 - form / 100.0, 2) if known else None,
+        "tsb_zone": form_zone(form),
         "ctl_trend": _ctl_trend(training_load.ctl),
     }

@@ -44,3 +44,18 @@ class TestQualityColumn:
         vo2 = table_vo2max_history([VO2maxResult(date="2026-01-01", quality=POOR)])
         assert coh.data["quality_grade"].iloc[0] == "good"
         assert vo2.data["quality_grade"].iloc[0] == "poor"
+
+
+@pytest.mark.unit
+def test_orthostatic_history_uses_stored_readiness():
+    """Without readiness_scores, the stored readiness_score is shown (0.5.0)."""
+    from cardiolab.datasets import load_sample
+    from cardiolab.protocols.orthostatic import orthostatic_hrv
+    from cardiolab.reporting.orthostatic import table_orthostatic_history
+
+    result = orthostatic_hrv(
+        load_sample("orthostatic", 0), auto_clean=True, min_phase_duration=60.0
+    )
+    result.readiness_score = 64.0
+    styler = table_orthostatic_history([result])
+    assert styler.data["readiness_score"].iloc[0] == pytest.approx(64.0)

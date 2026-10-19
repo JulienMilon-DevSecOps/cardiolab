@@ -9,9 +9,8 @@ the personal baseline:
   time-domain metrics (RMSSD, HR) with the DFA α1 non-linear marker and a
   7-day lnRMSSD trend component (Plews). Robust and well-suited for daily
   monitoring.
-* :func:`readiness_score_nonlinear` — purely non-linear score built from the
-  Poincaré and DFA metrics (SD1, SD1/SD2, DFA α1). Best used after at least
-  7 sessions.
+* :func:`readiness_score_nonlinear` — non-linear score (DFA α1, SD1/SD2),
+  each against the athlete's history. Needs 6 previous measurement days.
 * :func:`readiness_score_composite` — weighted combination of the two above.
 
 All resting scores are normalised to [0, 100]:
@@ -27,13 +26,14 @@ thresholds. They do **not** require a personal baseline and return [0, 100]:
 
 * :func:`hrr_score` — HRR1 (60 s recovery drop), Cole et al. 1999 (*NEJM*).
   Inflection at 18 bpm (mid-normal). ≥ 25 bpm → ~88 pts; < 12 bpm → ~13 pts.
-* :func:`coherence_score_100` — maps ``coherence_score`` (%) to [0, 100] with
-  amplified discrimination: ≥ 60 % → ≥ 75 pts (Lehrer & Gevirtz 2014).
+* :func:`coherence_score_100` — maps ``coherence_score`` (%, McCraty &
+  Shaffer 2015) to [0, 100]: ≥ 50 % (good) → ≥ 84 pts, < 30 % → < 16 pts.
 * :func:`drift_score` — inverted score from ``drift_rate`` (bpm/min).
   No drift (0 bpm/min) → 100 pts; strong drift (≥ 3 bpm/min) → ~17 pts
   (Coyle & González-Alonso 2001).
-* :func:`vo2max_score` — maps VO2max estimate (mL/kg/min) to [0, 100] via
-  ACSM 2022 fitness categories. Inflection at 43 mL/kg/min (average adult).
+* :func:`vo2max_score` — percentile of the VO2max estimate among people of
+  the same sex and age (FRIEND registry, Kaminsky et al. 2015); without age
+  and sex, a sigmoid centred at 43 mL/kg/min (average adult).
 * :func:`orthostatic_score` — composite autonomic score for the postural
   (tilt) test: 80 % ΔHR component (Brignole et al. 2018 ESC Guidelines;
   Sheldon et al. 2015 POTS consensus) + 20 % HF vagal-withdrawal component
@@ -51,32 +51,11 @@ from cardiolab.analytics.monitoring import (
     dfa_alpha1_score,
     ln_rmssd_day_score,
     ln_rmssd_trend_score,
+    resting_hr_score,
+    sd_ratio_score,
 )
 from cardiolab.protocols.resting import HRVFeatures
-
-# ======================
-# INTERNAL HELPERS
-# ======================
-
-
-def _sd_ratio_score(sd_ratio: float) -> float:
-    """Convert an SD1/SD2 ratio to a 0–100 score.
-
-    Normal resting range is approximately 0.25–0.55. Below 0.25 indicates
-    sympathetic dominance. A ratio of 0.0 is treated as "not computed".
-
-    Args:
-        sd_ratio: SD1/SD2 dimensionless ratio.
-
-    Returns:
-        Score in [0, 100].
-
-    """
-    if sd_ratio <= 0.0 or math.isnan(sd_ratio):
-        return 50.0
-
-    return float(np.clip(50.0 + 50.0 * np.tanh((sd_ratio - 0.25) * 5.0), 0.0, 100.0))
-
+from cardiolab.protocols.vo2max import vo2max_percentile
 
 # ======================
 # OURA-INSPIRED (legacy)
@@ -134,26 +113,28 @@ def readiness_score_multi(
       values of the previous 28 days, in units of the athlete's variability
       (:func:`~cardiolab.analytics.monitoring.ln_rmssd_day_score`; Kiviniemi
       et al. 2007, Plews et al. 2013).
-    * **Resting HR** (25 %) — elevated HR penalises the score (vs the mean of
-      the last 7 sessions). HR and HRV carry complementary information
-      (Buchheit 2014).
+    * **Resting HR** (25 %) — today's HR against the previous 28 days, in
+      units of the athlete's variability, lower is better
+      (:func:`~cardiolab.analytics.monitoring.resting_hr_score`). HR and HRV
+      carry complementary information (Buchheit 2014).
     * **lnRMSSD trend** (20 %) — change of the 7-day rolling mean of lnRMSSD
       versus the previous week, in SWC units
       (:func:`~cardiolab.analytics.monitoring.ln_rmssd_trend_score`).
     * **DFA α1** (10 %) — today's α1 against the previous 28 days, lower is
       better (:func:`~cardiolab.analytics.monitoring.dfa_alpha1_score`).
 
-    Components without enough history are neutral (50): lnRMSSD and DFA α1
-    need 6 previous measurements, the trend ≈ 14 days. Their weight is not
+    Components without enough history are neutral (50): lnRMSSD, HR and
+    DFA α1 need 6 previous measurement days, the trend ≈ 14 days. Their weight is not
     redistributed. Returns 50.0 when the baseline is empty.
 
     The weights are cardiolab's heuristic — no study validates a precise
     weighting of these markers.
 
     Changed in 0.5.0: weights were RMSSD 35 / HR 20 / DFA α1 25 / trend 20;
-    RMSSD was scored as a ratio to the median of 7 sessions, DFA α1 against the
-    fixed 0.75 threshold (higher is better), and the trend compared today's
-    RMSSD with the same median.
+    RMSSD was scored as a ratio to the median of 7 sessions, HR on a fixed
+    10 bpm scale against the mean of 7 sessions, DFA α1 against the fixed
+    0.75 threshold (higher is better), and the trend compared today's RMSSD
+    with the same median.
 
     Args:
         current: HRV features of the session to score (dated, for the
@@ -168,16 +149,14 @@ def readiness_score_multi(
         < 50 = worse than baseline.
 
     """
-    base_hr = baseline.mean_hr()
-
-    if base_hr is None:
+    if baseline.mean_hr() is None:
         return 50.0
 
     # lnRMSSD of the day (45 %) — vs the athlete's previous 28 days
     rmssd_score = ln_rmssd_day_score(current, baseline)
 
-    # HR (25 %) — elevated HR penalises the score
-    hr_score = 50.0 - 50.0 * np.tanh((current.mean_hr - base_hr) / 10.0)
+    # HR (25 %) — vs the athlete's previous 28 days, lower is better
+    hr_score = resting_hr_score(current, baseline)
 
     # Trend (20 %) — 7-day lnRMSSD mean vs previous week, in SWC units
     trend_score = ln_rmssd_trend_score(current, baseline)
@@ -199,66 +178,39 @@ def readiness_score_nonlinear(
     current: HRVFeatures,
     baseline: Baseline,
 ) -> float:
-    """Compute a readiness score based exclusively on non-linear HRV features.
+    """Compute a readiness score from non-linear HRV features only.
 
-    Integrates three non-linear components that capture information
-    orthogonal to time-domain metrics:
+    Two components, each against the athlete's previous 28 days:
 
-    * **DFA α1** (40 %) — short-term scaling exponent, against the athlete's
-      previous 28 days, **lower is better** (vagal activity lowers α1,
-      sympathetic activity raises it — Castiglioni et al. 2011); see
-      :func:`~cardiolab.analytics.monitoring.dfa_alpha1_score`. Neutral with
-      fewer than 6 previous values. Changed in 0.5.0: fixed 0.75 threshold,
-      higher is better.
-    * **SD1** (35 %) — Poincaré short-term variability (= RMSSD / √2),
-      expressed as a deviation from the personal baseline median SD1. Captures
-      the same parasympathetic signal as RMSSD but within a non-linear
-      geometric framework.
-    * **SD1/SD2** (25 %) — shape of the Poincaré ellipse. Normal resting
-      range: 0.25–0.55. Values below 0.25 (flat ellipse) indicate sympathetic
-      dominance and penalise the score. Uses absolute thresholds.
+    * **DFA α1** (50 %) — short-term scaling exponent, **lower is better**
+      (vagal activity lowers α1, sympathetic activity raises it —
+      Castiglioni et al. 2011); see
+      :func:`~cardiolab.analytics.monitoring.dfa_alpha1_score`.
+    * **SD1/SD2** (50 %) — shape of the Poincaré ellipse, **higher is
+      better** (a marker of autonomic balance, correlated with LF/HF —
+      Shaffer & Ginsberg 2017); see
+      :func:`~cardiolab.analytics.monitoring.sd_ratio_score`.
 
-    A component returns the neutral value (50) when its input is not
-    available (zero, ``nan``, or missing baseline).
+    Each component is neutral (50) with fewer than 6 previous values or when
+    its metric was not computed. Evidence for these markers at rest is weaker
+    than for lnRMSSD: this score complements :func:`readiness_score_multi`,
+    it is not the stored score de forme.
 
-    Returns 50.0 when the baseline is empty or when all non-linear metrics
-    are unavailable.
+    Changed in 0.5.0: DFA α1 40 % (fixed 0.75 threshold, higher is better),
+    SD1 35 % (ratio to the median of 7 sessions — the RMSSD signal again, as
+    SD1 = RMSSD / √2) and SD1/SD2 25 % (absolute scale centred at 0.25).
 
     Args:
-        current: HRV features of the session to score.
-        baseline: Personal reference built from previous sessions. SD1
-            baseline statistics are computed from ``baseline.median_sd1()``.
+        current: HRV features of the session to score (dated).
+        baseline: Personal reference built from previous sessions.
 
     Returns:
-        Readiness score as a float in [0, 100].
-        50 = neutral.
-        > 50 = above baseline or above absolute reference thresholds.
-        < 50 = below baseline or below reference thresholds.
+        Readiness score as a float in [0, 100]; 50 = neutral.
 
     """
-    # DFA α1 (40 %) — vs the athlete's previous 28 days, lower is better
     dfa = dfa_alpha1_score(current, baseline)
-
-    # SD1 (35 %) — deviation from personal baseline
-    base_sd1 = baseline.median_sd1()
-
-    if base_sd1 is not None and base_sd1 > 0.0 and current.sd1 > 0.0:
-        sd1_score = float(
-            np.clip(
-                50.0 + 50.0 * np.tanh((current.sd1 / base_sd1 - 1.0) * 2.0),
-                0.0,
-                100.0,
-            )
-        )
-    else:
-        sd1_score = 50.0
-
-    # SD1/SD2 (25 %) — absolute threshold (normal ≥ 0.25)
-    sd_ratio = _sd_ratio_score(current.sd_ratio)
-
-    score = 0.40 * dfa + 0.35 * sd1_score + 0.25 * sd_ratio
-
-    return float(np.clip(score, 0.0, 100.0))
+    ratio = sd_ratio_score(current, baseline)
+    return float(np.clip(0.5 * dfa + 0.5 * ratio, 0.0, 100.0))
 
 
 # ======================
@@ -274,22 +226,21 @@ def readiness_score_composite(
 ) -> float:
     """Compute a composite readiness score integrating classical and non-linear signals.
 
-    Combines :func:`readiness_score_multi` (linear + DFA α1 + trend) with
-    :func:`readiness_score_nonlinear` (DFA α1 + SD1 + SD1/SD2) into a single
+    Combines :func:`readiness_score_multi` (lnRMSSD, HR, trend, DFA α1) with
+    :func:`readiness_score_nonlinear` (DFA α1, SD1/SD2) into a single
     number that integrates the broadest picture of autonomic state.
 
     The two sub-scores are complementary:
 
     * ``readiness_score_multi`` is sensitive to **acute day-to-day changes**
       in RMSSD and HR and provides the RMSSD trend signal.
-    * ``readiness_score_nonlinear`` adds the **structural complexity** of the
-      heartbeat series (fractal correlations, Poincaré geometry) and is
-      particularly useful for detecting overreaching before classical markers
-      change.
+    * ``readiness_score_nonlinear`` adds the **structure** of the heartbeat
+      series (fractal correlations, Poincaré geometry). Its evidence as a
+      recovery marker at rest is weaker than for lnRMSSD, and SD1 repeats the
+      RMSSD signal (SD1 = RMSSD / √2).
 
-    Custom weights allow you to emphasise one dimension over the other — e.g.
-    increase ``w_nonlinear`` during high-load training blocks where DFA α1 is
-    known to be the earliest fatigue marker.
+    Custom weights allow you to emphasise one dimension over the other. The
+    stored score de forme is :func:`readiness_score_multi`, not this one.
 
     Args:
         current: HRV features of the session to score.
@@ -354,32 +305,41 @@ def hrr_score(hrr_60: float) -> float:
 def coherence_score_100(coherence_score: float) -> float:
     """Map a cardiac coherence percentage to a [0, 100] performance score.
 
-    Amplifies discrimination around the clinical threshold (60 %) so that
-    the good coherence zone (≥ 60 %) maps to ≥ 75 points and the poor zone
-    (< 40 %) maps to ≤ 25 points, following Lehrer & Gevirtz (2014).
+    ``coherence_score`` is the share of the whole spectrum in the resonance
+    peak (McCraty & Shaffer 2015; see
+    :func:`~cardiolab.protocols.cardiac_coherence.cardiac_coherence`).
+    Sigmoid centred at 40 %:
 
-    | Coherence (%) | Clinical level | Approximate score |
-    | ------------- | -------------- | ----------------- |
-    | ≥ 60          | Good           | ≥ 75              |
-    | 40 – 59       | Moderate       | 25 – 74           |
-    | < 40          | Poor           | < 25              |
+    | Coherence (%) | Coherence ratio | Level    | Approximate score |
+    | ------------- | --------------- | -------- | ----------------- |
+    | ≥ 50          | ≥ 1             | Good     | ≥ 84              |
+    | 30 – 50       | 0.43 – 1        | Moderate | 16 – 84           |
+    | < 30          | < 0.43          | Low      | < 16              |
+
+    The levels are cardiolab thresholds — no validated cut-off exists for the
+    coherence ratio: 50 % is the point where the peak holds as much power as
+    the rest of the spectrum (CR = 1); spontaneous breathing at rest scores
+    ≈ 5–30 % (measured on real resting recordings).
+
+    Changed in 0.5.0: centred at 50 % with good ≥ 60 % — calibrated for the
+    former score (resonance band only), under which rest already scored
+    50–60 %.
 
     References:
-        Lehrer, P. M., & Gevirtz, R. (2014). Heart rate variability
-        biofeedback: how and why does it work? *Frontiers in Psychology*, 5,
-        756.
+        McCraty, R., & Shaffer, F. (2015). Heart rate variability: new
+        perspectives on physiological mechanisms, assessment of
+        self-regulatory capacity, and health risk. *Global Advances in Health
+        and Medicine*, 4(1), 46–61.
 
     Args:
-        coherence_score: Raw coherence score [0, 100] from
-            ``cardiac_coherence()``.
+        coherence_score: Coherence score in % from ``cardiac_coherence()``.
 
     Returns:
         Normalised performance score in [0, 100].
 
     """
-    # Sigmoid centred at 50 % with steeper slope to spread good/poor apart
     return float(
-        np.clip(50.0 + 50.0 * np.tanh((coherence_score - 50.0) / 20.0), 0.0, 100.0)
+        np.clip(50.0 + 50.0 * np.tanh((coherence_score - 40.0) / 12.0), 0.0, 100.0)
     )
 
 
@@ -414,26 +374,37 @@ def drift_score(drift_rate: float) -> float:
     return float(np.clip(100.0 * (1.0 - np.tanh(rate / 2.5)), 0.0, 100.0))
 
 
-def vo2max_score(vo2max: float) -> float:
+def vo2max_score(
+    vo2max: float, age: float | None = None, sex: str | None = None
+) -> float:
     """Compute a fitness score from a VO2max estimate (mL/kg/min).
 
-    Maps to [0, 100] using a sigmoid centred at 43 mL/kg/min (average
-    adult, centre of the "Good" ACSM category), calibrated so that:
+    **With age and sex** (added in 0.5.0): the score is the athlete's
+    percentile among people of the same sex and age decade — FRIEND registry
+    norms (Kaminsky et al. 2015), see
+    :func:`~cardiolab.protocols.vo2max.vo2max_percentile`. 50 = median of
+    the athlete's sex and age; 90 = better than 90 % of them.
 
-    | VO2max (mL/kg/min) | ACSM category | Approximate score |
+    **Without them**: a sigmoid centred at 43 mL/kg/min on the fixed adult
+    scale:
+
+    | VO2max (mL/kg/min) | Category      | Approximate score |
     | ------------------ | ------------- | ----------------- |
-    | ≥ 58               | Excellent     | ≥ 93              |
+    | ≥ 58               | Excellent     | ≥ 92              |
     | 48 – 57            | Very good     | 70 – 92           |
     | 38 – 47            | Good          | 30 – 69           |
     | 28 – 37            | Fair          | 8 – 29            |
     | < 28               | Poor          | < 8               |
 
     References:
-        American College of Sports Medicine (2022). *ACSM's Guidelines for
-        Exercise Testing and Prescription* (11th ed.). LWW.
+        Kaminsky, L. A., Arena, R., & Myers, J. (2015). Reference standards
+        for cardiorespiratory fitness measured with cardiopulmonary exercise
+        testing. *Mayo Clinic Proceedings*, 90(11), 1515–1523.
 
     Args:
         vo2max: VO2max estimate in mL/kg/min. Must be > 0.
+        age: Age in years.
+        sex: ``"male"`` or ``"female"``.
 
     Returns:
         Score in [0, 100]. Returns 0.0 if ``vo2max`` is not finite or ≤ 0.
@@ -441,6 +412,9 @@ def vo2max_score(vo2max: float) -> float:
     """
     if not math.isfinite(vo2max) or vo2max <= 0.0:
         return 0.0
+    percentile = vo2max_percentile(vo2max, age, sex)
+    if percentile is not None:
+        return float(np.clip(percentile, 0.0, 100.0))
     return float(np.clip(50.0 + 50.0 * np.tanh((vo2max - 43.0) / 12.0), 0.0, 100.0))
 
 
@@ -601,7 +575,8 @@ def session_score(protocol: str, result, baseline: Baseline | None = None) -> fl
     * ``hrr`` — :func:`hrr_score` on HRR at 60 s.
     * ``drift`` — :func:`drift_score`.
     * ``vo2max`` — :func:`vo2max_score` on the Uth estimate when available,
-      otherwise the indicative ln-RMSSD estimate.
+      otherwise the indicative ln-RMSSD estimate, against the norms of the
+      result's ``age`` and ``sex`` when set.
 
     Args:
         protocol: One of :data:`SCORED_PROTOCOLS`.
@@ -628,9 +603,11 @@ def session_score(protocol: str, result, baseline: Baseline | None = None) -> fl
     if protocol == "drift":
         return drift_score(result.drift_rate)
     if protocol == "vo2max":
-        uth = result.vo2max_uth
-        best = uth if math.isfinite(uth) and uth > 0 else result.vo2max_ln_rmssd
-        return vo2max_score(best)
+        return vo2max_score(
+            result.best_estimate,
+            getattr(result, "age", None),
+            getattr(result, "sex", None),
+        )
     raise ValueError(
         f"Unknown protocol {protocol!r}. Choose from {', '.join(SCORED_PROTOCOLS)}."
     )

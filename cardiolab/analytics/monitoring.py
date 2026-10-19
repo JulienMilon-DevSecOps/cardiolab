@@ -74,6 +74,15 @@ MIN_SD = 0.05
 Six nearly identical previous values would otherwise turn any small change
 into an extreme score."""
 
+MIN_SD_HR = 1.5
+"""Floor of the reference SD of resting HR (bpm) in :func:`resting_hr_score`.
+
+Same role as :data:`MIN_SD`: six nearly identical previous HR values would
+otherwise turn a 1 bpm change into an extreme score."""
+
+MIN_SD_RATIO = 0.02
+"""Floor of the reference SD of SD1/SD2 in :func:`sd_ratio_score`."""
+
 SWC_FACTOR = 0.5
 """SWC = ``SWC_FACTOR`` × SD of the baseline daily lnRMSSD."""
 
@@ -521,6 +530,64 @@ def ln_rmssd_day_score(
     return baseline_relative_score(value, reference)
 
 
+def resting_hr_score(
+    current: HRVFeatures,
+    baseline,
+    *,
+    baseline_days: int = BASELINE_DAYS,
+) -> float:
+    """Resting HR component of the readiness score, in [0, 100].
+
+    Today's mean HR against the daily mean HR of the ``baseline_days`` days
+    before today (:func:`baseline_relative_score`, **lower is better**, SD
+    floor :data:`MIN_SD_HR`): an HR above the athlete's usual level points
+    to incomplete recovery (Buchheit 2014). Neutral (50) with fewer than 6
+    previous measurement days. Undated sessions: the last ``baseline_days``
+    sessions are the reference.
+
+    Changed in 0.5.0: ``50 − 50 × tanh((HR − mean of 7 sessions) / 10)`` —
+    a fixed 10 bpm scale, the same for every athlete.
+
+    Args:
+        current: Session being scored.
+        baseline: Previous sessions.
+        baseline_days: Reference length in calendar days. Defaults to 28.
+
+    Returns:
+        Score in [0, 100].
+
+    """
+    today, value = _day(current.date), current.mean_hr
+    if not value or not math.isfinite(value) or value <= 0:
+        return 50.0
+    reference = [
+        float(np.mean(hrs))
+        for _, day_sessions in _previous_days(baseline, today, baseline_days)
+        if (
+            hrs := [
+                s.mean_hr
+                for s in day_sessions
+                if s.mean_hr and math.isfinite(s.mean_hr) and s.mean_hr > 0
+            ]
+        )
+    ]
+    return baseline_relative_score(
+        value, reference, higher_is_better=False, min_sd=MIN_SD_HR
+    )
+
+
+def _metric_reference(
+    baseline, today: date | None, attr: str, baseline_days: int
+) -> list[float]:
+    """Return the valid values (> 0, finite) of ``attr`` in the days before ``today``."""
+    return [
+        v
+        for _, day_sessions in _previous_days(baseline, today, baseline_days)
+        for s in day_sessions
+        if (v := getattr(s, attr, None)) and math.isfinite(v) and v > 0
+    ]
+
+
 def dfa_alpha1_score(
     current: HRVFeatures,
     baseline,
@@ -549,16 +616,51 @@ def dfa_alpha1_score(
         Score in [0, 100].
 
     """
-    today, value = _day(current.date), current.dfa_alpha1
+    value = current.dfa_alpha1
     if not value or not math.isfinite(value) or value <= 0:
         return 50.0
-    reference = [
-        s.dfa_alpha1
-        for _, day_sessions in _previous_days(baseline, today, baseline_days)
-        for s in day_sessions
-        if s.dfa_alpha1 and math.isfinite(s.dfa_alpha1) and s.dfa_alpha1 > 0
-    ]
+    reference = _metric_reference(
+        baseline, _day(current.date), "dfa_alpha1", baseline_days
+    )
     return baseline_relative_score(value, reference, higher_is_better=False)
+
+
+def sd_ratio_score(
+    current: HRVFeatures,
+    baseline,
+    *,
+    baseline_days: int = BASELINE_DAYS,
+) -> float:
+    """SD1/SD2 component of the non-linear readiness score, in [0, 100].
+
+    Today's Poincaré SD1/SD2 ratio against the values of the
+    ``baseline_days`` days before today, **higher is better**: the ratio of
+    short-term (beat-to-beat) to long-term variability is used as a marker
+    of autonomic balance and correlates with the LF/HF ratio (Shaffer &
+    Ginsberg 2017) — a ratio below the usual level points to sympathetic
+    predominance. Evidence as a recovery marker is limited. SD floor
+    :data:`MIN_SD_RATIO`. Neutral (50) with fewer than 6 previous values or
+    when the ratio was not computed.
+
+    Changed in 0.5.0: absolute scale centred at 0.25 (no individual
+    reference).
+
+    Args:
+        current: Session being scored.
+        baseline: Previous sessions.
+        baseline_days: Reference length in calendar days. Defaults to 28.
+
+    Returns:
+        Score in [0, 100].
+
+    """
+    value = current.sd_ratio
+    if not value or not math.isfinite(value) or value <= 0:
+        return 50.0
+    reference = _metric_reference(
+        baseline, _day(current.date), "sd_ratio", baseline_days
+    )
+    return baseline_relative_score(value, reference, min_sd=MIN_SD_RATIO)
 
 
 def ln_rmssd_trend_score(

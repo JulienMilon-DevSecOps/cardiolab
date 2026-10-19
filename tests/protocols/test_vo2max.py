@@ -7,7 +7,17 @@ import math
 import numpy as np
 import pytest
 
-from cardiolab.protocols.vo2max import VO2maxResult, _fitness_category, vo2max_from_hrv
+from cardiolab.analytics.scoring import session_score, vo2max_score
+from cardiolab.protocols.vo2max import (
+    FRIEND_PERCENTILES,
+    VO2maxResult,
+    _fitness_category,
+    age_at,
+    tanaka_hr_max,
+    vo2max_category,
+    vo2max_from_hrv,
+    vo2max_percentile,
+)
 from cardiolab.signals.quality import quality_columns
 from cardiolab.signals.rr import RRSeries
 
@@ -52,6 +62,7 @@ class TestVO2maxResult:
             "vo2max_ln_rmssd",
             "hr_rest",
             "hr_max",
+            "hr_max_source",
             "rmssd_used",
             "ln_rmssd_used",
             "fitness_category",
@@ -247,3 +258,86 @@ class TestVO2maxFromHRV:
         d = result.to_dict()
         assert d["fitness_category"] == result.fitness_category
         assert d["hr_max"] == result.hr_max
+
+
+# ======================
+# AGE AND SEX (0.5.0)
+# ======================
+
+
+@pytest.mark.unit
+class TestAgeSexNorms:
+    """FRIEND norms by age and sex, Tanaka HRmax."""
+
+    def test_tanaka(self):
+        """208 − 0.7 × age."""
+        assert tanaka_hr_max(40) == pytest.approx(180.0)
+
+    def test_age_at(self):
+        """Age in the year of the measurement; None when unknown."""
+        assert age_at(1990, "2026-10-19") == 36
+        assert age_at(None, "2026-10-19") is None
+
+    @pytest.mark.parametrize("sex", ["male", "female"])
+    @pytest.mark.parametrize("decade", [20, 30, 40, 50, 60, 70])
+    def test_percentile_reproduces_table(self, sex, decade):
+        """Exact at the five table percentiles, monotonic in the tails."""
+        p10, p25, p50, p75, p90 = FRIEND_PERCENTILES[sex][decade]
+        age = decade + 5
+        assert vo2max_percentile(p50, age, sex) == pytest.approx(50.0)
+        assert vo2max_percentile(p10, age, sex) == pytest.approx(10.0, abs=1e-3)
+        assert vo2max_percentile(p90, age, sex) == pytest.approx(90.0, abs=1e-3)
+        assert vo2max_percentile(p25, age, sex) == pytest.approx(25.0)
+        assert vo2max_percentile(p75, age, sex) == pytest.approx(75.0)
+        assert 0 < vo2max_percentile(p10 - 3, age, sex) < 10
+        assert 90 < vo2max_percentile(p90 + 3, age, sex) < 100
+
+    def test_category_by_age_and_sex(self):
+        """42 mL/kg/min: fair for a man of 25, excellent for a woman of 55."""
+        assert vo2max_category(42.0, 25, "male") == "good"
+        assert vo2max_category(35.0, 25, "male") == "fair"
+        assert vo2max_category(42.0, 55, "female") == "excellent"
+        assert vo2max_category(42.0) == "good"  # fixed scale
+
+    def test_ages_outside_table_clamped(self):
+        """Under 20 → 20–29 norms, 80 and over → 70–79."""
+        assert vo2max_percentile(48.0, 16, "male") == pytest.approx(50.0)
+        assert vo2max_percentile(24.4, 85, "male") == pytest.approx(50.0)
+
+    def test_unknown_sex_uses_fixed_scale(self):
+        """No percentile without a known sex."""
+        assert vo2max_percentile(40.0, 30, None) is None
+        assert vo2max_score(40.0, 30, None) == pytest.approx(vo2max_score(40.0))
+
+    def test_score_is_percentile(self):
+        """With age and sex, the score is the percentile."""
+        assert vo2max_score(37.8, 45, "male") == pytest.approx(50.0)
+
+    def test_from_hrv_tanaka(self):
+        """Without hr_max, the age gives a Tanaka HRmax and a Uth estimate."""
+        result = vo2max_from_hrv(_make_rr(), age=40, sex="male")
+        assert result.hr_max_source == "tanaka"
+        assert result.hr_max == pytest.approx(180.0)
+        assert result.vo2max_uth == pytest.approx(15.3 * 180.0 / result.hr_rest)
+        assert result.best_estimate == result.vo2max_uth
+
+    def test_from_hrv_provided_hr_max_wins(self):
+        """A provided hr_max is used even when the age is known."""
+        result = vo2max_from_hrv(_make_rr(), hr_max=190.0, age=40)
+        assert result.hr_max_source == "provided"
+        assert result.hr_max == 190.0
+
+    def test_from_hrv_nothing(self):
+        """Neither hr_max nor age: no Uth, indicative ln-RMSSD estimate."""
+        result = vo2max_from_hrv(_make_rr())
+        assert result.hr_max_source is None
+        assert result.best_estimate == result.vo2max_ln_rmssd
+
+    def test_session_score_uses_norms(self):
+        """session_score('vo2max') scores against the result's age and sex."""
+        result = vo2max_from_hrv(_make_rr(), age=40, sex="female")
+        assert session_score("vo2max", result) == pytest.approx(result.percentile)
+
+    def test_fixed_scale_alias(self):
+        """_fitness_category stays the fixed adult scale."""
+        assert _fitness_category(42.0) == vo2max_category(42.0)

@@ -6,11 +6,17 @@ post-exercise (HRR1) is a marker of parasympathetic reactivation and is
 strongly associated with cardiovascular mortality risk.
 
 The protocol requires a continuous RR series recorded from peak effort through
-at least 2 minutes of passive recovery. Heart rate is sampled at exactly 1 min
-and 2 min post-peak:
+at least 2 minutes of passive recovery:
 
     HRR1 = HR_peak − HR_at_60s
     HRR2 = HR_peak − HR_at_120s
+
+HR values are **medians over 5 s**, never read on a single beat: HR_peak is the
+highest 5-s median of the first 15 s, HR_at_60s / HR_at_120s the median HR
+between 57.5–62.5 s / 117.5–122.5 s — one artefact or ectopic beat in a window
+does not move it. Changed in 0.5.0: HR_peak was the HR of the very
+first beat and HR_at_60s a single interpolated point — one artefact or ectopic
+beat (the series is analysed as recorded) shifted HRR1 by 10 bpm or more.
 
 Categories (HRR1, Cole et al. 1999):
 
@@ -45,6 +51,31 @@ import numpy as np
 
 from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
 
+SMOOTH_SEC = 5.0
+"""Window of the HR values (s) — median of the beats it contains."""
+
+PEAK_SEARCH_SEC = 15.0
+"""The peak HR is searched in the first seconds of the recording."""
+
+
+def _mean_hr(time_s: np.ndarray, hr: np.ndarray, centre: float) -> float:
+    """Median HR of the beats within ``centre ± SMOOTH_SEC / 2`` (nearest beat if none)."""
+    half = SMOOTH_SEC / 2.0
+    mask = (time_s >= centre - half) & (time_s <= centre + half)
+    if not np.any(mask):
+        return float(hr[int(np.argmin(np.abs(time_s - centre)))])
+    return float(np.median(hr[mask]))
+
+
+def _peak_hr(time_s: np.ndarray, hr: np.ndarray) -> float:
+    """Highest 5-s median HR whose window starts within the first ``PEAK_SEARCH_SEC``."""
+    starts = time_s[time_s <= PEAK_SEARCH_SEC - SMOOTH_SEC]
+    if starts.size == 0:
+        starts = time_s[:1]
+    return max(
+        float(np.median(hr[(time_s >= s) & (time_s < s + SMOOTH_SEC)])) for s in starts
+    )
+
 
 def _categorise_hrr1(hrr1: float) -> str:
     if hrr1 >= 25:
@@ -72,9 +103,10 @@ class HRRResult:
 
     Attributes:
         date: ISO date string of the session.
-        hr_peak: Peak heart rate at the end of exercise (bpm).
-        hr_at_60s: Heart rate at exactly 60 s post-peak (bpm).
-        hr_at_120s: Heart rate at exactly 120 s post-peak (bpm).
+        hr_peak: Peak heart rate at the end of exercise — highest 5-s median
+            of the first 15 s (bpm).
+        hr_at_60s: Median heart rate between 57.5 and 62.5 s (bpm).
+        hr_at_120s: Median heart rate between 117.5 and 122.5 s (bpm).
             Set to ``nan`` if the recording is shorter than 120 s.
         hrr_60: HR drop at 60 s: ``hr_peak − hr_at_60s`` (bpm).
         hrr_120: HR drop at 120 s: ``hr_peak − hr_at_120s`` (bpm).
@@ -116,14 +148,14 @@ class HRRResult:
 
 def heart_rate_recovery(
     rr: RRSeries,
-    fs: float = 4.0,
+    fs: float | None = None,
 ) -> HRRResult:
     """Compute Heart Rate Recovery metrics from a post-exercise RR series.
 
-    The function assumes the **first beat of the series is the peak-effort
-    beat** (i.e. the RR series must start at or immediately after exercise
-    termination). HR is estimated from a 10-beat rolling average resampled at
-    ``fs`` Hz, then sampled at t = 60 s and t = 120 s.
+    The RR series must start at or immediately after exercise termination
+    (t = 0). HR values are medians over 5 s: the peak is the highest 5-s
+    median of the first 15 s, HR at 60 s / 120 s the median around t = 60 s
+    / 120 s.
 
     HRR1 interpretation:
 
@@ -137,8 +169,7 @@ def heart_rate_recovery(
     Args:
         rr: Post-exercise RR interval series. The series must start at peak
             effort and contain at least 30 intervals (≈ 60 s recovery).
-        fs: Resampling frequency for the interpolated HR curve (Hz).
-            Defaults to 4.0 Hz.
+        fs: Ignored — kept for compatibility (HR is no longer resampled).
 
     Returns:
         ``HRRResult`` with HRR1, HRR2 (when available), HR values, and
@@ -168,30 +199,18 @@ def heart_rate_recovery(
             stacklevel=2,
         )
 
-    # Instantaneous HR from each RR interval (bpm)
+    # Instantaneous HR of each beat (bpm), summarised by 5-s medians below
     hr_inst = 60_000.0 / rr_ms
 
-    # Resample to uniform grid
-    interp_time = np.arange(0, time_s[-1], 1.0 / fs)
-    hr_interp = np.interp(interp_time, time_s, hr_inst)
+    hr_peak = _peak_hr(time_s, hr_inst)
 
-    # Peak HR = HR of the very first beat (start of recovery)
-    hr_peak = float(hr_inst[0])
-
-    # HR at 60 s
-    idx_60 = int(60.0 * fs)
-    if idx_60 < len(hr_interp):
-        hr_at_60 = float(hr_interp[idx_60])
-    else:
-        # Recording shorter than 60 s — use last available point
-        hr_at_60 = float(hr_interp[-1])
-
+    # HR at 60 s — the last 5 s when the recording is shorter
+    hr_at_60 = _mean_hr(time_s, hr_inst, min(60.0, duration - SMOOTH_SEC / 2.0))
     hrr_60 = hr_peak - hr_at_60
 
     # HR at 120 s (optional)
-    idx_120 = int(120.0 * fs)
-    if idx_120 < len(hr_interp):
-        hr_at_120 = float(hr_interp[idx_120])
+    if duration >= 120.0:
+        hr_at_120 = _mean_hr(time_s, hr_inst, 120.0)
         hrr_120 = hr_peak - hr_at_120
         hrr_120_cat = _categorise_hrr2(hrr_120)
     else:

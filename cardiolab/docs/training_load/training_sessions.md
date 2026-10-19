@@ -41,15 +41,18 @@ overwrites the previous values.
 
 ```sql
 CREATE TABLE hrv_training_sessions (
+    activity_id  TEXT PRIMARY KEY,   -- UUID, one row per activity
     user_id      TEXT    NOT NULL,
     date         DATE    NOT NULL,
     duration_min FLOAT,
-    sport_type   TEXT,
+    sport_type   TEXT,               -- reference code (see sports.md)
     trimp        FLOAT,
     notes        TEXT,
-    UNIQUE (user_id, date)
+    rpe          SMALLINT CHECK (rpe IS NULL OR rpe BETWEEN 0 AND 10)  -- v0.5.0
 );
 ```
+
+Several activities on the same day are separate rows.
 
 The table name defaults to `hrv_training_sessions` and is configurable via the
 `training_sessions_table_name` parameter of `HRVRepository`.
@@ -80,11 +83,13 @@ with HRVRepository.from_env() as repo:
         sport_type="running",
         trimp=41.6,        # pass None if readiness not yet available
         notes="Easy endurance run, legs felt heavy",
+        rpe=4,             # perceived effort 0–10 (optional, v0.5.0)
     )
 ```
 
-Calling `save_training_session` again with the same `(user_id, date)` updates
-all fields — no duplicate rows.
+Each call inserts a **new activity** and returns its `activity_id`: two calls
+create two rows. An `rpe` outside 0–10 raises `ValueError` before anything is
+written.
 
 ### Load all sessions
 
@@ -96,7 +101,7 @@ with HRVRepository.from_env() as repo:
 ```
 
 Returns a `list[dict]` sorted ascending by date. Each dict contains:
-`date`, `duration_min`, `sport_type`, `trimp`, `notes`.
+`activity_id`, `date`, `duration_min`, `sport_type`, `trimp`, `notes`, `rpe`.
 
 Missing `trimp` values are returned as `None` and must be handled before
 computing ATL/CTL/TSB (fill with `0` for rest-day equivalence, or recompute

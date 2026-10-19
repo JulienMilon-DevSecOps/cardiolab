@@ -133,14 +133,19 @@ def dfa_alpha1(rr, n_min: int = 4, n_max: int = 16) -> float:
               residuals: ``F(n)``.
         3. Estimate α1 as the slope of ``log F(n)`` vs ``log n``.
 
-    Clinical interpretation:
+    Interpretation at rest (see ``docs/features/nonlinear.md``):
 
-    | α1          | Interpretation                                    |
-    | ----------- | ------------------------------------------------- |
-    | ≈ 0.5       | uncorrelated (white noise) — pathological         |
-    | 0.75 – 1.25 | normal fractal long-range correlations            |
-    | ≈ 1.5       | Brownian noise — strongly correlated (exercise)   |
-    | < 0.75      | possible overtraining or cardiac pathology        |
+    | α1          | Interpretation                                               |
+    | ----------- | ------------------------------------------------------------ |
+    | < 0.5       | very low — irregular rhythm or artefacts: check quality      |
+    | 0.5 – 0.75  | low — strong vagal (respiratory) modulation                  |
+    | 0.75 – 1.25 | usual resting range                                          |
+    | 1.25 – 1.5  | elevated — sympathetic predominance (standing, stress)       |
+    | > 1.5       | very high — vigorous exercise or non-stationary recording    |
+
+    Vagal activity lowers α1, sympathetic activity raises it (Castiglioni et
+    al. 2011). No resting threshold is validated as an overtraining marker:
+    the 0.75 value comes from exercise studies (aerobic threshold).
 
     Minimum requirement: the series must have at least ``2 × n_max`` intervals
     for DFA to be meaningful. Below this threshold, the function returns

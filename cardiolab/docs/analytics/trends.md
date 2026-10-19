@@ -33,9 +33,15 @@ result.r2           # 0.29
 - **Slope** — least-squares line (`scipy.stats.linregress`), in units of the
   series **per calendar day** (missing days are respected), or per session for a
   series without dates.
-- **p-value** — two-sided test of a zero slope. On pure noise, about 5 % of
-  series reach p < 0.05 by chance (tested); the magnitude threshold filters most
-  of those.
+- **p-value** — two-sided test of a zero slope, **corrected for
+  autocorrelation**. Successive HRV values are not independent (a low day is
+  often followed by another): the ordinary p-value would be too small. cardiolab
+  uses the effective sample size `n_eff = n × (1 − r1) / (1 + r1)`, `r1` = lag-1
+  autocorrelation of the residuals (Santer et al. 2000), in the t-test of the
+  slope (`result.n_eff`). On strongly autocorrelated noise (r = 0.7, 30 values),
+  false trends drop from ≈ 39 % to ≈ 13 % (tested); on independent noise, about
+  5 % of series reach p < 0.05 by chance. The magnitude threshold filters most
+  of the rest. Added in v0.5.0.
 - **Relative threshold** — `change_pct = slope × window span / mean × 100`. A
   fixed ms threshold means a lot for an RMSSD of 25 ms and little for 120 ms; a
   percentage compares athletes fairly.
@@ -102,3 +108,12 @@ threshold without significance, so noise alone often produced a "trend".
 
 No predictive model (ARIMA, hidden Markov…) is provided: the biological
 variability of HRV makes short-term forecasts unreliable.
+
+---
+
+## Reference
+
+Santer, B. D., Wigley, T. M. L., Boyle, J. S., Gaffen, D. J., Hnilo, J. J.,
+Nychka, D., Parker, D. E., & Taylor, K. E. (2000). Statistical significance of
+trends and trend differences in layer-average atmospheric temperature time
+series. *Journal of Geophysical Research*, 105(D6), 7337–7356.

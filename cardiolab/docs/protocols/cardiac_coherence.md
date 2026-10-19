@@ -8,7 +8,8 @@ breathing at **6 cycles/min** (5 s inhale / 5 s exhale), which generates a maxim
 oscillation of RR intervals at **0.1 Hz** — the baroreflex resonance frequency.
 
 At 0.1 Hz, the vagal baroreflex amplifies respiratory oscillations of blood pressure
-and HR, producing the largest possible spectral power in the HF band. This mechanism,
+and HR, producing a large, narrow spectral peak around 0.1 Hz — in the **LF band**
+(0.04–0.15 Hz), not in the HF band where spontaneous breathing usually sits. This mechanism,
 called **cardiovascular resonance**, is associated with maximal activation of the vagus
 nerve (parasympathetic activity).
 
@@ -46,8 +47,9 @@ print(f"Resonance frequency: {result.resonance_freq:.3f} Hz")
 
 | Metric | Description | Unit |
 |---|---|---|
-| `coherence_score` | % of power concentrated at the resonance peak | % (0–100) |
-| `resonance_freq` | Dominant peak frequency in the 0.04–0.26 Hz band | Hz |
+| `coherence_score` | % of the whole spectrum (0.0033–0.4 Hz) in the resonance peak | % (0–100) |
+| `coherence_ratio` (property, not stored) | HeartMath ratio peak / (total − peak) | ≥ 0 |
+| `resonance_freq` | Highest peak (local maximum) in the 0.04–0.26 Hz band | Hz |
 | `peak_power` | Spectral density at the resonance peak | ms²/Hz |
 | `total_power_resonance` | Total power in the resonance band | ms² |
 | `rmssd` | RMSSD during the session | ms |
@@ -57,21 +59,30 @@ print(f"Resonance frequency: {result.resonance_freq:.3f} Hz")
 
 ### Coherence score
 
-The score is computed as:
+McCraty & Shaffer (2015): find the highest peak in the 0.04–0.26 Hz range,
+integrate a **0.030 Hz** window centred on it, and compare it with the power of the
+**whole spectrum**:
 
 ```
-coherence_score = (peak_window_power / total_resonance_power) × 100
+coherence_ratio = peak_power / (total_power − peak_power)       (HeartMath)
+coherence_score = peak_power / total_power × 100 = CR / (1 + CR) × 100
 ```
 
-where the peak window is centred on the dominant frequency with a half-width of
-±0.015 Hz.
+`total_power` covers 0.0033–0.4 Hz (VLF + LF + HF). A score of 50 % means CR = 1:
+the resonance peak holds as much power as the rest of the spectrum.
+
+> Changed in v0.5.0: the denominator was the 0.04–0.26 Hz band only, and the
+> "peak" could be the lower edge of that band — power decreasing from the VLF band
+> above 0.04 Hz, not a real peak. Spontaneous breathing at rest therefore scored
+> ≈ 50–60 %, close to "good". The peak is now a **local maximum** and the
+> denominator the whole spectrum: on real resting recordings (spontaneous
+> breathing), scores fall to ≈ 5–30 %, while regular 6/min breathing scores
+> 60–90 %. **Scores of earlier versions are not comparable** — reprocess.
 
 > Changed in v0.4.0: the AR spectrum is evaluated on a ≈ 0.001 Hz grid (it was
 > 0.016 Hz, which left only one or two bins in the ±0.015 Hz window and
 > underestimated the peak power) and the RR series is interpolated with a cubic
-> spline. **Scores are higher than before v0.4.0** — a regular 0.1 Hz breathing
-> pattern scored ≈ 47 % and now scores ≈ 88 %; spontaneous breathing at rest now
-> gives ≈ 50–60 %. Scores computed with earlier versions are not comparable.
+> spline.
 
 ## Interpreting results
 
@@ -79,9 +90,15 @@ where the peak window is centred on the dominant frequency with a half-width of
 
 | Score (%) | Interpretation | Recommendation |
 |---|---|---|
-| ≥ 60 | **Good coherence** — strong vagal resonance | Maintain the practice |
-| 40 – 60 | **Moderate coherence** — partial resonance | Improve breathing regularity |
-| < 40 | **Low coherence** — little vagal resonance | Check the guide and breathing rate |
+| ≥ 50 (CR ≥ 1) | **Good coherence** — the resonance peak dominates the spectrum | Maintain the practice |
+| 30 – 50 | **Moderate coherence** — partial resonance | Improve breathing regularity |
+| < 30 | **Low coherence** — level of spontaneous breathing | Check the guide and breathing rate |
+
+These thresholds are cardiolab's: **no validated cut-off exists** for the coherence
+ratio (McCraty & Shaffer 2015 give none). 50 % is the point where the peak equals
+the rest of the spectrum; 30 % sits above what spontaneous breathing at rest
+produces. The 0–100 score (`coherence_score_100()`) is a sigmoid centred at 40 %:
+≥ 50 % → ≥ 84, < 30 % → < 16.
 
 ### Resonance frequency
 
@@ -96,9 +113,9 @@ the breathing guide. A shifted peak suggests a breathing rate different from 6 c
 
 ### RMSSD and SDNN
 
-A high coherence score is generally accompanied by high RMSSD values (vagal
-activation). RMSSD > 50 ms combined with a score ≥ 60 % indicates excellent
-parasympathetic modulation.
+A high coherence score is generally accompanied by high RMSSD values: slow
+breathing enlarges the beat-to-beat oscillation. RMSSD during paced breathing is
+not comparable with resting RMSSD.
 
 ## Spectral method
 

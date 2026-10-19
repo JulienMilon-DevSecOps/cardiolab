@@ -382,7 +382,7 @@ table_coherence_history(
 | Colonne | Description | Gradient |
 |---------|-------------|---------|
 | `date` | Date de session | — |
-| `coherence_score` | Score de cohérence (%, 0–100) | 🟢 vert entre 40–60 |
+| `coherence_score` | Part du spectre entier dans le pic de résonance (%, 0–100) | 🟢 vert entre 30–50 |
 | `category` | Catégorie dérivée (low/moderate/high) | Colorée |
 | `resonance_freq` | Fréquence dominante (Hz) | — |
 | `peak_power` | Puissance au pic spectral (ms²/Hz) | — |
@@ -392,13 +392,13 @@ table_coherence_history(
 | `mean_hr` | FC moyenne (bpm) | 🔴 rouge = élevé |
 | `duration` | Durée (s) | — |
 
-**Catégories (McCraty / HeartMath)**
+**Catégories** (seuils cardiolab v0.5.0 — score de McCraty & Shaffer 2015)
 
 | Score (%) | Catégorie | Couleur |
 |-----------|-----------|---------|
-| ≥ 60 | `high` | 🟢 Vert |
-| 40 – 60 | `moderate` | 🟡 Jaune clair |
-| < 40 | `low` | 🔴 Rouge |
+| ≥ 50 | `high` | 🟢 Vert |
+| 30 – 50 | `moderate` | 🟡 Jaune clair |
+| < 30 | `low` | 🔴 Rouge |
 
 > La catégorie n'est pas stockée dans `CoherenceResult` — elle est calculée à la volée à partir du score.
 
@@ -435,10 +435,10 @@ table_vo2max_history(
 | `vo2max_uth` | Modèle Uth et al. 2004 (n/a sans HR_max) | 🟢 vert (20–65) |
 | `vo2max_ln_rmssd` | Estimation indicative ln-RMSSD (mL/kg/min) | 🟢 vert (20–65) |
 | `hr_rest` | FC repos (bpm) | — |
-| `hr_max` | FC max fournie (bpm, n/a si absente) | — |
+| `hr_max` | FC max utilisée (fournie ou Tanaka, n/a si aucune) | — |
 | `rmssd_used` | RMSSD utilisé (ms) | — |
 | `ln_rmssd_used` | ln(RMSSD) utilisé | — |
-| `fitness_category` | Catégorie ACSM | Colorée |
+| `fitness_category` | Catégorie — normes FRIEND selon l'âge et le sexe quand ils sont connus | Colorée |
 
 > Le gradient sur `vo2max_uth` n'est appliqué que si au moins une session fournit une valeur non-NaN.
 
@@ -472,9 +472,11 @@ table_vo2max_session(
 | VO2max ln-RMSSD (mL/kg/min) | Model |
 | HR repos (bpm) | Inputs |
 | HR max (bpm) | Inputs |
+| Source HR max (fournie / Tanaka) | Inputs |
 | RMSSD utilisé (ms) | Inputs |
 | ln(RMSSD) utilisé | Inputs |
 | Catégorie fitness | Result |
+| Percentile (même sexe et âge) | Result |
 
 La cellule **Catégorie fitness** est colorée selon la zone ACSM (pauvre → excellent).
 

@@ -24,8 +24,8 @@ from cardiolab.reporting._core import (
 )
 
 # Coherence thresholds (McCraty / HeartMath standard)
-_COH_HIGH = 60.0
-_COH_MODERATE = 40.0
+_COH_HIGH = 50.0
+_COH_MODERATE = 30.0
 
 
 def _coherence_category(score: float) -> str:
@@ -41,12 +41,12 @@ def table_coherence_history(
     results: list[CoherenceResult],
     dates: list[str] | None = None,
     labels: dict[str, str] | None = None,
-    caption_text: str = "Cardiac coherence history — green ≥ 60 % · red < 40 %",
+    caption_text: str = "Cardiac coherence history — green ≥ 50 % · red < 30 %",
 ) -> pd.Styler:
     """Build a multi-session cardiac coherence history table.
 
     One row per session.  The coherence score gradient runs from red (poor
-    resonance, < 40 %) to green (good coherence, ≥ 60 %).  A derived
+    resonance, < 30 %) to green (good coherence, ≥ 50 %).  A derived
     ``category`` column (``low`` / ``moderate`` / ``high``) is appended and
     colour-highlighted since :class:`~cardiolab.protocols.cardiac_coherence.CoherenceResult`
     does not expose a category field directly.

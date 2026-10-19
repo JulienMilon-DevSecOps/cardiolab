@@ -51,20 +51,20 @@ def two_results() -> list[CoherenceResult]:
 
 
 def test_coherence_category_high() -> None:
-    """Score ≥ 60 → 'high'."""
-    assert _coherence_category(60.0) == "high"
+    """Score ≥ 50 → 'high' (coherence ratio ≥ 1, thresholds 0.5.0)."""
+    assert _coherence_category(50.0) == "high"
     assert _coherence_category(80.0) == "high"
 
 
 def test_coherence_category_moderate() -> None:
-    """Score in [40, 60) → 'moderate'."""
-    assert _coherence_category(40.0) == "moderate"
-    assert _coherence_category(55.0) == "moderate"
+    """Score in [30, 50) → 'moderate' (thresholds 0.5.0)."""
+    assert _coherence_category(30.0) == "moderate"
+    assert _coherence_category(45.0) == "moderate"
 
 
 def test_coherence_category_low() -> None:
-    """Score < 40 → 'low'."""
-    assert _coherence_category(39.9) == "low"
+    """Score < 30 → 'low'."""
+    assert _coherence_category(29.9) == "low"
     assert _coherence_category(0.0) == "low"
 
 
@@ -144,8 +144,8 @@ class TestTableCoherenceHistory:
         assert styler.data["category"].iloc[0] == "low"
 
     def test_moderate_score_category(self) -> None:
-        """Score in [40, 60) produces 'moderate' category."""
-        r = _make_result(coherence_score=50.0)
+        """Score in [30, 50) produces 'moderate' category."""
+        r = _make_result(coherence_score=40.0)
         styler = table_coherence_history([r])
         assert styler.data["category"].iloc[0] == "moderate"
 

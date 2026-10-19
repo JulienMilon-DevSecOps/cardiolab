@@ -153,6 +153,26 @@ sessions. Orthostatic phases are graded separately. Stored in a `quality` JSONB
 column (migration V005). Details:
 [`docs/features/signal_quality.md`](cardiolab/docs/features/signal_quality.md).
 
+### Upgrading to 0.5.0 — profile, then reprocess
+
+0.5.0 changes computed values again (score de forme against your own history, coherence,
+VO2max by age and sex, HRR, cardiac drift, training loads). Apply the migrations (V006),
+fill in the user profile, then reprocess:
+
+```python
+from cardiolab.database import HRVRepository, reprocess_sessions
+
+with HRVRepository.from_env() as repo:
+    repo.run_migrations()                                        # V006
+    repo.update_user_profile(user_id, birth_year=1990, sex="male", load_method="rpe")
+    print(reprocess_sessions(repo, user_id).summary())           # dry run
+with HRVRepository.from_env() as repo:
+    reprocess_sessions(repo, user_id, dry_run=False)             # write
+```
+
+Use `save_user_profile(user_id, …)` when the profile does not exist yet. Details: CHANGELOG
+« Migration note — from 0.4.x ».
+
 ### Upgrading to 0.4.0 — reprocess the history
 
 0.4.0 changes computed values (artefact correction, Lomb-Scargle default,
@@ -259,19 +279,22 @@ result = orthostatic_hrv(rr)
 ### Cardiac coherence 5-5
 
 Paced-breathing session at 6 cycles/min (5 s inspiration / 5 s expiration).
-At 0.1 Hz the baroreflex resonates, producing maximal HRV power in the cardiac
-resonance band. The **coherence score** quantifies how well power concentrates
-at the dominant spectral peak (AR PSD method):
+At 0.1 Hz the baroreflex resonates, producing a large, narrow peak in the LF band.
+The **coherence score** is the share of the whole spectrum held by that peak
+(McCraty & Shaffer 2015 — the HeartMath coherence ratio as a percentage, AR PSD):
 
 ```
-coherence_score = peak_window_power / total_resonance_power × 100
+coherence_score = peak_power (0.030 Hz window) / total_power (0.0033–0.4 Hz) × 100
 ```
 
 | Score (%) | Interpretation |
 |-----------|---------------|
-| ≥ 60 | Good cardiac coherence |
-| 40 – 60 | Moderate |
-| < 40 | Low — improve breathing cadence |
+| ≥ 50 (ratio ≥ 1) | Good cardiac coherence |
+| 30 – 50 | Moderate |
+| < 30 | Low — spontaneous-breathing level |
+
+Thresholds are cardiolab's (no validated cut-off exists). Changed in 0.5.0: the score
+used the resonance band only, and rest already scored ≈ 50–60 % — reprocess.
 
 ```python
 from cardiolab.protocols import cardiac_coherence
@@ -329,27 +352,23 @@ Estimates maximal oxygen uptake from a resting recording:
 
 | Model | Formula | Precision |
 |-------|---------|-----------|
-| **Uth et al. (2004)** — reference, needs HRmax | `15.3 × (HRmax / HRrest)` | ±10–15 % |
-| **ln-RMSSD** — indicative, used without HRmax | `24.89 + 5.97 × ln(RMSSD)` | not established (no verified source) |
+| **Uth et al. (2004)** — reference | `15.3 × (HRmax / HRrest)` — HRmax provided, otherwise `208 − 0.7 × age` (Tanaka 2001) | ±10–15 % |
+| **ln-RMSSD** — indicative, without HRmax nor age | `24.89 + 5.97 × ln(RMSSD)` | not established (no verified source) |
 
 The "Esco & Flatt (2014)" RMSSD model was removed in 0.4.0: it gave ≈ 21 mL/kg/min
 whatever the RMSSD and classed every user without HRmax as "poor" / "fair"
 (`vo2max_esco_flatt` is now always `nan`).
 
-Fitness categories (ACSM 2022):
-
-| VO2max (mL/kg/min) | Category |
-|--------------------|---------|
-| ≥ 58 | Excellent |
-| 48 – 57 | Very good |
-| 38 – 47 | Good |
-| 28 – 37 | Fair |
-| < 28 | Poor |
+Fitness categories **by age and sex** (v0.5.0): percentile among people of the same
+sex and decade — FRIEND registry norms (Kaminsky et al. 2015, adopted by ACSM 2022):
+< 10th poor · 10–25th fair · 25–75th good · 75–90th very good · ≥ 90th excellent. The
+score is the percentile. Without age and sex, the fixed adult scale (< 28 poor … ≥ 58
+excellent mL/kg/min).
 
 ```python
 from cardiolab.protocols import vo2max_from_hrv
-result = vo2max_from_hrv(rr_resting, hr_max=185.0)
-# result.vo2max_uth, result.vo2max_ln_rmssd, result.fitness_category
+result = vo2max_from_hrv(rr_resting, age=36, sex="male")     # HRmax from Tanaka
+# result.vo2max_uth, result.hr_max_source, result.percentile, result.fitness_category
 ```
 
 See [`docs/protocols/vo2max.md`](cardiolab/docs/protocols/vo2max.md) for full protocol instructions.
@@ -1136,20 +1155,31 @@ The readiness score used to compute the TRIMP is drawn from a **single primary p
 * If `"orthostatic"` is selected, the **supine-phase HRV** (not the orthostatic ΔHR score) feeds the readiness baseline, giving equivalent or better signal quality compared to a standalone resting session.
 * If the user switches protocol, the new series starts fresh; the two series are never crossed in baseline or TRIMP computation.
 
-The TRIMP formula:
+Three load methods (use one consistently per athlete — their scales differ):
 ```
-TRIMP = duration_min × (1 − readiness / 100)
+HRV-based     TRIMP = duration_min × (1 − readiness / 100)       (cardiolab heuristic)
+Banister      TRIMP = duration_min × HRR × e^(b × HRR)            (effort heart rate)
+Session RPE   load  = duration_min × RPE (0–10, Foster 2001)      (all sports, since 0.5.0)
 ```
+Comparison: [`docs/training_load/atl_ctl_tsb.md`](cardiolab/docs/training_load/atl_ctl_tsb.md#which-method).
+With the orthostatic test as primary protocol, the score de forme of the supine phase is
+stored with the session (`readiness_score`, since 0.5.0).
 
-| TSB zone | Interpretation |
-|----------|---------------|
-| > +25 | Fresh / detraining — load too low if it lasts |
-| +5 to +25 | Optimal — rested, ready for a competition or a test |
-| −10 to +5 | Neutral — load and recovery balanced |
-| −30 to −10 | Accumulated fatigue — training block |
-| < −30 | Overload |
+Zones are read on the **relative form** — TSB in % of CTL, i.e. 1 − ATL / CTL — so
+that they mean the same thing for every load method (changed in 0.5.0; they used
+absolute TSB, which only suited one scale):
 
-Zones as implemented in `reporting/training_load_report.py` and `visualization/training_load_plots.py`.
+| Form (% of CTL) | ATL / CTL | Zone |
+|-----------------|-----------|------|
+| > +20 % | < 0.8 | Fresh / detraining — load too low if it lasts |
+| +5 to +20 % | 0.8 – 0.95 | Optimal — rested, ready for a competition or a test |
+| −30 to +5 % | 0.95 – 1.3 | Neutral — load in line with the usual level |
+| −50 to −30 % | 1.3 – 1.5 | Accumulated fatigue — load rising fast |
+| < −50 % | ≥ 1.5 | Overload — load spike |
+
+Bounds after the acute:chronic workload ratio (Gabbett 2016; debated — Impellizzeri
+et al. 2020). No zone during the first 42 days. Compute on the whole history and crop
+with `TrainingLoad.between()`.
 
 #### Phase 1 — Database ✅
 * [x] New table `training_sessions`: `activity_id TEXT PK | user_id | date | duration_min | sport_type | trimp | notes` — one row per activity, multiple activities per day allowed
@@ -1185,13 +1215,13 @@ Zones as implemented in `reporting/training_load_report.py` and `visualization/t
 
 #### Phase 6 — Local scripts ✅
 * [x] `local/main_training_load.py` — log session → TRIMP → save → ATL/CTL/TSB plots
-  * TRIMP methods: `hrv` (day's readiness), `banister` (HR sensor), `manual` (readiness typed in)
+  * TRIMP methods: `hrv` (day's readiness), `banister` (HR sensor), `manual` (readiness typed in), `rpe` (perceived effort, since 0.5.0)
   * Options: `--protocol resting|orthostatic`, `--date`, `--sport`, `--dry-run`, `--save-plot`
   * Interactive `--delete` mode: lookup by (user, date, optional sport); numbered menu when multiple activities
 * [x] `local/main_training_load_report.py` — HTML ATL/CTL/TSB report over a period
   * Period filter: `--from / --to` or `--last N` days; KPI summary + table + 3 base64-embedded plots; `--open`
 
-**References:** Banister EW et al. (1991); Morton RH et al. (1990); Manzi V et al. (2009)
+**References:** Banister EW et al. (1991); Morton RH et al. (1990); Foster C et al. (2001)
 
 #### Additional local scripts (added during v0.2.0 development) ✅
 * [x] `local/main_report_files.py` — generate an HTML report from `.txt` files, **no database required**
@@ -1228,8 +1258,8 @@ The forward-looking roadmap, ordered by priority (P0 → P3), lives in **[ROADMA
 | v0.3.2 | P1 | Readiness consistency fix, hygiene, entropy speed-up, sample datasets — released |
 | v0.3.3 | P1 | Generic `HRVRepository` — shipped in v0.3.4 |
 | v0.3.4 | P1 | Sports reference list, sport validated on save, sport from `.fit` files — released 2026-10-16 |
-| v0.4.0 | P1 | Signal reliability — artefact correction, spectral fixes, signal quality, reprocessing — ready 2026-10-18 |
-| v0.5.0 | P2 | Athlete longitudinal monitoring — 7-day lnRMSSD, CV, SWC, trends |
+| v0.4.0 | P1 | Signal reliability — artefact correction, spectral fixes, signal quality, reprocessing — released 2026-10-18 |
+| v0.5.0 | P2 | Athlete longitudinal monitoring — 7-day lnRMSSD, CV, SWC, trends, load methods, calculation review — ready 2026-10-19 |
 | v0.6.0 | P2 | Exercise protocols — DFA α1 thresholds, submaximal test |
 | v0.7.0 | P3 | Statistical intelligence — Mahalanobis anomaly |
 | v0.8.0 | P3 | Autonomic function tests (Ewing battery) |

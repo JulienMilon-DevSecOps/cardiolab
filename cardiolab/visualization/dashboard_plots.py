@@ -58,8 +58,8 @@ _LF_COLOR = "#fdebd0"
 _HF_COLOR = "#d5f5e3"
 
 # Coherence score bands
-_COH_LOW: float = 50.0
-_COH_MED: float = 70.0
+_COH_LOW: float = 30.0
+_COH_MED: float = 50.0
 _COH_HIGH: float = 100.0
 
 # Coherence band colours

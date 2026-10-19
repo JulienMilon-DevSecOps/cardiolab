@@ -6,13 +6,21 @@ at least 2–5 minutes. At this respiratory rate the autonomic nervous system
 resonates near 0.1 Hz, producing a large sinusoidal RR oscillation and
 maximal HRV power in the cardiac resonance band.
 
-The coherence score quantifies how much of the resonance-band power (0.04–
-0.26 Hz) concentrates around the dominant spectral peak:
+The coherence score is the share of the **whole HRV spectrum** (0.0033–0.4
+Hz) concentrated in a 0.030 Hz window around the highest peak of the 0.04–0.26
+Hz range (McCraty & Shaffer 2015):
 
-    coherence_score = peak_window_power / total_resonance_power × 100
+    coherence_score = peak_window_power / total_power × 100
 
-Higher scores reflect stronger rhythmic vagal modulation. A score above
-60 % indicates good cardiac coherence.
+It is the HeartMath coherence ratio ``CR = peak / (total − peak)`` expressed
+as a percentage: ``score = CR / (1 + CR) × 100`` (:attr:`CoherenceResult.
+coherence_ratio`). 50 % ⇔ CR = 1: the resonance peak holds as much power as
+the rest of the spectrum.
+
+Changed in 0.5.0: the denominator was the 0.04–0.26 Hz band only, and the
+"peak" could be the lower edge of the band (VLF power leaking above 0.04 Hz)
+— spontaneous breathing at rest scored ≈ 50–60 %, close to "good". It now
+scores ≈ 20–30 %; scores of earlier versions are not comparable.
 
 References:
     Lehrer, P. M., & Gevirtz, R. (2014). Heart rate variability biofeedback:
@@ -27,6 +35,7 @@ References:
 
 from __future__ import annotations
 
+import math
 import warnings
 from dataclasses import dataclass
 
@@ -45,10 +54,11 @@ class CoherenceResult:
 
     Attributes:
         date: ISO date string of the session.
-        coherence_score: Percentage of resonance-band power concentrated at
-            the dominant peak (0–100). Values ≥ 60 indicate good coherence.
-        resonance_freq: Dominant frequency in the cardiac resonance band
-            (0.04–0.26 Hz), in Hz. Expected near 0.1 Hz for 6 breaths/min.
+        coherence_score: Share of the whole spectrum (0.0033–0.4 Hz) in the
+            0.030 Hz window of the resonance peak, in % (0–100). ≥ 50 % (CR ≥
+            1) indicates good coherence.
+        resonance_freq: Highest spectral peak (local maximum) in the 0.04–0.26
+            Hz range, in Hz. Expected near 0.1 Hz for 6 breaths/min.
         peak_power: Spectral power density at the resonance peak (ms²/Hz).
         total_power_resonance: Total power integrated over the resonance
             band 0.04–0.26 Hz (ms²).
@@ -77,6 +87,12 @@ class CoherenceResult:
     score: float = 0.0
     quality: SignalQuality | None = None
 
+    @property
+    def coherence_ratio(self) -> float:
+        """HeartMath coherence ratio ``peak / (total − peak)`` (McCraty & Shaffer 2015)."""
+        share = self.coherence_score / 100.0
+        return share / (1.0 - share) if share < 1.0 else math.inf
+
     def to_dict(self) -> dict:
         """Return a flat dictionary of all result fields."""
         return {
@@ -101,19 +117,22 @@ def cardiac_coherence(
     resonance_low: float = 0.04,
     resonance_high: float = 0.26,
     peak_half_width: float = 0.015,
+    total_low: float = 0.0033,
+    total_high: float = 0.4,
 ) -> CoherenceResult:
     """Assess cardiac coherence from a paced breathing session.
 
     Uses the AR (Yule-Walker) PSD method for spectral estimation — it gives
     better frequency resolution than Welch on short 2–5 min sessions.
 
-    Coherence score interpretation:
+    Coherence score interpretation (cardiolab thresholds, see the module
+    docstring):
 
-    | Score (%) | Interpretation                        |
-    | --------- | ------------------------------------- |
-    | ≥ 60      | Good cardiac coherence                |
-    | 40 – 60   | Moderate — improve breathing cadence  |
-    | < 40      | Low — poor vagal resonance            |
+    | Score (%) | Coherence ratio | Interpretation                        |
+    | --------- | --------------- | ------------------------------------- |
+    | ≥ 50      | ≥ 1             | Good cardiac coherence                |
+    | 30 – 50   | 0.43 – 1        | Moderate — improve breathing cadence  |
+    | < 30      | < 0.43          | Low — spontaneous-breathing level     |
 
     Args:
         rr: RR interval series from a paced breathing session (≥ 30 beats,
@@ -125,7 +144,10 @@ def cardiac_coherence(
         resonance_high: Upper bound of the cardiac resonance band (Hz).
             Defaults to 0.26 Hz.
         peak_half_width: Half-width of the integration window centred on
-            the spectral peak (Hz). Defaults to 0.015 Hz.
+            the spectral peak (Hz). Defaults to 0.015 Hz (0.030 Hz window,
+            McCraty & Shaffer 2015).
+        total_low: Lower bound of the whole spectrum (Hz). Defaults to 0.0033.
+        total_high: Upper bound of the whole spectrum (Hz). Defaults to 0.4.
 
     Returns:
         CoherenceResult with coherence score, resonance frequency, power
@@ -170,32 +192,44 @@ def cardiac_coherence(
         )
 
     mask_band = (freqs >= resonance_low) & (freqs < resonance_high)
+    mask_total = (freqs >= total_low) & (freqs <= total_high)
+    total_power = (
+        float(np.trapezoid(psd[mask_total], freqs[mask_total]))
+        if np.sum(mask_total) >= 2
+        else 0.0
+    )
     if np.any(mask_band):
-        band_f = freqs[mask_band]
-        band_p = psd[mask_band]
-        peak_idx = int(np.argmax(band_p))
-        resonance_freq = float(band_f[peak_idx])
-        peak_power = float(band_p[peak_idx])
-        total_resonance = float(np.trapezoid(band_p, band_f))
+        band_idx = np.flatnonzero(mask_band)
+        # Highest local maximum of the band — not its edge, where VLF power
+        # decreasing above 0.04 Hz would otherwise be taken for a "peak"
+        local = [
+            i
+            for i in band_idx
+            if 0 < i < len(psd) - 1 and psd[i] > psd[i - 1] and psd[i] >= psd[i + 1]
+        ]
+        peak_idx = (
+            max(local, key=lambda i: psd[i])
+            if local
+            else int(band_idx[np.argmax(psd[band_idx])])
+        )
+        resonance_freq = float(freqs[peak_idx])
+        peak_power = float(psd[peak_idx])
+        total_resonance = float(np.trapezoid(psd[band_idx], freqs[band_idx]))
 
         lo = resonance_freq - peak_half_width
         hi = resonance_freq + peak_half_width
         mask_peak = (freqs >= lo) & (freqs <= hi)
         n_peak = int(np.sum(mask_peak))
+        df = float(freqs[1] - freqs[0]) if len(freqs) > 1 else 1.0
         if n_peak >= 2:
             peak_window_power = float(np.trapezoid(psd[mask_peak], freqs[mask_peak]))
-        elif n_peak == 1:
-            # Only one bin in window — use rectangular integration (bin width = df)
-            df = float(freqs[1] - freqs[0]) if len(freqs) > 1 else 1.0
-            peak_window_power = float(np.sum(psd[mask_peak])) * df
         else:
-            # Window narrower than one bin: use the peak bin alone
-            df = float(freqs[1] - freqs[0]) if len(freqs) > 1 else 1.0
+            # Window narrower than the grid: rectangular integration of the peak bin
             peak_window_power = peak_power * df
 
         coherence_score = (
-            min(peak_window_power / total_resonance * 100.0, 100.0)
-            if total_resonance > 0.0
+            min(peak_window_power / total_power * 100.0, 100.0)
+            if total_power > 0.0
             else 0.0
         )
     else:

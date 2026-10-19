@@ -5,6 +5,13 @@ from __future__ import annotations
 import numpy as np
 
 from cardiolab.analytics.baseline import Baseline
+from cardiolab.analytics.monitoring import (
+    BASELINE_DAYS,
+    MIN_BASELINE_MEASURES,
+    _day,
+    _ln_rmssd,
+    _previous_days,
+)
 from cardiolab.protocols.resting import HRVFeatures
 
 
@@ -76,37 +83,50 @@ def _simple(current: HRVFeatures, baseline: Baseline) -> dict:
 
 
 def _zscore(current: HRVFeatures, baseline: Baseline) -> dict:
-    """Detect RMSSD anomaly using a z-score relative to the rolling window.
+    """Detect an RMSSD anomaly with a z-score of lnRMSSD against the previous 28 days.
+
+    Same reference as the score de forme: the daily lnRMSSD of the 28 days
+    before the session (``poor`` sessions excluded; undated sessions: the last
+    28 sessions), at least 6 days, sample SD. lnRMSSD rather than RMSSD: its
+    day-to-day distribution is close to normal, so ±2 SD keeps its meaning
+    (Plews et al. 2012; Buchheit 2014).
+
+    Changed in 0.5.0: raw RMSSD of the last 7 sessions, population SD, from
+    3 sessions.
 
     Args:
         current: HRV features of the session to evaluate.
-        baseline: Personal reference. Requires at least 3 recent sessions
-            to compute a meaningful standard deviation.
+        baseline: Previous sessions.
 
     Returns:
         Dictionary with keys:
 
         * ``"method"`` — ``"zscore"``.
-        * ``"z"`` — z-score of the current RMSSD.
-        * ``"status"`` — ``"low"`` (z < -2), ``"high"`` (z > 2), or
+        * ``"z"`` — z-score of today's lnRMSSD.
+        * ``"status"`` — ``"low"`` (z < −2), ``"high"`` (z > 2), or
           ``"normal"``.
 
-        Returns ``{"status": "insufficient_data"}`` when fewer than 3
-        sessions are available, or ``{"status": "no_variability"}`` when
-        the standard deviation is zero.
+        Returns ``{"status": "insufficient_data"}`` with fewer than 6
+        previous days, or ``{"status": "no_variability"}`` when the SD is
+        zero.
 
     """
-    values = [r.rmssd for r in baseline.sessions[-baseline.window :]]
-    if len(values) < 3:
+    value = _ln_rmssd(current)
+    reference = [
+        float(np.mean(lns))
+        for _, sessions in _previous_days(baseline, _day(current.date), BASELINE_DAYS)
+        if (lns := [v for s in sessions if (v := _ln_rmssd(s)) is not None])
+    ]
+    if value is None or len(reference) < MIN_BASELINE_MEASURES:
         return {"status": "insufficient_data"}
 
-    mean = np.mean(values)
-    std = np.std(values)
+    mean = float(np.mean(reference))
+    std = float(np.std(reference, ddof=1))
 
     if std == 0:
         return {"status": "no_variability"}
 
-    z = (current.rmssd - mean) / std
+    z = (value - mean) / std
 
     return {
         "method": "zscore",
