@@ -56,12 +56,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cardiolab's heuristic; Plews et al. reference corrected (2012, 112:3729);
   `training_sessions.md` described a `UNIQUE(user_id, date)` upsert instead of one row per activity.
 
+### Changed — VO2max: HRmax from the age, categories by age and sex
+
+- **Tanaka HRmax** — without a provided `hr_max`, `vo2max_from_hrv(rr, age=…)` predicts it with
+  `208 − 0.7 × age` (Tanaka et al. 2001, `tanaka_hr_max()`) and keeps the sourced Uth model; the
+  unsourced ln-RMSSD estimate is used only without HRmax **and** age. New `hr_max_source`
+  (`provided` / `tanaka` / `None`), stored in `hrv_vo2max` (column added to V006).
+- **Categories and score by age and sex** — FRIEND registry percentiles (Kaminsky et al. 2015,
+  10th/25th/50th/75th/90th per sex and decade, `FRIEND_PERCENTILES`): `vo2max_percentile()`,
+  `vo2max_category(vo2max, age, sex)` (< 10th poor, 10–25th fair, 25–75th good, 75–90th very
+  good, ≥ 90th excellent) and `vo2max_score(vo2max, age, sex)` = the percentile. Without age or
+  sex: the former fixed scale. `VO2maxResult.age` / `.sex` (not stored), `.best_estimate`,
+  `.percentile`; `age_at(birth_year, date)`.
+- `analyse_session()` takes `age` and `sex`; `reprocess_sessions()` reads `birth_year`, `sex` and
+  `hr_max` from the user profile (a stored Tanaka HRmax is predicted again, never kept as
+  provided). `table_vo2max_session()` shows the HRmax source and the percentile.
+- Docs: `docs/protocols/vo2max.md` — the unsourced "ACSM men" table replaced by the FRIEND table.
+
+### Changed — Cardiac coherence score (McCraty & Shaffer 2015)
+
+- `coherence_score` = share of the **whole spectrum** (0.0033–0.4 Hz) in the 0.030 Hz window of the
+  resonance peak — the HeartMath coherence ratio `CR = peak / (total − peak)` as a percentage
+  (`CoherenceResult.coherence_ratio`). The denominator was the 0.04–0.26 Hz band only.
+- The peak is the highest **local maximum** of 0.04–0.26 Hz: it could be the lower edge of the band
+  (VLF power decreasing above 0.04 Hz). On 24 real resting recordings (spontaneous breathing) the
+  former score gave ≈ 50–60 %, the new one 5–21 % (median 12 %); regular 6/min breathing scores
+  60–90 %.
+- Thresholds (cardiolab — no validated cut-off exists): good ≥ 50 % (CR ≥ 1), moderate 30–50 %,
+  low < 30 % — in `coherence_score_100()` (sigmoid centred at 40 %), plots, tables and labels
+  (were 60 / 40 %). **Coherence scores change** — reprocess.
+- Docs: 0.1 Hz resonance is in the LF band (was described as HF).
+
 ### Added — Statistically qualified trends (`cardiolab.analytics.trends`)
 
 - `linear_trend(series, window_days=None, *, end, min_points=5, alpha=0.05, min_change_pct=5.0)` →
   `TrendResult` (slope per calendar day, intercept, r², p-value, n, fitted change in % of the
   mean, label). `increasing` / `decreasing` only when the slope is significant **and** the change
   reaches 5 % of the mean — a relative threshold instead of an absolute one.
+- The p-value accounts for **autocorrelation**: effective sample size `n_eff = n (1 − r1)/(1 + r1)`
+  from the lag-1 autocorrelation of the residuals (Santer et al. 2000), `TrendResult.n_eff`. On
+  autocorrelated noise (r = 0.7, 30 values), false trends fall from ≈ 39 % to ≈ 13 %.
 - `detect_sustained_decline(scores, min_sessions=5, threshold=-0.5)` → `SustainedDecline`: the
   last values all below mean − 0.5 SD of the preceding ones.
 - `trend_report(history, metric="score")` → DataFrame `date | <metric> | slope_7d | slope_30d |
@@ -83,7 +117,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | Component | Before | From 0.5.0 |
 |-----------|--------|------------|
 | RMSSD | 35 %, ratio to the median of the last 7 sessions (`tanh(2 × (ratio − 1))`) | **45 %**, today's lnRMSSD against the previous 28 days, `50 + 50 × tanh(Δ / 2 SD)` (`ln_rmssd_day_score()`, Kiviniemi et al. 2007, Plews et al. 2013) |
-| Resting HR | 20 % | **25 %** (formula unchanged) |
+| Resting HR | 20 %, `50 − 50 × tanh((HR − mean of 7 sessions) / 10)` — fixed 10 bpm scale | **25 %**, against the previous 28 days in SD units, **lower is better**, SD floor 1.5 bpm (`resting_hr_score()`) |
 | Trend | 20 %, today's RMSSD vs the same median — no trend measured | 20 %, 7-day lnRMSSD mean vs previous week, in SWC units (`ln_rmssd_trend_score()`) |
 | DFA α1 | 25 %, fixed 0.75 threshold (an exercise threshold), higher is better | **10 %**, against the previous 28 days, **lower is better** — vagal activity lowers α1, sympathetic activity raises it (Castiglioni et al. 2011) (`dfa_alpha1_score()`) |
 
@@ -91,10 +125,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scale (±½ SD → 62 / 38, ±1 SD → 73 / 27, ±2 SD → 88 / 12); SD floor so that a few nearly
   identical values cannot give extreme scores; neutral with fewer than 6 previous values; undated
   sessions use the last 28 sessions.
-- Components without enough history stay at 50; their weight is not redistributed.
-- `readiness_score_nonlinear()` (and so `readiness_score_composite()`): its DFA α1 component (40 %)
-  uses the same `dfa_alpha1_score()` — against the previous 28 days, lower is better — instead of
-  the fixed 0.75 threshold; `_dfa_score()` removed.
+- Components without enough history stay at 50; their weight is not redistributed. Every day
+  component (lnRMSSD, HR, DFA α1) needs 6 previous measurement days: the first ~6 scores are 50
+  (the HR component used to move from the second session).
+- `readiness_score_nonlinear()` (and so `readiness_score_composite()`): **DFA α1 50 % + SD1/SD2
+  50 %**, each against the previous 28 days (`dfa_alpha1_score()`, lower is better; new
+  `sd_ratio_score()`, higher is better — Shaffer & Ginsberg 2017). It was DFA α1 40 % (fixed 0.75
+  threshold), SD1 35 % — RMSSD / √2, the RMSSD signal a second time — and SD1/SD2 25 % on a fixed
+  scale. `_dfa_score()` and `_sd_ratio_score()` removed.
 - **SWC band baseline**: the 28 days **preceding** the 7-day window `(d − 35, d − 7]` (it included
   the evaluated week, so a decline dragged its own band down). Applies to the monitoring states,
   the trend component and `swc_band()` (new `window` parameter).

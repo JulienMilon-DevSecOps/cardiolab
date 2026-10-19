@@ -151,9 +151,9 @@ LABELS_EN: dict[str, str] = {
     "zone_score_moderate": "Moderate",
     "zone_score_good": "Good",
     # ── Coherence zones ─────────────────────────────────────────────────────────
-    "zone_coh_low": "Low coherence (< 40 %)",
-    "zone_coh_moderate": "Moderate coherence (40–60 %)",
-    "zone_coh_good": "Good coherence (≥ 60 %)",
+    "zone_coh_low": "Low coherence (< 30 %)",
+    "zone_coh_moderate": "Moderate coherence (30–50 %)",
+    "zone_coh_good": "Good coherence (≥ 50 %)",
     # ── HRR zones ───────────────────────────────────────────────────────────────
     "zone_hrr_impaired": "Impaired (< 12)",
     "zone_hrr_normal": "Normal (12–19)",
@@ -311,9 +311,9 @@ LABELS_FR: dict[str, str] = {
     "zone_score_moderate": "Modéré",
     "zone_score_good": "Bon",
     # ── Zones cohérence ──────────────────────────────────────────────────────────────
-    "zone_coh_low": "Faible cohérence (< 40 %)",
-    "zone_coh_moderate": "Cohérence modérée (40–60 %)",
-    "zone_coh_good": "Bonne cohérence (≥ 60 %)",
+    "zone_coh_low": "Faible cohérence (< 30 %)",
+    "zone_coh_moderate": "Cohérence modérée (30–50 %)",
+    "zone_coh_good": "Bonne cohérence (≥ 50 %)",
     # ── Zones HRR ────────────────────────────────────────────────────────────────
     "zone_hrr_impaired": "Insuffisant (< 12)",
     "zone_hrr_normal": "Normal (12–19)",

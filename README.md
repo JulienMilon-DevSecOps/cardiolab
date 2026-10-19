@@ -259,19 +259,22 @@ result = orthostatic_hrv(rr)
 ### Cardiac coherence 5-5
 
 Paced-breathing session at 6 cycles/min (5 s inspiration / 5 s expiration).
-At 0.1 Hz the baroreflex resonates, producing maximal HRV power in the cardiac
-resonance band. The **coherence score** quantifies how well power concentrates
-at the dominant spectral peak (AR PSD method):
+At 0.1 Hz the baroreflex resonates, producing a large, narrow peak in the LF band.
+The **coherence score** is the share of the whole spectrum held by that peak
+(McCraty & Shaffer 2015 — the HeartMath coherence ratio as a percentage, AR PSD):
 
 ```
-coherence_score = peak_window_power / total_resonance_power × 100
+coherence_score = peak_power (0.030 Hz window) / total_power (0.0033–0.4 Hz) × 100
 ```
 
 | Score (%) | Interpretation |
 |-----------|---------------|
-| ≥ 60 | Good cardiac coherence |
-| 40 – 60 | Moderate |
-| < 40 | Low — improve breathing cadence |
+| ≥ 50 (ratio ≥ 1) | Good cardiac coherence |
+| 30 – 50 | Moderate |
+| < 30 | Low — spontaneous-breathing level |
+
+Thresholds are cardiolab's (no validated cut-off exists). Changed in 0.5.0: the score
+used the resonance band only, and rest already scored ≈ 50–60 % — reprocess.
 
 ```python
 from cardiolab.protocols import cardiac_coherence
@@ -329,27 +332,23 @@ Estimates maximal oxygen uptake from a resting recording:
 
 | Model | Formula | Precision |
 |-------|---------|-----------|
-| **Uth et al. (2004)** — reference, needs HRmax | `15.3 × (HRmax / HRrest)` | ±10–15 % |
-| **ln-RMSSD** — indicative, used without HRmax | `24.89 + 5.97 × ln(RMSSD)` | not established (no verified source) |
+| **Uth et al. (2004)** — reference | `15.3 × (HRmax / HRrest)` — HRmax provided, otherwise `208 − 0.7 × age` (Tanaka 2001) | ±10–15 % |
+| **ln-RMSSD** — indicative, without HRmax nor age | `24.89 + 5.97 × ln(RMSSD)` | not established (no verified source) |
 
 The "Esco & Flatt (2014)" RMSSD model was removed in 0.4.0: it gave ≈ 21 mL/kg/min
 whatever the RMSSD and classed every user without HRmax as "poor" / "fair"
 (`vo2max_esco_flatt` is now always `nan`).
 
-Fitness categories (ACSM 2022):
-
-| VO2max (mL/kg/min) | Category |
-|--------------------|---------|
-| ≥ 58 | Excellent |
-| 48 – 57 | Very good |
-| 38 – 47 | Good |
-| 28 – 37 | Fair |
-| < 28 | Poor |
+Fitness categories **by age and sex** (v0.5.0): percentile among people of the same
+sex and decade — FRIEND registry norms (Kaminsky et al. 2015, adopted by ACSM 2022):
+< 10th poor · 10–25th fair · 25–75th good · 75–90th very good · ≥ 90th excellent. The
+score is the percentile. Without age and sex, the fixed adult scale (< 28 poor … ≥ 58
+excellent mL/kg/min).
 
 ```python
 from cardiolab.protocols import vo2max_from_hrv
-result = vo2max_from_hrv(rr_resting, hr_max=185.0)
-# result.vo2max_uth, result.vo2max_ln_rmssd, result.fitness_category
+result = vo2max_from_hrv(rr_resting, age=36, sex="male")     # HRmax from Tanaka
+# result.vo2max_uth, result.hr_max_source, result.percentile, result.fitness_category
 ```
 
 See [`docs/protocols/vo2max.md`](cardiolab/docs/protocols/vo2max.md) for full protocol instructions.
