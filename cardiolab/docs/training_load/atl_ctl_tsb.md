@@ -133,8 +133,9 @@ never computed with another method. Pending sessions count as no load in
 ATL / CTL until the data arrives (e.g. the RPE is entered later).
 
 **Changing method** changes the scale: `reprocess_sessions()` recomputes every
-stored load with the profile's method (sessions without the data keep their
-stored load and are reported as `kept`). The heart rate (`hr_mean`) and the RPE
+stored load with the profile's method. A session without the data of the new
+method becomes **pending**: its stored load is cleared, never kept from the former
+method (changed in v0.5.0 — it was kept, which mixed two scales). The heart rate (`hr_mean`) and the RPE
 of each session are stored (migration V006) so that the loads can always be
 recomputed.
 
@@ -218,19 +219,47 @@ TSB(t) = CTL(t) − ATL(t)
 
 TSB is the difference between fitness and fatigue on any given day.
 
-### TSB zones
+TSB is in the **unit of the load**: about ±20 with the HRV method, ±200 with
+session RPE. It cannot be read against fixed thresholds.
 
-| TSB | Zone | Athlete state |
-|-----|------|--------------|
-| > +25 | Fresh / detraining | High form but fitness may be declining; risk of detraining if prolonged |
-| +5 to +25 | Optimal | Peak performance window; ideal for competition or key sessions |
-| −10 to +5 | Neutral | Normal training state; manageable fatigue |
-| −30 to −10 | Accumulated fatigue | Functional overreaching; adaptation stimulus present |
-| < −30 | Overload | Non-functional overreaching; injury and illness risk elevated |
+### Relative form and zones (changed in v0.5.0)
 
-> Reference: Coggan A. (2003). *Training and racing using a power meter.*  
-> Originally applied to cycling power but validated for HRV-based load in
-> Plews DJ et al. (2013).
+```
+form (%) = TSB / CTL × 100 = (1 − ATL / CTL) × 100
+```
+
+The form compares today's fatigue with the fitness built up over the previous
+weeks: the same reading whatever the load method (×10 loads give the same form).
+Zones (`FORM_ZONES`, `form_zone()`):
+
+| Form | ATL / CTL | Zone | Reading |
+|------|-----------|------|---------|
+| > +20 % | < 0.8 | Fresh / detraining | Load well below the usual level — tapering, or detraining if it lasts |
+| +5 to +20 % | 0.8 – 0.95 | Optimal | Rested while keeping the usual load — ready for a competition or a test |
+| −30 to +5 % | 0.95 – 1.3 | Neutral | Load in line with the usual level |
+| −50 to −30 % | 1.3 – 1.5 | Accumulated fatigue | Load rising fast compared with the usual level |
+| < −50 % | ≥ 1.5 | Overload | Load spike — e.g. a very long session after a light period |
+
+The bounds come from the **acute:chronic workload ratio** (ACWR = ATL / CTL):
+Gabbett (2016) calls 0.8–1.3 the training « sweet spot » and ≥ 1.5 the « danger
+zone », from session-RPE and distance data in team sports and cricket; Williams et
+al. (2017) proposed computing it with exponentially weighted averages, as ATL and
+CTL are here. The +5 % split on the fresh side is cardiolab's. **These thresholds
+are debated** — Impellizzeri et al. (2020) question the ACWR's construction and
+its link with injuries: read the zones as markers of a rapid change of load, not
+as injury predictions.
+
+**First 42 days**: no form and no zone (`nan` / `None`) — CTL, a 42-day average,
+is still building up and the ratio would be meaningless.
+
+**Compute on the whole history, then crop**: `TrainingLoad.from_sessions(all)`
+then `.between(start, end)`. Filtering the sessions first restarts ATL and CTL at
+0 at the start of the period, and the first weeks look like an overload.
+
+> Changed in v0.5.0: zones were read on TSB against +25 / +5 / −10 / −30
+> (Coggan's power-based TSS scale); with session RPE (≈ ×10) nearly every
+> training day fell in « Overload ». The earlier note that these zones were
+> « validated for HRV-based load » (Plews et al. 2013) had no support.
 
 ---
 
@@ -324,3 +353,10 @@ TSB moves from −21.7 to −1.8, approaching the optimal zone.
   *J Strength Cond Res*, 15(1), 109–115.
 - Coggan A. (2003). *Training and racing using a power meter* (internal
   TrainingPeaks document — widely cited in endurance sport literature).
+- Gabbett TJ (2016). The training—injury prevention paradox: should athletes be
+  training smarter and harder? *Br J Sports Med*, 50(5), 273–280.
+- Williams S, West S, Cross MJ, Stokes KA (2017). Better way to determine the
+  acute:chronic workload ratio? *Br J Sports Med*, 51(3), 209–210.
+- Impellizzeri FM, Tenan MS, Kempton T, Novak A, Coutts AJ (2020). Acute:chronic
+  workload ratio: conceptual issues and fundamental pitfalls. *Int J Sports Physiol
+  Perform*, 15(6), 907–913.

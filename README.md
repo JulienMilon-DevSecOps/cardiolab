@@ -1145,15 +1145,21 @@ Comparison: [`docs/training_load/atl_ctl_tsb.md`](cardiolab/docs/training_load/a
 With the orthostatic test as primary protocol, the score de forme of the supine phase is
 stored with the session (`readiness_score`, since 0.5.0).
 
-| TSB zone | Interpretation |
-|----------|---------------|
-| > +25 | Fresh / detraining — load too low if it lasts |
-| +5 to +25 | Optimal — rested, ready for a competition or a test |
-| −10 to +5 | Neutral — load and recovery balanced |
-| −30 to −10 | Accumulated fatigue — training block |
-| < −30 | Overload |
+Zones are read on the **relative form** — TSB in % of CTL, i.e. 1 − ATL / CTL — so
+that they mean the same thing for every load method (changed in 0.5.0; they used
+absolute TSB, which only suited one scale):
 
-Zones as implemented in `reporting/training_load_report.py` and `visualization/training_load_plots.py`.
+| Form (% of CTL) | ATL / CTL | Zone |
+|-----------------|-----------|------|
+| > +20 % | < 0.8 | Fresh / detraining — load too low if it lasts |
+| +5 to +20 % | 0.8 – 0.95 | Optimal — rested, ready for a competition or a test |
+| −30 to +5 % | 0.95 – 1.3 | Neutral — load in line with the usual level |
+| −50 to −30 % | 1.3 – 1.5 | Accumulated fatigue — load rising fast |
+| < −50 % | ≥ 1.5 | Overload — load spike |
+
+Bounds after the acute:chronic workload ratio (Gabbett 2016; debated — Impellizzeri
+et al. 2020). No zone during the first 42 days. Compute on the whole history and crop
+with `TrainingLoad.between()`.
 
 #### Phase 1 — Database ✅
 * [x] New table `training_sessions`: `activity_id TEXT PK | user_id | date | duration_min | sport_type | trimp | notes` — one row per activity, multiple activities per day allowed

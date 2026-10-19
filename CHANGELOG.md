@@ -32,8 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `validate_load_method()`. `save_user_profile(..., load_method=)` / `update_user_profile()`
   validate it; `save_training_session(..., hr_mean=)`; `update_training_session(activity_id, …)`.
 - `reprocess_sessions()` (full run) **recomputes the training loads** with the profile's method,
-  `hrv` loads with the score de forme of the day just reprocessed; sessions missing their data keep
-  their stored load (`kept`). Report: `training` line, `notes`.
+  `hrv` loads with the score de forme of the day just reprocessed; a session missing the data of its
+  method becomes **pending** — its stored load is cleared, never kept from another method (status
+  `pending`, counted in `written`). Report: `training` line, `notes`.
 - `local/main_training_load.py`: the profile's method by default, warning when another one is
   forced; stores the session heart rate.
 - **Fixed `examples/14_user_profiles.py`**: it called a non-existent API (`first_name`, `email`,
@@ -55,6 +56,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   attributed to Manzi et al. (2009), who use a heart-rate-based individualised TRIMP — it is
   cardiolab's heuristic; Plews et al. reference corrected (2012, 112:3729);
   `training_sessions.md` described a `UNIQUE(user_id, date)` upsert instead of one row per activity.
+
+### Fixed — HRR, cardiac drift, RMSSD anomaly (calculation review)
+
+- **HRR** (`heart_rate_recovery()`): `hr_peak` was the HR of the **first beat** and `hr_at_60s` /
+  `hr_at_120s` single interpolated points — one ectopic or missed beat (the series is analysed as
+  recorded) shifted HRR1 by 10 bpm or more. Now 5-s medians: peak = highest 5-s median of the first
+  15 s, HR at 60 s / 120 s = median of 57.5–62.5 s / 117.5–122.5 s. The docstring announced a
+  « 10-beat rolling average » that did not exist. `fs` is ignored (kept for compatibility).
+- **Cardiac drift** (`cardiac_drift()`): the regression started at 0 min and included the initial HR
+  rise towards steady state, inflating the drift. The first 10 minutes are left out (`warmup_sec`,
+  default 600 s; `0` for the former behaviour); too short a recording is analysed from the start with
+  a `PhysiologicalWarning`. The bpm/min thresholds are documented as cardiolab markers (not found in
+  Coyle & González-Alonso 2001).
+- **`detect_rmssd_anomaly(method="zscore")`**: z-score of **lnRMSSD** against the previous 28 days
+  (≥ 6 days, sample SD) — the reference of the score de forme. It used raw RMSSD of the last 7
+  sessions, population SD, from 3 sessions.
+- Orthostatic: `hr_response` documented as the mean standing − mean supine HR, not the highest
+  sustained rise of the clinical POTS criterion.
+- **HRR and drift values change** — reprocess.
+
+### Changed — Training load zones: relative form instead of absolute TSB
+
+- TSB is in the unit of the load (≈ ×10 with session RPE): its zones (+25 / +5 / −10 / −30, Coggan's
+  TSS scale) put nearly every training day of a session-RPE athlete in « Overload ». Zones are now
+  read on the **relative form** `TSB / CTL × 100` = `(1 − ATL / CTL) × 100`, the same for every
+  load method: > +20 % fresh / detraining, +5 to +20 % optimal, −30 to +5 % neutral, −50 to −30 %
+  accumulated fatigue, < −50 % overload — bounds after the acute:chronic workload ratio (« sweet
+  spot » 0.8–1.3, « danger zone » ≥ 1.5, Gabbett 2016; EWMA, Williams et al. 2017; debated,
+  Impellizzeri et al. 2020).
+- `relative_form()`, `form_zone()`, `FORM_ZONES`, `MIN_HISTORY_DAYS`; `TrainingLoad.form` (`nan` for
+  the first 42 days), `.zones`, `.load_ratio`, `.between(start, end)`; `to_dataframe()` gains
+  `form_pct`. `table_training_load_history()` gains `form_pct`; `summary_training_load()` gains
+  `form_pct` and `load_ratio`; `tsb_zone` is `None` before 42 days. `plot_atl_ctl_tsb()` and
+  `plot_tsb_zones()` plot the relative form with the new bands. `_tsb_zone_label()` removed.
+- **Cold start**: compute on the whole history and crop with `.between()` — filtering the sessions of
+  a period first restarted ATL / CTL at 0 (the local report and plots did, so the start of every
+  period looked like an overload).
+- Docs: the claim that these zones were « validated for HRV-based load » (Plews et al. 2013) had no
+  support — removed.
 
 ### Changed — VO2max: HRmax from the age, categories by age and sex
 

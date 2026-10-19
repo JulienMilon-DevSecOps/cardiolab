@@ -187,6 +187,13 @@ indicator.
 > at the upper end of the normal range (20–30 bpm) due to their low resting HR.
 > This is physiological, not pathological.
 
+> **What is measured**: the **mean** HR of the stabilised standing phase minus the
+> mean HR of the supine phase. Clinical criteria (POTS: sustained rise ≥ 30 bpm
+> within 10 min of standing — Sheldon et al. 2015) look at the **highest sustained**
+> rise: a short peak just after the transition is averaged out here. Read
+> `hr_response` as a training-monitoring marker, compared with your own history;
+> a suspected orthostatic intolerance needs a clinical tilt or active standing test.
+
 ### HF response (`hf_response_pct`)
 
 HF power reflects parasympathetic (vagal) activity. It decreases on standing as

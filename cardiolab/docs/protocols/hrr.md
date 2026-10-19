@@ -53,13 +53,22 @@ print(f"HRR1: {result.hrr_60:.0f} bpm → {result.hrr_60_category}")
 print(f"HRR2: {result.hrr_120:.0f} bpm → {result.hrr_120_category}")
 ```
 
+## How the values are read
+
+HR values are **medians over 5 s**, never a single beat: the HRR series is analysed
+as recorded (no artefact correction — HR falls fast right after the effort), so one
+ectopic or missed beat would otherwise shift HRR1 by 10 bpm or more.
+
+> Changed in v0.5.0: `hr_peak` was the HR of the very first beat and `hr_at_60s` /
+> `hr_at_120s` single interpolated points. Reprocess to update stored sessions.
+
 ## Computed metrics
 
 | Metric | Description | Unit |
 |---|---|---|
-| `hr_peak` | HR at the effort peak (first beat of the series) | bpm |
-| `hr_at_60s` | HR at exactly 60 s post-peak | bpm |
-| `hr_at_120s` | HR at exactly 120 s post-peak | bpm |
+| `hr_peak` | HR at the effort peak — highest 5-s median of the first 15 s | bpm |
+| `hr_at_60s` | Median HR between 57.5 and 62.5 s | bpm |
+| `hr_at_120s` | Median HR between 117.5 and 122.5 s | bpm |
 | `hrr_60` | HR drop at 60 s (HR_peak − HR_60s) | bpm |
 | `hrr_120` | HR drop at 120 s (HR_peak − HR_120s) | bpm |
 | `hrr_60_category` | Clinical category for HRR1 | text |

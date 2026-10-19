@@ -83,6 +83,7 @@ and sex (FRIEND norms, v0.5.0) — fill them in before reprocessing.
 | Failed analysis | Session reported `failed` (e.g. no orthostatic transition); its stored row is kept |
 | No raw RR | Stored sessions without raw intervals (Apple Health import, SDNN only) are listed in `report.skipped`, left untouched — and still used in the resting baseline |
 | `since=` | Only sessions on or after the date are reprocessed; earlier ones still feed the baseline |
+| Training loads | Full run only (`protocol=None`): every load recomputed with the profile's `load_method`; a session without the data of that method becomes **pending** — its load is cleared, never kept from another method. No profile → loads untouched (`report.notes`) |
 
 ---
 
