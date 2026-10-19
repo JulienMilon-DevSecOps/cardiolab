@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import os
+from datetime import date, timedelta
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -756,7 +757,7 @@ class TestTrainingLoad:
         """DataFrame must have exactly the five expected columns."""
         tl = TrainingLoad.from_sessions([_make_session("2026-01-01")])
         df = tl.to_dataframe()
-        assert list(df.columns) == ["date", "trimp", "atl", "ctl", "tsb"]
+        assert list(df.columns) == ["date", "trimp", "atl", "ctl", "tsb", "form_pct"]
 
     def test_to_dataframe_length_matches_date_range(self):
         """DataFrame must have one row per day in the date range."""
@@ -768,7 +769,7 @@ class TestTrainingLoad:
         """to_dataframe() on empty TrainingLoad must return an empty DataFrame."""
         df = TrainingLoad().to_dataframe()
         assert len(df) == 0
-        assert list(df.columns) == ["date", "trimp", "atl", "ctl", "tsb"]
+        assert list(df.columns) == ["date", "trimp", "atl", "ctl", "tsb", "form_pct"]
 
     def test_to_dataframe_tsb_consistent(self):
         """DataFrame TSB column must equal CTL − ATL."""
@@ -970,3 +971,46 @@ class TestSessionRPE:
         assert validate_rpe(None) is None
         assert validate_rpe(7.0) == 7
         assert set(RPE_SCALE) == set(range(11))
+
+
+@pytest.mark.unit
+class TestRelativeFormAndCropping:
+    """Relative form (0.5.0) and cropping after the computation."""
+
+    def _sessions(self, n: int = 80, trimp: float = 50.0) -> list[dict]:
+        start = date(2026, 1, 1)
+        return [_make_session(str(start + timedelta(days=i)), trimp) for i in range(n)]
+
+    def test_form_is_tsb_over_ctl(self):
+        """Form = TSB / CTL × 100 after 42 days, nan before."""
+        tl = TrainingLoad.from_sessions(self._sessions())
+        assert np.isnan(tl.form[:42]).all()
+        np.testing.assert_allclose(tl.form[42:], 100 * tl.tsb[42:] / tl.ctl[42:])
+        np.testing.assert_allclose(tl.load_ratio[42:], tl.atl[42:] / tl.ctl[42:])
+
+    def test_scale_free(self):
+        """×10 loads: identical form."""
+        small = TrainingLoad.from_sessions(self._sessions(trimp=40.0))
+        large = TrainingLoad.from_sessions(self._sessions(trimp=400.0))
+        np.testing.assert_allclose(small.form[42:], large.form[42:])
+
+    def test_between_keeps_warmed_up_values(self):
+        """Cropping after the computation keeps ATL / CTL of the whole history."""
+        full = TrainingLoad.from_sessions(self._sessions())
+        crop = full.between("2026-03-01", "2026-03-10")
+        assert crop.dates[0] == "2026-03-01" and len(crop.dates) == 10
+        i = full.dates.index("2026-03-01")
+        assert crop.ctl[0] == pytest.approx(full.ctl[i])
+        assert crop.form[0] == pytest.approx(full.form[i])
+        restarted = TrainingLoad.from_sessions(
+            [s for s in self._sessions() if s["date"] >= "2026-03-01"]
+        )
+        assert restarted.ctl[0] < crop.ctl[0]  # filtering first restarts at 0
+
+    def test_form_derived_when_not_given(self):
+        """A TrainingLoad built by hand gets its form from TSB / CTL."""
+        full = TrainingLoad.from_sessions(self._sessions())
+        manual = TrainingLoad(
+            dates=full.dates, trimp=full.trimp, atl=full.atl, ctl=full.ctl, tsb=full.tsb
+        )
+        np.testing.assert_allclose(manual.form, full.form)

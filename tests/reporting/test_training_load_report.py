@@ -13,10 +13,10 @@ from cardiolab.analytics.training_load import (
     compute_atl,
     compute_ctl,
     compute_tsb,
+    form_zone,
 )
 from cardiolab.reporting.training_load_report import (
     _ctl_trend,
-    _tsb_zone_label,
     summary_training_load,
     table_training_load_history,
 )
@@ -25,7 +25,7 @@ from cardiolab.reporting.training_load_report import (
 
 
 def _make_tl(
-    n: int = 30,
+    n: int = 60,
     trimp_val: float = 40.0,
     dates_start: str = "2024-01-01",
 ) -> TrainingLoad:
@@ -39,66 +39,41 @@ def _make_tl(
     return TrainingLoad(dates=dates, trimp=trimp, atl=atl, ctl=ctl, tsb=tsb)
 
 
-def _make_tl_tsb(tsb_last: float) -> TrainingLoad:
-    """Build a TrainingLoad whose last TSB equals *tsb_last* (forced patch)."""
+def _make_tl_form(form_last: float) -> TrainingLoad:
+    """Build a TrainingLoad whose last relative form equals *form_last* (forced patch)."""
     tl = _make_tl()
-    tl.tsb = np.append(tl.tsb[:-1], tsb_last)
+    tl.form = np.append(tl.form[:-1], form_last)
     return tl
 
 
-# ── _tsb_zone_label ───────────────────────────────────────────────────────────
+# ── form_zone (relative form, 0.5.0) ──────────────────────────────────────────
 
 
-class TestTsbZoneLabel:
-    """Tests for _tsb_zone_label."""
+class TestFormZone:
+    """Zones of the relative form (TSB in % of CTL)."""
 
-    def test_fresh_detraining(self) -> None:
-        """TSB > 25 maps to fresh_detraining."""
-        assert _tsb_zone_label(30.0) == "fresh_detraining"
+    @pytest.mark.parametrize(
+        ("form", "zone"),
+        [
+            (30.0, "fresh_detraining"),
+            (20.1, "fresh_detraining"),
+            (15.0, "optimal"),
+            (5.1, "optimal"),
+            (0.0, "neutral"),
+            (-29.9, "neutral"),
+            (-40.0, "accumulated_fatigue"),
+            (-49.9, "accumulated_fatigue"),
+            (-50.0, "overload"),
+            (-163.0, "overload"),
+        ],
+    )
+    def test_bounds(self, form: float, zone: str) -> None:
+        """+20 / +5 / −30 / −50 % (ATL / CTL 0.8 / 0.95 / 1.3 / 1.5)."""
+        assert form_zone(form) == zone
 
-    def test_fresh_boundary(self) -> None:
-        """TSB just above 25 is still fresh_detraining."""
-        assert _tsb_zone_label(25.1) == "fresh_detraining"
-
-    def test_optimal(self) -> None:
-        """TSB in 5–25 maps to optimal."""
-        assert _tsb_zone_label(15.0) == "optimal"
-
-    def test_optimal_boundary(self) -> None:
-        """TSB just above 5 is optimal."""
-        assert _tsb_zone_label(5.1) == "optimal"
-
-    def test_neutral(self) -> None:
-        """TSB = 0 is neutral."""
-        assert _tsb_zone_label(0.0) == "neutral"
-
-    def test_neutral_boundary(self) -> None:
-        """TSB just above −10 is neutral."""
-        assert _tsb_zone_label(-9.9) == "neutral"
-
-    def test_accumulated_fatigue(self) -> None:
-        """TSB in −30 to −10 maps to accumulated_fatigue."""
-        assert _tsb_zone_label(-20.0) == "accumulated_fatigue"
-
-    def test_accumulated_boundary(self) -> None:
-        """TSB just above −30 is accumulated_fatigue."""
-        assert _tsb_zone_label(-29.9) == "accumulated_fatigue"
-
-    def test_overload(self) -> None:
-        """TSB < −30 maps to overload."""
-        assert _tsb_zone_label(-40.0) == "overload"
-
-    def test_overload_boundary(self) -> None:
-        """TSB just below −30 is overload."""
-        assert _tsb_zone_label(-30.1) == "overload"
-
-    def test_zero_is_neutral(self) -> None:
-        """TSB = 0 lands in the neutral band."""
-        assert _tsb_zone_label(0.0) == "neutral"
-
-    def test_exactly_minus_10_is_accumulated(self) -> None:
-        """TSB = −10 is not > −10, so it falls into accumulated_fatigue."""
-        assert _tsb_zone_label(-10.0) == "accumulated_fatigue"
+    def test_nan_is_none(self) -> None:
+        """No zone before 42 days of history."""
+        assert form_zone(float("nan")) is None
 
 
 # ── _ctl_trend ────────────────────────────────────────────────────────────────
@@ -158,7 +133,7 @@ class TestTableTrainingLoadHistory:
     def test_columns_present(self) -> None:
         """All expected columns are present."""
         cols = set(table_training_load_history(_make_tl()).data.columns)
-        for col in ("date", "trimp", "atl", "ctl", "tsb", "tsb_zone"):
+        for col in ("date", "trimp", "atl", "ctl", "tsb", "form_pct", "tsb_zone"):
             assert col in cols, f"Missing column: {col}"
 
     def test_date_column_matches(self) -> None:
@@ -195,10 +170,11 @@ class TestTableTrainingLoadHistory:
         for i, val in enumerate(styler.data["tsb"]):
             assert pytest.approx(val, rel=1e-3) == float(tl.tsb[i])
 
-    def test_tsb_zone_column_populated(self) -> None:
-        """tsb_zone contains no nulls."""
-        styler = table_training_load_history(_make_tl())
-        assert styler.data["tsb_zone"].notna().all()
+    def test_tsb_zone_after_42_days(self) -> None:
+        """tsb_zone is empty for the first 42 days, filled after."""
+        zones = table_training_load_history(_make_tl()).data["tsb_zone"]
+        assert zones.iloc[:42].isna().all()
+        assert zones.iloc[42:].notna().all()
 
     def test_default_caption(self) -> None:
         """Default caption mentions ATL and CTL."""
@@ -221,14 +197,21 @@ class TestTableTrainingLoadHistory:
         assert len(styler.data) == 1
 
     def test_tsb_zone_optimal_label(self) -> None:
-        """TSB = 10 yields the 'optimal' zone label."""
-        styler = table_training_load_history(_make_tl_tsb(10.0))
+        """Form +10 % yields the 'optimal' zone label."""
+        styler = table_training_load_history(_make_tl_form(10.0))
         assert styler.data["tsb_zone"].iloc[-1] == "optimal"
 
     def test_tsb_zone_overload_label(self) -> None:
-        """TSB = −35 yields the 'overload' zone label."""
-        styler = table_training_load_history(_make_tl_tsb(-35.0))
+        """Form −60 % yields the 'overload' zone label."""
+        styler = table_training_load_history(_make_tl_form(-60.0))
         assert styler.data["tsb_zone"].iloc[-1] == "overload"
+
+    def test_zone_independent_of_load_scale(self) -> None:
+        """×10 loads (session RPE vs HRV method): same form, same zones."""
+        small = table_training_load_history(_make_tl(trimp_val=40.0)).data
+        large = table_training_load_history(_make_tl(trimp_val=400.0)).data
+        assert list(small["tsb_zone"]) == list(large["tsb_zone"])
+        np.testing.assert_allclose(small["form_pct"], large["form_pct"])
 
 
 # ── summary_training_load ─────────────────────────────────────────────────────
@@ -242,9 +225,17 @@ class TestSummaryTrainingLoad:
         assert isinstance(summary_training_load(_make_tl()), dict)
 
     def test_keys(self) -> None:
-        """Dict contains exactly the five expected keys."""
+        """Dict contains exactly the expected keys."""
         result = summary_training_load(_make_tl())
-        assert set(result.keys()) == {"atl", "ctl", "tsb", "tsb_zone", "ctl_trend"}
+        assert set(result.keys()) == {
+            "atl",
+            "ctl",
+            "tsb",
+            "form_pct",
+            "load_ratio",
+            "tsb_zone",
+            "ctl_trend",
+        }
 
     def test_atl_matches_last(self) -> None:
         """ATL equals the last element of the ATL array."""
@@ -270,9 +261,16 @@ class TestSummaryTrainingLoad:
         assert isinstance(result["tsb_zone"], str)
 
     def test_tsb_zone_known_value(self) -> None:
-        """TSB = 8 maps to 'optimal'."""
-        result = summary_training_load(_make_tl_tsb(8.0))
+        """Form +8 % maps to 'optimal', ratio 0.92."""
+        result = summary_training_load(_make_tl_form(8.0))
         assert result["tsb_zone"] == "optimal"
+        assert result["load_ratio"] == pytest.approx(0.92)
+
+    def test_short_history_no_zone(self) -> None:
+        """Fewer than 42 days: no form, no zone."""
+        result = summary_training_load(_make_tl(n=20))
+        assert result["tsb_zone"] is None
+        assert result["form_pct"] is None
 
     def test_ctl_trend_is_string(self) -> None:
         """ctl_trend is one of the three expected strings."""
