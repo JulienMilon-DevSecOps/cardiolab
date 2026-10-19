@@ -106,22 +106,37 @@ def _form_limits(form: np.ndarray) -> tuple[float, float]:
 
 
 def _note_no_form(ax: plt.Axes, form: np.ndarray, labels: dict | None) -> None:
-    """Explain why the form is missing (first 42 days of the history)."""
-    if np.isfinite(form).any():
+    """Grey out the days without form — the first 42 days of the history.
+
+    CTL, a 42-day average starting from 0, is still building up: TSB / CTL
+    would be meaningless, so the form starts later than ATL / CTL. The leading
+    days without form are shaded and labelled so that the shorter curve is
+    not mistaken for missing data.
+    """
+    finite = np.isfinite(form)
+    n_missing = len(form) if not finite.any() else int(np.argmax(finite))
+    if n_missing == 0:
         return
-    ax.text(
-        0.5,
-        0.5,
+    ax.axvspan(-0.5, n_missing - 0.5, color=_GRAY, alpha=0.18, zorder=1, lw=0)
+    text = (
         lbl(
             labels,
             "form_not_yet",
             "Form zones after 42 days of history (fitness still building up)",
-        ),
-        transform=ax.transAxes,
+        )
+        if n_missing == len(form)
+        else lbl(labels, "form_building", "Fitness building up\n(first 42 days)")
+    )
+    ax.text(
+        (n_missing - 1) / 2.0,
+        0.5,
+        text,
+        transform=ax.get_xaxis_transform(),
         ha="center",
         va="center",
-        fontsize=9,
+        fontsize=8 if n_missing < len(form) else 9,
         color=_DARK,
+        zorder=5,
     )
 
 
@@ -140,8 +155,9 @@ def plot_atl_ctl_tsb(
       them.  When ATL > CTL the area is red (accumulating fatigue); when
       CTL > ATL the area is blue (building fitness above current fatigue).
     * **Bottom** — relative form (TSB in % of CTL, purple) with coloured
-      zone backgrounds (see :data:`_TSB_ZONES`) and a zero-reference line;
-      empty during the first 42 days of the history.
+      zone backgrounds (see :data:`_TSB_ZONES`) and a zero-reference line.
+      The first 42 days of the history have no form: they are shaded grey
+      and labelled « fitness building up » (CTL still building up).
 
     Args:
         training_load: A populated :class:`~cardiolab.analytics.training_load.TrainingLoad`
@@ -385,7 +401,8 @@ def plot_tsb_zones(
     * **Accumulated fatigue** (orange) −50 to −30 % (1.3–1.5)
     * **Overload** (red)               < −50 %   (≥ 1.5)
 
-    The first 42 days of the history have no form (CTL still building up).
+    The first 42 days of the history have no form (CTL still building up):
+    they are shaded grey and labelled, while ATL / CTL already start.
     Changed in 0.5.0: absolute TSB with bands +25 / +5 / −10 / −30.
 
     Args:
