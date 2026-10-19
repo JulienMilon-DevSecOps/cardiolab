@@ -35,6 +35,7 @@ from cardiolab.analytics.training_load import (
     load_readiness_for_date,
     trimp_banister,
     trimp_hrv_based,
+    trimp_session_rpe,
 )
 from cardiolab.analytics.trends import (
     SustainedDecline,
@@ -77,6 +78,7 @@ __all__ = [
     "baseline_relative_score",
     "trimp_hrv_based",
     "trimp_banister",
+    "trimp_session_rpe",
     "load_readiness_for_date",
     "compute_atl",
     "compute_ctl",

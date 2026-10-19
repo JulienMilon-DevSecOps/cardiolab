@@ -905,3 +905,68 @@ class TestEmaVectorised:
         """Output length equals input length."""
         trimp = np.array([10.0, 20.0, 30.0])
         assert len(_ema(trimp, 7)) == 3
+
+
+@pytest.mark.unit
+class TestLoadReadinessStored:
+    """load_readiness_for_date(baseline=None) returns the stored score (0.5.0)."""
+
+    def test_orthostatic_stored(self):
+        """Orthostatic: readiness_score of the record."""
+        from unittest.mock import MagicMock
+
+        from cardiolab.analytics.training_load import load_readiness_for_date
+
+        repo = MagicMock()
+        repo.load_orthostatic_for_date.return_value = MagicMock(readiness_score=61.5)
+        assert (
+            load_readiness_for_date("u", "2099-01-01", repo, None, "orthostatic")
+            == 61.5
+        )
+
+    def test_resting_stored(self):
+        """Resting: the stored score."""
+        from unittest.mock import MagicMock
+
+        from cardiolab.analytics.training_load import load_readiness_for_date
+
+        repo = MagicMock()
+        repo.load_features_for_date.return_value = MagicMock(score=72.0)
+        assert load_readiness_for_date("u", "2099-01-01", repo, None, "resting") == 72.0
+
+
+@pytest.mark.unit
+class TestSessionRPE:
+    """trimp_session_rpe / validate_rpe (Foster et al. 2001, v0.5.0)."""
+
+    def test_formula(self):
+        """Load = duration × RPE (60 min rated 5 → 300 AU)."""
+        from cardiolab.analytics.training_load import trimp_session_rpe
+
+        assert trimp_session_rpe(60, 5) == 300.0
+        assert trimp_session_rpe(45.5, 0) == 0.0
+
+    @pytest.mark.parametrize("bad", [-1, 11, 5.5, "5", True])
+    def test_invalid_rpe(self, bad):
+        """RPE must be a whole number between 0 and 10."""
+        from cardiolab.analytics.training_load import trimp_session_rpe
+
+        with pytest.raises(ValueError):
+            trimp_session_rpe(60, bad)
+
+    def test_required_and_duration(self):
+        """RPE is required; duration must be positive."""
+        from cardiolab.analytics.training_load import trimp_session_rpe
+
+        with pytest.raises(ValueError, match="required"):
+            trimp_session_rpe(60, None)
+        with pytest.raises(ValueError, match="duration_min"):
+            trimp_session_rpe(0, 5)
+
+    def test_validate_rpe(self):
+        """None stays None; 7.0 → 7."""
+        from cardiolab.analytics.training_load import RPE_SCALE, validate_rpe
+
+        assert validate_rpe(None) is None
+        assert validate_rpe(7.0) == 7
+        assert set(RPE_SCALE) == set(range(11))

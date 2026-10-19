@@ -1,6 +1,6 @@
 """TRIMP computation, ATL/CTL/TSB model, and readiness loading.
 
-Two TRIMP formulas are provided:
+Three load formulas are provided:
 
 * :func:`trimp_hrv_based` — HRV-readiness-weighted TRIMP. Primary method
   when a daily HRV protocol is in place. The readiness score is computed
@@ -9,6 +9,12 @@ Two TRIMP formulas are provided:
   rule in ``docs/training_load/atl_ctl_tsb.md``).
 * :func:`trimp_banister` — Classical Banister (1991) formula using effort HR
   from a sensor. Fallback when no HRV readiness is available.
+* :func:`trimp_session_rpe` — session RPE (Foster et al. 2001): duration ×
+  perceived effort on the CR-10 scale. Valid for every sport, no heart rate
+  needed (strength, intervals, team sports).
+
+The three formulas have **different scales** — use one method consistently
+for a given athlete's ATL / CTL / TSB.
 
 ATL / CTL / TSB — Banister impulse-response model:
 
@@ -132,11 +138,91 @@ def trimp_banister(
     return duration_min * hrr * math.exp(b * hrr)
 
 
+RPE_SCALE: dict[int, str] = {
+    0: "Rest",
+    1: "Very, very easy",
+    2: "Easy",
+    3: "Moderate",
+    4: "Somewhat hard",
+    5: "Hard",
+    6: "Hard",
+    7: "Very hard",
+    8: "Very hard",
+    9: "Very hard",
+    10: "Maximal",
+}
+"""CR-10 scale used for session RPE (Foster et al. 2001, after Borg)."""
+
+
+def validate_rpe(rpe) -> int | None:
+    """Check a session RPE: an integer between 0 and 10, or ``None`` (not entered).
+
+    Args:
+        rpe: Perceived effort of the whole session on the CR-10 scale.
+
+    Returns:
+        The RPE as an ``int``, or ``None``.
+
+    Raises:
+        ValueError: If ``rpe`` is not a whole number between 0 and 10.
+
+    """
+    if rpe is None:
+        return None
+    if isinstance(rpe, bool) or not isinstance(rpe, (int, float)) or rpe != int(rpe):
+        raise ValueError(f"rpe must be a whole number between 0 and 10, got {rpe!r}")
+    if not 0 <= rpe <= 10:
+        raise ValueError(f"rpe must be between 0 and 10, got {rpe}")
+    return int(rpe)
+
+
+def trimp_session_rpe(duration_min: float, rpe: int) -> float:
+    """Compute the session-RPE training load (Foster et al. 2001).
+
+    Formula::
+
+        load = duration_min × RPE
+
+    The athlete rates the **whole session** about 30 minutes after it ends,
+    on the CR-10 scale (:data:`RPE_SCALE`: 0 rest … 10 maximal). Simple,
+    valid for every sport and without heart rate — strength training, short
+    intervals and team sports, where heart-rate methods underestimate the
+    load. Expressed in arbitrary units (AU): a 60-minute session rated 5
+    gives 300 AU.
+
+    The scale differs from :func:`trimp_hrv_based` and :func:`trimp_banister`:
+    use one method consistently for a given athlete's ATL / CTL / TSB.
+
+    Args:
+        duration_min: Session duration in minutes. Must be strictly positive.
+        rpe: Perceived effort, whole number from 0 to 10.
+
+    Returns:
+        Session load in arbitrary units.
+
+    Raises:
+        ValueError: If ``duration_min`` ≤ 0 or ``rpe`` is not 0–10.
+
+    References:
+        Foster, C., Florhaug, J. A., Franklin, J., Gottschall, L., Hrovatin,
+        L. A., Parker, S., Doleshal, P., & Dodge, C. (2001). A new approach to
+        monitoring exercise training. *Journal of Strength and Conditioning
+        Research*, 15(1), 109–115.
+
+    """
+    if duration_min <= 0.0:
+        raise ValueError(f"duration_min must be > 0, got {duration_min}")
+    value = validate_rpe(rpe)
+    if value is None:
+        raise ValueError("rpe is required for the session-RPE load")
+    return float(duration_min * value)
+
+
 def load_readiness_for_date(
     user_id: str,
     date: str,
     repo: HRVRepository,
-    baseline: Baseline,
+    baseline: Baseline | None,
     protocol: Literal["resting", "orthostatic"],
 ) -> float | None:
     """Load the readiness score for a given date from the database.
@@ -171,7 +257,10 @@ def load_readiness_for_date(
         repo: An open ``HRVRepository`` context (must be used inside a
             ``with`` block by the caller).
         baseline: Personal reference built from previous sessions of the
-            **same protocol**. Must not mix resting and orthostatic sessions.
+            **same protocol** (resting sessions, or supine phases). Must not mix
+            resting and orthostatic sessions. ``None`` → the score stored with
+            the session is returned (``score`` for resting, ``readiness_score``
+            for orthostatic, cardiolab ≥ 0.5.0); ``None`` if not stored.
         protocol: Primary protocol to read from.
 
     Returns:
@@ -181,12 +270,16 @@ def load_readiness_for_date(
     """
     if protocol == "resting":
         feat = repo.load_features_for_date(user_id, date)
-        return readiness_score_multi(feat, baseline) if feat is not None else None
+        if feat is None:
+            return None
+        return feat.score if baseline is None else readiness_score_multi(feat, baseline)
 
     # protocol == "orthostatic": use the supine phase as the readiness input
     record = repo.load_orthostatic_for_date(user_id, date)
     if record is None:
         return None
+    if baseline is None:
+        return record.readiness_score
     return orthostatic_readiness_score(record.supine, baseline)
 
 
