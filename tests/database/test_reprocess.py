@@ -341,6 +341,9 @@ class TestReprocessIntegration:
         "table_name": "_cardiolab_test_rp_hrv",
         "ortho_table_name": "_cardiolab_test_rp_ortho",
         "raw_sessions_table_name": "_cardiolab_test_rp_raw",
+        # Never created: a database without profile / training tables (as in CI)
+        "user_profiles_table_name": "_cardiolab_test_rp_profiles",
+        "training_sessions_table_name": "_cardiolab_test_rp_training",
     }
 
     @pytest.fixture(autouse=True)
@@ -377,6 +380,8 @@ class TestReprocessIntegration:
         with self._repo() as repo:
             applied = reprocess_sessions(repo, self._USER, dry_run=False)
         assert applied.written == 4
+        # No user_profiles / training tables: skipped, not an error
+        assert not [s for s in applied.sessions if s.protocol == "training"]
         with self._repo() as repo:
             stored = repo.load_features(self._USER)
             ortho = repo.load_orthostatic(self._USER)

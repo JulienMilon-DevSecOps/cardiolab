@@ -453,9 +453,7 @@ def reprocess_sessions(
 
     report = ReprocessReport(user_id=user_id, dry_run=dry_run, method=method)
     storage = _storage(repo, user_id)
-    profile = (
-        repo.load_user_profile(user_id) if hasattr(repo, "load_user_profile") else None
-    ) or {}
+    profile = _load_profile(repo, user_id)
     # Final score de forme per protocol and date — feeds the training loads
     readiness: dict[str, dict[str, float]] = {"resting": {}, "orthostatic": {}}
 
@@ -513,6 +511,22 @@ def reprocess_sessions(
     return report
 
 
+def _has_table(repo, attr: str) -> bool:
+    """Return ``True`` when the table named by ``repo.<attr>`` exists (fakes: assumed)."""
+    if not hasattr(repo, "table_exists") or not hasattr(repo, attr):
+        return True
+    return repo.table_exists(getattr(repo, attr))
+
+
+def _load_profile(repo, user_id: str) -> dict:
+    """Return the user profile, or ``{}`` without profile table or profile."""
+    if not hasattr(repo, "load_user_profile") or not _has_table(
+        repo, "user_profiles_table_name"
+    ):
+        return {}
+    return repo.load_user_profile(user_id) or {}
+
+
 def _note_readiness(readiness: dict, protocol: str, date: str, item) -> None:
     """Record the score de forme of a session (resting ``score``, orthostatic ``readiness_score``)."""
     if protocol == "resting":
@@ -547,7 +561,9 @@ def _reprocess_training_loads(
     Changed in 0.5.0: such a session kept its stored load (status ``kept``),
     so changing method mixed two scales in ATL / CTL.
     """
-    if not hasattr(repo, "load_training_sessions"):
+    if not hasattr(repo, "load_training_sessions") or not _has_table(
+        repo, "training_sessions_table_name"
+    ):
         return
     if not profile:
         report.notes.append("No user profile: training loads left untouched.")

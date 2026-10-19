@@ -2287,6 +2287,27 @@ class HRVRepository:
 
     # ── User profiles — read ──────────────────────────────────────────────
 
+    def table_exists(self, table_name: str) -> bool:
+        """Return ``True`` when ``table_name`` exists (current ``search_path``).
+
+        Lets optional steps (user profile, training loads) be skipped on a
+        database where their table was never created, instead of failing —
+        a failed query would also abort the whole transaction.
+
+        Args:
+            table_name: Table name, e.g. ``repo.user_profiles_table_name``.
+
+        Returns:
+            ``True`` if the table exists.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+
+        """
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute("SELECT to_regclass(%s) IS NOT NULL;", (table_name,))
+            return bool(cur.fetchone()[0])
+
     def load_user_profile(self, user_id: str) -> dict | None:
         """Return the profile for ``user_id``, or ``None`` if not found.
 

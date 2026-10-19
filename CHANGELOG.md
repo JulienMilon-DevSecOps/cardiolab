@@ -63,6 +63,13 @@ at the end of this section.
   cardiolab's heuristic; Plews et al. reference corrected (2012, 112:3729);
   `training_sessions.md` described a `UNIQUE(user_id, date)` upsert instead of one row per activity.
 
+### Fixed — Reprocessing without profile / training tables
+
+- `reprocess_sessions()` read the user profile (VO2max norms, load method) and the training
+  sessions without checking that their tables exist: on a database without `user_profiles` (e.g.
+  a fresh test database) it failed with `UndefinedTable`. Both steps are now skipped when the table
+  is missing. New `HRVRepository.table_exists(table_name)`.
+
 ### Docs — Rating guide for session RPE
 
 - `docs/training_load/atl_ctl_tsb.md`: RPE equivalents in running and cycling (≤ 4 below VT1, 5–6

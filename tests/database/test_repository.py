@@ -2210,6 +2210,12 @@ class TestV006Integration:
         for table in self._TABLES.values():
             _test_table_drop(table)
 
+    def test_table_exists(self):
+        """table_exists: True for a created table, False otherwise."""
+        with _repo_from_test_env(**self._TABLES) as repo:
+            assert repo.table_exists(self._TABLES["ortho_table_name"])
+            assert not repo.table_exists("_cardiolab_test_never_created")
+
     def test_vo2max_hr_max_source_round_trip(self):
         """hr_max_source survives save / load ('tanaka' from the age)."""
         from cardiolab.datasets import load_sample
