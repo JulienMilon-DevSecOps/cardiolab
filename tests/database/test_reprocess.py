@@ -232,6 +232,7 @@ class TestReprocess:
         repo.add_raw("orthostatic", "2099-11-01", rr)
         old = analyse_session("orthostatic", rr)
         old.date, old.score = "2099-11-01", session_score("orthostatic", old)
+        old.readiness_score = 50.0  # first session: no previous supine phase
         old.phases.supine.features.sampen += 0.01  # e.g. former SampEn convention
         repo.results["orthostatic"] = {"2099-11-01": old}
         report = reprocess_sessions(repo, "u", protocol="orthostatic", dry_run=False)
@@ -361,3 +362,37 @@ class TestReprocessIntegration:
             again = reprocess_sessions(repo, self._USER, dry_run=False)
         assert again.count("unchanged") == 4
         assert again.written == 0
+
+
+@pytest.mark.unit
+class TestOrthostaticReadiness:
+    """readiness_score of orthostatic sessions (0.5.0)."""
+
+    def test_supine_phases_feed_the_baseline(self):
+        """Each session is scored against the previous supine phases, in order."""
+        from cardiolab.analytics.scoring import orthostatic_readiness_score
+
+        repo = FakeRepo()
+        rr = load_sample("orthostatic", 0)
+        for day in range(1, 9):
+            repo.add_raw("orthostatic", f"2099-11-0{day}", rr)
+        report = reprocess_sessions(repo, "u", protocol="orthostatic", dry_run=False)
+        assert {s.status for s in report.sessions} == {"new"}
+        stored = [repo.results["orthostatic"][f"2099-11-0{d}"] for d in range(1, 9)]
+        assert stored[0].readiness_score == 50.0
+        supines = [r.phases.supine.features for r in stored]
+        expected = orthostatic_readiness_score(
+            supines[-1], Baseline.from_features(supines[:-1])
+        )
+        assert stored[-1].readiness_score == pytest.approx(expected)
+        assert stored[-1].phases.supine.features.date == "2099-11-08"
+
+    def test_idempotent(self):
+        """A second run leaves readiness scores unchanged."""
+        repo = FakeRepo()
+        rr = load_sample("orthostatic", 0)
+        for day in range(1, 4):
+            repo.add_raw("orthostatic", f"2099-11-0{day}", rr)
+        reprocess_sessions(repo, "u", protocol="orthostatic", dry_run=False)
+        again = reprocess_sessions(repo, "u", protocol="orthostatic")
+        assert again.count("unchanged") == 3

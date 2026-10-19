@@ -28,6 +28,19 @@ from cardiolab.reporting._core import (
     style_quality,
 )
 
+
+def _stored_readiness(results: list) -> list[float] | None:
+    """Score de forme stored with the sessions (``readiness_score``), if any.
+
+    Sessions without a stored value give ``nan``; ``None`` when no session
+    has one (rows stored before cardiolab 0.5.0).
+    """
+    stored = [getattr(r, "readiness_score", None) for r in results]
+    if not any(isinstance(s, (int, float)) for s in stored):
+        return None
+    return [float(s) if isinstance(s, (int, float)) else float("nan") for s in stored]
+
+
 # ── Score label helpers (return internal English keys) ────────────────────────
 
 
@@ -183,6 +196,8 @@ def table_orthostatic_comparison(
         raise ValueError(
             f"readiness_scores length ({len(readiness_scores)}) must match results length ({n})"
         )
+    if readiness_scores is None:
+        readiness_scores = _stored_readiness(results)
 
     rows = []
     for i, r in enumerate(results):
@@ -387,8 +402,9 @@ def table_orthostatic_history(
             same order as *results* (use
             :func:`~cardiolab.analytics.scoring.orthostatic_readiness_score`).
             When provided, a ``readiness_score`` column is added alongside the
-            ``autonomic_score`` column. When ``None``, only ``autonomic_score``
-            is shown.
+            ``autonomic_score`` column. When ``None``, the ``readiness_score``
+            stored with the sessions is used if any (cardiolab ≥ 0.5.0);
+            otherwise only ``autonomic_score`` is shown.
         caption_text: Caption shown below the table.
 
     Returns:
@@ -412,6 +428,8 @@ def table_orthostatic_history(
         raise ValueError(
             f"readiness_scores length ({len(readiness_scores)}) must match results length ({n})"
         )
+    if readiness_scores is None:
+        readiness_scores = _stored_readiness(results)
 
     rows = []
     for i, r in enumerate(results):

@@ -31,7 +31,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from cardiolab.analytics.baseline import Baseline
-from cardiolab.analytics.scoring import SCORED_PROTOCOLS, session_score
+from cardiolab.analytics.scoring import (
+    SCORED_PROTOCOLS,
+    orthostatic_readiness_score,
+    session_score,
+)
 from cardiolab.protocols.cardiac_coherence import cardiac_coherence
 from cardiolab.protocols.cardiac_drift import cardiac_drift
 from cardiolab.protocols.hrr import heart_rate_recovery
@@ -51,6 +55,7 @@ KEY_METRICS: dict[str, tuple[str, ...]] = {
         "hr_response",
         "hf_hr_pct_change",
         "score",
+        "readiness_score",
     ),
     "coherence": ("coherence_score", "rmssd", "score"),
     "hrr": ("hrr_60", "hrr_120", "score"),
@@ -283,7 +288,8 @@ def _stored_fields(protocol: str, result) -> dict:
     flat = (
         result.to_flat_dict() if hasattr(result, "to_flat_dict") else result.to_dict()
     )
-    fields = {k: _native(v) for k, v in flat.items() if k != "date"}
+    # Dates identify the session, they are not stored values (phase dates too)
+    fields = {k: _native(v) for k, v in flat.items() if not k.endswith("date")}
     if protocol == "orthostatic":
         for prefix, features in _phase_features(result):
             quality = getattr(features, "quality", None)
@@ -427,12 +433,14 @@ def reprocess_sessions(
             if since is None or d >= since
         )
 
-        history: list = []  # resting baseline: previous sessions, final values
+        # Score de forme baseline: previous sessions (resting) or previous
+        # supine phases (orthostatic), with their final values
+        history: list = []
         for date in sorted(set(stored) | set(raw)):
             todo = date in raw and (since is None or date >= since)
             if not todo:
-                if proto == "resting" and date in stored:
-                    history.append(stored[date])
+                if date in stored and (kept := _baseline_entry(proto, stored[date])):
+                    history.append(kept)
                 continue
 
             change = _reprocess_one(
@@ -447,14 +455,29 @@ def reprocess_sessions(
                 hr_max=hr_max,
             )
             report.sessions.append(change.session)
-            if proto == "resting":
-                kept = change.result if change.result is not None else stored.get(date)
-                if kept is not None:
-                    history.append(kept)
+            source = change.result if change.result is not None else stored.get(date)
+            if source is not None and (kept := _baseline_entry(proto, source)):
+                history.append(kept)
             if not dry_run and change.session.status in ("changed", "new"):
                 save(change.result, date)
 
     return report
+
+
+def _baseline_entry(protocol: str, item):
+    """Features that feed the score de forme baseline (``None`` if none).
+
+    Resting: the session itself. Orthostatic: its supine phase — from an
+    ``OrthostaticResult`` (``phases.supine.features``) or a stored
+    ``OrthostaticRecord`` (``supine``).
+    """
+    if protocol == "resting":
+        return item
+    if protocol == "orthostatic":
+        if hasattr(item, "phases"):
+            return item.phases.supine.features
+        return getattr(item, "supine", None)
+    return None
 
 
 @dataclass
@@ -498,6 +521,13 @@ def _reprocess_one(
         result.date = date
     baseline = Baseline.from_features(history) if protocol == "resting" else None
     result.score = session_score(protocol, result, baseline)
+    if protocol == "orthostatic":
+        # Score de forme of the supine phase vs the previous supine phases
+        supine = result.phases.supine.features
+        supine.date = date
+        result.readiness_score = orthostatic_readiness_score(
+            supine, Baseline.from_features(history)
+        )
 
     after = _key_values(protocol, result)
     # Status from EVERY stored field (e.g. SampEn of each orthostatic phase),

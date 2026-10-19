@@ -168,6 +168,13 @@ class OrthostaticResult:
             its own index in ``phases.<phase>.features.quality`` — a movement
             artefact when standing up does not downgrade the supine phase.
 
+        readiness_score: Score de forme of the session — the supine phase
+            scored against the previous supine phases
+            (:func:`~cardiolab.analytics.scoring.orthostatic_readiness_score`),
+            when the orthostatic test is the main daily measurement. Distinct
+            from ``score`` (autonomic response to standing). Set by the import
+            / reprocessing pipeline; ``None`` until computed. Added in 0.5.0.
+
     """
 
     phases: OrthostaticPhases
@@ -180,6 +187,7 @@ class OrthostaticResult:
     interpretation: str
     score: float = 0.0
     quality: SignalQuality | None = None
+    readiness_score: float | None = None
 
     def to_dict(self) -> dict:
         """Return a plain-Python dict of the full orthostatic result.
@@ -208,6 +216,7 @@ class OrthostaticResult:
             "delta_rmssd": self.delta_rmssd,
             "interpretation": self.interpretation,
             "score": self.score,
+            "readiness_score": self.readiness_score,
             **quality_columns(self.quality),
         }
 
@@ -251,6 +260,7 @@ class OrthostaticResult:
         row["delta_rmssd"] = self.delta_rmssd
         row["interpretation"] = self.interpretation
         row["score"] = self.score
+        row["readiness_score"] = self.readiness_score
         row.update(quality_columns(self.quality))
 
         return row
