@@ -10,7 +10,7 @@ from cardiolab.protocols.cardiac_drift import (
     _interpret_drift,
     cardiac_drift,
 )
-from cardiolab.signals.rr import RRSeries
+from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
 
 # ======================
 # FIXTURES
@@ -208,3 +208,35 @@ class TestCardiacDrift:
         d = result.to_dict()
         assert d["n_windows"] == result.n_windows
         assert d["drift_detected"] == result.drift_detected
+
+
+@pytest.mark.unit
+class TestWarmup:
+    """The initial HR rise is left out of the drift (0.5.0)."""
+
+    @staticmethod
+    def _session(minutes: float, drift_per_min: float = 0.2) -> RRSeries:
+        """HR rising from 100 to 150 bpm in ~3 min, then a slow linear drift."""
+        rr, t = [], 0.0
+        while t < minutes * 60:
+            hr = 150 - 50 * np.exp(-t / 60.0) + drift_per_min * t / 60.0
+            rr.append(60_000.0 / hr)
+            t += rr[-1] / 1000.0
+        return RRSeries(np.array(rr))
+
+    def test_initial_rise_not_counted(self):
+        """30 min at 0.2 bpm/min of true drift: ≈ 0.2, not inflated by the rise."""
+        result = cardiac_drift(self._session(30))
+        assert result.drift_rate == pytest.approx(0.2, abs=0.05)
+        assert result.n_windows == 19  # minutes 10–29 (the last one is incomplete)
+
+    def test_whole_recording_when_warmup_zero(self):
+        """warmup_sec=0 includes the rise — the former, inflated behaviour."""
+        result = cardiac_drift(self._session(30), warmup_sec=0)
+        assert result.drift_rate > 0.4
+
+    def test_short_recording_warns(self):
+        """Fewer than 3 windows after the warm-up: whole recording, with a warning."""
+        with pytest.warns(PhysiologicalWarning, match="warm-up"):
+            result = cardiac_drift(self._session(12))
+        assert result.n_windows == 11  # from minute 0

@@ -12,8 +12,11 @@ increase in metabolic demand. It is caused by the combined effects of:
 
 The protocol captures continuous RR data during sustained exercise (typically
 20–60 min at a constant wattage, pace, or % VO2max). The series is divided into
-non-overlapping windows of ``window_sec`` seconds; the mean HR is computed in
-each window, and linear regression of windowed HR over time yields:
+non-overlapping windows of ``window_sec`` seconds **after a 10-minute warm-up**
+(:data:`WARMUP_SEC`) — the first minutes are the rise of HR towards its
+steady state, not drift: the drift is described as starting after about 10 min
+of exercise (Coyle & González-Alonso 2001). The mean HR is computed in each
+window, and linear regression of windowed HR over time yields:
 
     drift_rate: slope of the HR–time regression (bpm/min)
     drift_magnitude: total HR rise from first to last window (bpm)
@@ -29,6 +32,14 @@ Interpretation:
 
 A strong drift warrants hydration review and/or pacing adjustment.
 
+The thresholds are **cardiolab markers**: they could not be found in the cited
+papers, and drift depends strongly on heat, hydration and intensity. Compare an
+athlete's drift between similar sessions (same pace, same conditions) rather
+than with the thresholds.
+
+Changed in 0.5.0: the regression started at 0 min and included the initial HR
+rise, which inflated the drift of every session shorter than about 40 min.
+
 References:
     Coyle, E. F., & González-Alonso, J. (2001). Cardiovascular drift during
     prolonged exercise: new perspectives. Exercise and Sport Sciences Reviews,
@@ -42,11 +53,15 @@ References:
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
 
-from cardiolab.signals.rr import RRSeries
+from cardiolab.signals.rr import PhysiologicalWarning, RRSeries
+
+WARMUP_SEC = 600.0
+"""Beginning of the recording left out of the regression (s) — HR still rising."""
 
 
 def _interpret_drift(drift_rate: float) -> str:
@@ -74,9 +89,11 @@ class DriftResult:
         r_squared: Coefficient of determination (R²) of the linear fit.
             Values close to 1 indicate a clean, progressive drift.
         drift_detected: ``True`` when ``drift_rate ≥ 0.5 bpm/min``.
-        initial_hr: Mean HR in the first window (bpm).
+        initial_hr: Mean HR in the first analysed window — after the warm-up
+            (bpm).
         final_hr: Mean HR in the last window (bpm).
-        n_windows: Number of windows used for the regression.
+        n_windows: Number of windows used for the regression (after the
+            warm-up).
         interpretation: Clinical category — ``"no_drift"``, ``"mild"``,
             ``"moderate"``, or ``"strong"``.
         duration: Total recording duration (s).
@@ -115,12 +132,16 @@ class DriftResult:
 def cardiac_drift(
     rr: RRSeries,
     window_sec: float = 60.0,
+    warmup_sec: float = WARMUP_SEC,
 ) -> DriftResult:
     """Detect and quantify cardiac drift from a sustained-exercise RR series.
 
-    Divides the series into non-overlapping windows of ``window_sec`` seconds,
-    computes the mean HR in each window, then fits a linear regression of
-    mean HR versus time. At least 3 windows are required.
+    Leaves out the first ``warmup_sec`` seconds (HR still rising towards its
+    steady state), divides the rest into non-overlapping windows of
+    ``window_sec`` seconds, computes the mean HR in each window, then fits a
+    linear regression of mean HR versus time. At least 3 windows are
+    required. A recording too short to keep 3 windows after the warm-up is
+    analysed from the start, with a :class:`PhysiologicalWarning`.
 
     Drift rate interpretation:
 
@@ -137,6 +158,8 @@ def cardiac_drift(
             ``window_sec`` seconds.
         window_sec: Window length for mean-HR estimation (s). Defaults to
             60 s, giving one data point per minute.
+        warmup_sec: Beginning left out of the regression (s). Defaults to
+            600 s (10 min); ``0`` analyses the whole recording.
 
     Returns:
         ``DriftResult`` with drift rate, magnitude, R², detected flag,
@@ -151,10 +174,20 @@ def cardiac_drift(
     time_s -= time_s[0]
     duration = float(time_s[-1])
 
+    # Leave out the warm-up when at least 3 windows remain after it
+    t_start = warmup_sec if duration - warmup_sec >= 3 * window_sec else 0.0
+    if t_start == 0.0 and warmup_sec > 0:
+        warnings.warn(
+            f"Recording duration ({duration / 60:.0f} min) leaves fewer than 3 "
+            f"windows after the {warmup_sec / 60:.0f}-min warm-up: drift computed "
+            "from the start, including the initial HR rise (overestimated).",
+            PhysiologicalWarning,
+            stacklevel=2,
+        )
+
     # Build windows
     window_hrs: list[float] = []
     window_mid_times: list[float] = []
-    t_start = 0.0
 
     while t_start + window_sec <= duration:
         t_end = t_start + window_sec

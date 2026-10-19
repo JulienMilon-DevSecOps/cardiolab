@@ -135,8 +135,11 @@ class OrthostaticResult:
 
     Attributes:
         phases: Segmented phases with their RR series and HRV features.
-        hr_response: HR increase from supine to standing (bpm).
-            Normal physiological range: 10–25 bpm.
+        hr_response: HR increase from supine to standing (bpm) — mean HR of
+            the stabilised standing phase minus mean supine HR. Normal
+            physiological range: 10–25 bpm. Not the highest sustained rise
+            of the clinical POTS criterion (≥ 30 bpm within 10 min, Sheldon
+            et al. 2015): a short early peak is averaged out.
         lf_hf_ratio_change: Ratio of standing LF/HF to supine LF/HF.
             Values above 1 reflect sympathetic activation on standing.
         hf_response_pct: Relative HF power change from supine to standing (%).
