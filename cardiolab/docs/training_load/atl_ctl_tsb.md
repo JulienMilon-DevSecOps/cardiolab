@@ -87,12 +87,45 @@ CR-10 scale (Foster et al. 2001):
 | 7–9 | Very hard |
 | 10 | Maximal |
 
+#### Rating guide — equivalents in running and cycling
+
+Session RPE relates to the ventilatory thresholds: a session rated **4 or less**
+is mostly below the first threshold (VT1), **5–6** between VT1 and VT2, **7 or
+more** above VT2 (Seiler & Kjerland 2006, as used by Pind et al. 2021). The
+grouping of usual training zones below is cardiolab's, built on these bounds:
+
+| RPE | Running | Cycling (Coggan power zones / HR zones) | Physiology |
+|-----|---------|------------------------------------------|------------|
+| 1–2 | Recovery jog | Z1 active recovery (< 55 % FTP) | well below VT1 |
+| **2–4** | **Easy run (« endurance fondamentale »)**, long run | **Z2 endurance** (56–75 % FTP) | **below VT1** |
+| 5 | Marathon pace, tempo | Z3 tempo (76–90 % FTP) | between VT1 and VT2 |
+| 6–7 | Half-marathon / 10 km pace, threshold | Z4 threshold (91–105 % FTP) | around VT2 |
+| 7–9 | VO2max intervals (30/30, 400 m, 1 000 m) | Z5 VO2max (106–120 % FTP), Z6 | above VT2 |
+| 9–10 | All-out race, short competition | Sprints, Z7 | maximal |
+
+How to rate:
+
+1. **Rate the whole session**, not its hardest part: 5 × 3 min in Z5 with 20 min of
+   warm-up and cool-down is usually 6–7, not 9.
+2. **Duration counts in the perceived effort**: a 4-hour Z2 ride may be a 4 rather
+   than a 3 — accepted by the method, which rates the overall difficulty.
+3. **Rate about 30 minutes after the end**, not during or right after the effort.
+
 A 60-minute session rated 5 gives 300 arbitrary units (AU). `trimp_session_rpe()`
 validates the RPE (whole number 0–10); `save_training_session(..., rpe=)` stores
 it (column `rpe`, migration V006).
 
 > Reference: Foster C, Florhaug JA, Franklin J, et al. (2001). A new approach to
 > monitoring exercise training. *J Strength Cond Res*, 15(1), 109–115.
+>
+> Seiler KS, Kjerland GØ (2006). Quantifying training intensity distribution in
+> elite endurance athletes: is there evidence for an "optimal" distribution?
+> *Scand J Med Sci Sports*, 16(1), 49–56.
+>
+> Pind R, Hofmann P, Mäestu E, et al. (2021). Increases in RPE rating predict
+> fatigue accumulation without changes in heart rate zone distribution after
+> 4-week low-intensity high-volume training period in high-level rowers.
+> *Front Physiol*, 12, 735565.
 
 ### Which method?
 
@@ -249,8 +282,16 @@ are debated** — Impellizzeri et al. (2020) question the ACWR's construction an
 its link with injuries: read the zones as markers of a rapid change of load, not
 as injury predictions.
 
-**First 42 days**: no form and no zone (`nan` / `None`) — CTL, a 42-day average,
-is still building up and the ratio would be meaningless.
+**First 42 days**: no form and no zone (`nan` / `None`) — CTL, a 42-day average
+starting from 0, is still building up: dividing by it gives meaningless values
+(−300 %, « overload » from the second session).
+
+**On the charts** (`plot_atl_ctl_tsb()`, `plot_tsb_zones()`): ATL and CTL are drawn
+from the first session, the form only from day 42. The days without form are
+**shaded grey** and labelled « Fitness building up (first 42 days) », so that the
+shorter form curve is not mistaken for missing data. With less than 42 days of
+history, the whole panel is shaded with « Form zones after 42 days of history ».
+A period cropped after day 42 (`between()`) has no shading.
 
 **Compute on the whole history, then crop**: `TrainingLoad.from_sessions(all)`
 then `.between(start, end)`. Filtering the sessions first restarts ATL and CTL at

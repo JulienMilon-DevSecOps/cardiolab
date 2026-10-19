@@ -57,6 +57,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cardiolab's heuristic; Plews et al. reference corrected (2012, 112:3729);
   `training_sessions.md` described a `UNIQUE(user_id, date)` upsert instead of one row per activity.
 
+### Docs — Rating guide for session RPE
+
+- `docs/training_load/atl_ctl_tsb.md`: RPE equivalents in running and cycling (≤ 4 below VT1, 5–6
+  between thresholds, ≥ 7 above VT2 — Seiler & Kjerland 2006, Pind et al. 2021) and three rating
+  rules (whole session, duration counts, ~30 min after).
+
 ### Fixed — HRR, cardiac drift, RMSSD anomaly (calculation review)
 
 - **HRR** (`heart_rate_recovery()`): `hr_peak` was the HR of the **first beat** and `hr_at_60s` /
@@ -89,7 +95,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the first 42 days), `.zones`, `.load_ratio`, `.between(start, end)`; `to_dataframe()` gains
   `form_pct`. `table_training_load_history()` gains `form_pct`; `summary_training_load()` gains
   `form_pct` and `load_ratio`; `tsb_zone` is `None` before 42 days. `plot_atl_ctl_tsb()` and
-  `plot_tsb_zones()` plot the relative form with the new bands. `_tsb_zone_label()` removed.
+  `plot_tsb_zones()` plot the relative form with the new bands; the first 42 days (no form yet)
+  are shaded grey and labelled « fitness building up », as ATL / CTL already start there. `_tsb_zone_label()` removed.
 - **Cold start**: compute on the whole history and crop with `.between()` — filtering the sessions of
   a period first restarted ATL / CTL at 0 (the local report and plots did, so the start of every
   period looked like an overload).

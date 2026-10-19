@@ -169,7 +169,11 @@ RPE_SCALE: dict[int, str] = {
     9: "Very hard",
     10: "Maximal",
 }
-"""CR-10 scale used for session RPE (Foster et al. 2001, after Borg)."""
+"""CR-10 scale used for session RPE (Foster et al. 2001, after Borg).
+
+≤ 4 ≈ below the first ventilatory threshold, 5–6 between the thresholds, ≥ 7
+above the second (Seiler & Kjerland 2006) — running and cycling equivalents in
+``docs/training_load/atl_ctl_tsb.md``."""
 
 
 def validate_rpe(rpe) -> int | None:
