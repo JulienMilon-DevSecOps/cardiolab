@@ -217,6 +217,7 @@ class TestOrthostaticResultToDict:
             "delta_rmssd",
             "interpretation",
             "score",
+            "readiness_score",
             *quality_columns(None),
         }
 

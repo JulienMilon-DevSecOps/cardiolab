@@ -20,7 +20,10 @@ training blocks and predict performance readiness.
 ## The TRIMP — Training Impulse
 
 TRIMP is the daily load unit. It translates a training session into a single
-dimensionless number that feeds ATL and CTL.
+dimensionless number that feeds ATL and CTL. cardiolab offers three methods —
+**use one method consistently for a given athlete**: their scales differ, and
+ATL / CTL built from a mix of them are meaningless (see
+[Which method?](#which-method)).
 
 ### HRV-based TRIMP (primary method in cardiolab)
 
@@ -43,10 +46,10 @@ TRIMP = duration_min × (1 − readiness / 100)
 
 This approach captures the insight that the same external load has a very
 different physiological impact depending on the athlete's recovery state.
-
-> Reference: Manzi V et al. (2009). *Dose–response relationship of autonomic
-> nervous system responses to individualized training impulse in marathon runners.*
-> J Strength Cond Res.
+It is **cardiolab's heuristic**, not a published method: it weighs the session
+by the morning state, not by the intensity of the effort itself. Published
+individualised loads (e.g. the iTRIMP of Manzi et al. 2009) weigh the effort
+heart rate instead — see Banister below.
 
 ### Banister TRIMP (fallback for HR-sensor data)
 
@@ -64,6 +67,48 @@ Where:
 > In: Green HJ, McDougal JD, Wenger HA (Eds.), Physiological Testing of the
 > High-Performance Athlete. Champaign: Human Kinetics, pp. 403–424.
 
+### Session RPE (all sports, no heart rate) — added in v0.5.0
+
+```
+load = duration_min × RPE
+```
+
+The athlete rates the **whole session** about 30 minutes after it ends, on the
+CR-10 scale (Foster et al. 2001):
+
+| RPE | Effort |
+|-----|--------|
+| 0 | Rest |
+| 1 | Very, very easy |
+| 2 | Easy |
+| 3 | Moderate |
+| 4 | Somewhat hard |
+| 5–6 | Hard |
+| 7–9 | Very hard |
+| 10 | Maximal |
+
+A 60-minute session rated 5 gives 300 arbitrary units (AU). `trimp_session_rpe()`
+validates the RPE (whole number 0–10); `save_training_session(..., rpe=)` stores
+it (column `rpe`, migration V006).
+
+> Reference: Foster C, Florhaug JA, Franklin J, et al. (2001). A new approach to
+> monitoring exercise training. *J Strength Cond Res*, 15(1), 109–115.
+
+### Which method?
+
+| | HRV-based | Banister | Session RPE |
+|---|---|---|---|
+| Formula | duration × (1 − readiness / 100) | duration × HRR × e^(b × HRR) | duration × RPE (0–10) |
+| Needs | Morning HRV measurement | Effort heart rate, HR max, HR rest | The athlete's rating after the session |
+| Sports | All | Endurance (steady efforts) | **All** — strength, intervals, team sports |
+| Weighs | The athlete's state that morning | The intensity of the effort | The perceived intensity of the effort |
+| 60 min session | 0 – 60 | ≈ 50 – 200 | 0 – 600 AU |
+| Limits | Ignores the intensity of the session; cardiolab heuristic | Underestimates strength work and short intervals (HR lags behind) | Subjective; needs a rating every session |
+| Evidence | — | Banister 1991 | Foster et al. 2001 — widely validated across sports |
+
+Choose the method from the data the athlete will provide **every session**, and
+keep it: changing method changes the scale of ATL / CTL / TSB.
+
 ---
 
 ## Protocol consistency rule
@@ -76,8 +121,10 @@ Where:
 | Never cross-use the two protocols | A resting RMSSD of 52 ms is not comparable to an orthostatic supine RMSSD of 52 ms without re-normalisation. |
 | Switching protocol resets the readiness series | Historical TRIMP values remain valid; new values start a fresh baseline. |
 
-When `"orthostatic"` is the primary protocol, the **supine phase RMSSD**
-(not the ΔHR orthostatic score) is used as the readiness input. The supine
+When `"orthostatic"` is the primary protocol, the **supine phase**
+(not the ΔHR orthostatic score) is used as the readiness input; its score de
+forme is stored with the session (`readiness_score`, migration V006 — v0.5.0)
+and read back by `load_readiness_for_date(..., baseline=None, ...)`. The supine
 phase is physiologically equivalent to a resting measurement and preserves
 day-to-day variability. The orthostatic score (ΔHR) is stable in healthy
 athletes and is a poor fatigue indicator.
@@ -233,8 +280,10 @@ TSB moves from −21.7 to −1.8, approaching the optimal zone.
 - Manzi V et al. (2009). Dose–response relationship of autonomic nervous system
   responses to individualized training impulse in marathon runners.
   *J Strength Cond Res*, 23(9), 2722–2729.
-- Plews DJ et al. (2013). Heart rate variability in elite triathletes, is variation
+- Plews DJ et al. (2012). Heart rate variability in elite triathletes, is variation
   in variability the key to effective training? A case comparison.
-  *Eur J Appl Physiol*, 113(3), 715–726.
+  *Eur J Appl Physiol*, 112(11), 3729–3741.
+- Foster C et al. (2001). A new approach to monitoring exercise training.
+  *J Strength Cond Res*, 15(1), 109–115.
 - Coggan A. (2003). *Training and racing using a power meter* (internal
   TrainingPeaks document — widely cited in endurance sport literature).

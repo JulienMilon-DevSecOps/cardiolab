@@ -1136,10 +1136,15 @@ The readiness score used to compute the TRIMP is drawn from a **single primary p
 * If `"orthostatic"` is selected, the **supine-phase HRV** (not the orthostatic ΔHR score) feeds the readiness baseline, giving equivalent or better signal quality compared to a standalone resting session.
 * If the user switches protocol, the new series starts fresh; the two series are never crossed in baseline or TRIMP computation.
 
-The TRIMP formula:
+Three load methods (use one consistently per athlete — their scales differ):
 ```
-TRIMP = duration_min × (1 − readiness / 100)
+HRV-based     TRIMP = duration_min × (1 − readiness / 100)       (cardiolab heuristic)
+Banister      TRIMP = duration_min × HRR × e^(b × HRR)            (effort heart rate)
+Session RPE   load  = duration_min × RPE (0–10, Foster 2001)      (all sports, since 0.5.0)
 ```
+Comparison: [`docs/training_load/atl_ctl_tsb.md`](cardiolab/docs/training_load/atl_ctl_tsb.md#which-method).
+With the orthostatic test as primary protocol, the score de forme of the supine phase is
+stored with the session (`readiness_score`, since 0.5.0).
 
 | TSB zone | Interpretation |
 |----------|---------------|
@@ -1185,13 +1190,13 @@ Zones as implemented in `reporting/training_load_report.py` and `visualization/t
 
 #### Phase 6 — Local scripts ✅
 * [x] `local/main_training_load.py` — log session → TRIMP → save → ATL/CTL/TSB plots
-  * TRIMP methods: `hrv` (day's readiness), `banister` (HR sensor), `manual` (readiness typed in)
+  * TRIMP methods: `hrv` (day's readiness), `banister` (HR sensor), `manual` (readiness typed in), `rpe` (perceived effort, since 0.5.0)
   * Options: `--protocol resting|orthostatic`, `--date`, `--sport`, `--dry-run`, `--save-plot`
   * Interactive `--delete` mode: lookup by (user, date, optional sport); numbered menu when multiple activities
 * [x] `local/main_training_load_report.py` — HTML ATL/CTL/TSB report over a period
   * Period filter: `--from / --to` or `--last N` days; KPI summary + table + 3 base64-embedded plots; `--open`
 
-**References:** Banister EW et al. (1991); Morton RH et al. (1990); Manzi V et al. (2009)
+**References:** Banister EW et al. (1991); Morton RH et al. (1990); Foster C et al. (2001)
 
 #### Additional local scripts (added during v0.2.0 development) ✅
 * [x] `local/main_report_files.py` — generate an HTML report from `.txt` files, **no database required**

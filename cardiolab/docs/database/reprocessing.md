@@ -60,7 +60,9 @@ For each session of `hrv_raw_sessions`, in chronological order:
 2. The score is recomputed with `session_score()`. The resting readiness
    score uses a baseline made of the **previous** sessions, already
    reprocessed (`poor` sessions excluded); the other protocols use absolute
-   thresholds.
+   thresholds. Orthostatic sessions also get their **score de forme**
+   (`readiness_score`, v0.5.0): the supine phase against the previous supine
+   phases, already reprocessed.
 3. The result replaces the stored one (upsert on `(user_id, date)`).
 
 VO2max sessions keep the `hr_max` of their stored estimation (Uth model);

@@ -67,6 +67,7 @@ conn.close()
 | `V003__add_training_sessions.sql` | v0.2.0 | Adds `hrv_training_sessions` table |
 | `V004__add_user_profiles.sql` | v0.2.4 | Adds `user_profiles` table |
 | `V005__add_signal_quality.sql` | v0.4.0 | Adds `quality JSONB` to `hrv_features`, `hrv_orthostatic`, `hrv_coherence`, `hrv_vo2max` ([signal quality](../features/signal_quality.md)) |
+| `V006__add_session_rpe_and_ortho_readiness.sql` | v0.5.0 | Adds `rpe` (0–10) to `hrv_training_sessions` ([session RPE](../training_load/atl_ctl_tsb.md#session-rpe-all-sports-no-heart-rate--added-in-v050)) and `readiness_score` to `hrv_orthostatic` (score de forme of the supine phase) |
 
 ---
 
@@ -81,12 +82,12 @@ subclass `HRVRepository` and override `run_migrations`.
 
 ## Writing your own migration
 
-Create a file `V006__<description>.sql` (next free number) in `cardiolab/database/migrations/`
+Create a file `V007__<description>.sql` (next free number) in `cardiolab/database/migrations/`
 (or in a local copy of the migrations directory) and apply it via
 `run_migrations`. Use `ADD COLUMN IF NOT EXISTS` to make alterations idempotent:
 
 ```sql
--- V006__add_my_column.sql
+-- V007__add_my_column.sql
 ALTER TABLE hrv_features ADD COLUMN IF NOT EXISTS my_column FLOAT;
 ```
 

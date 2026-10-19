@@ -19,6 +19,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `table_weekly_monitoring()` (one row per ISO week). Labels EN / FR.
 - `docs/analytics/monitoring.md` — definitions and interpretation guide.
 
+### Added — Session RPE load and orthostatic score de forme — migration V006
+
+- **Migration `V006__add_session_rpe_and_ortho_readiness.sql`** (idempotent): `rpe` SMALLINT 0–10 on
+  `hrv_training_sessions`, `readiness_score` FLOAT on `hrv_orthostatic`. Apply with
+  `repo.run_migrations()` before saving new sessions.
+- `trimp_session_rpe(duration_min, rpe)` — load = duration × perceived effort on the CR-10 scale
+  (Foster et al. 2001): every sport, no heart rate. `validate_rpe()`, `RPE_SCALE`.
+  `save_training_session(..., rpe=None)` validates and stores it; `load_training_sessions()` /
+  `find_training_sessions()` return it.
+- **Orthostatic `readiness_score`** — score de forme of the supine phase against the previous
+  supine phases, stored with the session (`OrthostaticResult` / `OrthostaticRecord`): computed by
+  `reprocess_sessions()` and at import, read by `table_orthostatic_history()` /
+  `table_orthostatic_comparison()` when no scores are passed, and by
+  `load_readiness_for_date(..., baseline=None, ...)` (stored value, both protocols). It used to be
+  recomputed on every display. `score` keeps the autonomic response to standing.
+- Reprocessing ignores dates when comparing stored fields (phase dates are not stored values).
+- Docs: method comparison table (`docs/training_load/atl_ctl_tsb.md`), two orthostatic scores
+  (`docs/protocols/orthostatic.md`), V006 (`migration_guide.md`). Fixed: the HRV-based TRIMP was
+  attributed to Manzi et al. (2009), who use a heart-rate-based individualised TRIMP — it is
+  cardiolab's heuristic; Plews et al. reference corrected (2012, 112:3729);
+  `training_sessions.md` described a `UNIQUE(user_id, date)` upsert instead of one row per activity.
+
 ### Added — Statistically qualified trends (`cardiolab.analytics.trends`)
 
 - `linear_trend(series, window_days=None, *, end, min_points=5, alpha=0.05, min_change_pct=5.0)` →
@@ -67,6 +89,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- Session RPE (formula, validation), V006 (rpe and readiness_score round trips, migration re-run on
+  pre-0.5.0 tables), orthostatic `readiness_score` in reprocessing (baseline of previous supine
+  phases, idempotent), stored value read by tables and `load_readiness_for_date`.
 - `tests/analytics/test_trends_stats.py` (23): known slope recovered exactly, pure noise not
   significant (fixed seeds) and ≈ 5 % false positives over 300 series, relative threshold, windows
   in calendar days, sustained decline, report, `trend_rmssd()` wrapper.
