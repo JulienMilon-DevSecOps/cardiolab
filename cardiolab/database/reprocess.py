@@ -204,7 +204,12 @@ class ReprocessReport:
         """Number of sessions written (0 in dry run)."""
         if self.dry_run:
             return 0
-        return self.count("changed") + self.count("new")
+        return sum(
+            1
+            for s in self.sessions
+            if s.status in ("changed", "new")
+            or (s.status == "pending" and s.changed_fields)
+        )
 
     def summary(self) -> str:
         """Human-readable summary, one line per protocol."""
@@ -231,12 +236,12 @@ class ReprocessReport:
         if loads:
             counts = {
                 st: sum(1 for s in loads if s.status == st)
-                for st in ("changed", "unchanged", "kept", "pending")
+                for st in ("changed", "unchanged", "pending")
             }
             lines.append(
                 f"  {'training':<12} {len(loads):>3} loads ({loads[0].after['load_method']}) — "
                 f"{counts['changed']} changed, {counts['unchanged']} unchanged, "
-                f"{counts['kept']} kept (data missing), {counts['pending']} pending"
+                f"{counts['pending']} pending (data missing — load cleared)"
             )
         lines.extend(f"  {note}" for note in self.notes)
         for s in self.sessions:
@@ -534,8 +539,13 @@ def _reprocess_training_loads(
 
     The method (``load_method``) and the main protocol come from the user
     profile; ``"hrv"`` loads use the score de forme of the day just
-    reprocessed. A session missing the data of its method keeps its stored
-    load (status ``kept``). Without a profile, loads are left untouched.
+    reprocessed. A session missing the data of its method becomes **pending**:
+    its stored load is cleared (``trimp = NULL``), never kept from another
+    method — the scales differ up to ×10. Without a profile, loads are left
+    untouched.
+
+    Changed in 0.5.0: such a session kept its stored load (status ``kept``),
+    so changing method mixed two scales in ATL / CTL.
     """
     if not hasattr(repo, "load_training_sessions"):
         return
@@ -560,7 +570,7 @@ def _reprocess_training_loads(
         )
         old = s.get("trimp")
         if new is None:
-            status = "kept" if old is not None else "pending"
+            status = "pending"
         elif old is not None and _same(float(old), new):
             status = "unchanged"
         else:
@@ -571,11 +581,13 @@ def _reprocess_training_loads(
                 date,
                 status,
                 before={"trimp": old, "load_method": method},
-                after={"trimp": new if new is not None else old, "load_method": method},
-                changed_fields=["trimp"] if status == "changed" else [],
+                after={"trimp": new, "load_method": method},
+                changed_fields=["trimp"]
+                if new is None and old is not None or status == "changed"
+                else [],
             )
         )
-        if not dry_run and status == "changed":
+        if not dry_run and (status == "changed" or (new is None and old is not None)):
             repo.update_training_session(s["activity_id"], trimp=new)
 
 

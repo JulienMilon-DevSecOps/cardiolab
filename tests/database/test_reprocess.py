@@ -485,21 +485,22 @@ class TestTrainingLoads:
         return repo
 
     def test_hrv_uses_reprocessed_score(self):
-        """hrv: load = duration × (1 − new score of the day / 100); no measure → kept."""
+        """hrv: load = duration × (1 − new score of the day / 100); no measure → pending."""
         repo = self._repo("hrv")
         report = reprocess_sessions(repo, "u", dry_run=False)
         new_score = repo.results["resting"]["2099-11-03"].score
         loads = {s.date: s for s in report.sessions if s.protocol == "training"}
         assert repo.sessions[0]["trimp"] == pytest.approx(60 * (1 - new_score / 100))
-        assert loads["2099-11-09"].status == "kept"
-        assert repo.sessions[1]["trimp"] == 12.0
+        assert loads["2099-11-09"].status == "pending"
+        assert repo.sessions[1]["trimp"] is None  # never kept from another method
 
     def test_rpe(self):
-        """rpe: duration × RPE; a session without RPE keeps its load."""
+        """rpe: duration × RPE; a session without RPE becomes pending (load cleared)."""
         repo = self._repo("rpe")
-        reprocess_sessions(repo, "u", dry_run=False)
+        report = reprocess_sessions(repo, "u", dry_run=False)
         assert repo.sessions[0]["trimp"] == 300.0
-        assert repo.sessions[1]["trimp"] == 12.0
+        assert repo.sessions[1]["trimp"] is None
+        assert report.written >= 2  # the cleared load counts as a write
 
     def test_banister_needs_profile_hr(self):
         """banister: needs hr_max / hr_rest of the profile."""
@@ -513,7 +514,7 @@ class TestTrainingLoads:
         repo = self._repo("banister")
         report = reprocess_sessions(repo, "u")
         assert {s.status for s in report.sessions if s.protocol == "training"} == {
-            "kept"
+            "pending"
         }
 
     def test_dry_run_and_summary(self):
@@ -522,7 +523,8 @@ class TestTrainingLoads:
         report = reprocess_sessions(repo, "u")
         assert ("training", "a1") not in repo.writes
         assert "training" in report.summary()
-        assert "kept (data missing)" in report.summary()
+        assert "pending (data missing — load cleared)" in report.summary()
+        assert repo.sessions[1]["trimp"] == 12.0  # dry run: nothing cleared
 
     def test_single_protocol_leaves_loads(self):
         """protocol='resting' only → loads not touched."""
