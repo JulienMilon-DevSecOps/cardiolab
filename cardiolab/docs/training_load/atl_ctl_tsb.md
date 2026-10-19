@@ -109,6 +109,43 @@ it (column `rpe`, migration V006).
 Choose the method from the data the athlete will provide **every session**, and
 keep it: changing method changes the scale of ATL / CTL / TSB.
 
+### One method per athlete — `user_profiles.load_method`
+
+The method is a setting of the athlete's profile (since v0.5.0), like the main
+protocol, and is applied to **every** session:
+
+| `load_method` | Minimum data per session | Other data | Without them |
+|---------------|--------------------------|------------|--------------|
+| `hrv` (default for existing profiles) | duration | the morning measurement of the same day (score de forme of the main protocol) | load pending |
+| `banister` | duration + mean heart rate of the session | profile: maximal HR, resting HR, sex | load pending |
+| `rpe` | duration + perceived effort 0–10, rated about 30 min after the session | — | load pending |
+
+```python
+from cardiolab.analytics.training_load import session_load, LOAD_METHOD_REQUIREMENTS
+
+session_load("rpe", 60, rpe=5)                                   # 300.0
+session_load("banister", 52, hr_mean=125, hr_max=185, hr_rest=50)
+session_load("hrv", 60, readiness=None)                          # None — pending
+```
+
+A session missing the data of its method is **pending** (`None`): its load is
+never computed with another method. Pending sessions count as no load in
+ATL / CTL until the data arrives (e.g. the RPE is entered later).
+
+**Changing method** changes the scale: `reprocess_sessions()` recomputes every
+stored load with the profile's method (sessions without the data keep their
+stored load and are reported as `kept`). The heart rate (`hr_mean`) and the RPE
+of each session are stored (migration V006) so that the loads can always be
+recomputed.
+
+**Pros and cons, for the athlete:**
+
+| Method | For | Against |
+|--------|-----|---------|
+| Score de forme of the day (`hrv`) | Nothing to enter after the session; uses the morning measurement already taken | Ignores how hard the session was; load and recovery come from the same measurement, so the fatigue curves add little to the score; cardiolab heuristic |
+| Session heart rate (`banister`) | Objective; read automatically from `.fit` files; classic endurance reference | Needs a heart-rate sensor and the profile's maximal and resting HR; underestimates strength work, short intervals and team sports |
+| Perceived effort (`rpe`) | Every sport, no sensor; the most widely validated method; measures the effort independently of the morning measurement | A rating to give after every session; subjective (learn the 0–10 scale) |
+
 ---
 
 ## Protocol consistency rule

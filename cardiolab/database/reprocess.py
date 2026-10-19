@@ -36,6 +36,7 @@ from cardiolab.analytics.scoring import (
     orthostatic_readiness_score,
     session_score,
 )
+from cardiolab.analytics.training_load import session_load
 from cardiolab.protocols.cardiac_coherence import cardiac_coherence
 from cardiolab.protocols.cardiac_drift import cardiac_drift
 from cardiolab.protocols.hrr import heart_rate_recovery
@@ -188,6 +189,7 @@ class ReprocessReport:
     method: str
     sessions: list[SessionChange] = field(default_factory=list)
     skipped: list[tuple[str, str]] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
     def count(self, status: str) -> int:
         """Return the number of sessions with ``status``."""
@@ -221,6 +223,18 @@ class ReprocessReport:
                 f"{counts['new']} new, {counts['failed']} failed, "
                 f"{skipped} without raw RR"
             )
+        loads = [s for s in self.sessions if s.protocol == "training"]
+        if loads:
+            counts = {
+                st: sum(1 for s in loads if s.status == st)
+                for st in ("changed", "unchanged", "kept", "pending")
+            }
+            lines.append(
+                f"  {'training':<12} {len(loads):>3} loads ({loads[0].after['load_method']}) — "
+                f"{counts['changed']} changed, {counts['unchanged']} unchanged, "
+                f"{counts['kept']} kept (data missing), {counts['pending']} pending"
+            )
+        lines.extend(f"  {note}" for note in self.notes)
         for s in self.sessions:
             if s.status == "failed":
                 lines.append(f"  ✗ {s.protocol} {s.date}: {s.error}")
@@ -419,6 +433,8 @@ def reprocess_sessions(
 
     report = ReprocessReport(user_id=user_id, dry_run=dry_run, method=method)
     storage = _storage(repo, user_id)
+    # Final score de forme per protocol and date — feeds the training loads
+    readiness: dict[str, dict[str, float]] = {"resting": {}, "orthostatic": {}}
 
     for proto in protocols:
         raw = {s["date"]: s for s in repo.list_raw_sessions(user_id, proto)}
@@ -439,8 +455,10 @@ def reprocess_sessions(
         for date in sorted(set(stored) | set(raw)):
             todo = date in raw and (since is None or date >= since)
             if not todo:
-                if date in stored and (kept := _baseline_entry(proto, stored[date])):
-                    history.append(kept)
+                if date in stored:
+                    _note_readiness(readiness, proto, date, stored[date])
+                    if kept := _baseline_entry(proto, stored[date]):
+                        history.append(kept)
                 continue
 
             change = _reprocess_one(
@@ -456,12 +474,92 @@ def reprocess_sessions(
             )
             report.sessions.append(change.session)
             source = change.result if change.result is not None else stored.get(date)
-            if source is not None and (kept := _baseline_entry(proto, source)):
-                history.append(kept)
+            if source is not None:
+                _note_readiness(readiness, proto, date, source)
+                if kept := _baseline_entry(proto, source):
+                    history.append(kept)
             if not dry_run and change.session.status in ("changed", "new"):
                 save(change.result, date)
 
+    if protocol is None:
+        _reprocess_training_loads(
+            repo, user_id, readiness, report, since=since, dry_run=dry_run
+        )
+
     return report
+
+
+def _note_readiness(readiness: dict, protocol: str, date: str, item) -> None:
+    """Record the score de forme of a session (resting ``score``, orthostatic ``readiness_score``)."""
+    if protocol == "resting":
+        value = getattr(item, "score", None)
+    elif protocol == "orthostatic":
+        value = getattr(item, "readiness_score", None)
+    else:
+        return
+    if isinstance(value, (int, float)) and math.isfinite(value):
+        readiness[protocol][date] = float(value)
+
+
+def _reprocess_training_loads(
+    repo,
+    user_id: str,
+    readiness: dict[str, dict[str, float]],
+    report: ReprocessReport,
+    *,
+    since: str | None,
+    dry_run: bool,
+) -> None:
+    """Recompute the load of every training session with the profile's method.
+
+    The method (``load_method``) and the main protocol come from the user
+    profile; ``"hrv"`` loads use the score de forme of the day just
+    reprocessed. A session missing the data of its method keeps its stored
+    load (status ``kept``). Without a profile, loads are left untouched.
+    """
+    if not hasattr(repo, "load_training_sessions") or not hasattr(
+        repo, "load_user_profile"
+    ):
+        return
+    profile = repo.load_user_profile(user_id)
+    if not profile:
+        report.notes.append("No user profile: training loads left untouched.")
+        return
+    method = profile.get("load_method") or "hrv"
+    scores = readiness.get(profile.get("primary_protocol") or "resting", {})
+    for s in repo.load_training_sessions(user_id):
+        date = str(s["date"])[:10]
+        if since is not None and date < since:
+            continue
+        new = session_load(
+            method,
+            s.get("duration_min"),
+            readiness=scores.get(date),
+            hr_mean=s.get("hr_mean"),
+            hr_max=profile.get("hr_max"),
+            hr_rest=profile.get("hr_rest"),
+            sex=profile.get("sex"),
+            rpe=s.get("rpe"),
+        )
+        old = s.get("trimp")
+        if new is None:
+            status = "kept" if old is not None else "pending"
+        elif old is not None and _same(float(old), new):
+            status = "unchanged"
+        else:
+            status = "changed"
+        report.sessions.append(
+            SessionChange(
+                "training",
+                date,
+                status,
+                before={"trimp": old, "load_method": method},
+                after={"trimp": new if new is not None else old, "load_method": method},
+                changed_fields=["trimp"] if status == "changed" else [],
+            )
+        )
+        if not dry_run and status == "changed":
+            repo.update_training_session(s["activity_id"], trimp=new)
 
 
 def _baseline_entry(protocol: str, item):
