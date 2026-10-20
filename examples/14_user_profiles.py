@@ -2,15 +2,17 @@
 
 Demonstrates the complete ``user_profiles`` table CRUD workflow:
 1. Apply migrations to ensure the table exists.
-2. Create a user profile.
+2. Create a user profile — main protocol and load method (cardiolab ≥ 0.5.0).
 3. Load and inspect it.
-4. Update a field.
+4. Update fields.
 5. List all profiles.
-6. Delete the profile (cleanup).
+6. Delete the demo profile (cleanup).
+
+The demo always uses a **temporary user id**: it never touches the profile of
+the ``USER_ID`` of your ``.env``.
 
 Prerequisites
 -------------
-* ``01_setup_database.py`` has been run (or run it from within this script).
 * ``.env`` file with ``DB_*`` variables.
 
 Usage::
@@ -21,57 +23,58 @@ Usage::
 
 from __future__ import annotations
 
-import os
 import uuid
 
 from dotenv import load_dotenv
 
-from cardiolab.database import HRVRepository, run_migrations
+from cardiolab.analytics.training_load import LOAD_METHOD_REQUIREMENTS
+from cardiolab.database import HRVRepository
 
 load_dotenv()
 
-# Use USER_ID from .env, or generate a temporary one for this demo.
-_raw = os.environ.get("USER_ID")
-DEMO_USER_ID = str(uuid.UUID(_raw)) if _raw else str(uuid.uuid4())
+DEMO_USER_ID = f"demo-{uuid.uuid4()}"
 
 print("=== cardiolab — user profiles ===\n")
 print(f"Demo user_id : {DEMO_USER_ID}\n")
 
 with HRVRepository.from_env() as repo:
     # ── 0. Ensure migrations are applied ─────────────────────────────────────
-    run_migrations(repo.conn)
+    repo.run_migrations()
 
     # ── 1. Create (upsert) ────────────────────────────────────────────────────
     print("── 1. Create profile ───────────────────────────────────────")
-    profile = repo.save_user_profile(
+    repo.save_user_profile(
         user_id=DEMO_USER_ID,
-        first_name="Alice",
-        last_name="Dupont",
-        email="alice@example.com",
-        birth_date="1990-03-15",
+        primary_protocol="resting",  # or "orthostatic" (supine phase)
         sex="female",
+        birth_year=1990,
         height_cm=168.0,
+        hr_max=188,
+        hr_rest=52,
         weight_kg=62.5,
+        load_method="rpe",  # "hrv", "banister" or "rpe" — one method per athlete
     )
-    print(f"  Created : {profile.first_name} {profile.last_name}")
-    print(f"  Email   : {profile.email}")
-    print(f"  DOB     : {profile.birth_date}  |  Sex : {profile.sex}")
-    print(f"  Height  : {profile.height_cm} cm  |  Weight : {profile.weight_kg} kg")
+    print("  Data each load method needs:")
+    for method, needs in LOAD_METHOD_REQUIREMENTS.items():
+        print(f"    {method:<9} session: {needs['session']} · other: {needs['other']}")
     print()
 
     # ── 2. Load ───────────────────────────────────────────────────────────────
     print("── 2. Load profile ─────────────────────────────────────────")
-    loaded = repo.load_user_profile(DEMO_USER_ID)
-    print(f"  Loaded  : {loaded.first_name} {loaded.last_name}")
-    print(f"  created_at : {loaded.created_at}")
+    profile = repo.load_user_profile(DEMO_USER_ID)
+    print(f"  Main protocol : {profile['primary_protocol']}")
+    print(f"  Load method   : {profile['load_method']}")
+    print(f"  HR max / rest : {profile['hr_max']} / {profile['hr_rest']} bpm")
+    print(f"  created_at    : {profile['created_at']}")
     print()
 
-    # ── 3. Update a field ─────────────────────────────────────────────────────
-    print("── 3. Update weight ────────────────────────────────────────")
-    repo.update_user_profile(DEMO_USER_ID, {"weight_kg": 63.2})
+    # ── 3. Update fields ──────────────────────────────────────────────────────
+    print("── 3. Update weight and load method ────────────────────────")
+    repo.update_user_profile(DEMO_USER_ID, weight_kg=63.2, load_method="banister")
     updated = repo.load_user_profile(DEMO_USER_ID)
-    print(f"  Weight before : {profile.weight_kg} kg")
-    print(f"  Weight after  : {updated.weight_kg} kg")
+    print(f"  Weight      : {profile['weight_kg']} → {updated['weight_kg']} kg")
+    print(f"  Load method : {profile['load_method']} → {updated['load_method']}")
+    print("  (changing the method changes the load scale: reprocess the history)")
     print()
 
     # ── 4. List all profiles ──────────────────────────────────────────────────
@@ -79,14 +82,14 @@ with HRVRepository.from_env() as repo:
     profiles = repo.list_user_profiles()
     print(f"  Total : {len(profiles)}")
     for p in profiles:
-        name = f"{p.first_name or ''} {p.last_name or ''}".strip() or "(no name)"
-        print(f"    • {name}  ({p.user_id[:8]}…)")
+        print(
+            f"    • {p['user_id'][:13]}…  {p['primary_protocol']}  {p['load_method']}"
+        )
     print()
 
     # ── 5. Delete (cleanup) ───────────────────────────────────────────────────
-    print("── 5. Delete profile (demo cleanup) ────────────────────────")
-    deleted = repo.delete_user_profile(DEMO_USER_ID)
-    print(f"  Deleted : {deleted}")
+    print("── 5. Delete the demo profile ──────────────────────────────")
+    print(f"  Deleted : {repo.delete_user_profile(DEMO_USER_ID)}")
     print()
 
 print("Done.")

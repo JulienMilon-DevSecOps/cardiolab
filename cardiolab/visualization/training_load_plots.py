@@ -25,15 +25,18 @@ _TRIMP_COLOR = "#e67e22"  # orange — default TRIMP bar
 _GRAY = "#95a5a6"
 _DARK = "#2c3e50"
 
-# ── TSB zone definitions ──────────────────────────────────────────────────────
-# (low, high, background_colour, label) — from Coggan 2003 / Plews 2013.
+# ── Form zone definitions ─────────────────────────────────────────────────────
+# (low, high, background_colour, label) — relative form = TSB in % of CTL,
+# bounds of cardiolab.analytics.training_load.FORM_ZONES (acute:chronic
+# workload ratio, Gabbett 2016). Changed in 0.5.0: absolute TSB bounds
+# (+25 / +5 / −10 / −30) that only suited one load scale.
 
 _TSB_ZONES = [
-    (25.0, 60.0, "#d6eaf8", "Fresh / detraining"),
-    (5.0, 25.0, "#d5f5e3", "Optimal"),
-    (-10.0, 5.0, "#fef9e7", "Neutral"),
-    (-30.0, -10.0, "#fdebd0", "Accumulated fatigue"),
-    (-60.0, -30.0, "#fadbd8", "Overload"),
+    (20.0, 1000.0, "#d6eaf8", "Fresh / detraining"),
+    (5.0, 20.0, "#d5f5e3", "Optimal"),
+    (-30.0, 5.0, "#fef9e7", "Neutral"),
+    (-50.0, -30.0, "#fdebd0", "Accumulated fatigue"),
+    (-1000.0, -50.0, "#fadbd8", "Overload"),
 ]
 _TSB_ZONE_KEYS = [
     "zone_tsb_fresh",
@@ -94,6 +97,49 @@ def _x_ticks(dates: list[str], max_labels: int = 15) -> tuple[np.ndarray, list[s
 # ── Public plot functions ─────────────────────────────────────────────────────
 
 
+def _form_limits(form: np.ndarray) -> tuple[float, float]:
+    """Y range of the relative form panel: at least −60 % to +35 %."""
+    finite = form[np.isfinite(form)]
+    if finite.size == 0:
+        return -60.0, 35.0
+    return min(float(finite.min()), -60.0), max(float(finite.max()), 35.0)
+
+
+def _note_no_form(ax: plt.Axes, form: np.ndarray, labels: dict | None) -> None:
+    """Grey out the days without form — the first 42 days of the history.
+
+    CTL, a 42-day average starting from 0, is still building up: TSB / CTL
+    would be meaningless, so the form starts later than ATL / CTL. The leading
+    days without form are shaded and labelled so that the shorter curve is
+    not mistaken for missing data.
+    """
+    finite = np.isfinite(form)
+    n_missing = len(form) if not finite.any() else int(np.argmax(finite))
+    if n_missing == 0:
+        return
+    ax.axvspan(-0.5, n_missing - 0.5, color=_GRAY, alpha=0.18, zorder=1, lw=0)
+    text = (
+        lbl(
+            labels,
+            "form_not_yet",
+            "Form zones after 42 days of history (fitness still building up)",
+        )
+        if n_missing == len(form)
+        else lbl(labels, "form_building", "Fitness building up\n(first 42 days)")
+    )
+    ax.text(
+        (n_missing - 1) / 2.0,
+        0.5,
+        text,
+        transform=ax.get_xaxis_transform(),
+        ha="center",
+        va="center",
+        fontsize=8 if n_missing < len(form) else 9,
+        color=_DARK,
+        zorder=5,
+    )
+
+
 def plot_atl_ctl_tsb(
     training_load: TrainingLoad,
     labels: dict[str, str] | None = None,
@@ -108,8 +154,10 @@ def plot_atl_ctl_tsb(
     * **Top** — ATL (red) and CTL (blue) lines with a shaded area between
       them.  When ATL > CTL the area is red (accumulating fatigue); when
       CTL > ATL the area is blue (building fitness above current fatigue).
-    * **Bottom** — TSB line (purple) with coloured zone backgrounds
-      (see :data:`_TSB_ZONES`) and a zero-reference line.
+    * **Bottom** — relative form (TSB in % of CTL, purple) with coloured
+      zone backgrounds (see :data:`_TSB_ZONES`) and a zero-reference line.
+      The first 42 days of the history have no form: they are shaded grey
+      and labelled « fitness building up » (CTL still building up).
 
     Args:
         training_load: A populated :class:`~cardiolab.analytics.training_load.TrainingLoad`
@@ -132,7 +180,7 @@ def plot_atl_ctl_tsb(
     x = np.arange(len(dates))
     atl = training_load.atl
     ctl = training_load.ctl
-    tsb = training_load.tsb
+    form = training_load.form
 
     fig, (ax_top, ax_bot) = plt.subplots(2, 1, figsize=figsize, sharex=True)
 
@@ -160,9 +208,8 @@ def plot_atl_ctl_tsb(
     ax_top.legend(loc="upper left", fontsize=8)
     ax_top.grid(alpha=0.20, linestyle=":")
 
-    # ── Bottom: TSB with zone bands ───────────────────────────────────────────
-    tsb_min = min(float(np.min(tsb)), -35.0)
-    tsb_max = max(float(np.max(tsb)), 30.0)
+    # ── Bottom: relative form with zone bands ─────────────────────────────────
+    tsb_min, tsb_max = _form_limits(form)
 
     for (low, high, color, label), zone_key in zip(
         _TSB_ZONES, _TSB_ZONE_KEYS, strict=True
@@ -180,13 +227,14 @@ def plot_atl_ctl_tsb(
     ax_bot.axhline(0, color=_GRAY, linewidth=0.9, linestyle="--", alpha=0.8)
     ax_bot.plot(
         x,
-        tsb,
+        form,
         color=_TSB_COLOR,
         linewidth=1.8,
         zorder=4,
-        label=lbl(labels, "tsb", "TSB (form)"),
+        label=lbl(labels, "form_pct", "Form (% of CTL)"),
     )
-    ax_bot.set_ylabel(lbl(labels, "tsb", "TSB"), fontsize=10)
+    _note_no_form(ax_bot, form, labels)
+    ax_bot.set_ylabel(lbl(labels, "form_pct", "Form (% of CTL)"), fontsize=10)
     ax_bot.legend(loc="upper left", fontsize=8, ncol=2)
     ax_bot.grid(alpha=0.15, linestyle=":", axis="y")
 
@@ -341,15 +389,21 @@ def plot_tsb_zones(
     title: str = "Training Stress Balance — TSB Zones",
     figsize: tuple[float, float] = (13, 5),
 ) -> Figure:
-    """Plot the TSB time series with coloured physiological zone bands.
+    """Plot the relative form (TSB in % of CTL) with coloured zone bands.
 
-    The coloured bands follow Coggan (2003) / Plews et al. (2013):
+    Bands of :data:`~cardiolab.analytics.training_load.FORM_ZONES` — after
+    the acute:chronic workload ratio (Gabbett 2016), the same for every load
+    method:
 
-    * **Fresh / detraining** (blue)  > +25
-    * **Optimal** (green)            +5 to +25
-    * **Neutral** (yellow)           −10 to +5
-    * **Accumulated fatigue** (orange) −30 to −10
-    * **Overload** (red)             < −30
+    * **Fresh / detraining** (blue)    > +20 %   (ATL / CTL < 0.8)
+    * **Optimal** (green)              +5 to +20 %
+    * **Neutral** (yellow)             −30 to +5 %  (up to ATL / CTL 1.3)
+    * **Accumulated fatigue** (orange) −50 to −30 % (1.3–1.5)
+    * **Overload** (red)               < −50 %   (≥ 1.5)
+
+    The first 42 days of the history have no form (CTL still building up):
+    they are shaded grey and labelled, while ATL / CTL already start.
+    Changed in 0.5.0: absolute TSB with bands +25 / +5 / −10 / −30.
 
     Args:
         training_load: A populated :class:`~cardiolab.analytics.training_load.TrainingLoad`.
@@ -368,11 +422,10 @@ def plot_tsb_zones(
     _validate_training_load(training_load)
 
     dates = training_load.dates
-    tsb = training_load.tsb
+    tsb = training_load.form
     x = np.arange(len(dates))
 
-    tsb_min = min(float(np.min(tsb)), -35.0)
-    tsb_max = max(float(np.max(tsb)), 30.0)
+    tsb_min, tsb_max = _form_limits(tsb)
     pad = (tsb_max - tsb_min) * 0.08
 
     fig, ax = plt.subplots(figsize=figsize)
@@ -390,16 +443,16 @@ def plot_tsb_zones(
             )
 
     ax.axhline(0, color=_GRAY, linewidth=1.0, linestyle="--", alpha=0.8)
-    ax.axhline(-10, color=_GRAY, linewidth=0.5, linestyle=":", alpha=0.6)
-    ax.axhline(5, color=_GRAY, linewidth=0.5, linestyle=":", alpha=0.6)
-    ax.axhline(25, color=_GRAY, linewidth=0.5, linestyle=":", alpha=0.6)
-    ax.axhline(-30, color=_GRAY, linewidth=0.5, linestyle=":", alpha=0.6)
+    for bound in (-50, -30, 5, 20):
+        ax.axhline(bound, color=_GRAY, linewidth=0.5, linestyle=":", alpha=0.6)
 
     ax.plot(x, tsb, color=_TSB_COLOR, linewidth=2.0, zorder=4)
-    ax.fill_between(x, tsb, 0, where=(tsb >= 0), alpha=0.15, color=_CTL_COLOR)
-    ax.fill_between(x, tsb, 0, where=(tsb < 0), alpha=0.15, color=_ATL_COLOR)
+    with np.errstate(invalid="ignore"):
+        ax.fill_between(x, tsb, 0, where=(tsb >= 0), alpha=0.15, color=_CTL_COLOR)
+        ax.fill_between(x, tsb, 0, where=(tsb < 0), alpha=0.15, color=_ATL_COLOR)
+    _note_no_form(ax, tsb, labels)
 
-    ax.set_ylabel(lbl(labels, "tsb", "TSB (form)"), fontsize=10)
+    ax.set_ylabel(lbl(labels, "form_pct", "Form (% of CTL)"), fontsize=10)
     ax.set_ylim(tsb_min - pad, tsb_max + pad)
     ax.grid(alpha=0.15, linestyle=":", axis="y")
 

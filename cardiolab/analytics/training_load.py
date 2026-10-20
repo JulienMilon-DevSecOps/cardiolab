@@ -1,20 +1,31 @@
 """TRIMP computation, ATL/CTL/TSB model, and readiness loading.
 
-Two TRIMP formulas are provided:
+Three load formulas are provided:
 
-* :func:`trimp_hrv_based` — HRV-readiness-weighted TRIMP. Primary method
-  when a daily HRV protocol is in place. The readiness score is computed
-  from the protocol that was chosen as primary for the user (``"resting"``
-  or ``"orthostatic"``); the two are never mixed (see protocol consistency
-  rule in ``docs/training_load/atl_ctl_tsb.md``).
-* :func:`trimp_banister` — Classical Banister (1991) formula using effort HR
-  from a sensor. Fallback when no HRV readiness is available.
+* :func:`trimp_hrv_based` — HRV-readiness-weighted TRIMP (cardiolab
+  heuristic). The readiness score is computed from the protocol that was
+  chosen as primary for the user (``"resting"`` or ``"orthostatic"``); the
+  two are never mixed (see protocol consistency rule in
+  ``docs/training_load/atl_ctl_tsb.md``).
+* :func:`trimp_banister` — Classical Banister (1991) formula using the mean
+  HR of the session from a sensor.
+* :func:`trimp_session_rpe` — session RPE (Foster et al. 2001): duration ×
+  perceived effort on the CR-10 scale. Valid for every sport, no heart rate
+  needed (strength, intervals, team sports).
+
+The three formulas have **different scales**: each athlete has one method
+(``user_profiles.load_method``), applied to every session by
+:func:`session_load` — a session missing its data stays pending, it is never
+computed with another method.
 
 ATL / CTL / TSB — Banister impulse-response model:
 
 * :func:`compute_atl` — 7-day EMA of TRIMP (acute fatigue).
 * :func:`compute_ctl` — 42-day EMA of TRIMP (chronic fitness).
 * :func:`compute_tsb` — TSB = CTL − ATL (form / freshness).
+* :func:`relative_form` / :func:`form_zone` — TSB in % of CTL and its zone
+  (:data:`FORM_ZONES`, after the acute:chronic workload ratio — Gabbett
+  2016): the same reading whatever the load method.
 * :class:`TrainingLoad` — end-to-end container: builds a dense daily series
   from ``load_training_sessions()`` output and exposes the ATL/CTL/TSB
   arrays plus a pandas DataFrame export.
@@ -24,6 +35,21 @@ Loading readiness from the database:
 * :func:`load_readiness_for_date` — strict, single-protocol lookup.
   Returns ``None`` when no session is found for the requested date.
   Never falls back to the other protocol.
+
+References:
+    Gabbett, T. J. (2016). The training—injury prevention paradox: should
+    athletes be training smarter and harder? *British Journal of Sports
+    Medicine*, 50(5), 273–280.
+
+    Williams, S., West, S., Cross, M. J., & Stokes, K. A. (2017). Better way
+    to determine the acute:chronic workload ratio? *British Journal of
+    Sports Medicine*, 51(3), 209–210.
+
+    Impellizzeri, F. M., Tenan, M. S., Kempton, T., Novak, A., & Coutts,
+    A. J. (2020). Acute:chronic workload ratio: conceptual issues and
+    fundamental pitfalls. *International Journal of Sports Physiology and
+    Performance*, 15(6), 907–913.
+
 """
 
 from __future__ import annotations
@@ -69,10 +95,9 @@ def trimp_hrv_based(duration_min: float, readiness_score: float) -> float:
         ValueError: If ``duration_min`` ≤ 0 or ``readiness_score`` is outside
             [0, 100].
 
-    References:
-        Manzi V et al. (2009). Dose–response relationship of autonomic nervous
-        system responses to individualized training impulse in marathon runners.
-        *J Strength Cond Res*, 23(9), 2722–2729.
+    This is a cardiolab heuristic, not a published TRIMP: it weights the
+    duration by the morning state of the athlete, not by the intensity of
+    the session (see ``docs/training_load/atl_ctl_tsb.md``).
 
     """
     if duration_min <= 0.0:
@@ -99,8 +124,7 @@ def trimp_banister(
     where ``b = 1.92`` for males and ``b = 1.67`` for females (sex-specific
     weighting constants from Banister 1991).
 
-    Requires an HR monitor that provides mean effort HR. Intended as a
-    fallback when no HRV readiness is available.
+    Requires an HR monitor that provides the mean HR of the session.
 
     Args:
         duration_min: Workout duration in minutes. Must be strictly positive.
@@ -132,11 +156,189 @@ def trimp_banister(
     return duration_min * hrr * math.exp(b * hrr)
 
 
+RPE_SCALE: dict[int, str] = {
+    0: "Rest",
+    1: "Very, very easy",
+    2: "Easy",
+    3: "Moderate",
+    4: "Somewhat hard",
+    5: "Hard",
+    6: "Hard",
+    7: "Very hard",
+    8: "Very hard",
+    9: "Very hard",
+    10: "Maximal",
+}
+"""CR-10 scale used for session RPE (Foster et al. 2001, after Borg).
+
+≤ 4 ≈ below the first ventilatory threshold, 5–6 between the thresholds, ≥ 7
+above the second (Seiler & Kjerland 2006) — running and cycling equivalents in
+``docs/training_load/atl_ctl_tsb.md``."""
+
+
+def validate_rpe(rpe) -> int | None:
+    """Check a session RPE: an integer between 0 and 10, or ``None`` (not entered).
+
+    Args:
+        rpe: Perceived effort of the whole session on the CR-10 scale.
+
+    Returns:
+        The RPE as an ``int``, or ``None``.
+
+    Raises:
+        ValueError: If ``rpe`` is not a whole number between 0 and 10.
+
+    """
+    if rpe is None:
+        return None
+    if isinstance(rpe, bool) or not isinstance(rpe, (int, float)) or rpe != int(rpe):
+        raise ValueError(f"rpe must be a whole number between 0 and 10, got {rpe!r}")
+    if not 0 <= rpe <= 10:
+        raise ValueError(f"rpe must be between 0 and 10, got {rpe}")
+    return int(rpe)
+
+
+def trimp_session_rpe(duration_min: float, rpe: int) -> float:
+    """Compute the session-RPE training load (Foster et al. 2001).
+
+    Formula::
+
+        load = duration_min × RPE
+
+    The athlete rates the **whole session** about 30 minutes after it ends,
+    on the CR-10 scale (:data:`RPE_SCALE`: 0 rest … 10 maximal). Simple,
+    valid for every sport and without heart rate — strength training, short
+    intervals and team sports, where heart-rate methods underestimate the
+    load. Expressed in arbitrary units (AU): a 60-minute session rated 5
+    gives 300 AU.
+
+    The scale differs from :func:`trimp_hrv_based` and :func:`trimp_banister`:
+    use one method consistently for a given athlete's ATL / CTL / TSB.
+
+    Args:
+        duration_min: Session duration in minutes. Must be strictly positive.
+        rpe: Perceived effort, whole number from 0 to 10.
+
+    Returns:
+        Session load in arbitrary units.
+
+    Raises:
+        ValueError: If ``duration_min`` ≤ 0 or ``rpe`` is not 0–10.
+
+    References:
+        Foster, C., Florhaug, J. A., Franklin, J., Gottschall, L., Hrovatin,
+        L. A., Parker, S., Doleshal, P., & Dodge, C. (2001). A new approach to
+        monitoring exercise training. *Journal of Strength and Conditioning
+        Research*, 15(1), 109–115.
+
+    """
+    if duration_min <= 0.0:
+        raise ValueError(f"duration_min must be > 0, got {duration_min}")
+    value = validate_rpe(rpe)
+    if value is None:
+        raise ValueError("rpe is required for the session-RPE load")
+    return float(duration_min * value)
+
+
+LOAD_METHODS: tuple[str, ...] = ("hrv", "banister", "rpe")
+"""Load methods an athlete can choose (``user_profiles.load_method``)."""
+
+LOAD_METHOD_REQUIREMENTS: dict[str, dict[str, str]] = {
+    "hrv": {
+        "session": "duration",
+        "other": "the morning measurement of the same day (score de forme of the main protocol)",
+    },
+    "banister": {
+        "session": "duration, mean heart rate of the session",
+        "other": "profile: maximal HR, resting HR (sex: male coefficient if missing)",
+    },
+    "rpe": {
+        "session": "duration, perceived effort 0–10 rated about 30 minutes after the session",
+        "other": "—",
+    },
+}
+"""Minimum data of each load method — without them the load stays pending (``None``)."""
+
+
+def validate_load_method(method: str) -> str:
+    """Check a load method name.
+
+    Args:
+        method: ``"hrv"`` (score de forme of the day), ``"banister"`` (session
+            heart rate) or ``"rpe"`` (perceived effort).
+
+    Returns:
+        The method.
+
+    Raises:
+        ValueError: If the method is unknown.
+
+    """
+    if method not in LOAD_METHODS:
+        raise ValueError(
+            f"Unknown load method {method!r}. Choose from {', '.join(LOAD_METHODS)}."
+        )
+    return method
+
+
+def session_load(
+    method: str,
+    duration_min: float | None,
+    *,
+    readiness: float | None = None,
+    hr_mean: float | None = None,
+    hr_max: float | None = None,
+    hr_rest: float | None = None,
+    sex: str | None = "male",
+    rpe: int | None = None,
+) -> float | None:
+    """Load of one session with the athlete's method — ``None`` when data is missing.
+
+    One method per athlete (``user_profiles.load_method``), applied to every
+    session so that ATL / CTL / TSB stay on one scale:
+
+    * ``"hrv"`` — :func:`trimp_hrv_based` (needs the day's ``readiness``);
+    * ``"banister"`` — :func:`trimp_banister` (needs ``hr_mean``, ``hr_max``,
+      ``hr_rest``);
+    * ``"rpe"`` — :func:`trimp_session_rpe` (needs ``rpe``).
+
+    A session without the data its method needs is **pending** (``None``):
+    its load is never computed with another method.
+
+    Args:
+        method: Load method (:data:`LOAD_METHODS`).
+        duration_min: Session duration in minutes.
+        readiness: Score de forme of the day (``"hrv"``).
+        hr_mean: Mean HR of the session (``"banister"``).
+        hr_max: Maximal HR of the athlete (``"banister"``).
+        hr_rest: Resting HR of the athlete (``"banister"``).
+        sex: ``"male"`` / ``"female"`` (``"banister"`` coefficient).
+        rpe: Perceived effort 0–10 (``"rpe"``).
+
+    Returns:
+        The load, or ``None`` when a required value is missing.
+
+    Raises:
+        ValueError: If ``method`` is unknown or a value is out of range.
+
+    """
+    validate_load_method(method)
+    if not duration_min or duration_min <= 0:
+        return None
+    if method == "hrv":
+        return None if readiness is None else trimp_hrv_based(duration_min, readiness)
+    if method == "banister":
+        if None in (hr_mean, hr_max, hr_rest):
+            return None
+        return trimp_banister(duration_min, hr_mean, hr_max, hr_rest, sex=sex or "male")
+    return None if rpe is None else trimp_session_rpe(duration_min, rpe)
+
+
 def load_readiness_for_date(
     user_id: str,
     date: str,
     repo: HRVRepository,
-    baseline: Baseline,
+    baseline: Baseline | None,
     protocol: Literal["resting", "orthostatic"],
 ) -> float | None:
     """Load the readiness score for a given date from the database.
@@ -171,7 +373,10 @@ def load_readiness_for_date(
         repo: An open ``HRVRepository`` context (must be used inside a
             ``with`` block by the caller).
         baseline: Personal reference built from previous sessions of the
-            **same protocol**. Must not mix resting and orthostatic sessions.
+            **same protocol** (resting sessions, or supine phases). Must not mix
+            resting and orthostatic sessions. ``None`` → the score stored with
+            the session is returned (``score`` for resting, ``readiness_score``
+            for orthostatic, cardiolab ≥ 0.5.0); ``None`` if not stored.
         protocol: Primary protocol to read from.
 
     Returns:
@@ -181,12 +386,16 @@ def load_readiness_for_date(
     """
     if protocol == "resting":
         feat = repo.load_features_for_date(user_id, date)
-        return readiness_score_multi(feat, baseline) if feat is not None else None
+        if feat is None:
+            return None
+        return feat.score if baseline is None else readiness_score_multi(feat, baseline)
 
     # protocol == "orthostatic": use the supine phase as the readiness input
     record = repo.load_orthostatic_for_date(user_id, date)
     if record is None:
         return None
+    if baseline is None:
+        return record.readiness_score
     return orthostatic_readiness_score(record.supine, baseline)
 
 
@@ -271,8 +480,9 @@ def compute_tsb(ctl: np.ndarray, atl: np.ndarray) -> np.ndarray:
     """Compute the Training Stress Balance (form) as CTL − ATL.
 
     TSB > 0 indicates the athlete is fresh (CTL > ATL — fitness exceeds
-    fatigue).  TSB < 0 indicates accumulated fatigue. The optimal
-    performance window is approximately TSB +5 to +25.
+    fatigue).  TSB < 0 indicates accumulated fatigue. TSB is in the unit of
+    the load: read it relative to CTL (:func:`relative_form`), not against
+    fixed thresholds — the load methods differ by up to ×10.
 
     Args:
         ctl: Chronic Training Load array.
@@ -283,6 +493,68 @@ def compute_tsb(ctl: np.ndarray, atl: np.ndarray) -> np.ndarray:
 
     """
     return ctl - atl
+
+
+# ======================
+# RELATIVE FORM AND ZONES
+# ======================
+
+MIN_HISTORY_DAYS = 42
+"""Days of history before the form zone is assessed (one CTL time constant)."""
+
+FORM_ZONES: tuple[tuple[float, str], ...] = (
+    (20.0, "fresh_detraining"),
+    (5.0, "optimal"),
+    (-30.0, "neutral"),
+    (-50.0, "accumulated_fatigue"),
+)
+"""Lower bounds of the form zones, in % of CTL (``overload`` below −50 %).
+
+Relative form = TSB / CTL × 100 = (1 − ATL / CTL) × 100: the same reading
+for every load method. The bounds follow the acute:chronic workload ratio
+(ACWR = ATL / CTL) of Gabbett (2016) — « sweet spot » 0.8–1.3 (form −30 % to
++20 %), « danger zone » ≥ 1.5 (form ≤ −50 %), with EWMA loads as proposed
+by Williams et al. (2017); the +5 % split inside the fresh side is
+cardiolab's. These ratios are debated (Impellizzeri et al. 2020): read them
+as markers of a rapid change of load, not as injury predictions."""
+
+
+def relative_form(tsb: np.ndarray, ctl: np.ndarray) -> np.ndarray:
+    """Form in % of CTL — ``TSB / CTL × 100`` (``nan`` where CTL ≤ 0).
+
+    Args:
+        tsb: Training Stress Balance array.
+        ctl: Chronic Training Load array (same length).
+
+    Returns:
+        Relative form array, in %.
+
+    """
+    tsb = np.asarray(tsb, dtype=float)
+    ctl = np.asarray(ctl, dtype=float)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(ctl > 0, 100.0 * tsb / ctl, np.nan)
+
+
+def form_zone(form_pct: float) -> str | None:
+    """Zone of a relative form value (:data:`FORM_ZONES`).
+
+    Args:
+        form_pct: Form in % of CTL.
+
+    Returns:
+        ``"fresh_detraining"`` (> +20 %), ``"optimal"`` (+5 to +20 %),
+        ``"neutral"`` (−30 to +5 %), ``"accumulated_fatigue"`` (−50 to −30 %),
+        ``"overload"`` (< −50 %), or ``None`` for ``nan`` (not enough
+        history).
+
+    """
+    if form_pct is None or not math.isfinite(form_pct):
+        return None
+    for bound, zone in FORM_ZONES:
+        if form_pct > bound:
+            return zone
+    return "overload"
 
 
 # ======================
@@ -299,7 +571,13 @@ class TrainingLoad:
         trimp: Daily TRIMP values (0 on rest days or when readiness was absent).
         atl: Acute Training Load — 7-day EMA of TRIMP.
         ctl: Chronic Training Load — 42-day EMA of TRIMP.
-        tsb: Training Stress Balance — CTL − ATL.
+        tsb: Training Stress Balance — CTL − ATL (unit of the load).
+        form: Relative form — TSB in % of CTL (:func:`relative_form`);
+            ``nan`` during the first :data:`MIN_HISTORY_DAYS` days of the
+            history, while CTL is still building up.
+
+    Changed in 0.5.0: ``form`` added; zones are read on it, no longer on
+    TSB against fixed thresholds.
 
     """
 
@@ -308,6 +586,52 @@ class TrainingLoad:
     atl: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
     ctl: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
     tsb: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
+    form: np.ndarray = field(default_factory=lambda: np.array([], dtype=float))
+
+    def __post_init__(self) -> None:
+        """Derive ``form`` from TSB / CTL when it is not given."""
+        if len(self.form) == 0 and len(self.tsb) > 0:
+            self.form = relative_form(self.tsb, self.ctl)
+            self.form[:MIN_HISTORY_DAYS] = np.nan
+
+    @property
+    def zones(self) -> list[str | None]:
+        """Form zone of each day (:func:`form_zone`)."""
+        return [form_zone(float(v)) for v in self.form]
+
+    @property
+    def load_ratio(self) -> np.ndarray:
+        """Acute:chronic ratio ATL / CTL (``nan`` where ``form`` is ``nan``)."""
+        return 1.0 - self.form / 100.0
+
+    def between(self, start: str | None = None, end: str | None = None) -> TrainingLoad:
+        """Return the days from ``start`` to ``end`` (ISO, inclusive).
+
+        The values are those computed on the **whole** history: cropping
+        after the computation keeps ATL / CTL warmed up by the earlier
+        sessions (filtering the sessions first would restart them at 0).
+
+        Args:
+            start: First day kept (``None`` → first day).
+            end: Last day kept (``None`` → last day).
+
+        Returns:
+            A new :class:`TrainingLoad`.
+
+        """
+        keep = [
+            i
+            for i, d in enumerate(self.dates)
+            if (start is None or d >= start) and (end is None or d <= end)
+        ]
+        return TrainingLoad(
+            dates=[self.dates[i] for i in keep],
+            trimp=self.trimp[keep],
+            atl=self.atl[keep],
+            ctl=self.ctl[keep],
+            tsb=self.tsb[keep],
+            form=self.form[keep],
+        )
 
     # ======================
     # FACTORY
@@ -319,6 +643,7 @@ class TrainingLoad:
         sessions: list[dict],
         tau_atl: int = 7,
         tau_ctl: int = 42,
+        min_history: int = MIN_HISTORY_DAYS,
     ) -> TrainingLoad:
         """Build a TrainingLoad from a list of session dicts.
 
@@ -336,12 +661,17 @@ class TrainingLoad:
         3. Build a dense daily date range between them (inclusive).
         4. Fill rest days (no activity logged) with ``0``.
         5. Compute ATL and CTL via :func:`compute_atl` / :func:`compute_ctl`.
-        6. Compute TSB via :func:`compute_tsb`.
+        6. Compute TSB via :func:`compute_tsb`, and the relative form
+           (TSB in % of CTL, ``nan`` for the first ``min_history`` days).
+
+        Pass the **whole** history and crop with :meth:`between`: ATL and
+        CTL start from 0 on the first day.
 
         Args:
             sessions: List of training session dicts, sorted by date ASC.
             tau_atl: ATL time constant in days (default 7).
             tau_ctl: CTL time constant in days (default 42).
+            min_history: Days before the relative form is given (default 42).
 
         Returns:
             A populated :class:`TrainingLoad` instance.
@@ -377,8 +707,10 @@ class TrainingLoad:
         atl = compute_atl(trimp_array, tau=tau_atl)
         ctl = compute_ctl(trimp_array, tau=tau_ctl)
         tsb = compute_tsb(ctl, atl)
+        form = relative_form(tsb, ctl)
+        form[:min_history] = np.nan
 
-        return cls(dates=dates, trimp=trimp_array, atl=atl, ctl=ctl, tsb=tsb)
+        return cls(dates=dates, trimp=trimp_array, atl=atl, ctl=ctl, tsb=tsb, form=form)
 
     # ======================
     # EXPORT
@@ -387,8 +719,8 @@ class TrainingLoad:
     def to_dataframe(self):
         """Return a pandas DataFrame with one row per day.
 
-        Columns: ``date`` (str), ``trimp``, ``atl``, ``ctl``, ``tsb``
-        (all float).
+        Columns: ``date`` (str), ``trimp``, ``atl``, ``ctl``, ``tsb``,
+        ``form_pct`` (all float).
 
         Returns:
             A ``pandas.DataFrame`` sorted by ascending date.
@@ -408,7 +740,9 @@ class TrainingLoad:
             ) from exc
 
         if not self.dates:
-            return pd.DataFrame(columns=["date", "trimp", "atl", "ctl", "tsb"])
+            return pd.DataFrame(
+                columns=["date", "trimp", "atl", "ctl", "tsb", "form_pct"]
+            )
 
         return pd.DataFrame(
             {
@@ -417,5 +751,6 @@ class TrainingLoad:
                 "atl": self.atl,
                 "ctl": self.ctl,
                 "tsb": self.tsb,
+                "form_pct": self.form,
             }
         )

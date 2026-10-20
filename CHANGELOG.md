@@ -5,6 +5,238 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.5.0] - 2026-10-19
+
+Athlete longitudinal monitoring and a full review of the calculations. **Computed values change**
+(score de forme, coherence, VO2max, HRR, cardiac drift, training loads): see the migration note
+at the end of this section.
+
+### Added — Training adaptation monitoring (`cardiolab.analytics.monitoring`)
+
+- 7-day rolling lnRMSSD and CV (`rolling_ln_rmssd`, `rolling_cv`), smallest worthwhile change band
+  (`swc_band`: 28-day baseline ± 0.5 SD) and adaptation state (`interpret_trend_state` →
+  `coping` / `normal` / `maladaptation` / `overreaching_risk`, after Plews et al. 2012, 2013 and
+  Buchheit 2014). Windows in calendar days, at least 3 measurements per week (Plews et al. 2014);
+  `poor`-quality sessions excluded. `monitoring_series()` gives everything per measurement day
+  (`MonitoringPoint`). Computed on the fly — no database change.
+- `plot_ln_rmssd_monitoring()` (7-day mean coloured by state, SWC band, CV on a second axis) and
+  `table_weekly_monitoring()` (one row per ISO week). Labels EN / FR.
+- `docs/analytics/monitoring.md` — definitions and interpretation guide.
+
+### Added — Load methods, session RPE and orthostatic score de forme — migration V006
+
+- **Migration `V006__training_load_and_ortho_readiness.sql`** (idempotent): `rpe` SMALLINT 0–10 and
+  `hr_mean` FLOAT on `hrv_training_sessions`; `load_method` TEXT (`hrv` / `banister` / `rpe`,
+  default `hrv`) on `user_profiles`; `readiness_score` FLOAT on `hrv_orthostatic`. Apply with
+  `repo.run_migrations()` before saving new sessions.
+- **One load method per athlete** — `user_profiles.load_method`, applied to every session so that
+  ATL / CTL / TSB stay on one scale (the three methods differ by up to ×10).
+  `session_load(method, duration, …)` returns the load, or `None` (pending) when the data of the
+  method is missing — never another method. `LOAD_METHODS`, `LOAD_METHOD_REQUIREMENTS`,
+  `validate_load_method()`. `save_user_profile(..., load_method=)` / `update_user_profile()`
+  validate it; `save_training_session(..., hr_mean=)`; `update_training_session(activity_id, …)`.
+- `reprocess_sessions()` (full run) **recomputes the training loads** with the profile's method,
+  `hrv` loads with the score de forme of the day just reprocessed; a session missing the data of its
+  method becomes **pending** — its stored load is cleared, never kept from another method (status
+  `pending`, counted in `written`). Report: `training` line, `notes`.
+- `local/main_training_load.py`: the profile's method by default, warning when another one is
+  forced; stores the session heart rate.
+- **Fixed `examples/14_user_profiles.py`**: it called a non-existent API (`first_name`, `email`,
+  `birth_date`, attribute access on the returned dict) and **deleted the profile of the `.env`
+  `USER_ID`** at the end. Rewritten with the real API and a temporary demo id.
+- `trimp_session_rpe(duration_min, rpe)` — load = duration × perceived effort on the CR-10 scale
+  (Foster et al. 2001): every sport, no heart rate. `validate_rpe()`, `RPE_SCALE`.
+  `save_training_session(..., rpe=None)` validates and stores it; `load_training_sessions()` /
+  `find_training_sessions()` return it.
+- **Orthostatic `readiness_score`** — score de forme of the supine phase against the previous
+  supine phases, stored with the session (`OrthostaticResult` / `OrthostaticRecord`): computed by
+  `reprocess_sessions()` and at import, read by `table_orthostatic_history()` /
+  `table_orthostatic_comparison()` when no scores are passed, and by
+  `load_readiness_for_date(..., baseline=None, ...)` (stored value, both protocols). It used to be
+  recomputed on every display. `score` keeps the autonomic response to standing.
+- Reprocessing ignores dates when comparing stored fields (phase dates are not stored values).
+- Docs: method comparison table (`docs/training_load/atl_ctl_tsb.md`), two orthostatic scores
+  (`docs/protocols/orthostatic.md`), V006 (`migration_guide.md`). Fixed: the HRV-based TRIMP was
+  attributed to Manzi et al. (2009), who use a heart-rate-based individualised TRIMP — it is
+  cardiolab's heuristic; Plews et al. reference corrected (2012, 112:3729);
+  `training_sessions.md` described a `UNIQUE(user_id, date)` upsert instead of one row per activity.
+
+### Fixed — Reprocessing without profile / training tables
+
+- `reprocess_sessions()` read the user profile (VO2max norms, load method) and the training
+  sessions without checking that their tables exist: on a database without `user_profiles` (e.g.
+  a fresh test database) it failed with `UndefinedTable`. Both steps are now skipped when the table
+  is missing. New `HRVRepository.table_exists(table_name)`.
+
+### Docs — Rating guide for session RPE
+
+- `docs/training_load/atl_ctl_tsb.md`: RPE equivalents in running and cycling (≤ 4 below VT1, 5–6
+  between thresholds, ≥ 7 above VT2 — Seiler & Kjerland 2006, Pind et al. 2021) and three rating
+  rules (whole session, duration counts, ~30 min after).
+
+### Fixed — HRR, cardiac drift, RMSSD anomaly (calculation review)
+
+- **HRR** (`heart_rate_recovery()`): `hr_peak` was the HR of the **first beat** and `hr_at_60s` /
+  `hr_at_120s` single interpolated points — one ectopic or missed beat (the series is analysed as
+  recorded) shifted HRR1 by 10 bpm or more. Now 5-s medians: peak = highest 5-s median of the first
+  15 s, HR at 60 s / 120 s = median of 57.5–62.5 s / 117.5–122.5 s. The docstring announced a
+  « 10-beat rolling average » that did not exist. `fs` is ignored (kept for compatibility).
+- **Cardiac drift** (`cardiac_drift()`): the regression started at 0 min and included the initial HR
+  rise towards steady state, inflating the drift. The first 10 minutes are left out (`warmup_sec`,
+  default 600 s; `0` for the former behaviour); too short a recording is analysed from the start with
+  a `PhysiologicalWarning`. The bpm/min thresholds are documented as cardiolab markers (not found in
+  Coyle & González-Alonso 2001).
+- **`detect_rmssd_anomaly(method="zscore")`**: z-score of **lnRMSSD** against the previous 28 days
+  (≥ 6 days, sample SD) — the reference of the score de forme. It used raw RMSSD of the last 7
+  sessions, population SD, from 3 sessions.
+- Orthostatic: `hr_response` documented as the mean standing − mean supine HR, not the highest
+  sustained rise of the clinical POTS criterion.
+- **HRR and drift values change** — reprocess.
+
+### Changed — Training load zones: relative form instead of absolute TSB
+
+- TSB is in the unit of the load (≈ ×10 with session RPE): its zones (+25 / +5 / −10 / −30, Coggan's
+  TSS scale) put nearly every training day of a session-RPE athlete in « Overload ». Zones are now
+  read on the **relative form** `TSB / CTL × 100` = `(1 − ATL / CTL) × 100`, the same for every
+  load method: > +20 % fresh / detraining, +5 to +20 % optimal, −30 to +5 % neutral, −50 to −30 %
+  accumulated fatigue, < −50 % overload — bounds after the acute:chronic workload ratio (« sweet
+  spot » 0.8–1.3, « danger zone » ≥ 1.5, Gabbett 2016; EWMA, Williams et al. 2017; debated,
+  Impellizzeri et al. 2020).
+- `relative_form()`, `form_zone()`, `FORM_ZONES`, `MIN_HISTORY_DAYS`; `TrainingLoad.form` (`nan` for
+  the first 42 days), `.zones`, `.load_ratio`, `.between(start, end)`; `to_dataframe()` gains
+  `form_pct`. `table_training_load_history()` gains `form_pct`; `summary_training_load()` gains
+  `form_pct` and `load_ratio`; `tsb_zone` is `None` before 42 days. `plot_atl_ctl_tsb()` and
+  `plot_tsb_zones()` plot the relative form with the new bands; the first 42 days (no form yet)
+  are shaded grey and labelled « fitness building up », as ATL / CTL already start there. `_tsb_zone_label()` removed.
+- **Cold start**: compute on the whole history and crop with `.between()` — filtering the sessions of
+  a period first restarted ATL / CTL at 0 (the local report and plots did, so the start of every
+  period looked like an overload).
+- Docs: the claim that these zones were « validated for HRV-based load » (Plews et al. 2013) had no
+  support — removed.
+
+### Changed — VO2max: HRmax from the age, categories by age and sex
+
+- **Tanaka HRmax** — without a provided `hr_max`, `vo2max_from_hrv(rr, age=…)` predicts it with
+  `208 − 0.7 × age` (Tanaka et al. 2001, `tanaka_hr_max()`) and keeps the sourced Uth model; the
+  unsourced ln-RMSSD estimate is used only without HRmax **and** age. New `hr_max_source`
+  (`provided` / `tanaka` / `None`), stored in `hrv_vo2max` (column added to V006).
+- **Categories and score by age and sex** — FRIEND registry percentiles (Kaminsky et al. 2015,
+  10th/25th/50th/75th/90th per sex and decade, `FRIEND_PERCENTILES`): `vo2max_percentile()`,
+  `vo2max_category(vo2max, age, sex)` (< 10th poor, 10–25th fair, 25–75th good, 75–90th very
+  good, ≥ 90th excellent) and `vo2max_score(vo2max, age, sex)` = the percentile. Without age or
+  sex: the former fixed scale. `VO2maxResult.age` / `.sex` (not stored), `.best_estimate`,
+  `.percentile`; `age_at(birth_year, date)`.
+- `analyse_session()` takes `age` and `sex`; `reprocess_sessions()` reads `birth_year`, `sex` and
+  `hr_max` from the user profile (a stored Tanaka HRmax is predicted again, never kept as
+  provided). `table_vo2max_session()` shows the HRmax source and the percentile.
+- Docs: `docs/protocols/vo2max.md` — the unsourced "ACSM men" table replaced by the FRIEND table.
+
+### Changed — Cardiac coherence score (McCraty & Shaffer 2015)
+
+- `coherence_score` = share of the **whole spectrum** (0.0033–0.4 Hz) in the 0.030 Hz window of the
+  resonance peak — the HeartMath coherence ratio `CR = peak / (total − peak)` as a percentage
+  (`CoherenceResult.coherence_ratio`). The denominator was the 0.04–0.26 Hz band only.
+- The peak is the highest **local maximum** of 0.04–0.26 Hz: it could be the lower edge of the band
+  (VLF power decreasing above 0.04 Hz). On 24 real resting recordings (spontaneous breathing) the
+  former score gave ≈ 50–60 %, the new one 5–21 % (median 12 %); regular 6/min breathing scores
+  60–90 %.
+- Thresholds (cardiolab — no validated cut-off exists): good ≥ 50 % (CR ≥ 1), moderate 30–50 %,
+  low < 30 % — in `coherence_score_100()` (sigmoid centred at 40 %), plots, tables and labels
+  (were 60 / 40 %). **Coherence scores change** — reprocess.
+- Docs: 0.1 Hz resonance is in the LF band (was described as HF).
+
+### Added — Statistically qualified trends (`cardiolab.analytics.trends`)
+
+- `linear_trend(series, window_days=None, *, end, min_points=5, alpha=0.05, min_change_pct=5.0)` →
+  `TrendResult` (slope per calendar day, intercept, r², p-value, n, fitted change in % of the
+  mean, label). `increasing` / `decreasing` only when the slope is significant **and** the change
+  reaches 5 % of the mean — a relative threshold instead of an absolute one.
+- The p-value accounts for **autocorrelation**: effective sample size `n_eff = n (1 − r1)/(1 + r1)`
+  from the lag-1 autocorrelation of the residuals (Santer et al. 2000), `TrendResult.n_eff`. On
+  autocorrelated noise (r = 0.7, 30 values), false trends fall from ≈ 39 % to ≈ 13 %.
+- `detect_sustained_decline(scores, min_sessions=5, threshold=-0.5)` → `SustainedDecline`: the
+  last values all below mean − 0.5 SD of the preceding ones.
+- `trend_report(history, metric="score")` → DataFrame `date | <metric> | slope_7d | slope_30d |
+  change_30d_pct | p_30d | trend_label` (`poor` sessions excluded).
+- `docs/analytics/trends.md`.
+
+### Changed — `trend_rmssd()`
+
+- Kept with the same keys (`slope` in ms per session, `trend`) plus `p_value`, `r2`, `change_pct`.
+  The label now requires a significant slope (p < 0.05) and a change of at least 5 % of the mean
+  RMSSD; it used a fixed ±1 ms/session threshold, so noise alone often produced a "trend".
+  `_interpret_trend()` removed.
+
+### Changed — Readiness score: every component against the athlete's own history
+
+`readiness_score_multi()` — **readiness values change**, reprocess the history
+(`reprocess_sessions()`).
+
+| Component | Before | From 0.5.0 |
+|-----------|--------|------------|
+| RMSSD | 35 %, ratio to the median of the last 7 sessions (`tanh(2 × (ratio − 1))`) | **45 %**, today's lnRMSSD against the previous 28 days, `50 + 50 × tanh(Δ / 2 SD)` (`ln_rmssd_day_score()`, Kiviniemi et al. 2007, Plews et al. 2013) |
+| Resting HR | 20 %, `50 − 50 × tanh((HR − mean of 7 sessions) / 10)` — fixed 10 bpm scale | **25 %**, against the previous 28 days in SD units, **lower is better**, SD floor 1.5 bpm (`resting_hr_score()`) |
+| Trend | 20 %, today's RMSSD vs the same median — no trend measured | 20 %, 7-day lnRMSSD mean vs previous week, in SWC units (`ln_rmssd_trend_score()`) |
+| DFA α1 | 25 %, fixed 0.75 threshold (an exercise threshold), higher is better | **10 %**, against the previous 28 days, **lower is better** — vagal activity lowers α1, sympathetic activity raises it (Castiglioni et al. 2011) (`dfa_alpha1_score()`) |
+
+- `baseline_relative_score(value, reference, higher_is_better, min_count=6, min_sd=0.05)`: shared
+  scale (±½ SD → 62 / 38, ±1 SD → 73 / 27, ±2 SD → 88 / 12); SD floor so that a few nearly
+  identical values cannot give extreme scores; neutral with fewer than 6 previous values; undated
+  sessions use the last 28 sessions.
+- Components without enough history stay at 50; their weight is not redistributed. Every day
+  component (lnRMSSD, HR, DFA α1) needs 6 previous measurement days: the first ~6 scores are 50
+  (the HR component used to move from the second session).
+- `readiness_score_nonlinear()` (and so `readiness_score_composite()`): **DFA α1 50 % + SD1/SD2
+  50 %**, each against the previous 28 days (`dfa_alpha1_score()`, lower is better; new
+  `sd_ratio_score()`, higher is better — Shaffer & Ginsberg 2017). It was DFA α1 40 % (fixed 0.75
+  threshold), SD1 35 % — RMSSD / √2, the RMSSD signal a second time — and SD1/SD2 25 % on a fixed
+  scale. `_dfa_score()` and `_sd_ratio_score()` removed.
+- **SWC band baseline**: the 28 days **preceding** the 7-day window `(d − 35, d − 7]` (it included
+  the evaluated week, so a decline dragged its own band down). Applies to the monitoring states,
+  the trend component and `swc_band()` (new `window` parameter).
+- lnRMSSD is taken as `log(rmssd)` (the `ln_rmssd` field only as a fallback).
+- Docs: DFA α1 interpretation corrected (`docs/features/nonlinear.md`, `reading_charts.md`) — the
+  claim that a resting α1 < 0.75 is a validated overreaching marker had no support. Same
+  correction in the `dfa_alpha1()` docstring and the labels of `plot_dfa_fluctuation()`
+  (« Usual resting range », « Low — strong vagal modulation »…), and in the
+  `readiness_score_composite()` docstring (DFA α1 is not an "earliest fatigue marker").
+- `trimp_hrv_based()`: documented as a cardiolab heuristic (the Manzi et al. 2009 reference,
+  about an HR-based individualised TRIMP, was removed); `trimp_banister()` is no longer
+  described as a fallback — one load method per athlete.
+
+### Tests
+
+- Session RPE (formula, validation), V006 (rpe and readiness_score round trips, migration re-run on
+  pre-0.5.0 tables), orthostatic `readiness_score` in reprocessing (baseline of previous supine
+  phases, idempotent), stored value read by tables and `load_readiness_for_date`.
+- `tests/analytics/test_trends_stats.py` (23): known slope recovered exactly, pure noise not
+  significant (fixed seeds) and ≈ 5 % false positives over 300 series, relative threshold, windows
+  in calendar days, sustained decline, report, `trend_rmssd()` wrapper.
+- `tests/analytics/test_monitoring.py` (37): exact rolling mean / CV / SWC on known histories,
+  calendar windows, poor sessions excluded, decision grid, designed histories (coping,
+  maladaptation, overreaching risk), trend score (exact value, neutral cases, sign) and its weight
+  in the readiness score, chart and weekly table.
+- VO2max FRIEND percentiles and Tanaka HRmax, HR and SD1/SD2 components, autocorrelated trends,
+  coherence ratio on real resting recordings, relative form and cropping, HRR robustness to one bad
+  beat, drift warm-up, pending loads in reprocessing, lnRMSSD z-score — 1 996 tests.
+
+### Migration note — from 0.4.x
+
+1. `repo.run_migrations()` — applies **V006**: `rpe` and `hr_mean` on training sessions,
+   `load_method` on user profiles, `readiness_score` on orthostatic sessions, `hr_max_source` on
+   VO2max estimations. A development database that applied an earlier V006 needs the
+   `hr_max_source` column once by hand (`docs/database/migration_guide.md`).
+2. Fill in the **user profile**: `birth_year` and `sex` (VO2max norms and Tanaka HRmax),
+   `load_method` (`hrv` by default — `rpe` recommended, see `docs/training_load/atl_ctl_tsb.md`),
+   `hr_max` / `hr_rest` if known (`banister` method, VO2max).
+3. `reprocess_sessions(repo, user_id)` — dry run: check the report, including the `training` line.
+4. `reprocess_sessions(repo, user_id, dry_run=False)` — stored scores and loads follow the 0.5.0
+   calculations. Without a profile, training loads are left untouched.
+
+---
+
 ## [0.4.0] - 2026-10-18
 
 > **Changes computed values.** Artefacts are corrected instead of deleted, Lomb-Scargle is the

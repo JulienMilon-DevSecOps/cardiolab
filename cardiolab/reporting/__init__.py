@@ -26,6 +26,7 @@ from cardiolab.labels import LABELS_EN, LABELS_FR, lbl
 from cardiolab.reporting.coherence import table_coherence_history
 from cardiolab.reporting.drift import table_drift_history
 from cardiolab.reporting.hrr import table_hrr_history
+from cardiolab.reporting.monitoring import table_weekly_monitoring
 from cardiolab.reporting.orthostatic import (
     table_orthostatic_comparison,
     table_orthostatic_history,
@@ -44,6 +45,7 @@ from cardiolab.reporting.vo2max import (
 )
 
 __all__ = [
+    "table_weekly_monitoring",
     "table_coherence_history",
     "table_drift_history",
     "table_hrr_history",

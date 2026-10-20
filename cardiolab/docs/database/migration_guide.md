@@ -67,6 +67,16 @@ conn.close()
 | `V003__add_training_sessions.sql` | v0.2.0 | Adds `hrv_training_sessions` table |
 | `V004__add_user_profiles.sql` | v0.2.4 | Adds `user_profiles` table |
 | `V005__add_signal_quality.sql` | v0.4.0 | Adds `quality JSONB` to `hrv_features`, `hrv_orthostatic`, `hrv_coherence`, `hrv_vo2max` ([signal quality](../features/signal_quality.md)) |
+| `V006__training_load_and_ortho_readiness.sql` | v0.5.0 | Adds `rpe` (0–10) and `hr_mean` to `hrv_training_sessions` ([load methods](../training_load/atl_ctl_tsb.md)), `load_method` to `user_profiles`, `readiness_score` to `hrv_orthostatic` (score de forme of the supine phase) and `hr_max_source` to `hrv_vo2max` (`provided` / `tanaka`) |
+
+> **Development databases only** — the `hr_max_source` column was added to V006
+> before the v0.5.0 release. A database that applied an earlier V006 (from the
+> development branch) will not run it again; add the column once by hand:
+>
+> ```sql
+> ALTER TABLE hrv_vo2max ADD COLUMN IF NOT EXISTS hr_max_source TEXT
+>     CHECK (hr_max_source IS NULL OR hr_max_source IN ('provided', 'tanaka'));
+> ```
 
 ---
 
@@ -81,12 +91,12 @@ subclass `HRVRepository` and override `run_migrations`.
 
 ## Writing your own migration
 
-Create a file `V006__<description>.sql` (next free number) in `cardiolab/database/migrations/`
+Create a file `V007__<description>.sql` (next free number) in `cardiolab/database/migrations/`
 (or in a local copy of the migrations directory) and apply it via
 `run_migrations`. Use `ADD COLUMN IF NOT EXISTS` to make alterations idempotent:
 
 ```sql
--- V006__add_my_column.sql
+-- V007__add_my_column.sql
 ALTER TABLE hrv_features ADD COLUMN IF NOT EXISTS my_column FLOAT;
 ```
 

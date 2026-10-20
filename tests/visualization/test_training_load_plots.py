@@ -411,3 +411,33 @@ class TestPlotTsbZones:
             tsb=tsb,
         )
         assert isinstance(plot_tsb_zones(tl), Figure)
+
+
+# ── First 42 days: no form, shaded (0.5.0) ───────────────────────────────────
+
+
+def _texts(ax) -> list[str]:
+    return [t.get_text() for t in ax.texts]
+
+
+@pytest.mark.parametrize("plot", [plot_atl_ctl_tsb, plot_tsb_zones])
+class TestFormBuildingUp:
+    """The days without relative form are shaded and labelled."""
+
+    def test_partial_history_shaded(self, plot):
+        """60 days: the first 42 are shaded with « fitness building up »."""
+        fig = plot(_make_tl(n=60))
+        ax = fig.axes[-1]
+        assert any("building up" in t for t in _texts(ax))
+        spans = [p for p in ax.patches if p.get_x() <= -0.5 + 1e-9]
+        assert any(abs(p.get_width() - 42) < 1e-6 for p in spans)
+
+    def test_short_history_message(self, plot):
+        """30 days: no form at all → the explanatory message."""
+        fig = plot(_make_tl(n=30))
+        assert any("after 42 days" in t for t in _texts(fig.axes[-1]))
+
+    def test_no_shading_when_cropped_after_42_days(self, plot):
+        """A period cropped after the first 42 days has no shading."""
+        fig = plot(_make_tl(n=90).between("2026-02-20"))
+        assert _texts(fig.axes[-1]) == []

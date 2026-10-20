@@ -20,7 +20,14 @@ The three main mechanisms are:
    prolonged exercise contributes to the rise in baseline HR.
 
 Drift is quantified by the **slope of the linear regression** of window-averaged HR
-over exercise duration.
+over exercise duration, **after the first 10 minutes** (`warmup_sec=600`): before,
+HR is still rising towards its steady state — that rise is not drift, which is
+described as starting after about 10 min of exercise (Coyle & González-Alonso 2001).
+A recording too short to keep 3 windows after the warm-up is analysed from the start,
+with a warning (the drift is then overestimated).
+
+> Changed in v0.5.0: the regression started at 0 min and included the initial HR rise.
+> Reprocess to update stored sessions.
 
 ## How to perform the protocol
 
@@ -28,7 +35,8 @@ over exercise duration.
 
 - **Constant work rate** exercise: cycling at a fixed wattage, running at a steady
   pace, treadmill at constant speed and grade.
-- Minimum duration: **20 minutes** (for 3 windows of 60 s + margin).
+- Minimum duration: **13 minutes** (10 min of warm-up left out + 3 windows of 60 s);
+  20 minutes or more recommended.
 - Optimal duration: **30–60 minutes**.
 - Environmental conditions to record: temperature, humidity, hydration status.
 
@@ -64,9 +72,9 @@ print(f"Interpretation: {result.interpretation}")
 | `drift_magnitude` | Final HR − Initial HR | bpm |
 | `r_squared` | R² coefficient of determination of the regression | dimensionless (0–1) |
 | `drift_detected` | True if drift ≥ 0.5 bpm/min | boolean |
-| `initial_hr` | Mean HR of the first window | bpm |
+| `initial_hr` | Mean HR of the first window after the warm-up | bpm |
 | `final_hr` | Mean HR of the last window | bpm |
-| `n_windows` | Number of time windows | integer |
+| `n_windows` | Number of time windows after the warm-up | integer |
 | `interpretation` | Clinical category | text |
 | `duration` | Total recording duration | s |
 
@@ -81,6 +89,11 @@ print(f"Interpretation: {result.interpretation}")
 | 1.5 – 3.0 | **Moderate drift** | Hydrate, consider reducing intensity |
 | > 3.0 | **Strong drift** | Stop or significantly reduce intensity |
 
+These thresholds are **cardiolab markers**: they could not be found in the cited
+papers, and drift depends strongly on heat, hydration and intensity. Compare your
+drift between similar sessions (same pace, same conditions) rather than with the
+thresholds.
+
 ### R² coefficient
 
 The R² of the linear regression indicates whether the drift is **progressive and
@@ -94,9 +107,9 @@ regular**:
 
 The magnitude (final HR − initial HR) is a useful complement:
 
-- A drift of +10 bpm over 30 min (0.33 bpm/min) is mild.
-- A drift of +20 bpm over 30 min (0.67 bpm/min) warrants attention.
-- A drift of +30 bpm over 30 min (1.0 bpm/min) is clinically significant.
+- +10 bpm over 30 min = 0.33 bpm/min — « no drift » on the scale above.
+- +20 bpm over 30 min = 0.67 bpm/min — « mild ».
+- +30 bpm over 30 min = 1.0 bpm/min — « mild », close to « moderate ».
 
 ### Time windows
 

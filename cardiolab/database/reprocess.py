@@ -31,13 +31,18 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from cardiolab.analytics.baseline import Baseline
-from cardiolab.analytics.scoring import SCORED_PROTOCOLS, session_score
+from cardiolab.analytics.scoring import (
+    SCORED_PROTOCOLS,
+    orthostatic_readiness_score,
+    session_score,
+)
+from cardiolab.analytics.training_load import session_load
 from cardiolab.protocols.cardiac_coherence import cardiac_coherence
 from cardiolab.protocols.cardiac_drift import cardiac_drift
 from cardiolab.protocols.hrr import heart_rate_recovery
 from cardiolab.protocols.orthostatic import orthostatic_hrv
 from cardiolab.protocols.resting import resting_hrv
-from cardiolab.protocols.vo2max import vo2max_from_hrv
+from cardiolab.protocols.vo2max import age_at, vo2max_from_hrv
 from cardiolab.signals.rr import RRSeries
 
 PROTOCOLS: tuple[str, ...] = SCORED_PROTOCOLS
@@ -51,6 +56,7 @@ KEY_METRICS: dict[str, tuple[str, ...]] = {
         "hr_response",
         "hf_hr_pct_change",
         "score",
+        "readiness_score",
     ),
     "coherence": ("coherence_score", "rmssd", "score"),
     "hrr": ("hrr_60", "hrr_120", "score"),
@@ -75,6 +81,8 @@ def analyse_session(
     method: str = "lomb",
     auto_clean: bool = True,
     hr_max: float | None = None,
+    age: int | None = None,
+    sex: str | None = None,
 ) -> Any:
     """Analyse one raw recording with the current pipeline (score not set).
 
@@ -94,6 +102,8 @@ def analyse_session(
         method: Spectral method (resting, orthostatic). Defaults to ``"lomb"``.
         auto_clean: Correct artefacts before analysis. Defaults to ``True``.
         hr_max: Maximal heart rate, for the Uth VO2max model.
+        age: Age at the session (VO2max — Tanaka HRmax and norms).
+        sex: ``"male"`` / ``"female"`` (VO2max norms).
 
     Returns:
         The protocol result.
@@ -112,7 +122,7 @@ def analyse_session(
     if protocol == "coherence":
         return cardiac_coherence(rr)
     if protocol == "vo2max":
-        return vo2max_from_hrv(rr, hr_max=hr_max)
+        return vo2max_from_hrv(rr, hr_max=hr_max, age=age, sex=sex)
     if protocol == "hrr":
         return heart_rate_recovery(rr)
     if protocol == "drift":
@@ -183,6 +193,7 @@ class ReprocessReport:
     method: str
     sessions: list[SessionChange] = field(default_factory=list)
     skipped: list[tuple[str, str]] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
     def count(self, status: str) -> int:
         """Return the number of sessions with ``status``."""
@@ -193,7 +204,12 @@ class ReprocessReport:
         """Number of sessions written (0 in dry run)."""
         if self.dry_run:
             return 0
-        return self.count("changed") + self.count("new")
+        return sum(
+            1
+            for s in self.sessions
+            if s.status in ("changed", "new")
+            or (s.status == "pending" and s.changed_fields)
+        )
 
     def summary(self) -> str:
         """Human-readable summary, one line per protocol."""
@@ -216,6 +232,18 @@ class ReprocessReport:
                 f"{counts['new']} new, {counts['failed']} failed, "
                 f"{skipped} without raw RR"
             )
+        loads = [s for s in self.sessions if s.protocol == "training"]
+        if loads:
+            counts = {
+                st: sum(1 for s in loads if s.status == st)
+                for st in ("changed", "unchanged", "pending")
+            }
+            lines.append(
+                f"  {'training':<12} {len(loads):>3} loads ({loads[0].after['load_method']}) — "
+                f"{counts['changed']} changed, {counts['unchanged']} unchanged, "
+                f"{counts['pending']} pending (data missing — load cleared)"
+            )
+        lines.extend(f"  {note}" for note in self.notes)
         for s in self.sessions:
             if s.status == "failed":
                 lines.append(f"  ✗ {s.protocol} {s.date}: {s.error}")
@@ -283,7 +311,8 @@ def _stored_fields(protocol: str, result) -> dict:
     flat = (
         result.to_flat_dict() if hasattr(result, "to_flat_dict") else result.to_dict()
     )
-    fields = {k: _native(v) for k, v in flat.items() if k != "date"}
+    # Dates identify the session, they are not stored values (phase dates too)
+    fields = {k: _native(v) for k, v in flat.items() if not k.endswith("date")}
     if protocol == "orthostatic":
         for prefix, features in _phase_features(result):
             quality = getattr(features, "quality", None)
@@ -353,9 +382,18 @@ def _storage(repo, user_id: str) -> dict[str, tuple[Callable, Callable]]:
 
 
 def _hr_max(stored, raw_meta: dict, default: float | None) -> float | None:
-    """hr_max for VO2max: stored estimation → raw metadata → ``default``."""
+    """Return the provided hr_max for VO2max: stored → raw metadata → ``default``.
+
+    A stored HRmax predicted from the age (``hr_max_source = "tanaka"``) is
+    not a provided value: it is predicted again from the profile.
+    """
     value = getattr(stored, "hr_max", None)
-    if value is not None and math.isfinite(value) and value > 0:
+    if (
+        getattr(stored, "hr_max_source", None) != "tanaka"
+        and value is not None
+        and math.isfinite(value)
+        and value > 0
+    ):
         return float(value)
     value = raw_meta.get("hr_max")
     return float(value) if value else default
@@ -395,7 +433,9 @@ def reprocess_sessions(
             Defaults to ``"lomb"`` (the v0.4.0 default).
         auto_clean: Correct artefacts before analysis. Defaults to ``True``.
         hr_max: Maximal heart rate for VO2max sessions whose stored
-            estimation has none.
+            estimation has none. Otherwise the profile's ``hr_max``, then
+            Tanaka (``208 − 0.7 × age``) from its ``birth_year``; VO2max
+            categories use the profile's age and sex.
 
     Returns:
         A :class:`ReprocessReport` with before / after values per session.
@@ -413,6 +453,9 @@ def reprocess_sessions(
 
     report = ReprocessReport(user_id=user_id, dry_run=dry_run, method=method)
     storage = _storage(repo, user_id)
+    profile = _load_profile(repo, user_id)
+    # Final score de forme per protocol and date — feeds the training loads
+    readiness: dict[str, dict[str, float]] = {"resting": {}, "orthostatic": {}}
 
     for proto in protocols:
         raw = {s["date"]: s for s in repo.list_raw_sessions(user_id, proto)}
@@ -427,12 +470,16 @@ def reprocess_sessions(
             if since is None or d >= since
         )
 
-        history: list = []  # resting baseline: previous sessions, final values
+        # Score de forme baseline: previous sessions (resting) or previous
+        # supine phases (orthostatic), with their final values
+        history: list = []
         for date in sorted(set(stored) | set(raw)):
             todo = date in raw and (since is None or date >= since)
             if not todo:
-                if proto == "resting" and date in stored:
-                    history.append(stored[date])
+                if date in stored:
+                    _note_readiness(readiness, proto, date, stored[date])
+                    if kept := _baseline_entry(proto, stored[date]):
+                        history.append(kept)
                 continue
 
             change = _reprocess_one(
@@ -444,17 +491,136 @@ def reprocess_sessions(
                 history,
                 method=method,
                 auto_clean=auto_clean,
-                hr_max=hr_max,
+                hr_max=hr_max if hr_max is not None else profile.get("hr_max"),
+                profile=profile,
             )
             report.sessions.append(change.session)
-            if proto == "resting":
-                kept = change.result if change.result is not None else stored.get(date)
-                if kept is not None:
+            source = change.result if change.result is not None else stored.get(date)
+            if source is not None:
+                _note_readiness(readiness, proto, date, source)
+                if kept := _baseline_entry(proto, source):
                     history.append(kept)
             if not dry_run and change.session.status in ("changed", "new"):
                 save(change.result, date)
 
+    if protocol is None:
+        _reprocess_training_loads(
+            repo, user_id, profile, readiness, report, since=since, dry_run=dry_run
+        )
+
     return report
+
+
+def _has_table(repo, attr: str) -> bool:
+    """Return ``True`` when the table named by ``repo.<attr>`` exists (fakes: assumed)."""
+    if not hasattr(repo, "table_exists") or not hasattr(repo, attr):
+        return True
+    return repo.table_exists(getattr(repo, attr))
+
+
+def _load_profile(repo, user_id: str) -> dict:
+    """Return the user profile, or ``{}`` without profile table or profile."""
+    if not hasattr(repo, "load_user_profile") or not _has_table(
+        repo, "user_profiles_table_name"
+    ):
+        return {}
+    return repo.load_user_profile(user_id) or {}
+
+
+def _note_readiness(readiness: dict, protocol: str, date: str, item) -> None:
+    """Record the score de forme of a session (resting ``score``, orthostatic ``readiness_score``)."""
+    if protocol == "resting":
+        value = getattr(item, "score", None)
+    elif protocol == "orthostatic":
+        value = getattr(item, "readiness_score", None)
+    else:
+        return
+    if isinstance(value, (int, float)) and math.isfinite(value):
+        readiness[protocol][date] = float(value)
+
+
+def _reprocess_training_loads(
+    repo,
+    user_id: str,
+    profile: dict,
+    readiness: dict[str, dict[str, float]],
+    report: ReprocessReport,
+    *,
+    since: str | None,
+    dry_run: bool,
+) -> None:
+    """Recompute the load of every training session with the profile's method.
+
+    The method (``load_method``) and the main protocol come from the user
+    profile; ``"hrv"`` loads use the score de forme of the day just
+    reprocessed. A session missing the data of its method becomes **pending**:
+    its stored load is cleared (``trimp = NULL``), never kept from another
+    method — the scales differ up to ×10. Without a profile, loads are left
+    untouched.
+
+    Changed in 0.5.0: such a session kept its stored load (status ``kept``),
+    so changing method mixed two scales in ATL / CTL.
+    """
+    if not hasattr(repo, "load_training_sessions") or not _has_table(
+        repo, "training_sessions_table_name"
+    ):
+        return
+    if not profile:
+        report.notes.append("No user profile: training loads left untouched.")
+        return
+    method = profile.get("load_method") or "hrv"
+    scores = readiness.get(profile.get("primary_protocol") or "resting", {})
+    for s in repo.load_training_sessions(user_id):
+        date = str(s["date"])[:10]
+        if since is not None and date < since:
+            continue
+        new = session_load(
+            method,
+            s.get("duration_min"),
+            readiness=scores.get(date),
+            hr_mean=s.get("hr_mean"),
+            hr_max=profile.get("hr_max"),
+            hr_rest=profile.get("hr_rest"),
+            sex=profile.get("sex"),
+            rpe=s.get("rpe"),
+        )
+        old = s.get("trimp")
+        if new is None:
+            status = "pending"
+        elif old is not None and _same(float(old), new):
+            status = "unchanged"
+        else:
+            status = "changed"
+        report.sessions.append(
+            SessionChange(
+                "training",
+                date,
+                status,
+                before={"trimp": old, "load_method": method},
+                after={"trimp": new, "load_method": method},
+                changed_fields=["trimp"]
+                if new is None and old is not None or status == "changed"
+                else [],
+            )
+        )
+        if not dry_run and (status == "changed" or (new is None and old is not None)):
+            repo.update_training_session(s["activity_id"], trimp=new)
+
+
+def _baseline_entry(protocol: str, item):
+    """Features that feed the score de forme baseline (``None`` if none).
+
+    Resting: the session itself. Orthostatic: its supine phase — from an
+    ``OrthostaticResult`` (``phases.supine.features``) or a stored
+    ``OrthostaticRecord`` (``supine``).
+    """
+    if protocol == "resting":
+        return item
+    if protocol == "orthostatic":
+        if hasattr(item, "phases"):
+            return item.phases.supine.features
+        return getattr(item, "supine", None)
+    return None
 
 
 @dataclass
@@ -474,6 +640,7 @@ def _reprocess_one(
     method: str,
     auto_clean: bool,
     hr_max: float | None,
+    profile: dict | None = None,
 ) -> _Outcome:
     """Analyse and score one session; compare with the stored result."""
     before = _key_values(protocol, stored) if stored is not None else {}
@@ -485,9 +652,15 @@ def _reprocess_one(
                 rr,
                 method=method,
                 auto_clean=auto_clean,
-                hr_max=_hr_max(stored, raw_meta, hr_max)
-                if protocol == "vo2max"
-                else None,
+                **(
+                    {
+                        "hr_max": _hr_max(stored, raw_meta, hr_max),
+                        "age": age_at((profile or {}).get("birth_year"), date),
+                        "sex": (profile or {}).get("sex"),
+                    }
+                    if protocol == "vo2max"
+                    else {}
+                ),
             )
     except Exception as exc:  # noqa: BLE001 — reported, stored row kept
         return _Outcome(
@@ -498,6 +671,13 @@ def _reprocess_one(
         result.date = date
     baseline = Baseline.from_features(history) if protocol == "resting" else None
     result.score = session_score(protocol, result, baseline)
+    if protocol == "orthostatic":
+        # Score de forme of the supine phase vs the previous supine phases
+        supine = result.phases.supine.features
+        supine.date = date
+        result.readiness_score = orthostatic_readiness_score(
+            supine, Baseline.from_features(history)
+        )
 
     after = _key_values(protocol, result)
     # Status from EVERY stored field (e.g. SampEn of each orthostatic phase),

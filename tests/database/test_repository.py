@@ -290,10 +290,11 @@ class TestColumnRegistries:
                    interpretation) = 7
         + spectral_method = 1
         + score = 1
+        + readiness_score (v0.5.0) = 1
         + quality (JSONB, v0.4.0) = 1
-        Total = 74
+        Total = 75
         """
-        assert len(_ORTHO_DATA_COLUMNS) == 74  # noqa: PLR2004
+        assert len(_ORTHO_DATA_COLUMNS) == 75  # noqa: PLR2004
 
     def test_ortho_data_columns_is_subset_of_ortho_columns(self):
         """Every column in _ORTHO_DATA_COLUMNS must exist in _ORTHO_COLUMNS."""
@@ -407,13 +408,14 @@ class TestBuildOrthoRow:
         assert row[1] == "2026-05-15"
 
     def test_last_element_is_interpretation(self):
-        """Row layout: …, interpretation, spectral_method, score, quality (last)."""
+        """Row layout: …, interpretation, spectral_method, score, readiness, quality."""
         result = _mock_ortho_result()
         result.interpretation = "elevated_response"
         row = _build_ortho_row(result, user_id="uid", date="2026-05-15")
-        assert row[-4] == "elevated_response"  # interpretation
-        assert isinstance(row[-3], str)  # spectral_method
-        assert isinstance(row[-2], float)  # score
+        assert row[-5] == "elevated_response"  # interpretation
+        assert isinstance(row[-4], str)  # spectral_method
+        assert isinstance(row[-3], float)  # score
+        assert row[-2] is None  # readiness_score — not set on the mock
         assert row[-1] is None  # quality — none on the mocked result
 
     def test_hr_response_in_row(self):
@@ -424,10 +426,11 @@ class TestBuildOrthoRow:
         assert 18.5 in row
 
     def test_all_elements_are_scalar(self):
-        """Every element must be a str or numeric type (quality: JSON or NULL)."""
+        """Every element is a str or number (readiness_score / quality may be NULL)."""
         result = _mock_ortho_result()
         row = _build_ortho_row(result, user_id="uid", date="2026-05-15")
-        for val in row[:-1]:
+        assert row[-2] is None or isinstance(row[-2], float)
+        for val in row[:-2]:
             assert isinstance(val, (str, int, float)), f"Unexpected type: {type(val)}"
         assert row[-1] is None or isinstance(row[-1], Json)
 
@@ -951,7 +954,8 @@ class TestLoadOrthostatic:
             "normal",  # [65..71] derived
             "welch",  # [72]     spectral_method
             72.5,  # [73]     score
-            None,  # [74]     quality (NULL — stored before v0.4.0)
+            61.0,  # [74]     readiness_score
+            None,  # [75]     quality (NULL — stored before v0.4.0)
         )
 
     def test_returns_list_of_orthostatic_records(self):
@@ -2178,3 +2182,174 @@ class TestSignalQualityIntegration:
             conn.close()
 
         assert tables == set(self._TABLES.values())
+
+
+@pytest.mark.integration
+@_integration_skipif
+class TestV006Integration:
+    """Migration V006 (v0.5.0): load data, orthostatic readiness, VO2max HRmax source."""
+
+    _USER = "test-integration-user"
+    _TABLES = {
+        "ortho_table_name": "_cardiolab_test_v006_ortho",
+        "training_sessions_table_name": "_cardiolab_test_v006_training",
+        "user_profiles_table_name": "_cardiolab_test_v006_profiles",
+        "vo2max_table_name": "_cardiolab_test_v006_vo2max",
+    }
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        for table in self._TABLES.values():
+            _test_table_drop(table)
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.create_orthostatic_table()
+            repo.create_training_sessions_table()
+            repo.create_user_profiles_table()
+            repo.create_vo2max_table()
+        yield
+        for table in self._TABLES.values():
+            _test_table_drop(table)
+
+    def test_table_exists(self):
+        """table_exists: True for a created table, False otherwise."""
+        with _repo_from_test_env(**self._TABLES) as repo:
+            assert repo.table_exists(self._TABLES["ortho_table_name"])
+            assert not repo.table_exists("_cardiolab_test_never_created")
+
+    def test_vo2max_hr_max_source_round_trip(self):
+        """hr_max_source survives save / load ('tanaka' from the age)."""
+        from cardiolab.datasets import load_sample
+        from cardiolab.protocols.vo2max import vo2max_from_hrv
+
+        result = vo2max_from_hrv(load_sample("resting", 0), age=40, sex="male")
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_vo2max(result, user_id=self._USER, date="2099-11-01")
+            stored = repo.load_vo2max(self._USER)[0]
+        assert stored.hr_max_source == "tanaka"
+        assert stored.hr_max == pytest.approx(180.0)
+
+    def test_ortho_readiness_round_trip(self):
+        """readiness_score survives save / load."""
+        from cardiolab.datasets import load_sample
+        from cardiolab.protocols.orthostatic import orthostatic_hrv
+
+        result = orthostatic_hrv(
+            load_sample("orthostatic", 0), auto_clean=True, min_phase_duration=60.0
+        )
+        result.readiness_score = 63.5
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_orthostatic(result, user_id=self._USER, date="2099-11-01")
+            record = repo.load_orthostatic_for_date(self._USER, "2099-11-01")
+        assert record.readiness_score == pytest.approx(63.5)
+
+    def test_rpe_round_trip(self):
+        """Rpe is stored and loaded; None when not entered."""
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_training_session(
+                self._USER, "2099-11-01", 60, "running", 300.0, rpe=5
+            )
+            repo.save_training_session(self._USER, "2099-11-02", 45, "cycling", 20.0)
+            sessions = repo.load_training_sessions(self._USER)
+        assert [s["rpe"] for s in sessions] == [5, None]
+
+    def test_invalid_rpe_not_written(self):
+        """An RPE outside 0–10 raises before anything is written."""
+        with _repo_from_test_env(**self._TABLES) as repo:
+            with pytest.raises(ValueError, match="rpe"):
+                repo.save_training_session(
+                    self._USER, "2099-11-03", 60, "running", rpe=12
+                )
+            assert repo.load_training_sessions(self._USER) == []
+
+    def test_migration_v006_idempotent(self):
+        """V006 adds both columns to pre-0.5.0 tables and can be re-run safely."""
+        import psycopg2
+
+        from cardiolab.database.migrator import MIGRATIONS_DIR
+
+        sql_text = (
+            MIGRATIONS_DIR / "V006__training_load_and_ortho_readiness.sql"
+        ).read_text()
+        sql_text = (
+            sql_text.replace(
+                "ALTER TABLE hrv_training_sessions ",
+                f"ALTER TABLE {self._TABLES['training_sessions_table_name']} ",
+            )
+            .replace(
+                "ALTER TABLE hrv_orthostatic ",
+                f"ALTER TABLE {self._TABLES['ortho_table_name']} ",
+            )
+            .replace(
+                "ALTER TABLE user_profiles ",
+                f"ALTER TABLE {self._TABLES['user_profiles_table_name']} ",
+            )
+            .replace(
+                "ALTER TABLE hrv_vo2max ",
+                f"ALTER TABLE {self._TABLES['vo2max_table_name']} ",
+            )
+        )
+        conn = psycopg2.connect(
+            host=os.environ["DB_HOST_TEST"],
+            dbname=os.environ["DB_NAME_TEST"],
+            user=os.environ["DB_USER_TEST"],
+            password=os.environ["DB_PASSWORD_TEST"],
+            port=int(os.environ.get("DB_PORT_TEST", "5432")),
+        )
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"ALTER TABLE {self._TABLES['ortho_table_name']} "  # noqa: S608
+                    "DROP COLUMN IF EXISTS readiness_score;"
+                )
+                cur.execute(
+                    f"ALTER TABLE {self._TABLES['training_sessions_table_name']} "  # noqa: S608
+                    "DROP COLUMN IF EXISTS rpe, DROP COLUMN IF EXISTS hr_mean;"
+                )
+                cur.execute(
+                    f"ALTER TABLE {self._TABLES['user_profiles_table_name']} "  # noqa: S608
+                    "DROP COLUMN IF EXISTS load_method;"
+                )
+                cur.execute(
+                    f"ALTER TABLE {self._TABLES['vo2max_table_name']} "  # noqa: S608
+                    "DROP COLUMN IF EXISTS hr_max_source;"
+                )
+                cur.execute(sql_text)
+                cur.execute(sql_text)  # second run: no error
+                cur.execute(
+                    "SELECT table_name, column_name FROM information_schema.columns "
+                    "WHERE column_name IN ('rpe', 'readiness_score', 'hr_mean', 'load_method', "
+                    "'hr_max_source') "
+                    "AND table_name = ANY(%s);",
+                    (list(self._TABLES.values()),),
+                )
+                found = set(cur.fetchall())
+            conn.commit()
+        finally:
+            conn.close()
+        assert found == {
+            (self._TABLES["ortho_table_name"], "readiness_score"),
+            (self._TABLES["training_sessions_table_name"], "rpe"),
+            (self._TABLES["training_sessions_table_name"], "hr_mean"),
+            (self._TABLES["user_profiles_table_name"], "load_method"),
+            (self._TABLES["vo2max_table_name"], "hr_max_source"),
+        }
+
+    def test_load_method_and_hr_mean(self):
+        """load_method defaults to 'hrv', is validated; hr_mean and updates round-trip."""
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_user_profile(self._USER)
+            assert repo.load_user_profile(self._USER)["load_method"] == "hrv"
+            repo.update_user_profile(self._USER, load_method="rpe")
+            assert repo.load_user_profile(self._USER)["load_method"] == "rpe"
+            with pytest.raises(ValueError, match="load method"):
+                repo.update_user_profile(self._USER, load_method="watts")
+            aid = repo.save_training_session(
+                self._USER, "2099-11-05", 50, "running", hr_mean=142.0, rpe=4
+            )
+            assert repo.update_training_session(aid, trimp=200.0)
+            session = repo.load_training_sessions(self._USER)[0]
+        assert (session["hr_mean"], session["rpe"], session["trimp"]) == (
+            142.0,
+            4,
+            200.0,
+        )

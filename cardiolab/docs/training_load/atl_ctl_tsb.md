@@ -20,7 +20,10 @@ training blocks and predict performance readiness.
 ## The TRIMP — Training Impulse
 
 TRIMP is the daily load unit. It translates a training session into a single
-dimensionless number that feeds ATL and CTL.
+dimensionless number that feeds ATL and CTL. cardiolab offers three methods —
+**use one method consistently for a given athlete**: their scales differ, and
+ATL / CTL built from a mix of them are meaningless (see
+[Which method?](#which-method)).
 
 ### HRV-based TRIMP (primary method in cardiolab)
 
@@ -43,12 +46,12 @@ TRIMP = duration_min × (1 − readiness / 100)
 
 This approach captures the insight that the same external load has a very
 different physiological impact depending on the athlete's recovery state.
+It is **cardiolab's heuristic**, not a published method: it weighs the session
+by the morning state, not by the intensity of the effort itself. Published
+individualised loads (e.g. the iTRIMP of Manzi et al. 2009) weigh the effort
+heart rate instead — see Banister below.
 
-> Reference: Manzi V et al. (2009). *Dose–response relationship of autonomic
-> nervous system responses to individualized training impulse in marathon runners.*
-> J Strength Cond Res.
-
-### Banister TRIMP (fallback for HR-sensor data)
+### Banister TRIMP (heart rate of the session)
 
 When an HR sensor provides effort heart rate but no HRV readiness is available:
 
@@ -64,6 +67,119 @@ Where:
 > In: Green HJ, McDougal JD, Wenger HA (Eds.), Physiological Testing of the
 > High-Performance Athlete. Champaign: Human Kinetics, pp. 403–424.
 
+### Session RPE (all sports, no heart rate) — added in v0.5.0
+
+```
+load = duration_min × RPE
+```
+
+The athlete rates the **whole session** about 30 minutes after it ends, on the
+CR-10 scale (Foster et al. 2001):
+
+| RPE | Effort |
+|-----|--------|
+| 0 | Rest |
+| 1 | Very, very easy |
+| 2 | Easy |
+| 3 | Moderate |
+| 4 | Somewhat hard |
+| 5–6 | Hard |
+| 7–9 | Very hard |
+| 10 | Maximal |
+
+#### Rating guide — equivalents in running and cycling
+
+Session RPE relates to the ventilatory thresholds: a session rated **4 or less**
+is mostly below the first threshold (VT1), **5–6** between VT1 and VT2, **7 or
+more** above VT2 (Seiler & Kjerland 2006, as used by Pind et al. 2021). The
+grouping of usual training zones below is cardiolab's, built on these bounds:
+
+| RPE | Running | Cycling (Coggan power zones / HR zones) | Physiology |
+|-----|---------|------------------------------------------|------------|
+| 1–2 | Recovery jog | Z1 active recovery (< 55 % FTP) | well below VT1 |
+| **2–4** | **Easy run (« endurance fondamentale »)**, long run | **Z2 endurance** (56–75 % FTP) | **below VT1** |
+| 5 | Marathon pace, tempo | Z3 tempo (76–90 % FTP) | between VT1 and VT2 |
+| 6–7 | Half-marathon / 10 km pace, threshold | Z4 threshold (91–105 % FTP) | around VT2 |
+| 7–9 | VO2max intervals (30/30, 400 m, 1 000 m) | Z5 VO2max (106–120 % FTP), Z6 | above VT2 |
+| 9–10 | All-out race, short competition | Sprints, Z7 | maximal |
+
+How to rate:
+
+1. **Rate the whole session**, not its hardest part: 5 × 3 min in Z5 with 20 min of
+   warm-up and cool-down is usually 6–7, not 9.
+2. **Duration counts in the perceived effort**: a 4-hour Z2 ride may be a 4 rather
+   than a 3 — accepted by the method, which rates the overall difficulty.
+3. **Rate about 30 minutes after the end**, not during or right after the effort.
+
+A 60-minute session rated 5 gives 300 arbitrary units (AU). `trimp_session_rpe()`
+validates the RPE (whole number 0–10); `save_training_session(..., rpe=)` stores
+it (column `rpe`, migration V006).
+
+> Reference: Foster C, Florhaug JA, Franklin J, et al. (2001). A new approach to
+> monitoring exercise training. *J Strength Cond Res*, 15(1), 109–115.
+>
+> Seiler KS, Kjerland GØ (2006). Quantifying training intensity distribution in
+> elite endurance athletes: is there evidence for an "optimal" distribution?
+> *Scand J Med Sci Sports*, 16(1), 49–56.
+>
+> Pind R, Hofmann P, Mäestu E, et al. (2021). Increases in RPE rating predict
+> fatigue accumulation without changes in heart rate zone distribution after
+> 4-week low-intensity high-volume training period in high-level rowers.
+> *Front Physiol*, 12, 735565.
+
+### Which method?
+
+| | HRV-based | Banister | Session RPE |
+|---|---|---|---|
+| Formula | duration × (1 − readiness / 100) | duration × HRR × e^(b × HRR) | duration × RPE (0–10) |
+| Needs | Morning HRV measurement | Effort heart rate, HR max, HR rest | The athlete's rating after the session |
+| Sports | All | Endurance (steady efforts) | **All** — strength, intervals, team sports |
+| Weighs | The athlete's state that morning | The intensity of the effort | The perceived intensity of the effort |
+| 60 min session | 0 – 60 | ≈ 50 – 200 | 0 – 600 AU |
+| Limits | Ignores the intensity of the session; cardiolab heuristic | Underestimates strength work and short intervals (HR lags behind) | Subjective; needs a rating every session |
+| Evidence | — | Banister 1991 | Foster et al. 2001 — widely validated across sports |
+
+Choose the method from the data the athlete will provide **every session**, and
+keep it: changing method changes the scale of ATL / CTL / TSB.
+
+### One method per athlete — `user_profiles.load_method`
+
+The method is a setting of the athlete's profile (since v0.5.0), like the main
+protocol, and is applied to **every** session:
+
+| `load_method` | Minimum data per session | Other data | Without them |
+|---------------|--------------------------|------------|--------------|
+| `hrv` (default for existing profiles) | duration | the morning measurement of the same day (score de forme of the main protocol) | load pending |
+| `banister` | duration + mean heart rate of the session | profile: maximal HR, resting HR (sex: male coefficient if missing) | load pending |
+| `rpe` | duration + perceived effort 0–10, rated about 30 min after the session | — | load pending |
+
+```python
+from cardiolab.analytics.training_load import session_load, LOAD_METHOD_REQUIREMENTS
+
+session_load("rpe", 60, rpe=5)                                   # 300.0
+session_load("banister", 52, hr_mean=125, hr_max=185, hr_rest=50)
+session_load("hrv", 60, readiness=None)                          # None — pending
+```
+
+A session missing the data of its method is **pending** (`None`): its load is
+never computed with another method. Pending sessions count as no load in
+ATL / CTL until the data arrives (e.g. the RPE is entered later).
+
+**Changing method** changes the scale: `reprocess_sessions()` recomputes every
+stored load with the profile's method. A session without the data of the new
+method becomes **pending**: its stored load is cleared, never kept from the former
+method (changed in v0.5.0 — it was kept, which mixed two scales). The heart rate (`hr_mean`) and the RPE
+of each session are stored (migration V006) so that the loads can always be
+recomputed.
+
+**Pros and cons, for the athlete:**
+
+| Method | For | Against |
+|--------|-----|---------|
+| Score de forme of the day (`hrv`) | Nothing to enter after the session; uses the morning measurement already taken | Ignores how hard the session was; load and recovery come from the same measurement, so the fatigue curves add little to the score; cardiolab heuristic |
+| Session heart rate (`banister`) | Objective; read automatically from `.fit` files; classic endurance reference | Needs a heart-rate sensor and the profile's maximal and resting HR; underestimates strength work, short intervals and team sports |
+| Perceived effort (`rpe`) | Every sport, no sensor; the most widely validated method; measures the effort independently of the morning measurement | A rating to give after every session; subjective (learn the 0–10 scale) |
+
 ---
 
 ## Protocol consistency rule
@@ -76,8 +192,10 @@ Where:
 | Never cross-use the two protocols | A resting RMSSD of 52 ms is not comparable to an orthostatic supine RMSSD of 52 ms without re-normalisation. |
 | Switching protocol resets the readiness series | Historical TRIMP values remain valid; new values start a fresh baseline. |
 
-When `"orthostatic"` is the primary protocol, the **supine phase RMSSD**
-(not the ΔHR orthostatic score) is used as the readiness input. The supine
+When `"orthostatic"` is the primary protocol, the **supine phase**
+(not the ΔHR orthostatic score) is used as the readiness input; its score de
+forme is stored with the session (`readiness_score`, migration V006 — v0.5.0)
+and read back by `load_readiness_for_date(..., baseline=None, ...)`. The supine
 phase is physiologically equivalent to a resting measurement and preserves
 day-to-day variability. The orthostatic score (ΔHR) is stable in healthy
 athletes and is a poor fatigue indicator.
@@ -134,19 +252,55 @@ TSB(t) = CTL(t) − ATL(t)
 
 TSB is the difference between fitness and fatigue on any given day.
 
-### TSB zones
+TSB is in the **unit of the load**: about ±20 with the HRV method, ±200 with
+session RPE. It cannot be read against fixed thresholds.
 
-| TSB | Zone | Athlete state |
-|-----|------|--------------|
-| > +25 | Fresh / detraining | High form but fitness may be declining; risk of detraining if prolonged |
-| +5 to +25 | Optimal | Peak performance window; ideal for competition or key sessions |
-| −10 to +5 | Neutral | Normal training state; manageable fatigue |
-| −30 to −10 | Accumulated fatigue | Functional overreaching; adaptation stimulus present |
-| < −30 | Overload | Non-functional overreaching; injury and illness risk elevated |
+### Relative form and zones (changed in v0.5.0)
 
-> Reference: Coggan A. (2003). *Training and racing using a power meter.*  
-> Originally applied to cycling power but validated for HRV-based load in
-> Plews DJ et al. (2013).
+```
+form (%) = TSB / CTL × 100 = (1 − ATL / CTL) × 100
+```
+
+The form compares today's fatigue with the fitness built up over the previous
+weeks: the same reading whatever the load method (×10 loads give the same form).
+Zones (`FORM_ZONES`, `form_zone()`):
+
+| Form | ATL / CTL | Zone | Reading |
+|------|-----------|------|---------|
+| > +20 % | < 0.8 | Fresh / detraining | Load well below the usual level — tapering, or detraining if it lasts |
+| +5 to +20 % | 0.8 – 0.95 | Optimal | Rested while keeping the usual load — ready for a competition or a test |
+| −30 to +5 % | 0.95 – 1.3 | Neutral | Load in line with the usual level |
+| −50 to −30 % | 1.3 – 1.5 | Accumulated fatigue | Load rising fast compared with the usual level |
+| < −50 % | ≥ 1.5 | Overload | Load spike — e.g. a very long session after a light period |
+
+The bounds come from the **acute:chronic workload ratio** (ACWR = ATL / CTL):
+Gabbett (2016) calls 0.8–1.3 the training « sweet spot » and ≥ 1.5 the « danger
+zone », from session-RPE and distance data in team sports and cricket; Williams et
+al. (2017) proposed computing it with exponentially weighted averages, as ATL and
+CTL are here. The +5 % split on the fresh side is cardiolab's. **These thresholds
+are debated** — Impellizzeri et al. (2020) question the ACWR's construction and
+its link with injuries: read the zones as markers of a rapid change of load, not
+as injury predictions.
+
+**First 42 days**: no form and no zone (`nan` / `None`) — CTL, a 42-day average
+starting from 0, is still building up: dividing by it gives meaningless values
+(−300 %, « overload » from the second session).
+
+**On the charts** (`plot_atl_ctl_tsb()`, `plot_tsb_zones()`): ATL and CTL are drawn
+from the first session, the form only from day 42. The days without form are
+**shaded grey** and labelled « Fitness building up (first 42 days) », so that the
+shorter form curve is not mistaken for missing data. With less than 42 days of
+history, the whole panel is shaded with « Form zones after 42 days of history ».
+A period cropped after day 42 (`between()`) has no shading.
+
+**Compute on the whole history, then crop**: `TrainingLoad.from_sessions(all)`
+then `.between(start, end)`. Filtering the sessions first restarts ATL and CTL at
+0 at the start of the period, and the first weeks look like an overload.
+
+> Changed in v0.5.0: zones were read on TSB against +25 / +5 / −10 / −30
+> (Coggan's power-based TSS scale); with session RPE (≈ ×10) nearly every
+> training day fell in « Overload ». The earlier note that these zones were
+> « validated for HRV-based load » (Plews et al. 2013) had no support.
 
 ---
 
@@ -233,8 +387,17 @@ TSB moves from −21.7 to −1.8, approaching the optimal zone.
 - Manzi V et al. (2009). Dose–response relationship of autonomic nervous system
   responses to individualized training impulse in marathon runners.
   *J Strength Cond Res*, 23(9), 2722–2729.
-- Plews DJ et al. (2013). Heart rate variability in elite triathletes, is variation
+- Plews DJ et al. (2012). Heart rate variability in elite triathletes, is variation
   in variability the key to effective training? A case comparison.
-  *Eur J Appl Physiol*, 113(3), 715–726.
+  *Eur J Appl Physiol*, 112(11), 3729–3741.
+- Foster C et al. (2001). A new approach to monitoring exercise training.
+  *J Strength Cond Res*, 15(1), 109–115.
 - Coggan A. (2003). *Training and racing using a power meter* (internal
   TrainingPeaks document — widely cited in endurance sport literature).
+- Gabbett TJ (2016). The training—injury prevention paradox: should athletes be
+  training smarter and harder? *Br J Sports Med*, 50(5), 273–280.
+- Williams S, West S, Cross MJ, Stokes KA (2017). Better way to determine the
+  acute:chronic workload ratio? *Br J Sports Med*, 51(3), 209–210.
+- Impellizzeri FM, Tenan MS, Kempton T, Novak A, Coutts AJ (2020). Acute:chronic
+  workload ratio: conceptual issues and fundamental pitfalls. *Int J Sports Physiol
+  Perform*, 15(6), 907–913.

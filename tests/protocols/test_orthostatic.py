@@ -619,6 +619,7 @@ class TestOrthostaticToDict:
             "delta_rmssd",
             "interpretation",
             "score",
+            "readiness_score",
             *quality_columns(None),
         }
         assert set(d.keys()) == expected

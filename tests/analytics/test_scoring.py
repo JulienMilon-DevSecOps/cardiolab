@@ -373,19 +373,26 @@ def _make_baseline(n: int = 7, rmssd: float = 60.0, sd1: float = 42.43) -> Basel
 class TestReadinessScoreMultiDFA:
     """Tests for the DFA α1 component added to readiness_score_multi."""
 
-    def test_good_dfa_boosts_score(self):
-        """DFA α1 = 1.0 (optimal) must give a score above 50 for baseline-equal RMSSD."""
-        base = _make_baseline()
-        current = _make_features(dfa_alpha1=1.0)
-        score = readiness_score_multi(current, base)
-        assert score > 50.0
+    def test_dfa_below_usual_raises_score(self):
+        """α1 below the personal baseline (more vagal) raises the score (0.5.0)."""
+        base = _make_baseline()  # α1 = 1.0 every day
+        usual = readiness_score_multi(_make_features(dfa_alpha1=1.0), base)
+        lower = readiness_score_multi(_make_features(dfa_alpha1=0.9), base)
+        assert lower > usual
 
-    def test_poor_dfa_penalises_score(self):
-        """DFA α1 = 0.5 (below threshold) must lower the score vs. good DFA."""
+    def test_dfa_above_usual_lowers_score(self):
+        """α1 above the personal baseline (less vagal) lowers the score (0.5.0)."""
         base = _make_baseline()
-        score_good = readiness_score_multi(_make_features(dfa_alpha1=1.0), base)
-        score_poor = readiness_score_multi(_make_features(dfa_alpha1=0.5), base)
-        assert score_good > score_poor
+        usual = readiness_score_multi(_make_features(dfa_alpha1=1.0), base)
+        higher = readiness_score_multi(_make_features(dfa_alpha1=1.2), base)
+        assert higher < usual
+
+    def test_dfa_weight_is_ten_percent(self):
+        """The DFA component moves the score by at most ±5 points (10 % × ±50)."""
+        base = _make_baseline()
+        lowest = readiness_score_multi(_make_features(dfa_alpha1=0.3), base)
+        highest = readiness_score_multi(_make_features(dfa_alpha1=2.0), base)
+        assert 0 < lowest - highest <= 10.0
 
     def test_dfa_zero_treated_as_neutral(self):
         """DFA α1 = 0.0 (not computed) must not penalise the score."""
@@ -439,19 +446,27 @@ class TestReadinessScoreNonlinear:
         )
         assert score == pytest.approx(50.0, abs=1e-6)
 
-    def test_good_dfa_above_threshold_boosts_score(self):
-        """DFA α1 = 1.0 with normal SD1/SD2 must produce a score > 50."""
+    def test_usual_values_neutral(self):
+        """DFA α1 and SD1/SD2 equal to the usual level → 50 (0.5.0)."""
         base = _make_baseline()
         current = _make_features(dfa_alpha1=1.0, sd1=42.43, sd_ratio=0.40)
-        score = readiness_score_nonlinear(current, base)
-        assert score > 50.0
+        assert readiness_score_nonlinear(current, base) == pytest.approx(50.0)
 
-    def test_poor_dfa_below_threshold_lowers_score(self):
-        """DFA α1 = 0.5 must produce a lower score than DFA α1 = 1.0."""
+    def test_dfa_relative_lower_is_better(self):
+        """DFA α1 vs the personal baseline (1.0): lower raises, higher lowers (0.5.0)."""
         base = _make_baseline()
-        score_good = readiness_score_nonlinear(_make_features(dfa_alpha1=1.0), base)
-        score_poor = readiness_score_nonlinear(_make_features(dfa_alpha1=0.5), base)
-        assert score_good > score_poor
+        usual = readiness_score_nonlinear(_make_features(dfa_alpha1=1.0), base)
+        lower = readiness_score_nonlinear(_make_features(dfa_alpha1=0.9), base)
+        higher = readiness_score_nonlinear(_make_features(dfa_alpha1=1.2), base)
+        assert lower > usual > higher
+
+    def test_consistent_with_multi_dfa(self):
+        """Same DFA α1 component as readiness_score_multi (no fixed 0.75 threshold)."""
+        from cardiolab.analytics.monitoring import dfa_alpha1_score
+
+        base = _make_baseline()
+        current = _make_features(dfa_alpha1=0.5)
+        assert dfa_alpha1_score(current, base) > 50.0
 
     def test_low_sd_ratio_lowers_score(self):
         """SD1/SD2 = 0.1 (sympathetic dominance) must score lower than 0.4 (normal)."""
@@ -460,20 +475,27 @@ class TestReadinessScoreNonlinear:
         score_low = readiness_score_nonlinear(_make_features(sd_ratio=0.10), base)
         assert score_normal > score_low
 
-    def test_sd1_above_baseline_boosts_score(self):
-        """SD1 well above the baseline median must push the score above 50."""
+    def test_sd1_no_longer_counts(self):
+        """SD1 (= RMSSD / √2) is not a component any more (0.5.0)."""
         base = _make_baseline(sd1=42.43)
-        current = _make_features(sd1=85.0, dfa_alpha1=1.0)
-        score = readiness_score_nonlinear(current, base)
-        assert score > 50.0
+        high = readiness_score_nonlinear(_make_features(sd1=85.0), base)
+        low = readiness_score_nonlinear(_make_features(sd1=15.0), base)
+        assert high == pytest.approx(low)
 
-    def test_sd1_below_baseline_lowers_score(self):
-        """SD1 well below the baseline median must push the score below 50."""
-        base = _make_baseline(sd1=42.43)
-        current = _make_features(sd1=15.0)
-        score = readiness_score_nonlinear(current, base)
-        # DFA neutral (50) + low SD1 + normal SD_ratio → overall < 50
-        assert score < 60.0
+    def test_sd_ratio_relative_higher_is_better(self):
+        """SD1/SD2 vs the personal baseline (0.40): higher raises, lower lowers."""
+        base = _make_baseline()
+        usual = readiness_score_nonlinear(_make_features(sd_ratio=0.40), base)
+        higher = readiness_score_nonlinear(_make_features(sd_ratio=0.45), base)
+        lower = readiness_score_nonlinear(_make_features(sd_ratio=0.35), base)
+        assert higher > usual > lower
+        assert usual == pytest.approx(50.0)
+
+    def test_neutral_with_short_history(self):
+        """Fewer than 6 previous days: both components neutral."""
+        base = _make_baseline(n=5)
+        current = _make_features(dfa_alpha1=1.5, sd_ratio=0.1)
+        assert readiness_score_nonlinear(current, base) == pytest.approx(50.0)
 
     def test_dfa_zero_treated_as_neutral(self):
         """DFA α1 = 0.0 must not crash and must return a finite score."""
@@ -712,17 +734,17 @@ class TestCoherenceScore100:
             s = coherence_score_100(float(v))
             assert 0.0 <= s <= 100.0
 
-    def test_inflection_at_50_pct(self):
-        """Score at 50 % raw coherence must be approximately 50."""
-        assert coherence_score_100(50.0) == pytest.approx(50.0, abs=2.0)
+    def test_inflection_at_40_pct(self):
+        """Score at 40 % (middle of the moderate zone) is 50 (0.5.0)."""
+        assert coherence_score_100(40.0) == pytest.approx(50.0)
 
     def test_high_coherence(self):
-        """Coherence ≥ 60 % → score above 65."""
-        assert coherence_score_100(60.0) >= 65.0
+        """Coherence ≥ 50 % (CR ≥ 1) → score ≥ 84."""
+        assert coherence_score_100(50.0) >= 84.0
 
     def test_low_coherence(self):
-        """Coherence ≤ 30 % → score below 40."""
-        assert coherence_score_100(30.0) < 40.0
+        """Coherence < 30 % (spontaneous breathing) → score < 16."""
+        assert coherence_score_100(29.9) < 16.0
 
     def test_monotone_increasing(self):
         """coherence_score_100 is monotonically increasing."""
@@ -1043,18 +1065,16 @@ class TestDriftScoreZoneBoundaries:
 
 
 class TestCoherenceScore100ZoneBoundaries:
-    """Boundary tests for coherence_score_100() at the clinical threshold."""
+    """Boundary tests for coherence_score_100() at the 30 % / 50 % thresholds."""
 
-    def test_at_clinical_threshold_60_pct(self):
-        """Coherence at exactly 60 % → score ≥ 65 (good-coherence threshold)."""
-        assert coherence_score_100(60.0) >= 65.0
+    def test_good_threshold_50_pct(self):
+        """Coherence at exactly 50 % (CR = 1) → score ≥ 84."""
+        assert coherence_score_100(50.0) >= 84.0
 
     def test_continuity_at_threshold(self):
-        """Score is continuous across the 60 % boundary (no jump > 5 pts)."""
-        s_below = coherence_score_100(59.0)
-        s_above = coherence_score_100(61.0)
-        assert abs(s_above - s_below) < 5.0
+        """Score is continuous across the 50 % boundary (no jump > 5 pts)."""
+        assert abs(coherence_score_100(51.0) - coherence_score_100(49.0)) < 5.0
 
-    def test_poor_zone_below_40_pct(self):
-        """Coherence ≤ 40 % maps to score ≤ 30 (poor zone)."""
-        assert coherence_score_100(40.0) <= 30.0
+    def test_low_zone_below_30_pct(self):
+        """Coherence ≤ 30 % maps to score ≤ 16 (low zone)."""
+        assert coherence_score_100(30.0) <= 16.2

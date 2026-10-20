@@ -110,6 +110,12 @@ def table_vo2max_history(
     return caption(styler, caption_text)
 
 
+_HR_MAX_SOURCES = {
+    "provided": "fournie",
+    "tanaka": "Tanaka (208 − 0,7 × âge)",
+}
+
+
 def table_vo2max_session(
     result: VO2maxResult,
     caption_text: str | None = None,
@@ -148,10 +154,20 @@ def table_vo2max_session(
         # Inputs
         ("HR repos (bpm)", f"{result.hr_rest:.1f}", "Inputs"),
         ("HR max (bpm)", hr_max_val, "Inputs"),
+        (
+            "Source HR max",
+            _HR_MAX_SOURCES.get(result.hr_max_source, "n/a"),
+            "Inputs",
+        ),
         ("RMSSD utilisé (ms)", f"{result.rmssd_used:.2f}", "Inputs"),
         ("ln(RMSSD) utilisé", f"{result.ln_rmssd_used:.3f}", "Inputs"),
         # Result
         ("Catégorie fitness", result.fitness_category, "Result"),
+        (
+            "Percentile (même sexe et âge)",
+            "n/a" if result.percentile is None else f"{result.percentile:.0f}",
+            "Result",
+        ),
     ]
 
     df = pd.DataFrame(rows, columns=["Indicateur", "Valeur", "Groupe"])

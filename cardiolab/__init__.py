@@ -77,6 +77,7 @@ from cardiolab.analytics.training_load import (
     load_readiness_for_date,
     trimp_banister,
     trimp_hrv_based,
+    trimp_session_rpe,
 )
 from cardiolab.analytics.trends import trend_rmssd
 
@@ -142,6 +143,7 @@ __all__ = [
     "compute_tsb",
     "trimp_hrv_based",
     "trimp_banister",
+    "trimp_session_rpe",
     "load_readiness_for_date",
     # ── Sports reference list
     "Sport",

@@ -12,6 +12,8 @@ from cardiolab.analytics.anomaly import (
     _zscore,
     detect_rmssd_anomaly,
 )
+from cardiolab.analytics.baseline import Baseline
+from cardiolab.protocols.resting import HRVFeatures
 
 
 class TestDetectRmssdAnomaly:
@@ -446,3 +448,37 @@ class TestAnomalyDetectionIntegration:
         assert result1["status"] == result2["status"]
         if "delta_pct" in result1:
             assert np.isclose(result1["delta_pct"], result2["delta_pct"], rtol=0.001)
+
+
+@pytest.mark.unit
+class TestZscoreLnRmssd:
+    """Z-score on lnRMSSD of the previous 28 days (0.5.0)."""
+
+    @staticmethod
+    def _history(n: int) -> Baseline:
+        import math
+
+        return Baseline.from_features(
+            [
+                HRVFeatures(
+                    date=f"2026-05-{d + 1:02d}", rmssd=math.exp(4.0 + 0.1 * (d % 2))
+                )
+                for d in range(n)
+            ]
+        )
+
+    def test_exact_z(self):
+        """LnRMSSD 4.0 / 4.1 alternating: today at mean + 2.5 SD → high."""
+        import math
+
+        ref = [4.0 + 0.1 * (d % 2) for d in range(10)]
+        mean, sd = float(np.mean(ref)), float(np.std(ref, ddof=1))
+        today = HRVFeatures(date="2026-05-11", rmssd=math.exp(mean + 2.5 * sd))
+        result = _zscore(today, self._history(10))
+        assert result["z"] == pytest.approx(2.5)
+        assert result["status"] == "high"
+
+    def test_needs_six_days(self):
+        """Fewer than 6 previous days: insufficient data."""
+        today = HRVFeatures(date="2026-05-06", rmssd=60.0)
+        assert _zscore(today, self._history(5)) == {"status": "insufficient_data"}

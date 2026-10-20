@@ -356,17 +356,17 @@ def plot_dfa_fluctuation(
     log_n_line = np.linspace(log_n[0], log_n[-1], 200)
     log_f_line = alpha * log_n_line + intercept
 
-    # Clinical interpretation
-    if alpha < 0.6:
-        interp = "Uncorrelated / pathological"
+    # Interpretation at rest (docs/features/nonlinear.md)
+    if alpha < 0.5:
+        interp = "Very low — check signal quality"
     elif alpha < 0.75:
-        interp = "Below normal range"
+        interp = "Low — strong vagal modulation"
     elif alpha <= 1.25:
-        interp = "Normal fractal correlations"
+        interp = "Usual resting range"
     elif alpha <= 1.5:
-        interp = "Above normal — exercise / strong trend"
+        interp = "Elevated — sympathetic predominance"
     else:
-        interp = "Brownian noise"
+        interp = "Very high — exercise / non-stationary"
 
     fig, ax = plt.subplots(figsize=figsize)
 

@@ -532,9 +532,12 @@ dominant peak should appear near **0.1 Hz**.
 
 | Score | Interpretation |
 |---|---|
-| ≥ 60 % | Good — dominant peak is narrow and concentrated |
-| 40–60 % | Moderate — peak is present but diffuse |
-| < 40 % | Low — energy spread across the band, no clear peak |
+| ≥ 50 % | Good — the resonance peak holds at least as much power as the rest of the spectrum |
+| 30–50 % | Moderate — peak is present but diffuse |
+| < 30 % | Low — spontaneous-breathing level, no dominant peak |
+
+Since v0.5.0 the score is the share of the **whole spectrum** in the peak (McCraty &
+Shaffer 2015) — see [cardiac_coherence.md](../protocols/cardiac_coherence.md).
 
 ### API
 
@@ -557,9 +560,9 @@ fig.savefig("coherence_psd.png", dpi=150, bbox_inches="tight")
 |---|---|
 | Green line + dots | Coherence score per session (0–100 %) |
 | Score labels | Numeric value annotated above each point |
-| Light green band (≥ 60 %) | Good coherence zone |
-| Light yellow band (40–60 %) | Moderate coherence zone |
-| Light red band (< 40 %) | Low coherence zone |
+| Light green band (≥ 50 %) | Good coherence zone |
+| Light yellow band (30–50 %) | Moderate coherence zone |
+| Light red band (< 30 %) | Low coherence zone |
 
 ### How to read it
 
@@ -572,8 +575,9 @@ Track the progression of coherence score over weeks of practice:
 | Dip below threshold | Stress, fatigue, or irregular session |
 | Persistent red zone | Technique needs adjustment |
 
-The **threshold at 60 %** is the commonly used clinical target for cardiac
-coherence biofeedback practice (Lehrer & Gevirtz 2014).
+The **50 % threshold** (coherence ratio = 1) is cardiolab's: no validated cut-off
+exists for the coherence ratio. Scores before v0.5.0 used another formula and
+are not comparable.
 
 ### API
 
@@ -916,8 +920,8 @@ fig.savefig("drift_zones.png", dpi=150, bbox_inches="tight")
 | α1 range | Interpretation |
 |---|---|
 | ≈ 0.5 | White noise — no correlation structure, pathological at rest |
-| < 0.75 | Below normal — possible overtraining, autonomic impairment |
-| 0.75 – 1.25 | **Normal** fractal long-range correlations (green zone) |
+| < 0.75 | Low — strong vagal modulation, irregular rhythm or artefacts |
+| 0.75 – 1.25 | **Usual** resting range (green zone) |
 | > 1.25 | Strongly correlated — typical during exercise or with artefacts |
 | ≈ 1.5 | Brownian noise — maximal correlation |
 
@@ -930,7 +934,7 @@ fig.savefig("drift_zones.png", dpi=150, bbox_inches="tight")
 | Points well-aligned with the regression line (high R²) | Clean fractal structure — reliable α1 estimate |
 | Scattered points, poor alignment | Irregular HR behaviour or short signal |
 | Regression line inside the green band | Normal autonomic regulation |
-| Line below the green band (α1 < 0.75) | Possible fatigue, overtraining, or pathology |
+| Line below the green band (α1 < 0.75) | Strong vagal modulation, irregular rhythm or artefacts — check signal quality |
 | Line above the green band (α1 > 1.25) | Possible exercise residue, strong trend, or artefacts |
 
 ### Signal length note

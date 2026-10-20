@@ -224,3 +224,42 @@ class TestHeartRateRecovery:
         d = result.to_dict()
         assert d["hrr_60"] == result.hrr_60
         assert d["hrr_60_category"] == result.hrr_60_category
+
+
+@pytest.mark.unit
+class TestRobustness:
+    """HR as 5-s medians (0.5.0): one bad beat no longer shifts HRR1."""
+
+    def _linear(self, peak: float = 170.0, drop_per_s: float = 0.4, sec: int = 150):
+        """Linear recovery: HR(t) = peak − drop × t, as RR intervals."""
+        rr, t = [], 0.0
+        while t < sec:
+            hr = peak - drop_per_s * t
+            rr.append(60_000.0 / hr)
+            t += rr[-1] / 1000.0
+        return rr
+
+    def test_linear_recovery_values(self):
+        """170 bpm falling 0.4 bpm/s: HRR1 ≈ 23 bpm, HRR2 ≈ 47 bpm."""
+        r = heart_rate_recovery(RRSeries(np.array(self._linear())))
+        assert r.hr_peak == pytest.approx(169.0, abs=1.0)
+        assert r.hrr_60 == pytest.approx(23.0, abs=1.5)
+        assert r.hrr_120 == pytest.approx(47.0, abs=1.5)
+
+    def test_one_artefact_at_start(self):
+        """A spurious short first beat (240 bpm) barely moves HRR1."""
+        rr = self._linear()
+        clean = heart_rate_recovery(RRSeries(np.array(rr))).hrr_60
+        rr[0] = 250.0  # 240 bpm
+        dirty = heart_rate_recovery(RRSeries(np.array(rr))).hrr_60
+        assert abs(dirty - clean) < 1.0
+
+    def test_one_artefact_at_60s(self):
+        """A missed beat around 60 s barely moves HR at 60 s."""
+        rr = self._linear()
+        t = np.cumsum(rr) / 1000.0
+        i = int(np.argmin(np.abs(t - 60.0)))
+        clean = heart_rate_recovery(RRSeries(np.array(rr))).hr_at_60s
+        rr[i] *= 2.0
+        dirty = heart_rate_recovery(RRSeries(np.array(rr))).hr_at_60s
+        assert abs(dirty - clean) < 1.0

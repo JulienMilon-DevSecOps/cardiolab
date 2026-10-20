@@ -241,6 +241,9 @@ Voir [`docs/visualization/`](../docs/visualization/) pour les guides de lecture.
 
 #### `14_user_profiles.py` — Profils utilisateurs
 - Création, lecture, mise à jour, liste, suppression via `HRVRepository`.
+- Mesure principale et **méthode de charge** (`load_method` : `hrv`, `banister` ou `rpe`,
+  cardiolab ≥ 0.5.0) avec les données nécessaires à chaque méthode.
+- Utilise toujours un profil de démonstration temporaire (ne touche jamais au `USER_ID` du `.env`).
 - Illustre le CRUD complet de la table `user_profiles`.
 
 #### `16_reprocess_history.py` — Retraitement de l'historique

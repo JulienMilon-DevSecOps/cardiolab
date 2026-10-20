@@ -135,8 +135,11 @@ class OrthostaticResult:
 
     Attributes:
         phases: Segmented phases with their RR series and HRV features.
-        hr_response: HR increase from supine to standing (bpm).
-            Normal physiological range: 10–25 bpm.
+        hr_response: HR increase from supine to standing (bpm) — mean HR of
+            the stabilised standing phase minus mean supine HR. Normal
+            physiological range: 10–25 bpm. Not the highest sustained rise
+            of the clinical POTS criterion (≥ 30 bpm within 10 min, Sheldon
+            et al. 2015): a short early peak is averaged out.
         lf_hf_ratio_change: Ratio of standing LF/HF to supine LF/HF.
             Values above 1 reflect sympathetic activation on standing.
         hf_response_pct: Relative HF power change from supine to standing (%).
@@ -168,6 +171,13 @@ class OrthostaticResult:
             its own index in ``phases.<phase>.features.quality`` — a movement
             artefact when standing up does not downgrade the supine phase.
 
+        readiness_score: Score de forme of the session — the supine phase
+            scored against the previous supine phases
+            (:func:`~cardiolab.analytics.scoring.orthostatic_readiness_score`),
+            when the orthostatic test is the main daily measurement. Distinct
+            from ``score`` (autonomic response to standing). Set by the import
+            / reprocessing pipeline; ``None`` until computed. Added in 0.5.0.
+
     """
 
     phases: OrthostaticPhases
@@ -180,6 +190,7 @@ class OrthostaticResult:
     interpretation: str
     score: float = 0.0
     quality: SignalQuality | None = None
+    readiness_score: float | None = None
 
     def to_dict(self) -> dict:
         """Return a plain-Python dict of the full orthostatic result.
@@ -208,6 +219,7 @@ class OrthostaticResult:
             "delta_rmssd": self.delta_rmssd,
             "interpretation": self.interpretation,
             "score": self.score,
+            "readiness_score": self.readiness_score,
             **quality_columns(self.quality),
         }
 
@@ -251,6 +263,7 @@ class OrthostaticResult:
         row["delta_rmssd"] = self.delta_rmssd
         row["interpretation"] = self.interpretation
         row["score"] = self.score
+        row["readiness_score"] = self.readiness_score
         row.update(quality_columns(self.quality))
 
         return row

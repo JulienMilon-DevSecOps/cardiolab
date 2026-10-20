@@ -29,6 +29,9 @@ orthostatic_plots
     Orthostatic test: four-panel multi-session plot showing RMSSD/HR per phase
     (supine / transition / standing) and autonomic response metrics (ΔHR, ΔRMSSD,
     HF/HR%, LF/HR%) over time.
+monitoring_plots
+    Training adaptation monitoring (Plews): 7-day lnRMSSD mean against the SWC
+    band, coloured by state, with the 7-day CV on a second axis.
 vo2max_plots
     VO2max estimation from HRV: grouped model comparison bars with ACSM zone
     backgrounds, multi-session best-estimate evolution with ±10 % uncertainty
@@ -64,6 +67,7 @@ from cardiolab.visualization.hrr_plots import (
     plot_hrr_curve,
     plot_hrr_gauge,
 )
+from cardiolab.visualization.monitoring_plots import plot_ln_rmssd_monitoring
 from cardiolab.visualization.nonlinear_plots import (
     plot_dfa_fluctuation,
     plot_poincare,
@@ -104,6 +108,8 @@ from cardiolab.visualization.vo2max_plots import (
 )
 
 __all__ = [
+    # monitoring_plots
+    "plot_ln_rmssd_monitoring",
     # training_load_plots
     "plot_atl_ctl_tsb",
     "plot_trimp_history",
