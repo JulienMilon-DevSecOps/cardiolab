@@ -27,5 +27,5 @@ class TestVersion:
             declared = tomllib.load(f)["project"]["version"]
         assert cardiolab.__version__ == declared, (
             "Installed metadata is stale (editable installs keep the version of "
-            "their last install): run `pip install -e . --no-deps`."
+            "their last install): run `uv sync --all-extras`."
         )
