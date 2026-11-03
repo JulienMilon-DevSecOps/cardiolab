@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] - 2026-11-03
 
 ### Changed — Licence metadata (PEP 639) and README badges
 
@@ -19,6 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **README badges**: PyPI version, supported Python versions, pipeline and coverage of
   `main`, licence. The licence badge reads PyPI, so it shows `AGPL-3.0-or-later` only after
   the next release.
+
+### Changed — README rewritten for a public package
+
+* The README is now an entry point for users (1 295 → about 400 lines): what cardiolab
+  does, features, installation with pip or uv and the optional extras, a quick start on
+  the sample data, the analysis workflow explained step by step (the « pipeline » is the
+  data-processing chain), a protocols table with one worked example (orthostatic test),
+  scores and follow-up, visualization (one example), reports, storage, supported sensors,
+  examples and notebooks, a documentation index, versions and upgrades, development.
+* Release history and per-version upgrade notes removed from the README: they live in
+  CHANGELOG.md (and the forward roadmap in ROADMAP.md). The detailed API listings and
+  calibration tables now point to `cardiolab/docs/`; the README copies were partly out of
+  date (coherence and VO2max score calibrations, non-linear readiness weights, test count).
+* Links are absolute GitLab URLs so that they also work on the PyPI project page (relative
+  links do not); scientific references folded in a `<details>` block.
 
 ### Changed — Python 3.13 and uv
 
