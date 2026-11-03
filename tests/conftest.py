@@ -31,12 +31,16 @@ except ImportError:
 
 
 # ── Auto start/stop du Supabase local pour les tests d'intégration ─────────────
-# Le stack Docker vit dans le repo voisin cardioanalysis-api (source unique,
-# partagée entre les deux projets). Ne le démarre que si des tests
-# @pytest.mark.integration vont réellement tourner, et ne l'arrête que si
-# c'est cette session qui l'a démarré — reste à l'arrêt (~0 CPU/RAM) le
-# reste du temps. Voir cardioanalysis-api/local/auth/dev/README.md pour le
-# détail du mécanisme (identique dans les deux repos).
+# Le stack Docker vit dans le dépôt privé voisin cardioanalysis-supabase-local-nas
+# (source unique, partagée avec cardioanalysis-api). Ne le démarre que si des
+# tests @pytest.mark.integration vont réellement tourner, et ne l'arrête que si
+# c'est cette session qui l'a démarré — reste à l'arrêt (~0 CPU/RAM) le reste
+# du temps. Voir cardioanalysis-supabase-local-nas/local/README.md (mécanisme
+# identique dans cardioanalysis-api).
+#
+# Emplacement réglable dans .env (comme dans cardioanalysis-api) :
+#   SUPABASE_DIR      : dossier du stack, relatif à la racine du projet (ou absolu)
+#   SUPABASE_ENV_FILE : fichier d'env du stack, relatif à SUPABASE_DIR
 #
 # Seuls "db" et "supavisor" (le pooler) sont démarrés — ces tests d'intégration
 # ne font que du SQL direct via psycopg2/HRVRepository. "studio" (Next.js) est
@@ -44,12 +48,17 @@ except ImportError:
 # machine, et rien ici n'a besoin de la gateway HTTP/API auth.
 
 _SUPABASE_DIR = (
-    Path(__file__).resolve().parent.parent.parent
-    / "cardioanalysis-api"
-    / "local"
-    / "auth"
-)
-_COMPOSE_CMD = ["docker", "compose", "--env-file", "dev/.env"]
+    Path(__file__).resolve().parent.parent
+    / Path(
+        os.getenv("SUPABASE_DIR", "../cardioanalysis-supabase-local-nas")
+    ).expanduser()
+).resolve()
+_COMPOSE_CMD = [
+    "docker",
+    "compose",
+    "--env-file",
+    os.getenv("SUPABASE_ENV_FILE", "local/.env"),
+]
 _MINIMAL_SERVICES = ["db", "supavisor"]
 _we_started_supabase = False
 
