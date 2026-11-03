@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Licence metadata (PEP 639) and README badges
+
+* **Licence declared as an SPDX expression (PEP 639)**: `license = "AGPL-3.0-or-later"` and
+  `license-files = ["LICENCE"]` replace `license = {file = "LICENCE"}`, which copied the
+  whole licence text into the `License` metadata field. The wheel now carries
+  `License-Expression: AGPL-3.0-or-later` and `License-File: LICENCE`. The
+  `License :: OSI Approved :: … (AGPLv3+)` classifier is removed (PEP 639 forbids it next
+  to a licence expression). Build backend: `hatchling>=1.27` (first version supporting
+  PEP 639). The licence itself is unchanged.
+* **README badges**: PyPI version, supported Python versions, pipeline and coverage of
+  `main`, licence. The licence badge reads PyPI, so it shows `AGPL-3.0-or-later` only after
+  the next release.
+
 ### Changed — Python 3.13 and uv
 
 * **Python 3.13 minimum** (`requires-python = ">=3.13"`, Ruff `target-version = "py313"`).

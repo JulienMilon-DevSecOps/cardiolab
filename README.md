@@ -1,5 +1,11 @@
 # cardiolab
 
+[![PyPI version](https://img.shields.io/pypi/v/cardiolab)](https://pypi.org/project/cardiolab/)
+[![Python versions](https://img.shields.io/pypi/pyversions/cardiolab)](https://pypi.org/project/cardiolab/)
+[![Pipeline](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/badges/main/pipeline.svg)](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/pipelines?ref=main)
+[![Coverage](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/badges/main/coverage.svg)](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/pipelines?ref=main)
+[![License](https://img.shields.io/pypi/l/cardiolab)](LICENCE)
+
 **cardiolab** is a physiological analysis engine dedicated to heart rate and heart rate variability (HRV) analysis.
 
 This project is the scientific core of the **cardioanalysis** product.
