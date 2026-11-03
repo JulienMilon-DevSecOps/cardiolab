@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — Python 3.13 and uv
+
+* **Python 3.13 minimum** (`requires-python = ">=3.13"`, Ruff `target-version = "py313"`).
+  The full suite (1 997 tests) passes on 3.13 with the newly resolved dependencies
+  (numpy 2.5, scipy 1.18, matplotlib 3.11, **pandas 3.1**, psycopg2-binary 2.9.13).
+* **uv** manages the project: `uv.lock` committed, `.python-version` = 3.13. Development
+  tools moved from the `dev` **extra** to the `dev` **dependency group** (PEP 735) — they
+  are no longer published as `cardiolab[dev]`; contributors run `uv sync --all-extras`.
+  The `analysis`, `database` and `garmin` extras are unchanged.
+* **CI**: component `python-package` 0.11.1 → **0.12.0**, `python_version: "3.13"`,
+  `package_manager: uv`, `uv_sync_args: "--all-extras"` (the `project_extras` input of the
+  pip mode is gone), `UV_VERSION` 0.13.6.
+* Ruff pinned to **0.15.17** (dev group and pre-commit hook, previously v0.15.12), the
+  version of the CI ruff image: Ruff ≥ 0.17 also formats code blocks in Markdown files,
+  so an unpinned local Ruff would disagree with `ruff-format` in the CI.
+
 ## [0.5.0] - 2026-10-19
 
 Athlete longitudinal monitoring and a full review of the calculations. **Computed values change**

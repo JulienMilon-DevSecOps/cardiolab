@@ -1,9 +1,13 @@
 include:
-  - component: $CI_SERVER_FQDN/project-jmilon-devsecops/ci-cd/pipeline-python-centralisee/python-package@0.11.1
+  - component: $CI_SERVER_FQDN/project-jmilon-devsecops/ci-cd/pipeline-python-centralisee/python-package@0.12.0
     inputs:
-      python_version: "3.12"
-      # cardiolab n'a pas d'extra "test" : extras qui couvrent toute la suite de tests
-      project_extras: "dev,analysis,database,garmin"
+      python_version: "3.13"
+      # Dépendances installées par `uv sync --frozen` depuis uv.lock (groupe dev inclus :
+      # pytest, ruff...). Le job échoue si uv.lock n'est pas à jour avec pyproject.toml :
+      # lancer `uv lock` avant de pousser.
+      package_manager: uv
+      # Tous les extras (analysis, database, garmin) : la suite de tests les couvre tous
+      uv_sync_args: "--all-extras"
       pytest_args: "-q"
       # Couverture mesurée sur le package uniquement (fail_under = 80 dans pyproject.toml)
       pytest_cov_source: "cardiolab"
@@ -18,6 +22,8 @@ include:
       dependency_scan_allow_failure: true  # vulnérabilités des dépendances + SBOM, non bloquant
 
 variables:
+  # Même version que le uv local (`uv --version`) : un uv plus ancien peut refuser le uv.lock
+  UV_VERSION: "0.13.6"
   # Identifiants de la base de test jetable (POSTGRES_* définis par la pipeline centralisée)
   DB_HOST_TEST: "postgres"
   DB_PORT_TEST: "5432"

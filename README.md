@@ -975,6 +975,27 @@ See [`examples/README.md`](examples/README.md) for the full step-by-step setup.
 
 ---
 
+## Development
+
+Requires **Python 3.13+** and [uv](https://docs.astral.sh/uv/). Users install the
+package with `pip install cardiolab` (plus extras: `analysis`, `database`, `garmin`);
+contributors work from the lock file:
+
+```bash
+uv sync --all-extras          # .venv with Python 3.13 (.python-version), all extras + dev group
+uv run ruff check . && uv run ruff format --check .
+uv run pytest                 # coverage ≥ 80 %; integration tests need DB_HOST_TEST
+uv run pre-commit install     # ruff hooks on commit
+```
+
+* Dependencies change through uv only (`uv add <pkg>`, `uv add --optional garmin <pkg>`,
+  `uv add --dev <pkg>`), then commit `uv.lock` with `pyproject.toml` — the CI runs
+  `uv sync --frozen` and fails on a stale lock.
+* Ruff is pinned to the version of the CI image (`ruff==0.15.17` in the `dev` group, same
+  `rev` in `.pre-commit-config.yaml`): bump the three together.
+
+---
+
 ## Status
 
 | Module | State |
@@ -1259,8 +1280,9 @@ The forward-looking roadmap, ordered by priority (P0 → P3), lives in **[ROADMA
 | v0.3.3 | P1 | Generic `HRVRepository` — shipped in v0.3.4 |
 | v0.3.4 | P1 | Sports reference list, sport validated on save, sport from `.fit` files — released 2026-10-16 |
 | v0.4.0 | P1 | Signal reliability — artefact correction, spectral fixes, signal quality, reprocessing — released 2026-10-18 |
-| v0.5.0 | P2 | Athlete longitudinal monitoring — 7-day lnRMSSD, CV, SWC, trends, load methods, calculation review — ready 2026-10-19 |
+| v0.5.0 | P2 | Athlete longitudinal monitoring — 7-day lnRMSSD, CV, SWC, trends, load methods, calculation review — released 2026-10-19 |
 | v0.6.0 | P2 | Exercise protocols — DFA α1 thresholds, submaximal test |
 | v0.7.0 | P3 | Statistical intelligence — Mahalanobis anomaly |
 | v0.8.0 | P3 | Autonomic function tests (Ewing battery) |
 | v0.9.0 | P3 | PPG / pulse rate variability |
+| v0.10.0 | P3 | HRmax field test, observed HRmax — last |
