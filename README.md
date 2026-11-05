@@ -28,8 +28,9 @@ own — in a notebook, a script or your own application.
   and a signal quality grade for every recording.
 * **23 HRV indicators** — time domain (RMSSD, SDNN, pNN50…), frequency domain (LF, HF,
   LF/HF…), non-linear (Poincaré SD1/SD2, DFA α1, entropies).
-* **6 protocols** — resting, orthostatic, cardiac coherence, heart rate recovery, cardiac
-  drift, VO2max estimation; each returns a typed result with its interpretation.
+* **7 protocols** — resting, orthostatic, cardiac coherence, heart rate recovery, cardiac
+  drift, VO2max estimation, DFA α1 thresholds; each returns a typed result with its
+  interpretation.
 * **Follow-up over time** — readiness score against the athlete's own history, 7-day
   lnRMSSD monitoring, trends, training load (ATL / CTL / freshness) with three load methods.
 * **Outputs** — matplotlib charts and dashboards, pandas report tables (HTML / Excel),
@@ -133,9 +134,10 @@ Every step is deterministic and covered by tests; the metrics are documented in
 | [Heart rate recovery](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/docs/protocols/hrr.md) | How fast the heart slows down after an effort (HRR1, HRR2) | From peak effort, ≥ 2 min | `heart_rate_recovery()` |
 | [Cardiac drift](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/docs/protocols/cardiac_drift.md) | Heart rate rise at a constant pace — endurance | ≥ 20 min of steady effort | `cardiac_drift()` |
 | [VO2max](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/docs/protocols/vo2max.md) | Estimated aerobic capacity, percentile by age and sex | Resting recording + HRmax or age | `vo2max_from_hrv()` |
+| [DFA α1 thresholds](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/docs/protocols/dfa_thresholds.md) | Aerobic and anaerobic thresholds (HRVT1, HRVT2) — heart rate, and power or speed | Incremental test to exhaustion, chest strap | `dfa_thresholds()` |
 
 Each linked page describes how to record the test, how the result is computed and how to
-read it. Exercise threshold tests (DFA α1) and a submaximal test come next — see the
+read it. A submaximal test comes next — see the
 [roadmap](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/ROADMAP.md).
 
 ### Example — the orthostatic test
@@ -279,7 +281,7 @@ A chest strap gives the most accurate intervals. Recording guides per sensor:
 | Topic | Where |
 |-------|-------|
 | HRV metrics, artefact correction, signal quality | [`docs/features/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/features) |
-| The six protocols | [`docs/protocols/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/protocols) |
+| The seven protocols | [`docs/protocols/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/protocols) |
 | Readiness, monitoring, trends | [`docs/analytics/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/analytics) |
 | Training load, load methods, RPE guide, sports | [`docs/training_load/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/training_load) |
 | Reading the charts | [`docs/visualization/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/visualization) |

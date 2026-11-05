@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2026-11-03
 
+### Added — DFA α1 thresholds (HRVT1 / HRVT2)
+
+* New protocol `cardiolab.protocols.dfa_thresholds` — aerobic and anaerobic thresholds from
+  an incremental test recorded with a chest strap (Rogers et al. 2021):
+  * `dfa_alpha1_series(rr)` — time-varying DFA α1: 2-minute window centred on each time
+    point, every 5 s, box sizes 4–16 beats, with the mean heart rate of each window;
+  * `dfa_thresholds(rr, intensity=None, intensity_unit=None)` → `DFAThresholdsResult`:
+    heart rate where α1 crosses **0.75 (HRVT1 ≈ VT1)** and **0.5 (HRVT2 ≈ VT2)**, from a
+    linear regression of α1 against heart rate over the decline (α1 1.0–0.5 for HRVT1 as
+    published; 0.75–0.25 for HRVT2, cardiolab choice), moment of each threshold and the
+    power or speed at that moment when provided;
+  * analysis stops at the peak heart rate (recovery ignored); a threshold is never
+    extrapolated — `status` is `detected`, `not_reached` or `unreliable`;
+  * artefacts corrected first (`auto_clean=True`); `PhysiologicalWarning` above 5 % of
+    corrected beats.
+* **Training zones** — `cardiolab.analytics.zones`: `three_zones()` (Seiler: below HRVT1,
+  between, above HRVT2) and `five_zones()` — the five-zone scale of Olympiatoppen's
+  intensity scale (2024), with boundaries **anchored on the measured thresholds** (HRVT1
+  tops zone 2, HRVT2 tops zone 3, I-scale proportions for the inner splits); `zone_of()`.
+  `DFAThresholdsResult.zones(hr_max=None, model=5)`, and `hr_max_observed` — the highest
+  heart rate held for 5 s during the test, used as HRmax by default. No 0–100 score for
+  this test: a threshold is neither good nor bad, progress is read on the power or speed
+  at the threshold.
+* Exported from `cardiolab` (`dfa_thresholds`, `DFAThresholdsResult`) and
+  `cardiolab.protocols` (also `ThresholdEstimate`, `dfa_alpha1_series`).
+* Documentation: `docs/protocols/dfa_thresholds.md` (procedure, method, limits — individual
+  limits of agreement −12 to +8 bpm for HRVT1; training zones). 23 tests on synthetic
+  incremental tests with a controlled α1 decline, 9 tests on the zones.
+
 ### Changed — Licence metadata (PEP 639) and README badges
 
 * **Licence declared as an SPDX expression (PEP 639)**: `license = "AGPL-3.0-or-later"` and
