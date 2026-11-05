@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]  # PEP 639 (license expression, license-files)
 build-backend = "hatchling.build"
 
 [project]
@@ -8,7 +8,8 @@ version = "0.5.0"
 description = "HRV analysis toolkit — scientific core of the cardioanalysis platform"
 authors = [{name = "Julien MILON", email = "julienmilon.devsecops@gmail.com"}]
 readme = "README.md"
-license = {file = "LICENCE"}
+license = "AGPL-3.0-or-later"
+license-files = ["LICENCE"]
 requires-python = ">=3.13"
 keywords = [
     "hrv",
@@ -31,7 +32,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
-    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
