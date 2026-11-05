@@ -93,7 +93,7 @@ DB: migration V006 (`rpe` and `hr_mean` on training sessions, `load_method` on u
 
 DB: migration V007 (exercise test results). Requires v0.4.0 (DFA α1 is very sensitive to artefacts).
 
-* **DFA α1 during exercise — ventilatory thresholds (VT1 / VT2)**: windowed DFA α1 (2 min, rolling) on an incremental test; HR and power at α1 = 0.75 (aerobic threshold) and α1 = 0.5 (anaerobic threshold). Garmin `.fit` and Polar H10 already provide the RR data.
+* 🚧 **DFA α1 during exercise — ventilatory thresholds (VT1 / VT2)** (in progress — done 2026-11-05: calculation, training zones; to do: power / speed import, charts, storage V007, reporting): windowed DFA α1 (2 min, rolling) on an incremental test; HR and power at α1 = 0.75 (aerobic threshold) and α1 = 0.5 (anaerobic threshold). Garmin `.fit` and Polar H10 already provide the RR data.
 * **Submaximal fitness test (LSCT, Lamberts 2011)**: standardised 3-stage test; HR at each stage + HRR60; weekly monitoring without a maximal test.
 
 ## v0.7.0 — Statistical intelligence (P3)
@@ -117,7 +117,7 @@ DB: migration V008.
 
 Planned last (decided 2026-10-30). DB: migration V009 (`hr_max_source` accepts `field_test` and `observed`; HRmax test results). Today HRmax is either entered (`provided`) or predicted from age (`tanaka`, ±10 bpm for an individual); it feeds the « FC de séance » load method and the Uth VO2max model. A **field test** is chosen over a laboratory test: it needs no equipment beyond a chest strap, and field values are close to — often slightly above — laboratory values.
 
-* **HRmax field test protocol**: standardised running (and cycling) protocol — 15–20 min warm-up, then 2–3 efforts of 3–4 min of increasing intensity (uphill if possible), the last one all-out; HRmax = highest heart rate sustained ≥ 5 s, after artefact correction. Checks: chest strap required (optical sensors lose the signal at high intensity), plateau / final-effort criteria, sport stored with the result (HRmax is usually 5–10 bpm lower on the bike than running). Result offered to update the profile (`hr_max_source = 'field_test'`), never applied silently.
+* **HRmax field test protocol**: Olympiatoppen's test (intensity scale 2024) — 15 min warm-up, then 3 × 3 min of increasing intensity (uphill or 6–10 % treadmill incline) with 2 min of easy jogging between, the last one +0.5 km/h every minute to exhaustion; HRmax = highest heart rate sustained ≥ 5 s, after artefact correction. Checks: chest strap required (optical sensors lose the signal at high intensity), plateau / final-effort criteria, sport stored with the result (HRmax is usually 5–10 bpm lower on the bike than running). Result offered to update the profile (`hr_max_source = 'field_test'`), never applied silently.
 * **Observed HRmax**: highest sustained heart rate across imported `.fit` sessions (per sport, artefact-filtered); when it exceeds the profile value, suggest an update (`hr_max_source = 'observed'`).
 * **Safety**: maximal effort — documented pre-participation advice (medical opinion after 35–40 or with risk factors / symptoms, ACSM screening), stated on the site with the « not a medical tool » line.
 * **Reprocessing**: adopting a new HRmax changes « FC de séance » loads and VO2max → offered through `reprocess_sessions`.
@@ -144,5 +144,6 @@ Planned last (decided 2026-10-30). DB: migration V009 (`hr_max_source` accepts `
 * Tanaka, H., Monahan, K. D., & Seals, D. R. (2001). Age-predicted maximal heart rate revisited. *Journal of the American College of Cardiology*, 37(1), 153–156.
 * Robergs, R. A., & Landwehr, R. (2002). The surprising history of the « HRmax = 220 − age » equation. *Journal of Exercise Physiology Online*, 5(2), 1–10.
 * Riebe, D., et al. (2015). Updating ACSM's recommendations for exercise preparticipation health screening. *Medicine & Science in Sports & Exercise*, 47(11), 2473–2479.
+* Olympiatoppen (2024). *Olympiatoppen's intensity scale*, version 2. https://olt-skala.nif.no/olt_2024_en.pdf
 * Gillinov, S., et al. (2017). Variable accuracy of wearable heart rate monitors during aerobic exercise. *Medicine & Science in Sports & Exercise*, 49(8), 1697–1703.
 * Lomb, N. R. (1976). Least-squares frequency analysis of unequally spaced data. *Astrophysics and Space Science*, 39(2), 447–462.
