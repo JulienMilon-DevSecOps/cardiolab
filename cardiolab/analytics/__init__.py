@@ -47,6 +47,7 @@ from cardiolab.analytics.trends import (
     trend_report,
     trend_rmssd,
 )
+from cardiolab.analytics.zones import HeartRateZone, five_zones, three_zones, zone_of
 
 __all__ = [
     "Baseline",
@@ -88,4 +89,9 @@ __all__ = [
     "compute_ctl",
     "compute_tsb",
     "TrainingLoad",
+    # Training zones
+    "HeartRateZone",
+    "three_zones",
+    "five_zones",
+    "zone_of",
 ]
