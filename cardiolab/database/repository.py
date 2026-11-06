@@ -55,6 +55,8 @@ Schema migrations:
 
 from __future__ import annotations
 
+import contextlib
+import logging
 import math
 import os
 import re
@@ -897,6 +899,29 @@ def _register_quality_adapter() -> None:
 # REPOSITORY
 # ======================
 
+logger = logging.getLogger(__name__)
+
+USER_DATA_TABLE_ATTRS: tuple[str, ...] = (
+    "table_name",
+    "ortho_table_name",
+    "coherence_table_name",
+    "hrr_table_name",
+    "drift_table_name",
+    "vo2max_table_name",
+    "training_sessions_table_name",
+    "raw_sessions_table_name",
+    "user_profiles_table_name",
+)
+"""Attributes of :class:`HRVRepository` naming every table that holds user data.
+
+Single list used to validate the table names and to erase a user
+(:meth:`HRVRepository.delete_user_data`): **a new user table must be added
+here** — ``tests/database/test_repository.py`` fails if a migration creates a
+table with a ``user_id`` column that is not listed. Order = deletion order:
+derived results first, then raw intervals, the profile last (the table other
+tables would reference if foreign keys were added).
+"""
+
 
 class HRVRepository:
     """PostgreSQL repository for storing and loading HRV session records.
@@ -948,18 +973,6 @@ class HRVRepository:
         port: int = 5432,
     ) -> None:
         """Store connection parameters and validate table names."""
-        for name in (
-            table_name,
-            ortho_table_name,
-            coherence_table_name,
-            hrr_table_name,
-            drift_table_name,
-            vo2max_table_name,
-            raw_sessions_table_name,
-            training_sessions_table_name,
-            user_profiles_table_name,
-        ):
-            _validate_identifier(name)
         self._dsn = {
             "host": host,
             "database": database,
@@ -976,6 +989,8 @@ class HRVRepository:
         self.raw_sessions_table_name = raw_sessions_table_name
         self.training_sessions_table_name = training_sessions_table_name
         self.user_profiles_table_name = user_profiles_table_name
+        for name in self.user_data_tables():
+            _validate_identifier(name)
         self._conn = None
 
     # ── Factory ──────────────────────────────────────────────────────────
@@ -2286,6 +2301,81 @@ class HRVRepository:
             return cur.rowcount > 0
 
     # ── User profiles — read ──────────────────────────────────────────────
+
+    # ── User data — erasure (GDPR art. 17) ───────────────────────────────
+
+    def user_data_tables(self) -> list[str]:
+        """Return the names of every table holding user data, in deletion order.
+
+        Built from :data:`USER_DATA_TABLE_ATTRS` with this repository's table
+        names (custom names included).
+
+        Returns:
+            Table names, derived results first, user profile last.
+
+        """
+        return [getattr(self, attr) for attr in USER_DATA_TABLE_ATTRS]
+
+    def delete_user_data(self, user_id: str) -> dict[str, int]:
+        """Delete every row of ``user_id`` from all user tables (right to erasure).
+
+        Deletes from each table of :meth:`user_data_tables`, in that order,
+        inside one transaction: the deletions are committed together when the
+        ``with`` block exits, or not at all. On any error the deletions already
+        made are undone (savepoint) and the exception is raised — even if the
+        caller catches it and goes on in the same block. A table that does not
+        exist on this database counts as 0.
+
+        Idempotent: a second call, or a ``user_id`` without data, returns 0 for
+        every table. Only the row counts are logged — never the ``user_id``.
+
+        Args:
+            user_id: User whose data is erased.
+
+        Returns:
+            Number of deleted rows per table name, in deletion order.
+
+        Raises:
+            ValueError: If ``user_id`` is not a non-empty string.
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If a deletion fails (nothing is deleted).
+
+        Example::
+
+            with HRVRepository.from_env() as repo:
+                counts = repo.delete_user_data(user_id)
+
+        """
+        if not isinstance(user_id, str) or not user_id.strip():
+            raise ValueError("user_id must be a non-empty string")
+        counts: dict[str, int] = {}
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute("SAVEPOINT cardiolab_delete_user_data;")
+            try:
+                for table in self.user_data_tables():
+                    cur.execute("SELECT to_regclass(%s) IS NOT NULL;", (table,))
+                    if not cur.fetchone()[0]:
+                        counts[table] = 0
+                        continue
+                    cur.execute(
+                        sql.SQL("DELETE FROM {table} WHERE user_id = %s;").format(
+                            table=sql.Identifier(table)
+                        ),
+                        (user_id,),
+                    )
+                    counts[table] = cur.rowcount
+            except BaseException:
+                # Undo the deletions already made; keep the original error
+                with contextlib.suppress(Exception):
+                    cur.execute("ROLLBACK TO SAVEPOINT cardiolab_delete_user_data;")
+                raise
+            cur.execute("RELEASE SAVEPOINT cardiolab_delete_user_data;")
+        logger.info(
+            "User data deleted: %d rows in %d tables",
+            sum(counts.values()),
+            len(counts),
+        )
+        return counts
 
     def table_exists(self, table_name: str) -> bool:
         """Return ``True`` when ``table_name`` exists (current ``search_path``).

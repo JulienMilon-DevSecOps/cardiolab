@@ -110,7 +110,7 @@ ALTER TABLE hrv_features ADD COLUMN IF NOT EXISTS my_column FLOAT;
 Since v0.3.3, every protocol table keyed by `UNIQUE(user_id, date)` is described
 by a `_ProtocolTable` specification in `cardiolab/database/repository.py`; the
 generic `HRVRepository._create`, `_upsert` and `_select` methods do the SQL.
-Adding a protocol therefore takes four small steps:
+Adding a protocol therefore takes five small steps:
 
 1. **Column registry** — `_MYPROTO_COLUMNS = {"user_id": "TEXT NOT NULL",
    "date": "DATE NOT NULL", ...}`. Name each metric column **exactly like the
@@ -125,6 +125,32 @@ Adding a protocol therefore takes four small steps:
    `self._create(_MYPROTO)`, `save_myproto()` →
    `self._upsert(_MYPROTO, (user_id, date, *_MYPROTO.values(result)))`,
    `load_myproto()` → `self._select(_MYPROTO, user_id)`.
+5. **User data list** — add `"myproto_table_name"` to `USER_DATA_TABLE_ATTRS`,
+   before `raw_sessions_table_name`: every table with a `user_id` column must be
+   erased by `delete_user_data()` (right to erasure). The integration test
+   `TestUserTablesGuard` runs all migrations in an empty schema and fails if a
+   table with a `user_id` column is missing from the list.
 
 Then ship the matching `V00N__add_myproto.sql` migration (one schema change per
 version) and integration tests for the round trip.
+
+## Erasing a user (right to erasure)
+
+`HRVRepository.delete_user_data(user_id)` deletes every row of a user from all user
+tables (`user_data_tables()`, built from `USER_DATA_TABLE_ATTRS`) and returns the
+number of deleted rows per table:
+
+```python
+with HRVRepository.from_env() as repo:
+    counts = repo.delete_user_data(user_id)   # {"hrv_features": 112, ..., "user_profiles": 1}
+```
+
+- **All or nothing** — one transaction, committed when the `with` block exits; on any
+  error the deletions already made are undone (savepoint) and the exception is raised.
+- **Idempotent** — a second call, or a user without data, returns 0 for every table; a
+  table that does not exist on the database counts as 0.
+- **Order** — derived results, then training sessions, raw intervals, and the profile
+  last, so the order stays valid if foreign keys to the profile are added.
+- **Logs** — only the counts (`User data deleted: N rows in 9 tables`), never the
+  `user_id`.
+

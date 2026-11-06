@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2026-11-03
 
+### Added — Erasing a user's data (GDPR art. 17)
+
+* `HRVRepository.delete_user_data(user_id) -> dict[str, int]` — deletes every row of a user
+  from all user tables (`hrv_features`, `hrv_orthostatic`, `hrv_coherence`, `hrv_hrr`,
+  `hrv_drift`, `hrv_vo2max`, `hrv_training_sessions`, `hrv_raw_sessions`,
+  `user_profiles`) and returns the deleted rows per table. Needed by cardioanalysis-api
+  for the right to erasure (`DELETE /v1/me`, `DELETE /v1/admin/accounts/{id}`), which
+  writes no cardiolab SQL.
+  * one transaction, all or nothing: on error the deletions are undone (savepoint) and
+    the exception is raised;
+  * idempotent: a second call, a user without data or a missing table give 0;
+  * deletion order compatible with future foreign keys (profile last);
+  * only the counts are logged, never the `user_id`; empty or non-string `user_id`
+    refused (`ValueError`).
+* `USER_DATA_TABLE_ATTRS` — single list of the user tables (deletion order), also used to
+  validate the table names; `HRVRepository.user_data_tables()` gives the actual names.
+  Guard test: all migrations are run in an empty schema and every table with a `user_id`
+  column must be listed — a future table (LSCT…) cannot be forgotten.
+* `docs/database/migration_guide.md`: « Erasing a user », and step 5 of « Adding a
+  protocol table ».
+
 ### Added — DFA α1 thresholds (HRVT1 / HRVT2)
 
 * New protocol `cardiolab.protocols.dfa_thresholds` — aerobic and anaerobic thresholds from

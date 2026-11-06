@@ -26,6 +26,7 @@ from cardiolab.database.repository import (
     _HRV_COLUMNS,
     _ORTHO_COLUMNS,
     _ORTHO_DATA_COLUMNS,
+    USER_DATA_TABLE_ATTRS,
     HRVRepository,
     OrthostaticRecord,
     _build_ortho_row,
@@ -2352,4 +2353,320 @@ class TestV006Integration:
             142.0,
             4,
             200.0,
+        )
+
+
+# ======================
+# USER DATA ERASURE (GDPR art. 17)
+# ======================
+
+_DEFAULT_USER_TABLES = [
+    "hrv_features",
+    "hrv_orthostatic",
+    "hrv_coherence",
+    "hrv_hrr",
+    "hrv_drift",
+    "hrv_vo2max",
+    "hrv_training_sessions",
+    "hrv_raw_sessions",
+    "user_profiles",
+]
+
+
+def _erasure_cursor(repo: HRVRepository, *, existing=True, rowcount=2, fail_on=None):
+    """Mock cursor answering ``to_regclass`` and counting deleted rows.
+
+    ``fail_on``: table name whose DELETE raises ``RuntimeError``.
+    """
+    cur = _mock_repo_conn(repo)
+    cur.fetchone.return_value = (existing,)
+    cur.rowcount = rowcount
+
+    def _execute(query, params=None):
+        text = query if isinstance(query, str) else repr(query)
+        if fail_on and "DELETE" in text and fail_on in text:
+            raise RuntimeError("delete failed")
+
+    cur.execute.side_effect = _execute
+    return cur
+
+
+def _executed(cur) -> list[str]:
+    """Return the executed statements as text (sql.Composed via repr)."""
+    return [
+        c.args[0] if isinstance(c.args[0], str) else repr(c.args[0])
+        for c in cur.execute.call_args_list
+    ]
+
+
+class TestDeleteUserDataUnit:
+    """``delete_user_data`` — tables, transaction, errors (mocked connection)."""
+
+    def test_user_data_tables_defaults(self):
+        """All user tables, in deletion order, profile last."""
+        repo = HRVRepository("h", "db", "u", "p")
+        assert repo.user_data_tables() == _DEFAULT_USER_TABLES
+        assert len(USER_DATA_TABLE_ATTRS) == len(_DEFAULT_USER_TABLES)
+
+    def test_user_data_tables_custom_names(self):
+        """Custom table names are followed."""
+        repo = HRVRepository("h", "db", "u", "p", hrr_table_name="my_hrr")
+        assert "my_hrr" in repo.user_data_tables()
+        assert "hrv_hrr" not in repo.user_data_tables()
+
+    def test_deletes_every_table(self):
+        """One DELETE per user table, with the user_id as parameter."""
+        repo = HRVRepository("h", "db", "u", "p")
+        cur = _erasure_cursor(repo)
+        counts = repo.delete_user_data("uid-1")
+        assert list(counts) == _DEFAULT_USER_TABLES
+        assert set(counts.values()) == {2}
+        deletes = [c for c in cur.execute.call_args_list if "DELETE" in repr(c.args[0])]
+        assert len(deletes) == len(_DEFAULT_USER_TABLES)
+        assert all(c.args[1] == ("uid-1",) for c in deletes)
+
+    def test_savepoint_released_on_success(self):
+        """The deletions run inside a savepoint, released at the end."""
+        repo = HRVRepository("h", "db", "u", "p")
+        cur = _erasure_cursor(repo)
+        repo.delete_user_data("uid-1")
+        executed = _executed(cur)
+        assert executed[0] == "SAVEPOINT cardiolab_delete_user_data;"
+        assert executed[-1] == "RELEASE SAVEPOINT cardiolab_delete_user_data;"
+
+    def test_missing_table_counts_zero(self):
+        """A table absent from the database is skipped and counts as 0."""
+        repo = HRVRepository("h", "db", "u", "p")
+        cur = _erasure_cursor(repo, existing=False)
+        counts = repo.delete_user_data("uid-1")
+        assert set(counts.values()) == {0}
+        assert not any("DELETE" in q for q in _executed(cur))
+
+    def test_error_rolls_back_and_raises(self):
+        """A failing DELETE undoes the previous ones and is raised."""
+        repo = HRVRepository("h", "db", "u", "p")
+        cur = _erasure_cursor(repo, fail_on="hrv_raw_sessions")
+        with pytest.raises(RuntimeError, match="delete failed"):
+            repo.delete_user_data("uid-1")
+        executed = _executed(cur)
+        assert executed[-1] == "ROLLBACK TO SAVEPOINT cardiolab_delete_user_data;"
+        assert "RELEASE SAVEPOINT cardiolab_delete_user_data;" not in executed
+
+    @pytest.mark.parametrize("bad", ["", "   ", None, 42])
+    def test_invalid_user_id(self, bad):
+        """An empty or non-string user_id is refused before any SQL."""
+        repo = HRVRepository("h", "db", "u", "p")
+        cur = _mock_repo_conn(repo)
+        with pytest.raises(ValueError, match="non-empty string"):
+            repo.delete_user_data(bad)
+        cur.execute.assert_not_called()
+
+    def test_outside_context_manager(self):
+        """Outside a ``with`` block: RuntimeError."""
+        with pytest.raises(RuntimeError, match="context manager"):
+            HRVRepository("h", "db", "u", "p").delete_user_data("uid-1")
+
+    def test_log_has_counts_only(self, caplog):
+        """The log line gives the counts, never the user_id."""
+        repo = HRVRepository("h", "db", "u", "p")
+        _erasure_cursor(repo)
+        with caplog.at_level("INFO", logger="cardiolab.database.repository"):
+            repo.delete_user_data("secret-user-42")
+        assert "18 rows in 9 tables" in caplog.text
+        assert "secret-user-42" not in caplog.text
+
+
+@_integration_skipif
+@pytest.mark.integration
+class TestDeleteUserDataIntegration:
+    """``delete_user_data`` against PostgreSQL: two users, one erased."""
+
+    _ERASED = "test-erasure-user"
+    _KEPT = "test-erasure-other"
+    _TABLES = {
+        attr: f"_cardiolab_test_erase_{i}"
+        for i, attr in enumerate(USER_DATA_TABLE_ATTRS)
+    }
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        """Create every user table, then remove both test users."""
+        for table in self._TABLES.values():
+            _test_table_drop(table)
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.create_table()
+            repo.create_orthostatic_table()
+            repo.create_coherence_table()
+            repo.create_hrr_table()
+            repo.create_drift_table()
+            repo.create_vo2max_table()
+            repo.create_raw_sessions_table()
+            repo.create_training_sessions_table()
+            repo.create_user_profiles_table()
+        yield
+        for table in self._TABLES.values():
+            for user in (self._ERASED, self._KEPT):
+                _test_db_cleanup(table, user)
+
+    @staticmethod
+    def _fill(repo: HRVRepository, user: str) -> None:
+        """Insert one row per user table."""
+        from cardiolab.datasets import load_sample
+        from cardiolab.protocols import (
+            cardiac_coherence,
+            cardiac_drift,
+            heart_rate_recovery,
+            orthostatic_hrv,
+            vo2max_from_hrv,
+        )
+
+        rest = load_sample("resting", 0)
+        repo.save_features(
+            HRVFeatures(date="2099-12-01", rmssd=50.0, mean_hr=60.0), user_id=user
+        )
+        repo.save_orthostatic(
+            orthostatic_hrv(load_sample("orthostatic", 0)),
+            user_id=user,
+            date="2099-12-01",
+        )
+        repo.save_coherence(cardiac_coherence(rest), user_id=user, date="2099-12-01")
+        decay = RRSeries(60_000.0 / np.linspace(170, 110, 400))
+        repo.save_hrr(heart_rate_recovery(decay), user_id=user, date="2099-12-01")
+        steady = RRSeries(np.full(1500, 400.0))
+        repo.save_drift(
+            cardiac_drift(steady, warmup_sec=0), user_id=user, date="2099-12-01"
+        )
+        repo.save_vo2max(
+            vo2max_from_hrv(rest, hr_max=185), user_id=user, date="2099-12-01"
+        )
+        repo.save_raw_session(rest, user_id=user, date="2099-12-01", protocol="resting")
+        repo.save_training_session(user, "2099-12-01", 45, "running", rpe=3)
+        repo.save_user_profile(user)
+
+    @staticmethod
+    def _count(repo: HRVRepository, user: str, tables) -> dict[str, int]:
+        """Rows of ``user`` in each of ``tables``."""
+        from psycopg2 import sql
+
+        out = {}
+        with repo._conn_or_raise().cursor() as cur:
+            for table in tables:
+                cur.execute(
+                    sql.SQL("SELECT count(*) FROM {t} WHERE user_id = %s").format(
+                        t=sql.Identifier(table)
+                    ),
+                    (user,),
+                )
+                out[table] = cur.fetchone()[0]
+        return out
+
+    def test_erases_one_user_only(self):
+        """Every row of the erased user goes, the other user is untouched."""
+        tables = list(self._TABLES.values())
+        with _repo_from_test_env(**self._TABLES) as repo:
+            self._fill(repo, self._ERASED)
+            self._fill(repo, self._KEPT)
+        with _repo_from_test_env(**self._TABLES) as repo:
+            counts = repo.delete_user_data(self._ERASED)
+        assert counts == dict.fromkeys(tables, 1)
+        with _repo_from_test_env(**self._TABLES) as repo:
+            assert set(self._count(repo, self._ERASED, tables).values()) == {0}
+            assert set(self._count(repo, self._KEPT, tables).values()) == {1}
+
+    def test_second_call_returns_zeros(self):
+        """Idempotent: nothing left to delete the second time."""
+        with _repo_from_test_env(**self._TABLES) as repo:
+            self._fill(repo, self._ERASED)
+        for _ in range(2):
+            with _repo_from_test_env(**self._TABLES) as repo:
+                counts = repo.delete_user_data(self._ERASED)
+        assert set(counts.values()) == {0}
+
+    def test_unknown_user_returns_zeros(self):
+        """A user without data: zeros, no error."""
+        with _repo_from_test_env(**self._TABLES) as repo:
+            counts = repo.delete_user_data("test-erasure-nobody")
+        assert set(counts.values()) == {0}
+
+    def test_error_deletes_nothing(self):
+        """A failure after several tables were emptied leaves every row in place."""
+        import psycopg2
+
+        view = "_cardiolab_test_erase_view"
+        # The raw-sessions slot points to a view without user_id: its DELETE
+        # fails after the six protocol tables and the training table
+        broken = {**self._TABLES, "raw_sessions_table_name": view}
+        others = [t for t in broken.values() if t != view]
+        with _repo_from_test_env(**self._TABLES) as repo:
+            self._fill(repo, self._ERASED)
+        conn = psycopg2.connect(
+            host=os.environ["DB_HOST_TEST"],
+            dbname=os.environ["DB_NAME_TEST"],
+            user=os.environ["DB_USER_TEST"],
+            password=os.environ["DB_PASSWORD_TEST"],
+            port=int(os.environ.get("DB_PORT_TEST", "5432")),
+        )
+        try:
+            with conn.cursor() as cur:
+                cur.execute(f"CREATE OR REPLACE VIEW {view} AS SELECT 1 AS x;")  # noqa: S608
+            conn.commit()
+            with pytest.raises(psycopg2.Error), _repo_from_test_env(**broken) as repo:
+                repo.delete_user_data(self._ERASED)
+            with _repo_from_test_env(**self._TABLES) as repo:
+                left = self._count(repo, self._ERASED, others)
+            assert set(left.values()) == {1}
+        finally:
+            with conn.cursor() as cur:
+                cur.execute(f"DROP VIEW IF EXISTS {view};")  # noqa: S608
+            conn.commit()
+            conn.close()
+
+
+@_integration_skipif
+@pytest.mark.integration
+class TestUserTablesGuard:
+    """Every table with a ``user_id`` column must be erased by ``delete_user_data``."""
+
+    def test_migrated_user_tables_are_listed(self):
+        """Run all migrations in the session's temporary schema; each user_id table is listed.
+
+        The temporary schema (``pg_temp``) needs no CREATE privilege and is
+        dropped with the connection. Fails when a migration adds a user table
+        that is missing from ``USER_DATA_TABLE_ATTRS`` (add its attribute there).
+        """
+        import psycopg2
+
+        from cardiolab.database.migrator import run_migrations
+
+        conn = psycopg2.connect(
+            host=os.environ["DB_HOST_TEST"],
+            dbname=os.environ["DB_NAME_TEST"],
+            user=os.environ["DB_USER_TEST"],
+            password=os.environ["DB_PASSWORD_TEST"],
+            port=int(os.environ.get("DB_PORT_TEST", "5432")),
+        )
+        try:
+            with conn.cursor() as cur:
+                # Create the session's temporary schema, then make it the only
+                # target of unqualified CREATE TABLE statements
+                cur.execute("CREATE TEMP TABLE _cardiolab_guard_init (x int);")
+                cur.execute("SET search_path TO pg_temp;")
+            conn.commit()
+            run_migrations(conn)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT DISTINCT c.table_name FROM information_schema.columns c "
+                    "WHERE c.table_schema = "
+                    "(SELECT nspname FROM pg_namespace WHERE oid = pg_my_temp_schema()) "
+                    "AND c.column_name = 'user_id';"
+                )
+                with_user_id = {row[0] for row in cur.fetchall()}
+        finally:
+            conn.rollback()
+            conn.close()
+        listed = set(HRVRepository("h", "db", "u", "p").user_data_tables())
+        assert with_user_id, "no table found: migrations did not run in the schema"
+        assert with_user_id <= listed, (
+            f"User tables not erased by delete_user_data: {sorted(with_user_id - listed)} "
+            "— add them to USER_DATA_TABLE_ATTRS"
         )
