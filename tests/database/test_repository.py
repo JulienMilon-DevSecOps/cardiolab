@@ -36,6 +36,7 @@ from cardiolab.database.repository import (
 )
 from cardiolab.protocols.cardiac_coherence import CoherenceResult
 from cardiolab.protocols.cardiac_drift import DriftResult
+from cardiolab.protocols.dfa_thresholds import ThresholdRecord
 from cardiolab.protocols.hrr import HRRResult
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.protocols.vo2max import VO2maxResult
@@ -2360,6 +2361,16 @@ class TestV006Integration:
 # USER DATA ERASURE (GDPR art. 17)
 # ======================
 
+
+def _lsct_result():
+    """Return a synthetic LSCT (stages at their targets, RPE 3 / 5 / 7)."""
+    from cardiolab.protocols.lsct import lsct
+    from tests.protocols.test_lsct import HR_MAX, _session
+
+    t, hr, pw = _session()
+    return lsct(t, hr, pw, HR_MAX, start_sec=300.0, rpe=(3, 5, 7), date="2099-12-02")
+
+
 _DEFAULT_USER_TABLES = [
     "hrv_features",
     "hrv_orthostatic",
@@ -2367,6 +2378,8 @@ _DEFAULT_USER_TABLES = [
     "hrv_hrr",
     "hrv_drift",
     "hrv_vo2max",
+    "hrv_dfa_thresholds",
+    "hrv_lsct",
     "hrv_training_sessions",
     "hrv_raw_sessions",
     "user_profiles",
@@ -2472,7 +2485,7 @@ class TestDeleteUserDataUnit:
         _erasure_cursor(repo)
         with caplog.at_level("INFO", logger="cardiolab.database.repository"):
             repo.delete_user_data("secret-user-42")
-        assert "18 rows in 9 tables" in caplog.text
+        assert "22 rows in 11 tables" in caplog.text
         assert "secret-user-42" not in caplog.text
 
 
@@ -2500,6 +2513,8 @@ class TestDeleteUserDataIntegration:
             repo.create_hrr_table()
             repo.create_drift_table()
             repo.create_vo2max_table()
+            repo.create_dfa_thresholds_table()
+            repo.create_lsct_table()
             repo.create_raw_sessions_table()
             repo.create_training_sessions_table()
             repo.create_user_profiles_table()
@@ -2539,6 +2554,10 @@ class TestDeleteUserDataIntegration:
         repo.save_vo2max(
             vo2max_from_hrv(rest, hr_max=185), user_id=user, date="2099-12-01"
         )
+        repo.save_dfa_thresholds(
+            ThresholdRecord.manual("2099-12-01", 145, 168, sport="cycling"), user
+        )
+        repo.save_lsct(_lsct_result(), user, date="2099-12-01")
         repo.save_raw_session(rest, user_id=user, date="2099-12-01", protocol="resting")
         repo.save_training_session(user, "2099-12-01", 45, "running", rpe=3)
         repo.save_user_profile(user)
@@ -2670,3 +2689,114 @@ class TestUserTablesGuard:
             f"User tables not erased by delete_user_data: {sorted(with_user_id - listed)} "
             "— add them to USER_DATA_TABLE_ATTRS"
         )
+
+
+@_integration_skipif
+@pytest.mark.integration
+class TestExerciseTestsIntegration:
+    """V007 tables: DFA α1 thresholds (test and manual) and LSCT round trips."""
+
+    _USER = "test-v007-user"
+    _TABLES = {
+        "dfa_thresholds_table_name": "_cardiolab_test_v007_thresholds",
+        "lsct_table_name": "_cardiolab_test_v007_lsct",
+    }
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        """Create both tables, remove the test user afterwards."""
+        for table in self._TABLES.values():
+            _test_table_drop(table)
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.create_dfa_thresholds_table()
+            repo.create_lsct_table()
+        yield
+        for table in self._TABLES.values():
+            _test_db_cleanup(table, self._USER)
+
+    def test_dfa_test_round_trip(self):
+        """A DFA α1 test survives save / load, quality included."""
+        from cardiolab.protocols.dfa_thresholds import dfa_thresholds
+        from tests.protocols.test_dfa_thresholds import _power, _ramp_test
+
+        result = dfa_thresholds(
+            RRSeries(_ramp_test(minutes=16)), intensity=_power(16), intensity_unit="W"
+        )
+        record = ThresholdRecord.from_result(result, "2099-12-03", sport="cycling")
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_dfa_thresholds(record, self._USER)
+            loaded = repo.load_dfa_thresholds(self._USER)[0]
+        assert loaded.source == "dfa"
+        assert loaded.vt1_hr == pytest.approx(result.vt1.hr)
+        assert loaded.vt1_intensity == pytest.approx(result.vt1.intensity)
+        assert loaded.intensity_unit == "W"
+        assert loaded.quality == result.quality
+        assert [z.zone for z in loaded.zones()] == [1, 2, 3, 4, 5]
+
+    def test_manual_thresholds_round_trip(self):
+        """Thresholds entered by hand: no quality, no R², zones with a given HRmax."""
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_dfa_thresholds(
+                ThresholdRecord.manual("2099-12-04", 145, 168, sport="running"),
+                self._USER,
+            )
+            loaded = repo.load_dfa_thresholds(self._USER)[0]
+        assert (loaded.source, loaded.sport, loaded.vt1_status) == (
+            "manual",
+            "running",
+            "detected",
+        )
+        assert math.isnan(loaded.vt1_r_squared)
+        assert loaded.quality is None
+        assert loaded.zones(hr_max=188)[1].hr_high == 145
+
+    def test_lsct_round_trip(self):
+        """An LSCT survives save / load; targets rebuilt from HRmax."""
+        result = _lsct_result()
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_lsct(result, self._USER)
+            loaded = repo.load_lsct(self._USER)[0]
+        assert loaded.date == "2099-12-02"
+        assert loaded.stage(3).mean_power == pytest.approx(result.stage(3).mean_power)
+        assert loaded.stage(3).target_hr == pytest.approx(result.stage(3).target_hr)
+        assert loaded.stage(2).rpe == 5
+        assert loaded.hrr_60 == pytest.approx(result.hrr_60)
+
+    def test_lsct_upsert_same_date(self):
+        """Saving the same date twice keeps one row."""
+        result = _lsct_result()
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_lsct(result, self._USER)
+            repo.save_lsct(result, self._USER)
+            assert len(repo.load_lsct(self._USER)) == 1
+
+
+class TestExerciseTestsUnit:
+    """V007 methods with a mocked connection."""
+
+    def test_save_lsct_requires_date(self):
+        """No date on the result nor in the call: ValueError."""
+        repo = HRVRepository("h", "db", "u", "p")
+        _mock_repo_conn(repo)
+        result = _lsct_result()
+        result.date = None
+        with pytest.raises(ValueError, match="date is required"):
+            repo.save_lsct(result, "uid")
+
+    def test_save_lsct_row(self):
+        """One row: user, date, then the flat LSCT values."""
+        repo = HRVRepository("h", "db", "u", "p")
+        cur = _mock_repo_conn(repo)
+        repo.save_lsct(_lsct_result(), "uid")
+        row = cur.execute.call_args[0][1]
+        assert row[:2] == ("uid", "2099-12-02")
+        assert len(row) == 2 + 3 + 15
+
+    def test_threshold_record_validation(self):
+        """Unknown source, unordered manual thresholds, zones without HRmax."""
+        with pytest.raises(ValueError, match="source"):
+            ThresholdRecord(date="2099-12-01", source="lab")
+        with pytest.raises(ValueError, match="HRVT1 < HRVT2"):
+            ThresholdRecord.manual("2099-12-01", 170, 150)
+        with pytest.raises(ValueError, match="HRmax unknown"):
+            ThresholdRecord.manual("2099-12-01", 145, 168).zones()
