@@ -5,7 +5,9 @@ from cardiolab.sensors_tools.apple_health import (
     parse_apple_health_export,
 )
 from cardiolab.sensors_tools.garmin import (
+    FitRecords,
     extract_training_session_garmin,
+    parse_fit_records,
     parse_garmin_csv,
     parse_garmin_fit,
 )
@@ -21,4 +23,6 @@ __all__ = [
     "parse_garmin_fit",
     "parse_garmin_csv",
     "extract_training_session_garmin",
+    "parse_fit_records",
+    "FitRecords",
 ]

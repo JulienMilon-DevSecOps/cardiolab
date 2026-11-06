@@ -5,11 +5,14 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 
 from cardiolab.sensors_tools.garmin import (
+    FitRecords,
     _require_fitparse,
     extract_training_session_garmin,
+    parse_fit_records,
     parse_garmin_csv,
     parse_garmin_fit,
 )
@@ -292,6 +295,8 @@ class TestExtractTrainingSessionGarmin:
             "duration_min",
             "hr_mean",
             "hr_max",
+            "power_mean",
+            "power_max",
             "sport",
             "sport_raw",
         }
@@ -340,8 +345,8 @@ class TestExtractTrainingSessionGarmin:
         ):
             extract_training_session_garmin(tmp_path / "missing.fit")
 
-    def test_no_hr_data_raises(self, tmp_path):
-        """Raises ValueError when the FIT file has no heart rate records."""
+    def test_no_records_raises(self, tmp_path):
+        """Raises ValueError when the FIT file has no record message."""
         fit_file = tmp_path / "activity.fit"
         fit_file.write_bytes(b"")
 
@@ -350,7 +355,7 @@ class TestExtractTrainingSessionGarmin:
 
         with patch("cardiolab.sensors_tools.garmin._fitparse") as mock_fp:
             mock_fp.FitFile.return_value = empty_fitfile
-            with pytest.raises(ValueError, match="No heart rate data"):
+            with pytest.raises(ValueError, match="No timestamped record"):
                 extract_training_session_garmin(fit_file)
 
     def test_fitparse_not_available_raises(self, tmp_path):
@@ -442,3 +447,163 @@ class TestRequireFitparse:
         """Does not raise when fitparse is available."""
         with patch("cardiolab.sensors_tools.garmin._FITPARSE_AVAILABLE", True):
             _require_fitparse()  # must not raise
+
+
+# ======================
+# parse_fit_records — per-second samples (power, HR, cadence, speed)
+# ======================
+
+
+def _make_records_fitfile(rows, session=("cycling", "virtual_activity")):
+    """Return a mock FitFile whose records carry the given field dicts."""
+
+    def _record(values):
+        rec = MagicMock()
+        rec.get_value.side_effect = values.get
+        return rec
+
+    def _sport(values):
+        msg = MagicMock()
+        msg.get_value.side_effect = {"sport": values[0], "sub_sport": values[1]}.get
+        return msg
+
+    messages = {
+        "record": [_record(r) for r in rows],
+        "session": [_sport(session)] if session else [],
+    }
+    fitfile = MagicMock()
+    fitfile.get_messages.side_effect = lambda name: iter(messages.get(name, []))
+    return fitfile
+
+
+def _indoor_rows(n=6, hr=True):
+    """Indoor-trainer records at 1 Hz: power, cadence, speed, optional HR."""
+    rows = []
+    for i in range(n):
+        row = {
+            "timestamp": _T0 + timedelta(seconds=i),
+            "power": 150 + 10 * i,
+            "cadence": 85,
+            "speed": 8.0,
+        }
+        if hr:
+            row["heart_rate"] = 120 + i
+        rows.append(row)
+    return rows
+
+
+class TestParseFitRecords:
+    """parse_fit_records() — the per-second samples of any FIT activity."""
+
+    @pytest.fixture(autouse=True)
+    def _fitparse_available(self):
+        with patch("cardiolab.sensors_tools.garmin._FITPARSE_AVAILABLE", True):
+            yield
+
+    def _parse(self, tmp_path, rows, **kwargs):
+        fit_file = tmp_path / "ride.fit"
+        fit_file.write_bytes(b"")
+        with patch("cardiolab.sensors_tools.garmin._fitparse") as mock_fp:
+            mock_fp.FitFile.return_value = _make_records_fitfile(rows, **kwargs)
+            return parse_fit_records(fit_file)
+
+    def test_series_and_time(self, tmp_path):
+        """One value per record, time in seconds from the first record."""
+        rec = self._parse(tmp_path, _indoor_rows())
+        assert isinstance(rec, FitRecords)
+        assert rec.start == _T0
+        assert list(rec.time_sec) == [0, 1, 2, 3, 4, 5]
+        assert list(rec.power) == [150, 160, 170, 180, 190, 200]
+        assert list(rec.heart_rate) == [120, 121, 122, 123, 124, 125]
+        assert rec.duration_sec == 5.0
+        assert rec.sport == "cycling"
+
+    def test_heart_rate_zero_is_missing(self, tmp_path):
+        """A heart rate of 0 is a drop-out (nan); a power of 0 is kept."""
+        rows = _indoor_rows()
+        rows[2]["heart_rate"] = 0
+        rows[3]["power"] = 0
+        rec = self._parse(tmp_path, rows)
+        assert np.isnan(rec.heart_rate[2])
+        assert rec.power[3] == 0
+
+    def test_missing_field_is_nan(self, tmp_path):
+        """Without heart rate (indoor app only): nan series, has() is False."""
+        rec = self._parse(tmp_path, _indoor_rows(hr=False))
+        assert not rec.has("heart_rate")
+        assert rec.has("power")
+        assert np.all(np.isnan(rec.heart_rate))
+
+    def test_enhanced_speed_preferred(self, tmp_path):
+        """enhanced_speed is used when present."""
+        rows = _indoor_rows()
+        for r in rows:
+            r["enhanced_speed"] = 9.5
+        rec = self._parse(tmp_path, rows)
+        assert np.all(rec.speed == 9.5)
+
+    def test_records_without_timestamp_skipped(self, tmp_path):
+        """Records without timestamp are left out."""
+        rows = _indoor_rows()
+        rows.insert(1, {"power": 999})
+        rec = self._parse(tmp_path, rows)
+        assert 999 not in rec.power
+        assert len(rec.power) == 6
+
+    def test_intensity_for_dfa_thresholds(self, tmp_path):
+        """intensity() gives (time_sec, values) without missing samples."""
+        rows = _indoor_rows()
+        del rows[4]["power"]
+        t, v = self._parse(tmp_path, rows).intensity("power")
+        assert list(t) == [0, 1, 2, 3, 5]
+        assert list(v) == [150, 160, 170, 180, 200]
+
+    def test_intensity_errors(self, tmp_path):
+        """Unknown field or field never recorded: ValueError."""
+        rec = self._parse(tmp_path, _indoor_rows(hr=False))
+        with pytest.raises(ValueError, match="Unknown"):
+            rec.intensity("altitude")
+        with pytest.raises(ValueError, match="No heart_rate"):
+            rec.intensity("heart_rate")
+
+    def test_no_records_raises(self, tmp_path):
+        """A file without timestamped records is refused."""
+        with pytest.raises(ValueError, match="No timestamped record"):
+            self._parse(tmp_path, [])
+
+    def test_file_not_found(self, tmp_path):
+        """Missing file: FileNotFoundError."""
+        with pytest.raises(FileNotFoundError):
+            parse_fit_records(tmp_path / "missing.fit")
+
+
+class TestExtractTrainingSessionWithoutHeartRate:
+    """extract_training_session_garmin() on indoor files (since 0.6.0)."""
+
+    @pytest.fixture(autouse=True)
+    def _fitparse_available(self):
+        with patch("cardiolab.sensors_tools.garmin._FITPARSE_AVAILABLE", True):
+            yield
+
+    def _extract(self, tmp_path, rows):
+        fit_file = tmp_path / "ride.fit"
+        fit_file.write_bytes(b"")
+        with patch("cardiolab.sensors_tools.garmin._fitparse") as mock_fp:
+            mock_fp.FitFile.return_value = _make_records_fitfile(rows)
+            return extract_training_session_garmin(fit_file)
+
+    def test_without_heart_rate(self, tmp_path):
+        """Power only: hr_mean / hr_max are None, the session is still read."""
+        res = self._extract(tmp_path, _indoor_rows(hr=False))
+        assert res["hr_mean"] is None
+        assert res["hr_max"] is None
+        assert res["power_mean"] == pytest.approx(175.0)
+        assert res["power_max"] == 200.0
+        assert res["sport"] == "cycling"
+
+    def test_heart_rate_dropouts_ignored(self, tmp_path):
+        """Heart rate values of 0 do not lower the mean."""
+        rows = _indoor_rows()
+        rows[0]["heart_rate"] = 0
+        res = self._extract(tmp_path, rows)
+        assert res["hr_mean"] == pytest.approx(123.0)

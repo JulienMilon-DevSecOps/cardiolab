@@ -1,4 +1,16 @@
-"""Parsers for Garmin FIT files and Garmin Connect CSV exports.
+"""Parsers for FIT activity files and Garmin Connect CSV exports.
+
+FIT is the activity format of Garmin devices and of most training apps
+(MyWhoosh, Zwift, Wahoo…). Three readers:
+
+* :func:`parse_garmin_fit` — beat-to-beat intervals (``hrv`` messages, only
+  recorded by a device paired with a chest strap, HRV logging on);
+* :func:`parse_fit_records` — the per-second ``record`` messages: heart rate,
+  power, cadence, speed (indoor trainers, power meters);
+* :func:`extract_training_session_garmin` — the session summary.
+
+See ``docs/sensors/indoor_cycling.md`` for the recording set-ups that give
+power, heart rate and beat intervals together.
 
 Requires the optional ``fitparse`` dependency for FIT file support::
 
@@ -10,7 +22,11 @@ CSV parsing works without any optional dependency.
 from __future__ import annotations
 
 import csv
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
+
+import numpy as np
 
 try:
     import fitparse as _fitparse
@@ -120,33 +136,87 @@ def parse_garmin_csv(filepath: str | Path) -> RRSeries:
     return RRSeries(rr_intervals)
 
 
-def extract_training_session_garmin(filepath: str | Path) -> dict:
-    """Extract a training session summary from a Garmin FIT file.
+@dataclass
+class FitRecords:
+    """Per-second samples of a FIT activity (``record`` messages).
 
-    Reads ``record`` messages (sampled at ~1 Hz) to compute the session
-    duration and heart rate statistics, and the ``session`` / ``sport``
-    messages for the activity sport.
+    Every series has one value per record, ``nan`` where the field is
+    missing. A heart rate of 0 (sensor drop-out) is stored as ``nan``; a
+    power or cadence of 0 is a real value (freewheeling) and is kept.
+
+    Attributes:
+        start: Timestamp of the first record (UTC, as written in the file).
+        time_sec: Seconds since the first record.
+        heart_rate: Heart rate (bpm).
+        power: Power (W).
+        cadence: Cadence (rpm, or steps per minute for running).
+        speed: Speed (m/s; ``enhanced_speed`` when present).
+        sport: Sport code of the reference list (``"other"`` if absent).
+        sport_raw: FIT ``sport`` value as read, for diagnosis.
+
+    """
+
+    start: datetime
+    time_sec: np.ndarray
+    heart_rate: np.ndarray
+    power: np.ndarray
+    cadence: np.ndarray
+    speed: np.ndarray
+    sport: str = "other"
+    sport_raw: str | None = None
+
+    @property
+    def duration_sec(self) -> float:
+        """Time between the first and the last record (s)."""
+        return float(self.time_sec[-1]) if len(self.time_sec) else 0.0
+
+    def has(self, field: str) -> bool:
+        """Return ``True`` when ``field`` has at least one recorded value."""
+        return bool(np.any(np.isfinite(getattr(self, field))))
+
+    def intensity(self, field: str = "power") -> tuple[np.ndarray, np.ndarray]:
+        """Return ``(time_sec, values)`` of ``field`` without missing samples.
+
+        Ready for the ``intensity`` argument of
+        :func:`cardiolab.protocols.dfa_thresholds.dfa_thresholds`, whose time
+        counts from the first beat: both start at the beginning of the
+        activity when the beats come from the same file
+        (:func:`parse_garmin_fit`).
+
+        Args:
+            field: ``"power"`` (W), ``"speed"`` (m/s), ``"cadence"`` or
+                ``"heart_rate"``.
+
+        Raises:
+            ValueError: If ``field`` is unknown or has no recorded value.
+
+        """
+        if field not in ("power", "speed", "cadence", "heart_rate"):
+            raise ValueError(f"Unknown record field: {field!r}")
+        values = getattr(self, field)
+        ok = np.isfinite(values)
+        if not np.any(ok):
+            raise ValueError(f"No {field} recorded in this file")
+        return self.time_sec[ok], values[ok]
+
+
+def parse_fit_records(filepath: str | Path) -> FitRecords:
+    """Read the per-second samples of a FIT activity file.
+
+    Works with any FIT activity: Garmin watches and bike computers, indoor
+    training apps (tested with a MyWhoosh export: power, cadence, speed and
+    heart rate at 1 Hz).
 
     Args:
-        filepath: Path to the Garmin ``.fit`` file.
+        filepath: Path to the ``.fit`` file.
 
     Returns:
-        Dictionary with keys:
-
-        * ``"duration_min"`` (:class:`float`) — total duration in minutes,
-          derived from the first and last ``timestamp`` fields.
-        * ``"hr_mean"`` (:class:`float`) — mean heart rate in bpm.
-        * ``"hr_max"`` (:class:`float`) — maximum heart rate in bpm.
-        * ``"sport"`` (:class:`str`) — sport code of the reference list
-          (:func:`cardiolab.sports.normalize_sport` of the FIT ``sport`` and
-          ``sub_sport`` fields); ``"other"`` when the file has no sport.
-        * ``"sport_raw"`` (:class:`str` | ``None``) — FIT ``sport`` value as
-          read from the file, for diagnosis.
+        :class:`FitRecords` with heart rate, power, cadence and speed.
 
     Raises:
         ImportError: If ``fitparse`` is not installed.
         FileNotFoundError: If ``filepath`` does not exist.
-        ValueError: If no heart rate data is found in the FIT file.
+        ValueError: If the file has no timestamped ``record`` message.
 
     """
     _require_fitparse()
@@ -156,39 +226,114 @@ def extract_training_session_garmin(filepath: str | Path) -> dict:
         raise FileNotFoundError(filepath)
 
     fitfile = _fitparse.FitFile(str(filepath))
-    heart_rates: list[float] = []
-    timestamps: list = []
-
-    for record in fitfile.get_messages("record"):
-        hr = record.get_value("heart_rate")
-        ts = record.get_value("timestamp")
-        if hr is not None:
-            heart_rates.append(float(hr))
-        if ts is not None:
-            timestamps.append(ts)
-
-    if not heart_rates:
-        raise ValueError(f"No heart rate data found in FIT file: {filepath.name}")
-
-    duration_min = 0.0
-    if len(timestamps) >= 2:
-        delta = timestamps[-1] - timestamps[0]
-        duration_min = delta.total_seconds() / 60.0
-
+    records = _read_records(fitfile)
+    if records is None:
+        raise ValueError(f"No timestamped record messages in FIT file: {filepath.name}")
     sport_raw, sub_sport_raw = _read_sport(fitfile)
+    records.sport = normalize_sport(sport_raw, sub_sport_raw)
+    records.sport_raw = sport_raw
+    return records
 
+
+def extract_training_session_garmin(filepath: str | Path) -> dict:
+    """Extract a training session summary from a Garmin FIT file.
+
+    Reads ``record`` messages (sampled at ~1 Hz) to compute the session
+    duration, heart rate and power statistics, and the ``session`` /
+    ``sport`` messages for the activity sport.
+
+    Since 0.6.0 the heart rate is optional: a file without it (indoor app
+    recording power only, watch not paired) gives ``hr_mean = None`` — the
+    session can still be saved, its heart-rate load stays pending. Heart rate
+    values of 0 (sensor drop-outs) are ignored.
+
+    Args:
+        filepath: Path to the ``.fit`` file.
+
+    Returns:
+        Dictionary with keys:
+
+        * ``"duration_min"`` (:class:`float`) — total duration in minutes,
+          derived from the first and last ``timestamp`` fields.
+        * ``"hr_mean"`` / ``"hr_max"`` (:class:`float` | ``None``) — mean and
+          maximum heart rate (bpm), ``None`` without heart rate.
+        * ``"power_mean"`` / ``"power_max"`` (:class:`float` | ``None``) —
+          mean and maximum power (W), ``None`` without power.
+        * ``"sport"`` (:class:`str`) — sport code of the reference list
+          (:func:`cardiolab.sports.normalize_sport` of the FIT ``sport`` and
+          ``sub_sport`` fields); ``"other"`` when the file has no sport.
+        * ``"sport_raw"`` (:class:`str` | ``None``) — FIT ``sport`` value as
+          read from the file, for diagnosis.
+
+    Raises:
+        ImportError: If ``fitparse`` is not installed.
+        FileNotFoundError: If ``filepath`` does not exist.
+        ValueError: If the file has no timestamped ``record`` message.
+
+    """
+    rec = parse_fit_records(filepath)
     return {
-        "duration_min": round(duration_min, 2),
-        "hr_mean": round(sum(heart_rates) / len(heart_rates), 1),
-        "hr_max": float(max(heart_rates)),
-        "sport": normalize_sport(sport_raw, sub_sport_raw),
-        "sport_raw": sport_raw,
+        "duration_min": round(rec.duration_sec / 60.0, 2),
+        "hr_mean": _rounded_mean(rec.heart_rate),
+        "hr_max": _finite_max(rec.heart_rate),
+        "power_mean": _rounded_mean(rec.power),
+        "power_max": _finite_max(rec.power),
+        "sport": rec.sport,
+        "sport_raw": rec.sport_raw,
     }
 
 
 # ======================
 # INTERNAL HELPERS
 # ======================
+
+
+def _read_records(fitfile) -> FitRecords | None:
+    """Collect the timestamped ``record`` messages, or ``None`` if there is none."""
+    stamps: list[datetime] = []
+    hr: list[float] = []
+    power: list[float] = []
+    cadence: list[float] = []
+    speed: list[float] = []
+    for record in fitfile.get_messages("record"):
+        ts = record.get_value("timestamp")
+        if ts is None:
+            continue
+        stamps.append(ts)
+        h = record.get_value("heart_rate")
+        hr.append(float(h) if h else np.nan)  # 0 = drop-out
+        power.append(_as_float(record.get_value("power")))
+        cadence.append(_as_float(record.get_value("cadence")))
+        spd = record.get_value("enhanced_speed")
+        speed.append(_as_float(spd if spd is not None else record.get_value("speed")))
+    if not stamps:
+        return None
+    t0 = stamps[0]
+    return FitRecords(
+        start=t0,
+        time_sec=np.array([(t - t0).total_seconds() for t in stamps]),
+        heart_rate=np.array(hr),
+        power=np.array(power),
+        cadence=np.array(cadence),
+        speed=np.array(speed),
+    )
+
+
+def _as_float(value) -> float:
+    """Return ``value`` as a float, ``nan`` when missing."""
+    return float(value) if value is not None else np.nan
+
+
+def _rounded_mean(values: np.ndarray) -> float | None:
+    """Mean of the finite values rounded to 0.1, or ``None`` without any."""
+    ok = values[np.isfinite(values)]
+    return round(float(ok.mean()), 1) if len(ok) else None
+
+
+def _finite_max(values: np.ndarray) -> float | None:
+    """Maximum of the finite values, or ``None`` without any."""
+    ok = values[np.isfinite(values)]
+    return float(ok.max()) if len(ok) else None
 
 
 def _read_sport(fitfile) -> tuple[str | None, str | None]:
