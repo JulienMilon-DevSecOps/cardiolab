@@ -201,6 +201,144 @@ class DFAThresholdsResult:
         return out
 
 
+THRESHOLD_SOURCES = ("dfa", "manual")
+"""Origin of stored thresholds: a DFA α1 test, or values entered by hand (lab test)."""
+
+
+@dataclass
+class ThresholdRecord:
+    """Thresholds as stored — from a DFA α1 test or entered by hand.
+
+    The flat form of :class:`DFAThresholdsResult` (no α1 series), also used
+    for thresholds measured elsewhere (laboratory test) so that the training
+    zones can be built either way.
+
+    Attributes:
+        date: Date of the test (ISO).
+        sport: Sport code of the reference list (zones are sport-specific).
+        source: ``"dfa"`` or ``"manual"``.
+        vt1_hr: Heart rate at the first threshold (bpm), ``nan`` if unknown.
+        vt2_hr: Heart rate at the second threshold (bpm), ``nan`` if unknown.
+        vt1_status: ``detected`` / ``not_reached`` / ``unreliable``
+            (``detected`` for manual values).
+        vt2_status: Same for the second threshold.
+        vt1_intensity: Power or speed at the first threshold, ``nan`` if unknown.
+        vt2_intensity: Same for the second threshold.
+        intensity_unit: Unit of the intensities.
+        vt1_r_squared: R² of the HRVT1 regression (``nan`` for manual values).
+        vt2_r_squared: R² of the HRVT2 regression.
+        hr_max_observed: Highest heart rate held for 5 s during the test.
+        quality: Signal quality of the test (``None`` for manual values).
+
+    """
+
+    date: str
+    sport: str = "other"
+    source: str = "dfa"
+    vt1_hr: float = float("nan")
+    vt2_hr: float = float("nan")
+    vt1_status: str = "not_reached"
+    vt2_status: str = "not_reached"
+    vt1_intensity: float = float("nan")
+    vt2_intensity: float = float("nan")
+    intensity_unit: str | None = None
+    vt1_r_squared: float = float("nan")
+    vt2_r_squared: float = float("nan")
+    hr_max_observed: float = float("nan")
+    quality: SignalQuality | None = None
+
+    def __post_init__(self) -> None:
+        """Validate the source."""
+        if self.source not in THRESHOLD_SOURCES:
+            raise ValueError(
+                f"source must be one of {THRESHOLD_SOURCES}, got {self.source!r}"
+            )
+
+    @classmethod
+    def from_result(
+        cls, result: DFAThresholdsResult, date: str, sport: str = "other"
+    ) -> ThresholdRecord:
+        """Flatten a DFA α1 test for storage."""
+        return cls(
+            date=date,
+            sport=sport,
+            source="dfa",
+            vt1_hr=result.vt1.hr,
+            vt2_hr=result.vt2.hr,
+            vt1_status=result.vt1.status,
+            vt2_status=result.vt2.status,
+            vt1_intensity=result.vt1.intensity,
+            vt2_intensity=result.vt2.intensity,
+            intensity_unit=result.intensity_unit,
+            vt1_r_squared=result.vt1.r_squared,
+            vt2_r_squared=result.vt2.r_squared,
+            hr_max_observed=result.hr_max_observed,
+            quality=result.quality,
+        )
+
+    @classmethod
+    def manual(
+        cls,
+        date: str,
+        vt1_hr: float,
+        vt2_hr: float,
+        sport: str = "other",
+        vt1_intensity: float = float("nan"),
+        vt2_intensity: float = float("nan"),
+        intensity_unit: str | None = None,
+    ) -> ThresholdRecord:
+        """Thresholds entered by hand (laboratory test, known values).
+
+        Raises:
+            ValueError: Unless ``0 < vt1_hr < vt2_hr``.
+
+        """
+        if not 0 < vt1_hr < vt2_hr:
+            raise ValueError(
+                f"Expected 0 < HRVT1 < HRVT2, got {vt1_hr:.0f} / {vt2_hr:.0f} bpm"
+            )
+        return cls(
+            date=date,
+            sport=sport,
+            source="manual",
+            vt1_hr=float(vt1_hr),
+            vt2_hr=float(vt2_hr),
+            vt1_status="detected",
+            vt2_status="detected",
+            vt1_intensity=vt1_intensity,
+            vt2_intensity=vt2_intensity,
+            intensity_unit=intensity_unit,
+        )
+
+    def to_dict(self) -> dict:
+        """Return a flat, JSON-ready dict (quality as a nested dict)."""
+        out = {k: v for k, v in self.__dict__.items() if k != "quality"}
+        out["quality"] = self.quality.to_dict() if self.quality is not None else None
+        return out
+
+    def zones(self, hr_max: float | None = None, model: int = 5) -> list[HeartRateZone]:
+        """Return the training zones (see :meth:`DFAThresholdsResult.zones`).
+
+        Args:
+            hr_max: Maximal heart rate (bpm); defaults to ``hr_max_observed``.
+            model: ``5`` or ``3``.
+
+        Raises:
+            ValueError: If a threshold is missing, HRmax is unknown, or the
+                model is not 3 or 5.
+
+        """
+        if self.vt1_status != "detected" or self.vt2_status != "detected":
+            raise ValueError("Both thresholds are needed for the zones.")
+        if model not in (3, 5):
+            raise ValueError(f"model must be 3 or 5, got {model}")
+        top = self.hr_max_observed if hr_max is None else hr_max
+        if not np.isfinite(top):
+            raise ValueError("HRmax unknown: pass hr_max (profile or HRmax test).")
+        build = five_zones if model == 5 else three_zones
+        return build(self.vt1_hr, self.vt2_hr, top)
+
+
 def dfa_alpha1_series(
     rr: RRSeries,
     window_sec: float = WINDOW_SEC,

@@ -137,6 +137,43 @@ def zone_of(hr: float, zones: list[HeartRateZone]) -> int | None:
     return None
 
 
+def time_in_zones(
+    heart_rate, zones: list[HeartRateZone], sample_sec: float = 1.0
+) -> dict[int, float]:
+    """Return the time spent in each zone (s) from a regularly sampled heart rate.
+
+    Samples below the first zone count in zone 1, above the last one in the
+    last zone (sprints above HRmax, easy minutes below zone 1); missing samples
+    (``nan``) are ignored.
+
+    Args:
+        heart_rate: Heart rate samples (bpm), e.g. ``FitRecords.heart_rate``.
+        zones: Output of :func:`five_zones` or :func:`three_zones`.
+        sample_sec: Interval between two samples (s). Defaults to 1 s (FIT
+            records).
+
+    Returns:
+        ``{zone number: seconds}`` for every zone, 0 when never reached.
+
+    Raises:
+        ValueError: If ``zones`` is empty or ``sample_sec`` is not positive.
+
+    """
+    import numpy as np
+
+    if not zones:
+        raise ValueError("zones must not be empty")
+    if sample_sec <= 0:
+        raise ValueError("sample_sec must be positive")
+    hr = np.asarray(heart_rate, dtype=float)
+    hr = hr[np.isfinite(hr)]
+    # Upper bounds of zones 1 … n−1: a sample goes to the first zone whose top it is below
+    bounds = np.array([z.hr_high for z in zones[:-1]])
+    index = np.searchsorted(bounds, hr, side="right")
+    counts = np.bincount(index, minlength=len(zones))
+    return {z.zone: float(counts[i] * sample_sec) for i, z in enumerate(zones)}
+
+
 def _check(hr_vt1: float, hr_vt2: float, hr_max: float) -> None:
     """Raise ``ValueError`` unless the three heart rates are ordered and positive."""
     if not 0 < hr_vt1 < hr_vt2 < hr_max:

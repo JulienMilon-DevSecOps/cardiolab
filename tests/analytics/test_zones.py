@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
-from cardiolab.analytics.zones import five_zones, three_zones, zone_of
+from cardiolab.analytics.zones import five_zones, three_zones, time_in_zones, zone_of
 
 
 @pytest.mark.unit
@@ -90,3 +91,32 @@ class TestZoneOf:
         zones = five_zones(145, 168, 188)
         assert zone_of(60, zones) is None
         assert zone_of(200, zones) is None
+
+
+@pytest.mark.unit
+class TestTimeInZones:
+    """``time_in_zones`` — seconds per zone from a 1-Hz heart rate."""
+
+    def test_counts_per_zone(self):
+        """Each sample counted once, in its zone."""
+        zones = five_zones(145, 168, 188)
+        hr = [100] * 10 + [140] * 20 + [150] * 5 + [170] * 3 + [180] * 2
+        assert time_in_zones(hr, zones) == {1: 10.0, 2: 20.0, 3: 5.0, 4: 3.0, 5: 2.0}
+
+    def test_outside_and_missing(self):
+        """Below zone 1 → zone 1, above HRmax → zone 5, nan ignored."""
+        zones = five_zones(145, 168, 188)
+        out = time_in_zones([60, 200, np.nan, 145], zones, sample_sec=2.0)
+        assert out == {1: 2.0, 2: 0.0, 3: 2.0, 4: 0.0, 5: 2.0}
+
+    def test_three_zones(self):
+        """Works with the three-zone model."""
+        out = time_in_zones([120, 150, 175], three_zones(145, 168, 188))
+        assert out == {1: 1.0, 2: 1.0, 3: 1.0}
+
+    def test_errors(self):
+        """Empty zones or non-positive sample interval."""
+        with pytest.raises(ValueError):
+            time_in_zones([120], [])
+        with pytest.raises(ValueError):
+            time_in_zones([120], three_zones(145, 168, 188), sample_sec=0)
