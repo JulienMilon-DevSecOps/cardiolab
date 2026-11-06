@@ -15,12 +15,22 @@ nerve (parasympathetic activity).
 
 ## How to perform the protocol
 
+### Equipment
+
+| Equipment | Usable | Notes |
+|-----------|--------|-------|
+| **Chest strap** + an app that saves the beat intervals | ✅ recommended | — |
+| **Watch** with HRV logging | ✅ with strap · ⚠️ alone | Wrist sensor alone: acceptable only perfectly still; the strap is more accurate |
+| A **breathing guide** (app, video, the cardioanalysis guide) | ✅ required | Separate from the recording: start both together |
+
+Sensor set-up: [`sensors/README.md`](../sensors/README.md).
+
 ### Measurement conditions
 
 - **Seated** or **supine** position in a quiet environment.
 - Minimum recommended duration: **5 minutes** (ideally 10 min).
 - Avoid any physical activity in the hour before measurement.
-- Use a chest strap for continuous RR interval recording.
+- Record the beat intervals for the whole session (see Equipment).
 
 ### Procedure
 
@@ -34,10 +44,11 @@ nerve (parasympathetic activity).
 ### Recording
 
 ```python
-from cardiolab.signals.rr import RRSeries
 from cardiolab.protocols.cardiac_coherence import cardiac_coherence
+from cardiolab.sensors_tools import parse_rr_file
+from cardiolab.signals.rr import RRSeries
 
-rr = RRSeries.from_csv("coherence_session.csv")
+rr = RRSeries(parse_rr_file("coherence_session.txt")["rr_intervals"])
 result = cardiac_coherence(rr)
 print(f"Coherence score: {result.coherence_score:.1f} %")
 print(f"Resonance frequency: {result.resonance_freq:.3f} Hz")

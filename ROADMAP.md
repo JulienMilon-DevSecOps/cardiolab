@@ -93,8 +93,8 @@ DB: migration V006 (`rpe` and `hr_mean` on training sessions, `load_method` on u
 
 DB: migration V007 (exercise test results). Requires v0.4.0 (DFA α1 is very sensitive to artefacts).
 
-* 🚧 **DFA α1 during exercise — ventilatory thresholds (VT1 / VT2)** (in progress — done 2026-11-05: calculation, training zones; to do: power / speed import, charts, storage V007, reporting): windowed DFA α1 (2 min, rolling) on an incremental test; HR and power at α1 = 0.75 (aerobic threshold) and α1 = 0.5 (anaerobic threshold). Garmin `.fit` and Polar H10 already provide the RR data.
-* **Submaximal fitness test (LSCT, Lamberts 2011)**: standardised 3-stage test; HR at each stage + HRR60; weekly monitoring without a maximal test.
+* 🚧 **DFA α1 during exercise — ventilatory thresholds (VT1 / VT2)** (in progress — done: calculation and training zones (2026-11-05), power / heart rate from FIT files, indoor set-ups doc, charts, storage V007 with manual thresholds, reporting (2026-11-06); to do: merging two files, validation on a real ramp test): windowed DFA α1 (2 min, rolling) on an incremental test; HR and power at α1 = 0.75 (aerobic threshold) and α1 = 0.5 (anaerobic threshold). Garmin `.fit` and Polar H10 already provide the RR data.
+* 🚧 **Submaximal fitness test (LSCT, Lamberts 2011)** (in progress — done 2026-11-06: protocol, comparison, charts, storage V007, reporting; to do: validation on a real test): standardised 3-stage test; HR at each stage + HRR60; weekly monitoring without a maximal test.
 
 ## v0.7.0 — Statistical intelligence (P3)
 

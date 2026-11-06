@@ -14,10 +14,27 @@
 | **Apple Watch** (Health XML) | `.xml` | ❌ | ❌ | ✅ | ✅ | `parse_apple_health_export` | — |
 | **Garmin** (FIT) | `.fit` | ✅ | ✅ | ✅ | ❌ | `parse_garmin_fit` | `cardiolab[garmin]` |
 | **Garmin** (CSV beat-to-beat) | `.csv` | ✅ | ✅ | ✅ | ❌ | `parse_garmin_csv` | — |
+| **Indoor apps** (MyWhoosh, Zwift…) — power, HR / puissance, FC | `.fit` | ❌ | ❌ | ❌ | ❌ | `parse_fit_records` | `cardiolab[garmin]` |
 
 > **Raw RR** = beat-to-beat intervals available (required for RMSSD, pNN50, DFA).  
 > **RMSSD / SDNN** = computable from this source.  
 > **Extra dependency** = `pip install <value>` if not base install.
+
+---
+
+## Which equipment for which protocol / Quel matériel pour quel protocole
+
+| Protocol / Protocole | Chest strap / Ceinture | Watch alone (optical) / Montre seule | Indoor app alone / Application seule | Notes |
+|---|---|---|---|---|
+| Resting, orthostatic, VO2max / Repos, orthostatique, VO2max | ✅ recommended / conseillée | ⚠️ RMSSD only, perfectly still / RMSSD seul, immobile | — | Same device every morning / même appareil chaque matin |
+| Cardiac coherence / Cohérence cardiaque | ✅ | ⚠️ | — | + breathing guide / + guide de respiration |
+| HRR, cardiac drift / Récupération, dérive | ✅ **required / obligatoire** | ❌ | ❌ (heart rate only / FC seule) | Indoor: set-up B / home-trainer : montage B |
+| DFA α1 thresholds / Seuils DFA α1 | ✅ **required / obligatoire** | ❌ | ❌ | Indoor: set-up B / home-trainer : montage B |
+| LSCT (submaximal cycle test / test sous-maximal) | ✅ | ✅ | ✅ (heart rate + power / FC + puissance) | + power / + puissance |
+| Training session (load, zones) / Séance (charge, zones) | ✅ | ✅ | ✅ (from the app's own export / export de l'application) | Heart rate is enough / la FC suffit |
+
+Each protocol page has an « Equipment » section; indoor set-ups:
+[`indoor_cycling.md`](indoor_cycling.md).
 
 ---
 
@@ -27,6 +44,7 @@
 - [HRV4Training](hrv4training.md) — camera-based app, no extra hardware / app caméra, sans matériel
 - [Apple Health](apple_health.md) — Apple Watch export, SDNN only / export Apple Watch, SDNN uniquement
 - [Garmin](garmin.md) — FIT/CSV, requires chest strap for raw RR / FIT/CSV, ceinture requise pour RR bruts
+- [Indoor cycling / Home-trainer](indoor_cycling.md) — recording set-ups for power + HR + RR / branchements pour puissance + FC + RR
 
 ---
 
