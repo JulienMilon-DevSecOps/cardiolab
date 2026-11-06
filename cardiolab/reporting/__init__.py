@@ -12,6 +12,8 @@ Public API::
         table_coherence_history,
         table_vo2max_history,
         table_vo2max_session,
+        table_dfa_thresholds_history,
+        table_lsct_history,
         table_training_load_history,
         summary_training_load,
         LABELS_EN,
@@ -25,6 +27,10 @@ from __future__ import annotations
 from cardiolab.labels import LABELS_EN, LABELS_FR, lbl
 from cardiolab.reporting.coherence import table_coherence_history
 from cardiolab.reporting.drift import table_drift_history
+from cardiolab.reporting.exercise_tests import (
+    table_dfa_thresholds_history,
+    table_lsct_history,
+)
 from cardiolab.reporting.hrr import table_hrr_history
 from cardiolab.reporting.monitoring import table_weekly_monitoring
 from cardiolab.reporting.orthostatic import (
@@ -45,6 +51,8 @@ from cardiolab.reporting.vo2max import (
 )
 
 __all__ = [
+    "table_dfa_thresholds_history",
+    "table_lsct_history",
     "table_weekly_monitoring",
     "table_coherence_history",
     "table_drift_history",

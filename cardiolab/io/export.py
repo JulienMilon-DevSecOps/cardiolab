@@ -30,6 +30,10 @@ vo2max_to_csv
     Export one or more ``VO2maxResult`` sessions to a CSV file.
 vo2max_to_json
     Export one or more ``VO2maxResult`` sessions to a JSON file.
+dfa_thresholds_to_csv / dfa_thresholds_to_json
+    Export one or more thresholds (``ThresholdRecord`` or ``DFAThresholdsResult``).
+lsct_to_csv / lsct_to_json
+    Export one or more ``LSCTResult`` tests.
 """
 
 from __future__ import annotations
@@ -397,4 +401,71 @@ def vo2max_to_json(
 
     """
     rows = [_sanitise_dict(r.to_dict()) for r in _as_vo2max_list(results)]
+    Path(path).write_text(json.dumps(rows, indent=indent), encoding="utf-8")
+
+
+# ======================
+# EXERCISE TESTS (v0.6.0)
+# ======================
+
+
+def _threshold_rows(results) -> list[dict]:
+    """Flat rows of thresholds; the quality is reduced to its grade."""
+    items = results if isinstance(results, list) else [results]
+    rows = []
+    for r in items:
+        d = r.to_dict()
+        q = d.get("quality")
+        d["quality"] = q.get("grade") if isinstance(q, dict) else q
+        rows.append(d)
+    return rows
+
+
+def dfa_thresholds_to_csv(results, path: StrPath) -> None:
+    """Export thresholds to a CSV file (one row per test or entry).
+
+    Args:
+        results: A ``ThresholdRecord`` or ``DFAThresholdsResult``, or a list.
+        path: Destination file path. Created or overwritten.
+
+    """
+    _write_csv(path, _threshold_rows(results))
+
+
+def dfa_thresholds_to_json(results, path: StrPath, indent: int = 2) -> None:
+    """Export thresholds to a JSON file.
+
+    Args:
+        results: A ``ThresholdRecord`` or ``DFAThresholdsResult``, or a list.
+        path: Destination file path. Created or overwritten.
+        indent: JSON indentation level. Defaults to 2.
+
+    """
+    rows = [_sanitise_dict(d) for d in _threshold_rows(results)]
+    Path(path).write_text(json.dumps(rows, indent=indent), encoding="utf-8")
+
+
+def lsct_to_csv(results, path: StrPath) -> None:
+    """Export one or more ``LSCTResult`` tests to a CSV file (one row per test).
+
+    Args:
+        results: An ``LSCTResult`` or an ordered list.
+        path: Destination file path. Created or overwritten.
+
+    """
+    items = results if isinstance(results, list) else [results]
+    _write_csv(path, [r.to_dict() for r in items])
+
+
+def lsct_to_json(results, path: StrPath, indent: int = 2) -> None:
+    """Export one or more ``LSCTResult`` tests to a JSON file.
+
+    Args:
+        results: An ``LSCTResult`` or an ordered list.
+        path: Destination file path. Created or overwritten.
+        indent: JSON indentation level. Defaults to 2.
+
+    """
+    items = results if isinstance(results, list) else [results]
+    rows = [_sanitise_dict(r.to_dict()) for r in items]
     Path(path).write_text(json.dumps(rows, indent=indent), encoding="utf-8")
