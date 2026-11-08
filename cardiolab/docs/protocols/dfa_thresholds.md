@@ -154,6 +154,11 @@ percentages, the boundaries are anchored on the measured thresholds:
 `cardiolab.analytics.zones` also exposes `three_zones()`, `five_zones()` and `zone_of()`
 for thresholds obtained elsewhere (laboratory test).
 
+**Without thresholds**, `five_zones_from_hr_max(hr_max)` and `three_zones_from_hr_max(hr_max)`
+give the fixed I-scale percentages (55 / 72 / 82 / 87 / 92 / 100 % of HRmax; three zones
+< 82, 82–87, > 87 %). They are generic zones, for an athlete who has not done a threshold
+test: individual thresholds can sit well away from 82 and 87 % of HRmax.
+
 ## Storage, charts and reports
 
 - **Storage** (migration V007, table `hrv_dfa_thresholds`):

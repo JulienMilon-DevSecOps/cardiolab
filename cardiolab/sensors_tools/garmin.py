@@ -7,7 +7,10 @@ FIT is the activity format of Garmin devices and of most training apps
   recorded by a device paired with a chest strap, HRV logging on);
 * :func:`parse_fit_records` — the per-second ``record`` messages: heart rate,
   power, cadence, speed (indoor trainers, power meters);
-* :func:`extract_training_session_garmin` — the session summary.
+* :func:`extract_training_session_garmin` — the session summary;
+
+and :func:`merge_fit_records`, which combines two recordings of the same
+session (heart rate from the watch, power from the training app).
 
 See ``docs/sensors/indoor_cycling.md`` for the recording set-ups that give
 power, heart rate and beat intervals together.
@@ -23,7 +26,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -235,6 +238,85 @@ def parse_fit_records(filepath: str | Path) -> FitRecords:
     return records
 
 
+RECORD_FIELDS = ("heart_rate", "power", "cadence", "speed")
+"""Series of :class:`FitRecords`, in the order :func:`merge_fit_records` fills them."""
+
+MERGE_MAX_GAP_SEC = 30.0
+"""Longest gap (s) bridged by interpolation when merging two recordings."""
+
+
+def merge_fit_records(
+    first: FitRecords,
+    second: FitRecords,
+    *,
+    second_offset_sec: float = 0.0,
+    max_gap_sec: float = MERGE_MAX_GAP_SEC,
+) -> FitRecords:
+    """Merge two recordings of the same session into one, on a 1-second grid.
+
+    Set-up C of ``docs/sensors/indoor_cycling.md``: the watch records the
+    heart rate (chest strap), the training app records the power. Both files
+    are aligned on their **timestamps** (UTC, as written in the files) and
+    resampled every second over the period they **both** cover.
+
+    Each series comes from the first file that has it (``first`` wins when
+    both do): heart rate from the watch, power, cadence and speed from the
+    app. Gaps up to ``max_gap_sec`` are filled by linear interpolation —
+    watches in "smart recording" write a sample only every 1–15 s; longer
+    gaps (pause, sensor drop-out) stay ``nan``.
+
+    Beat intervals (``hrv`` messages) are not part of the records: read them
+    with :func:`parse_garmin_fit` from the watch file. They start with the
+    watch recording, while ``time_sec`` of the result counts from its own
+    ``start`` (the first second both files cover): add
+    ``(merged.start - watch.start).total_seconds()`` to the merged times
+    before pairing them with the beats.
+
+    Args:
+        first: Recording that takes precedence (usually the watch).
+        second: Other recording (usually the training app).
+        second_offset_sec: Seconds added to the timestamps of ``second`` to
+            correct a clock difference between the two devices (positive when
+            its clock is behind).
+        max_gap_sec: Longest gap filled by interpolation (s).
+
+    Returns:
+        :class:`FitRecords` at 1 Hz, starting at the first common second.
+
+    Raises:
+        ValueError: If the two recordings do not overlap, or ``max_gap_sec``
+            is negative.
+
+    """
+    if max_gap_sec < 0:
+        raise ValueError("max_gap_sec must not be negative")
+    abs_first = _absolute_seconds(first, first.start, 0.0)
+    abs_second = _absolute_seconds(second, first.start, second_offset_sec)
+    t_start = np.ceil(max(abs_first[0], abs_second[0]))
+    t_end = np.floor(min(abs_first[-1], abs_second[-1]))
+    if t_end <= t_start:
+        raise ValueError("The two recordings do not overlap in time")
+    grid = np.arange(t_start, t_end + 1.0)
+
+    series: dict[str, np.ndarray] = {}
+    for field in RECORD_FIELDS:
+        source, times = (first, abs_first) if first.has(field) else (second, abs_second)
+        series[field] = _resample(times, getattr(source, field), grid, max_gap_sec)
+
+    sport, sport_raw = (
+        (first.sport, first.sport_raw)
+        if first.sport != "other"
+        else (second.sport, second.sport_raw)
+    )
+    return FitRecords(
+        start=first.start + timedelta(seconds=float(t_start)),
+        time_sec=grid - t_start,
+        sport=sport,
+        sport_raw=sport_raw,
+        **series,
+    )
+
+
 def extract_training_session_garmin(filepath: str | Path) -> dict:
     """Extract a training session summary from a Garmin FIT file.
 
@@ -317,6 +399,36 @@ def _read_records(fitfile) -> FitRecords | None:
         cadence=np.array(cadence),
         speed=np.array(speed),
     )
+
+
+def _absolute_seconds(
+    records: FitRecords, origin: datetime, offset_sec: float
+) -> np.ndarray:
+    """Return the record times of ``records`` in seconds since ``origin``."""
+    shift = (records.start - origin).total_seconds() + offset_sec
+    return np.asarray(records.time_sec, dtype=float) + shift
+
+
+def _resample(
+    times: np.ndarray, values: np.ndarray, grid: np.ndarray, max_gap_sec: float
+) -> np.ndarray:
+    """Interpolate ``values`` on ``grid``; ``nan`` across gaps longer than ``max_gap_sec``."""
+    values = np.asarray(values, dtype=float)
+    ok = np.isfinite(values)
+    out = np.full(len(grid), np.nan)
+    if not np.any(ok):
+        return out
+    t, v = times[ok], values[ok]
+    inside = (grid >= t[0]) & (grid <= t[-1])
+    out[inside] = np.interp(grid[inside], t, v)
+    # Distance from each grid point to the samples around it
+    right = np.searchsorted(t, grid[inside], side="left")
+    right = np.clip(right, 0, len(t) - 1)
+    left = np.clip(right - 1, 0, len(t) - 1)
+    exact = t[right] == grid[inside]
+    gap = np.where(exact, 0.0, t[right] - t[left])
+    out[np.flatnonzero(inside)[gap > max_gap_sec]] = np.nan
+    return out
 
 
 def _as_float(value) -> float:

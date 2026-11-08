@@ -44,6 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `cardiolab.reporting`: `table_dfa_thresholds_history`, `table_lsct_history` (each test
   compared with the 3 previous ones). `cardiolab.io`: `dfa_thresholds_to_csv` / `_json`,
   `lsct_to_csv` / `_json`. English and French labels (`LABELS_EN` / `LABELS_FR`).
+* `five_zones_from_hr_max(hr_max)` / `three_zones_from_hr_max(hr_max)` — generic zones at
+  the fixed I-scale percentages of HRmax (55 / 72 / 82 / 87 / 92 / 100 %), for athletes
+  without a threshold test.
 * `time_in_zones(heart_rate, zones, sample_sec=1.0)` — time spent in each zone from a 1-Hz
   heart rate (e.g. `FitRecords.heart_rate`); below zone 1 counts in zone 1, above HRmax in the
   last zone.
@@ -60,6 +63,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   chest strap and the trainer as ANT+ power sensor: heart rate + RR + power — needed for the
   DFA thresholds), C (merging two files — planned). Linked from the sensors index, the Garmin
   page and the DFA thresholds page.
+* `merge_fit_records(first, second, second_offset_sec=0, max_gap_sec=30)` — set-up C: two
+  recordings of the same session (heart rate from the watch, power from the app) aligned on
+  their timestamps and resampled at 1 Hz over the period both cover. Each series comes from
+  the first file that has it; gaps up to 30 s (watch "smart recording") are interpolated,
+  longer ones stay `nan`. Tested on a real Garmin + MyWhoosh session (1 h 58 in common).
+  The indoor set-ups page explains how to turn on HRV logging and 1-s recording on Garmin
+  watches.
 
 ### Documentation — Equipment for every protocol
 

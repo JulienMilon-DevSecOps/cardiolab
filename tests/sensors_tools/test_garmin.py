@@ -12,6 +12,7 @@ from cardiolab.sensors_tools.garmin import (
     FitRecords,
     _require_fitparse,
     extract_training_session_garmin,
+    merge_fit_records,
     parse_fit_records,
     parse_garmin_csv,
     parse_garmin_fit,
@@ -607,3 +608,120 @@ class TestExtractTrainingSessionWithoutHeartRate:
         rows[0]["heart_rate"] = 0
         res = self._extract(tmp_path, rows)
         assert res["hr_mean"] == pytest.approx(123.0)
+
+
+# ======================
+# merge_fit_records
+# ======================
+
+_T0 = datetime(2026, 11, 8, 9, 28, 8)
+
+
+def _records(start, times, *, hr=None, power=None, sport="cycling"):
+    """Build FitRecords from lists (missing series = all nan)."""
+    n = len(times)
+    nan = np.full(n, np.nan)
+    return FitRecords(
+        start=start,
+        time_sec=np.asarray(times, dtype=float),
+        heart_rate=np.asarray(hr, dtype=float) if hr is not None else nan.copy(),
+        power=np.asarray(power, dtype=float) if power is not None else nan.copy(),
+        cadence=nan.copy(),
+        speed=nan.copy(),
+        sport=sport,
+        sport_raw=sport,
+    )
+
+
+class TestMergeFitRecords:
+    """merge_fit_records(): watch heart rate + app power (set-up C)."""
+
+    def test_aligns_on_timestamps(self):
+        """The app starts 85 s after the watch: the result starts with the app."""
+        watch = _records(_T0, range(0, 400), hr=[100.0 + t / 10 for t in range(400)])
+        app = _records(_T0 + timedelta(seconds=85), range(0, 200), power=range(200))
+        res = merge_fit_records(watch, app)
+        assert res.start == _T0 + timedelta(seconds=85)
+        assert res.duration_sec == 199.0
+        assert res.heart_rate[0] == pytest.approx(108.5)  # watch value at t = 85 s
+        assert res.power[0] == 0.0
+        assert res.power[-1] == 199.0
+
+    def test_series_from_the_file_that_has_them(self):
+        """Heart rate from the watch, power from the app; first wins when both have it."""
+        watch = _records(_T0, range(10), hr=[120.0] * 10)
+        app = _records(_T0, range(10), hr=[90.0] * 10, power=[150.0] * 10)
+        res = merge_fit_records(watch, app)
+        assert np.all(res.heart_rate == 120.0)
+        assert np.all(res.power == 150.0)
+        assert not res.has("cadence")
+
+    def test_falls_back_to_second_heart_rate(self):
+        """A watch file without heart rate takes the app's."""
+        watch = _records(_T0, range(10))
+        app = _records(_T0, range(10), hr=[130.0] * 10)
+        assert np.all(merge_fit_records(watch, app).heart_rate == 130.0)
+
+    def test_short_gaps_interpolated(self):
+        """Smart recording (one sample every few seconds) is filled to 1 Hz."""
+        watch = _records(_T0, [0, 4, 10], hr=[100.0, 108.0, 120.0])
+        app = _records(_T0, range(11), power=[200.0] * 11)
+        res = merge_fit_records(watch, app)
+        assert len(res.time_sec) == 11
+        assert res.heart_rate[2] == pytest.approx(104.0)
+        assert res.heart_rate[7] == pytest.approx(114.0)
+
+    def test_long_gaps_stay_missing(self):
+        """A gap longer than max_gap_sec is not invented."""
+        watch = _records(_T0, [0, 1, 60, 61], hr=[100.0, 100.0, 140.0, 140.0])
+        app = _records(_T0, range(62), power=[200.0] * 62)
+        res = merge_fit_records(watch, app, max_gap_sec=30.0)
+        assert res.heart_rate[1] == 100.0
+        assert np.isnan(res.heart_rate[2])
+        assert np.isnan(res.heart_rate[59])
+        assert res.heart_rate[60] == 140.0
+
+    def test_clock_offset(self):
+        """second_offset_sec shifts the second recording."""
+        watch = _records(_T0, range(100), hr=[120.0] * 100)
+        app = _records(_T0, range(100), power=range(100))
+        res = merge_fit_records(watch, app, second_offset_sec=10.0)
+        assert res.start == _T0 + timedelta(seconds=10)
+        assert res.power[0] == 0.0
+        assert res.duration_sec == 89.0
+
+    def test_sport_from_first_known(self):
+        """The sport of the first file, unless it is unknown."""
+        watch = _records(_T0, range(5), hr=[120.0] * 5, sport="other")
+        app = _records(_T0, range(5), power=[100.0] * 5, sport="cycling")
+        assert merge_fit_records(watch, app).sport == "cycling"
+
+    def test_no_overlap_raises(self):
+        """Two recordings at different times cannot be merged."""
+        watch = _records(_T0, range(10), hr=[120.0] * 10)
+        app = _records(_T0 + timedelta(hours=2), range(10), power=[100.0] * 10)
+        with pytest.raises(ValueError, match="overlap"):
+            merge_fit_records(watch, app)
+
+    def test_negative_gap_raises(self):
+        """max_gap_sec must not be negative."""
+        rec = _records(_T0, range(5), hr=[120.0] * 5)
+        with pytest.raises(ValueError, match="max_gap_sec"):
+            merge_fit_records(rec, rec, max_gap_sec=-1)
+
+    def test_lsct_on_merged_records(self):
+        """The merged records feed lsct_from_records."""
+        from cardiolab.protocols.lsct import lsct_from_records
+
+        n = 1100
+        hr = np.concatenate(
+            [np.full(360, 114.0), np.full(360, 152.0), np.full(380, 171.0)]
+        )
+        watch = _records(_T0, range(0, n, 2), hr=hr[::2])
+        power = np.concatenate(
+            [np.full(360, 120.0), np.full(360, 200.0), np.full(380, 250.0)]
+        )
+        app = _records(_T0, range(n), power=power)
+        res = lsct_from_records(merge_fit_records(watch, app), hr_max=190.0)
+        assert res.stage(1).mean_power == pytest.approx(120.0)
+        assert res.stage(3).mean_power == pytest.approx(250.0)

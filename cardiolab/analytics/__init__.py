@@ -50,7 +50,9 @@ from cardiolab.analytics.trends import (
 from cardiolab.analytics.zones import (
     HeartRateZone,
     five_zones,
+    five_zones_from_hr_max,
     three_zones,
+    three_zones_from_hr_max,
     time_in_zones,
     zone_of,
 )
@@ -99,6 +101,8 @@ __all__ = [
     "HeartRateZone",
     "three_zones",
     "five_zones",
+    "three_zones_from_hr_max",
+    "five_zones_from_hr_max",
     "zone_of",
     "time_in_zones",
 ]

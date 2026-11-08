@@ -25,7 +25,9 @@ the heart rate recovery is less informative (r = 0.55–0.68).
 - A **power** source: indoor trainer with power, or power meter.
 - A **heart rate** source: chest strap or watch — the beat intervals are not needed.
 - Indoors, set-up A of [`sensors/indoor_cycling.md`](../sensors/indoor_cycling.md) (the app
-  alone) is enough, provided the exported file contains the heart rate.
+  alone) is enough, provided the exported file contains the heart rate. With the heart rate
+  on the watch and the power in the app (set-up C), merge the two files first:
+  `lsct_from_records(merge_fit_records(watch, app), hr_max=...)`.
 - **HRmax**: from the profile, a maximal test or the age — **always the same one** from test
   to test, otherwise the stages change and the tests cannot be compared.
 
