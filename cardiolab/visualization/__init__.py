@@ -22,9 +22,15 @@ coherence_plots
 drift_plots
     Cardiac drift: windowed HR + regression curve with zone background,
     and multi-session drift-rate evolution with clinical zone bands.
+dfa_threshold_plots
+    DFA α1 thresholds: α1 and heart rate over the test, α1 against heart rate,
+    training zones scale, thresholds over time.
 hrr_plots
     Heart Rate Recovery: recovery curve with HRR1/HRR2 markers, multi-session
     comparison of HR-drop curves, and semi-circular HRR1 gauge.
+lsct_plots
+    Lamberts submaximal cycle test: one test (heart rate, power, stages,
+    recovery) and power / HRR60 over time.
 orthostatic_plots
     Orthostatic test: four-panel multi-session plot showing RMSSD/HR per phase
     (supine / transition / standing) and autonomic response metrics (ΔHR, ΔRMSSD,
@@ -58,6 +64,12 @@ from cardiolab.visualization.dashboard_plots import (
     plot_session_dashboard,
     plot_vo2max_mini,
 )
+from cardiolab.visualization.dfa_threshold_plots import (
+    plot_alpha1_vs_hr,
+    plot_dfa_alpha1,
+    plot_threshold_evolution,
+    plot_training_zones,
+)
 from cardiolab.visualization.drift_plots import (
     plot_drift_curve,
     plot_drift_zones,
@@ -67,6 +79,7 @@ from cardiolab.visualization.hrr_plots import (
     plot_hrr_curve,
     plot_hrr_gauge,
 )
+from cardiolab.visualization.lsct_plots import plot_lsct_evolution, plot_lsct_session
 from cardiolab.visualization.monitoring_plots import plot_ln_rmssd_monitoring
 from cardiolab.visualization.nonlinear_plots import (
     plot_dfa_fluctuation,
@@ -108,6 +121,14 @@ from cardiolab.visualization.vo2max_plots import (
 )
 
 __all__ = [
+    # dfa_threshold_plots
+    "plot_dfa_alpha1",
+    "plot_alpha1_vs_hr",
+    "plot_training_zones",
+    "plot_threshold_evolution",
+    # lsct_plots
+    "plot_lsct_session",
+    "plot_lsct_evolution",
     # monitoring_plots
     "plot_ln_rmssd_monitoring",
     # training_load_plots

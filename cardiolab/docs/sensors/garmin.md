@@ -143,9 +143,21 @@ from cardiolab.sensors_tools.garmin import extract_training_session_garmin
 
 session = extract_training_session_garmin("datasets/raw/garmin/activity.fit")
 print(f"Durée : {session['duration_min']:.1f} min")
-print(f"FC moy : {session['hr_mean']:.0f} bpm | FC max : {session['hr_max']:.0f} bpm")
+print(f"FC moy : {session['hr_mean']} bpm | FC max : {session['hr_max']} bpm")
+print(f"Puissance moy : {session['power_mean']} W | max : {session['power_max']} W")
 print(f"Sport : {session['sport']} (valeur FIT : {session['sport_raw']})")
 ```
+
+**EN:** Since v0.6.0 the heart rate is optional (`hr_mean` / `hr_max` are `None` for a file
+recorded without it, e.g. by an indoor app), heart rate values of 0 (drop-outs) are ignored,
+and `power_mean` / `power_max` are added. The per-second samples (power, heart rate,
+cadence, speed) are read by `parse_fit_records()` — see
+[`indoor_cycling.md`](indoor_cycling.md).  
+**FR :** Depuis la v0.6.0 la FC est facultative (`hr_mean` / `hr_max` valent `None` pour un
+fichier enregistré sans FC, par exemple par une application de home-trainer), les FC à 0
+(coupures) sont ignorées, et `power_mean` / `power_max` sont ajoutées. Les mesures seconde par
+seconde (puissance, FC, cadence, vitesse) se lisent avec `parse_fit_records()` — voir
+[`indoor_cycling.md`](indoor_cycling.md).
 
 **EN:** Since v0.3.4, `sport` is the activity sport read from the FIT `session` /
 `sport` messages and normalised with the sports reference list

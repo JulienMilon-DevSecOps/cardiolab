@@ -56,6 +56,12 @@ recordings and contains no VO2max equation. The model is no longer computed;
 
 ## How to perform the protocol
 
+### Equipment
+
+The same as the resting measurement (chest strap recommended) — see
+[`resting.md`](resting.md#equipment). The Uth model only needs the resting heart rate, so
+a watch alone is enough for it; HRmax comes from the profile, a maximal test, or the age.
+
 ### Measurement conditions
 
 - **Resting** recording, fasted or ≥ 2 h after a light meal.
@@ -73,10 +79,11 @@ recordings and contains no VO2max equation. The model is no longer computed;
 ### Recording
 
 ```python
-from cardiolab.signals.rr import RRSeries
 from cardiolab.protocols.vo2max import vo2max_from_hrv
+from cardiolab.sensors_tools import parse_rr_file
+from cardiolab.signals.rr import RRSeries
 
-rr = RRSeries.from_csv("morning_rest.csv")
+rr = RRSeries(parse_rr_file("morning_rest.txt")["rr_intervals"])
 
 # With known HRmax
 result = vo2max_from_hrv(rr, hr_max=185.0)

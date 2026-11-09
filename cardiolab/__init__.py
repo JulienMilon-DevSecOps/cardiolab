@@ -84,7 +84,9 @@ from cardiolab.analytics.trends import trend_rmssd
 # ── Protocols — functions and result types ────────────────────────────────────
 from cardiolab.protocols.cardiac_coherence import CoherenceResult, cardiac_coherence
 from cardiolab.protocols.cardiac_drift import DriftResult, cardiac_drift
+from cardiolab.protocols.dfa_thresholds import DFAThresholdsResult, dfa_thresholds
 from cardiolab.protocols.hrr import HRRResult, heart_rate_recovery
+from cardiolab.protocols.lsct import LSCTResult, compare_lsct, lsct
 from cardiolab.protocols.orthostatic import OrthostaticResult, orthostatic_hrv
 from cardiolab.protocols.resting import HRVFeatures, resting_hrv
 from cardiolab.protocols.vo2max import VO2maxResult, vo2max_from_hrv
@@ -114,6 +116,9 @@ __all__ = [
     "heart_rate_recovery",
     "cardiac_drift",
     "vo2max_from_hrv",
+    "dfa_thresholds",
+    "lsct",
+    "compare_lsct",
     # ── Protocols — result types
     "HRVFeatures",
     "OrthostaticResult",
@@ -121,6 +126,8 @@ __all__ = [
     "HRRResult",
     "DriftResult",
     "VO2maxResult",
+    "DFAThresholdsResult",
+    "LSCTResult",
     # ── Analytics — baseline
     "Baseline",
     # ── Analytics — readiness scoring (baseline-relative)

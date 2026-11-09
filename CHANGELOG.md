@@ -5,7 +5,174 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2026-11-09
+
+### Added — Lamberts submaximal cycle test (LSCT)
+
+* New protocol `cardiolab.protocols.lsct` (Lamberts et al. 2011): 6 min at 60 %, 6 min at
+  80 %, 3 min at 90 % of HRmax, then 90 s seated. `lsct(time_sec, heart_rate, power, hr_max,
+  start_sec=, rpe=)` and `lsct_from_records(FitRecords, ...)` → `LSCTResult`: mean power and
+  heart rate per stage, heart rate over the last minute, target reached (≥ target − 2 bpm),
+  RPE, HRR60 (5-s medians).
+* Warnings: recovery not recorded, stage 3 target not reached, stage held more than 5 bpm
+  away from its target (`stage<n>_off_target`: not ridden as prescribed, not comparable).
+* `compare_lsct(current, reference)` — against one test or the mean of several: change of the
+  stages 2–3 power and RPE, HRR60; reading `improving` / `fatigue_possible` /
+  `overreaching_possible` / `stable` (power ±5 %, RPE +1 — cardiolab heuristics after
+  Lamberts 2011 and Decroix et al. 2017).
+* `docs/protocols/lsct.md`. 20 tests on synthetic 1-Hz sessions. Procedure completed after a
+  first real test (2026-11-09): ERG mode or flat route, never gradients; no power bursts at
+  the start of a stage; check the app keeps recording during the seated recovery.
+
+### Added — Storage of the exercise tests (migration V007)
+
+* `V007__exercise_tests.sql`: tables `hrv_dfa_thresholds` and `hrv_lsct`.
+* `ThresholdRecord` — stored thresholds: `from_result(DFAThresholdsResult, date, sport)` or
+  `manual(date, vt1_hr, vt2_hr, sport)` for thresholds measured elsewhere (laboratory),
+  `zones(hr_max, model)`, `to_dict()`. Zones are sport-specific.
+* `HRVRepository`: `create_` / `save_` / `load_dfa_thresholds`, `create_` / `save_` /
+  `load_lsct`; table names `dfa_thresholds_table_name`, `lsct_table_name` (constructor and
+  `from_env`); both tables in `USER_DATA_TABLE_ATTRS` (erased by `delete_user_data`, checked
+  by the guard test).
+
+### Added — Charts, reports and exports of the exercise tests
+
+* `cardiolab.visualization.dfa_threshold_plots`: `plot_dfa_alpha1` (α1 and heart rate over
+  the test, both thresholds, power at each), `plot_alpha1_vs_hr`, `plot_training_zones`
+  (3 or 5 zones as a coloured scale), `plot_threshold_evolution`.
+* `cardiolab.visualization.lsct_plots`: `plot_lsct_session` (heart rate with the stage
+  targets, power with the stage means, recovery), `plot_lsct_evolution` (stages 2–3 power,
+  HRR60, tests whose stage 3 target was missed).
+* `cardiolab.reporting`: `table_dfa_thresholds_history`, `table_lsct_history` (each test
+  compared with the 3 previous ones). `cardiolab.io`: `dfa_thresholds_to_csv` / `_json`,
+  `lsct_to_csv` / `_json`. English and French labels (`LABELS_EN` / `LABELS_FR`).
+* `five_zones_from_hr_max(hr_max)` / `three_zones_from_hr_max(hr_max)` — generic zones at
+  the fixed I-scale percentages of HRmax (55 / 72 / 82 / 87 / 92 / 100 %), for athletes
+  without a threshold test.
+* `time_in_zones(heart_rate, zones, sample_sec=1.0)` — time spent in each zone from a 1-Hz
+  heart rate (e.g. `FitRecords.heart_rate`); below zone 1 counts in zone 1, above HRmax in the
+  last zone.
+
+### Added — Power and heart rate from FIT activity files
+
+* `parse_fit_records(path) -> FitRecords` — per-second samples of any FIT activity (Garmin,
+  indoor apps such as MyWhoosh): heart rate, power, cadence, speed (`enhanced_speed` when
+  present), time from the first record, sport. Missing fields are `nan`; a heart rate of 0
+  (drop-out) is `nan`, a power or cadence of 0 is kept. `FitRecords.intensity("power")` gives
+  the `(time_sec, values)` expected by `dfa_thresholds(intensity=...)`.
+* `docs/sensors/indoor_cycling.md` — recording set-ups on an indoor trainer: A (everything
+  through the app: power + heart rate, no beat intervals), B (the watch also records, with the
+  chest strap and the trainer as ANT+ power sensor: heart rate + RR + power — needed for the
+  DFA thresholds), C (merging two files — planned). Linked from the sensors index, the Garmin
+  page and the DFA thresholds page.
+* `merge_fit_records(first, second, second_offset_sec=0, max_gap_sec=30)` — set-up C: two
+  recordings of the same session (heart rate from the watch, power from the app) aligned on
+  their timestamps and resampled at 1 Hz over the period both cover. Each series comes from
+  the first file that has it; gaps up to 30 s (watch "smart recording") are interpolated,
+  longer ones stay `nan`. Tested on a real Garmin + MyWhoosh session (1 h 58 in common).
+  The indoor set-ups page explains how to turn on HRV logging and 1-s recording on Garmin
+  watches.
+
+### Documentation — Equipment for every protocol
+
+* Each protocol page (`docs/protocols/`) has an **Equipment** section: chest strap, watch with
+  HRV logging, watch alone, camera app, indoor set-ups — what is usable for that protocol
+  and why (HRR, drift and DFA thresholds need a chest strap; indoors, set-up B of
+  `sensors/indoor_cycling.md`). Summary table « Which equipment for which protocol » in
+  `docs/sensors/README.md`.
+* Fixed: the examples of the coherence, HRR, drift and VO2max pages called
+  `RRSeries.from_csv()`, which does not exist — they now read files with `parse_rr_file()` /
+  `parse_garmin_fit()`. Drift page: the procedure said to leave the warm-up out of the
+  recording, whereas cardiolab removes the first 10 minutes itself since 0.5.0 — record from
+  the start. HRR page: do not stop the watch activity at the end of the effort.
+
+### Changed — Training session summary from FIT files
+
+* `extract_training_session_garmin()`: the heart rate is **optional** — a file without it
+  (indoor app recording power only) gives `hr_mean` / `hr_max = None` instead of raising
+  `ValueError`; it raises only when the file has no timestamped record. Heart rate values of
+  0 (sensor drop-outs) are ignored — they lowered `hr_mean` (127.7 → 128.1 bpm on a real
+  83-min indoor session with 15 s of drop-outs). New keys `power_mean`, `power_max`.
+
+### Added — Erasing a user's data (GDPR art. 17)
+
+* `HRVRepository.delete_user_data(user_id) -> dict[str, int]` — deletes every row of a user
+  from all user tables (`hrv_features`, `hrv_orthostatic`, `hrv_coherence`, `hrv_hrr`,
+  `hrv_drift`, `hrv_vo2max`, `hrv_dfa_thresholds`, `hrv_lsct`, `hrv_training_sessions`,
+  `hrv_raw_sessions`, `user_profiles`) and returns the deleted rows per table. Needed by cardioanalysis-api
+  for the right to erasure (`DELETE /v1/me`, `DELETE /v1/admin/accounts/{id}`), which
+  writes no cardiolab SQL.
+  * one transaction, all or nothing: on error the deletions are undone (savepoint) and
+    the exception is raised;
+  * idempotent: a second call, a user without data or a missing table give 0;
+  * deletion order compatible with future foreign keys (profile last);
+  * only the counts are logged, never the `user_id`; empty or non-string `user_id`
+    refused (`ValueError`).
+* `USER_DATA_TABLE_ATTRS` — single list of the user tables (deletion order), also used to
+  validate the table names; `HRVRepository.user_data_tables()` gives the actual names.
+  Guard test: all migrations are run in an empty schema and every table with a `user_id`
+  column must be listed — a future table (LSCT…) cannot be forgotten.
+* `docs/database/migration_guide.md`: « Erasing a user », and step 5 of « Adding a
+  protocol table ».
+
+### Added — DFA α1 thresholds (HRVT1 / HRVT2)
+
+* **Not yet validated on a real incremental test** (synthetic recordings only): thresholds
+  are indicative — status note at the top of `docs/protocols/dfa_thresholds.md`.
+* New protocol `cardiolab.protocols.dfa_thresholds` — aerobic and anaerobic thresholds from
+  an incremental test recorded with a chest strap (Rogers et al. 2021):
+  * `dfa_alpha1_series(rr)` — time-varying DFA α1: 2-minute window centred on each time
+    point, every 5 s, box sizes 4–16 beats, with the mean heart rate of each window;
+  * `dfa_thresholds(rr, intensity=None, intensity_unit=None)` → `DFAThresholdsResult`:
+    heart rate where α1 crosses **0.75 (HRVT1 ≈ VT1)** and **0.5 (HRVT2 ≈ VT2)**, from a
+    linear regression of α1 against heart rate over the decline (α1 1.0–0.5 for HRVT1 as
+    published; 0.75–0.25 for HRVT2, cardiolab choice), moment of each threshold and the
+    power or speed at that moment when provided;
+  * analysis stops at the peak heart rate (recovery ignored); a threshold is never
+    extrapolated — `status` is `detected`, `not_reached` or `unreliable`;
+  * artefacts corrected first (`auto_clean=True`); `PhysiologicalWarning` above 5 % of
+    corrected beats.
+* **Training zones** — `cardiolab.analytics.zones`: `three_zones()` (Seiler: below HRVT1,
+  between, above HRVT2) and `five_zones()` — the five-zone scale of Olympiatoppen's
+  intensity scale (2024), with boundaries **anchored on the measured thresholds** (HRVT1
+  tops zone 2, HRVT2 tops zone 3, I-scale proportions for the inner splits); `zone_of()`.
+  `DFAThresholdsResult.zones(hr_max=None, model=5)`, and `hr_max_observed` — the highest
+  heart rate held for 5 s during the test, used as HRmax by default. No 0–100 score for
+  this test: a threshold is neither good nor bad, progress is read on the power or speed
+  at the threshold.
+* Exported from `cardiolab` (`dfa_thresholds`, `DFAThresholdsResult`) and
+  `cardiolab.protocols` (also `ThresholdEstimate`, `dfa_alpha1_series`).
+* Documentation: `docs/protocols/dfa_thresholds.md` (procedure, method, limits — individual
+  limits of agreement −12 to +8 bpm for HRVT1; training zones). 23 tests on synthetic
+  incremental tests with a controlled α1 decline, 9 tests on the zones.
+
+### Changed — Licence metadata (PEP 639) and README badges
+
+* **Licence declared as an SPDX expression (PEP 639)**: `license = "AGPL-3.0-or-later"` and
+  `license-files = ["LICENCE"]` replace `license = {file = "LICENCE"}`, which copied the
+  whole licence text into the `License` metadata field. The wheel now carries
+  `License-Expression: AGPL-3.0-or-later` and `License-File: LICENCE`. The
+  `License :: OSI Approved :: … (AGPLv3+)` classifier is removed (PEP 639 forbids it next
+  to a licence expression). Build backend: `hatchling>=1.27` (first version supporting
+  PEP 639). The licence itself is unchanged.
+* **README badges**: PyPI version, supported Python versions, pipeline and coverage of
+  `main`, licence. The licence badge reads PyPI, so it shows `AGPL-3.0-or-later` only after
+  the next release.
+
+### Changed — README rewritten for a public package
+
+* The README is now an entry point for users (1 295 → about 400 lines): what cardiolab
+  does, features, installation with pip or uv and the optional extras, a quick start on
+  the sample data, the analysis workflow explained step by step (the « pipeline » is the
+  data-processing chain), a protocols table with one worked example (orthostatic test),
+  scores and follow-up, visualization (one example), reports, storage, supported sensors,
+  examples and notebooks, a documentation index, versions and upgrades, development.
+* Release history and per-version upgrade notes removed from the README: they live in
+  CHANGELOG.md (and the forward roadmap in ROADMAP.md). The detailed API listings and
+  calibration tables now point to `cardiolab/docs/`; the README copies were partly out of
+  date (coherence and VO2max score calibrations, non-linear readiness weights, test count).
+* Links are absolute GitLab URLs so that they also work on the PyPI project page (relative
+  links do not); scientific references folded in a `<details>` block.
 
 ### Changed — Python 3.13 and uv
 
