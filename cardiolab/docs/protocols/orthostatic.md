@@ -48,6 +48,20 @@ Phase 1 — SUPINE          Phase 2 — TRANSITION       Phase 3 — STANDING
 
 ---
 
+## Equipment
+
+| Equipment | Usable | Notes |
+|-----------|--------|-------|
+| **Chest strap** (Polar H10…) + an app that saves the beat intervals (Elite HRV, HRV Logger…) | ✅ recommended | Most accurate — [`sensors/polar.md`](../sensors/polar.md) |
+| **Watch** with HRV logging, paired to a chest strap | ✅ | Garmin: start a short activity — [`sensors/garmin.md`](../sensors/garmin.md) |
+| **Watch alone** (optical wrist sensor) | ⚠️ | Intervals less accurate: RMSSD acceptable at rest if perfectly still, DFA α1 and spectral metrics unreliable |
+| **HRV4Training** (camera, 1 min) | ⚠️ partial | RMSSD only — [`sensors/hrv4training.md`](../sensors/hrv4training.md) |
+| Apple Health export | ❌ | SDNN only, no beat intervals — [`sensors/apple_health.md`](../sensors/apple_health.md) |
+
+Prefer the **chest strap** here: standing up moves the body and a wrist sensor loses beats
+at the transition. Use the **same device, position and time** for every measurement: the score compares you
+with your own history, a change of sensor shifts the values.
+
 ## Recommended measurement frequency
 
 | Frequency | Use case |

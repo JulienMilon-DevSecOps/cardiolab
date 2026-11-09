@@ -36,6 +36,12 @@ cardiolab correspondence (lactate ~2 and ~4 mmol/L, I-scale zones 2 and 3
 reaching ~2.0 and ~3.5 mmol/L) — the I-scale itself is meant to be adapted
 to each athlete from tests.
 
+**Without thresholds** (no test yet), :func:`five_zones_from_hr_max` and
+:func:`three_zones_from_hr_max` fall back on the fixed I-scale percentages of
+HRmax (55 / 72 / 82 / 87 / 92 / 100 %); the three-zone version groups them
+like the anchored model (< 82 %, 82–87 %, > 87 %). These zones are generic:
+the athlete's thresholds can sit well away from 82 and 87 %.
+
 References:
     Seiler, S. (2010). What is best practice for training intensity and
     duration distribution in endurance athletes? International Journal of
@@ -57,6 +63,9 @@ I_SCALE_ZONE2_LOW = 72.0 / 82.0
 
 I_SCALE_ZONE4_SHARE = 5.0 / 13.0
 """Share of the HRVT2 – HRmax span covered by zone 4 (87–92 % of 87–100 %)."""
+
+I_SCALE_PCT_HR_MAX = (55.0, 72.0, 82.0, 87.0, 92.0, 100.0)
+"""Bounds of the five I-scale zones in % of HRmax (Olympiatoppen 2024)."""
 
 
 @dataclass(frozen=True)
@@ -124,6 +133,46 @@ def five_zones(hr_vt1: float, hr_vt2: float, hr_max: float) -> list[HeartRateZon
     ]
 
 
+def five_zones_from_hr_max(hr_max: float) -> list[HeartRateZone]:
+    """Return the five zones as fixed % of HRmax, for an athlete without thresholds.
+
+    Args:
+        hr_max: Maximal heart rate (bpm) — measured, observed or estimated.
+
+    Returns:
+        Five zones at 55–72, 72–82, 82–87, 87–92 and 92–100 % of ``hr_max``.
+
+    Raises:
+        ValueError: If ``hr_max`` is not positive.
+
+    """
+    _check_hr_max(hr_max)
+    b = [hr_max * pct / 100.0 for pct in I_SCALE_PCT_HR_MAX]
+    names = ("recovery", "endurance", "tempo", "threshold", "vo2max")
+    return [HeartRateZone(i + 1, names[i], b[i], b[i + 1]) for i in range(5)]
+
+
+def three_zones_from_hr_max(hr_max: float) -> list[HeartRateZone]:
+    """Return the three zones as fixed % of HRmax (< 82, 82–87, > 87 %).
+
+    Args:
+        hr_max: Maximal heart rate (bpm).
+
+    Returns:
+        Three zones; zone 1 starts at 0 bpm.
+
+    Raises:
+        ValueError: If ``hr_max`` is not positive.
+
+    """
+    _check_hr_max(hr_max)
+    return three_zones(
+        hr_max * I_SCALE_PCT_HR_MAX[2] / 100.0,
+        hr_max * I_SCALE_PCT_HR_MAX[3] / 100.0,
+        hr_max,
+    )
+
+
 def zone_of(hr: float, zones: list[HeartRateZone]) -> int | None:
     """Return the zone number of ``hr``, or ``None`` outside the zones.
 
@@ -135,6 +184,49 @@ def zone_of(hr: float, zones: list[HeartRateZone]) -> int | None:
     if zones and hr == zones[-1].hr_high:
         return zones[-1].zone
     return None
+
+
+def time_in_zones(
+    heart_rate, zones: list[HeartRateZone], sample_sec: float = 1.0
+) -> dict[int, float]:
+    """Return the time spent in each zone (s) from a regularly sampled heart rate.
+
+    Samples below the first zone count in zone 1, above the last one in the
+    last zone (sprints above HRmax, easy minutes below zone 1); missing samples
+    (``nan``) are ignored.
+
+    Args:
+        heart_rate: Heart rate samples (bpm), e.g. ``FitRecords.heart_rate``.
+        zones: Output of :func:`five_zones` or :func:`three_zones`.
+        sample_sec: Interval between two samples (s). Defaults to 1 s (FIT
+            records).
+
+    Returns:
+        ``{zone number: seconds}`` for every zone, 0 when never reached.
+
+    Raises:
+        ValueError: If ``zones`` is empty or ``sample_sec`` is not positive.
+
+    """
+    import numpy as np
+
+    if not zones:
+        raise ValueError("zones must not be empty")
+    if sample_sec <= 0:
+        raise ValueError("sample_sec must be positive")
+    hr = np.asarray(heart_rate, dtype=float)
+    hr = hr[np.isfinite(hr)]
+    # Upper bounds of zones 1 … n−1: a sample goes to the first zone whose top it is below
+    bounds = np.array([z.hr_high for z in zones[:-1]])
+    index = np.searchsorted(bounds, hr, side="right")
+    counts = np.bincount(index, minlength=len(zones))
+    return {z.zone: float(counts[i] * sample_sec) for i, z in enumerate(zones)}
+
+
+def _check_hr_max(hr_max: float) -> None:
+    """Raise ``ValueError`` unless ``hr_max`` is positive."""
+    if not hr_max > 0:
+        raise ValueError(f"HRmax must be positive, got {hr_max}")
 
 
 def _check(hr_vt1: float, hr_vt2: float, hr_max: float) -> None:

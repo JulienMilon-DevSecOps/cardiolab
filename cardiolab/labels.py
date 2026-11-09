@@ -361,6 +361,74 @@ LABELS_EN.update({f"sport_family_{c}": en for c, (en, _fr) in FAMILIES.items()})
 LABELS_FR.update({f"sport_family_{c}": fr for c, (_en, fr) in FAMILIES.items()})
 
 
+# ── DFA α1 thresholds, training zones, LSCT (v0.6.0) ─────────────────────────
+LABELS_EN.update(
+    {
+        "time_min": "Time (min)",
+        "power": "Power (W)",
+        "vt1": "HRVT1",
+        "vt2": "HRVT2",
+        "threshold_status_detected": "Detected",
+        "threshold_status_not_reached": "Not reached",
+        "threshold_status_unreliable": "Unreliable",
+        "dfa_thresholds_title": "DFA α1 thresholds",
+        "alpha1_vs_hr_title": "DFA α1 against heart rate",
+        "threshold_evolution_title": "Thresholds over time",
+        "training_zones_title": "Training zones",
+        "zone_hr_recovery": "Recovery",
+        "zone_hr_endurance": "Endurance",
+        "zone_hr_tempo": "Tempo",
+        "zone_hr_threshold": "Threshold",
+        "zone_hr_vo2max": "VO2max",
+        "zone_hr_below_vt1": "Below threshold 1",
+        "zone_hr_between_thresholds": "Between thresholds",
+        "zone_hr_above_vt2": "Above threshold 2",
+        "lsct_title": "Lamberts submaximal cycle test",
+        "lsct_time": "Time from the start of stage 1 (min)",
+        "lsct_stage2_power": "Stage 2 power (W)",
+        "lsct_stage3_power": "Stage 3 power (W)",
+        "lsct_target_missed": "Stage 3 target not reached",
+        "lsct_evolution_title": "LSCT — power and recovery",
+        "lsct_improving": "Improving",
+        "lsct_fatigue_possible": "Fatigue possible",
+        "lsct_overreaching_possible": "Possible overreaching",
+        "lsct_stable": "Stable",
+    }
+)
+LABELS_FR.update(
+    {
+        "time_min": "Temps (min)",
+        "power": "Puissance (W)",
+        "vt1": "Seuil 1",
+        "vt2": "Seuil 2",
+        "threshold_status_detected": "Détecté",
+        "threshold_status_not_reached": "Non atteint",
+        "threshold_status_unreliable": "Peu fiable",
+        "dfa_thresholds_title": "Seuils DFA α1",
+        "alpha1_vs_hr_title": "DFA α1 selon la fréquence cardiaque",
+        "threshold_evolution_title": "Évolution des seuils",
+        "training_zones_title": "Zones d'entraînement",
+        "zone_hr_recovery": "Récupération",
+        "zone_hr_endurance": "Endurance",
+        "zone_hr_tempo": "Tempo",
+        "zone_hr_threshold": "Seuil",
+        "zone_hr_vo2max": "VO2max",
+        "zone_hr_below_vt1": "Sous le seuil 1",
+        "zone_hr_between_thresholds": "Entre les seuils",
+        "zone_hr_above_vt2": "Au-dessus du seuil 2",
+        "lsct_title": "Test sous-maximal de Lamberts (LSCT)",
+        "lsct_time": "Temps depuis le début du palier 1 (min)",
+        "lsct_stage2_power": "Puissance palier 2 (W)",
+        "lsct_stage3_power": "Puissance palier 3 (W)",
+        "lsct_target_missed": "Cible du palier 3 non atteinte",
+        "lsct_evolution_title": "LSCT — puissance et récupération",
+        "lsct_improving": "En progrès",
+        "lsct_fatigue_possible": "Fatigue possible",
+        "lsct_overreaching_possible": "Surmenage possible",
+        "lsct_stable": "Stable",
+    }
+)
+
 # ── Public helper ─────────────────────────────────────────────────────────────
 
 

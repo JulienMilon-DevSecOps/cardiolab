@@ -68,6 +68,7 @@ conn.close()
 | `V004__add_user_profiles.sql` | v0.2.4 | Adds `user_profiles` table |
 | `V005__add_signal_quality.sql` | v0.4.0 | Adds `quality JSONB` to `hrv_features`, `hrv_orthostatic`, `hrv_coherence`, `hrv_vo2max` ([signal quality](../features/signal_quality.md)) |
 | `V006__training_load_and_ortho_readiness.sql` | v0.5.0 | Adds `rpe` (0–10) and `hr_mean` to `hrv_training_sessions` ([load methods](../training_load/atl_ctl_tsb.md)), `load_method` to `user_profiles`, `readiness_score` to `hrv_orthostatic` (score de forme of the supine phase) and `hr_max_source` to `hrv_vo2max` (`provided` / `tanaka`) |
+| `V007__exercise_tests.sql` | v0.6.0 | Adds `hrv_dfa_thresholds` (DFA α1 thresholds or thresholds entered by hand — `source` `dfa` / `manual`, sport, intensity) and `hrv_lsct` (Lamberts submaximal cycle test, per-stage power / heart rate / RPE, HRR60) |
 
 > **Development databases only** — the `hr_max_source` column was added to V006
 > before the v0.5.0 release. A database that applied an earlier V006 (from the
@@ -110,7 +111,7 @@ ALTER TABLE hrv_features ADD COLUMN IF NOT EXISTS my_column FLOAT;
 Since v0.3.3, every protocol table keyed by `UNIQUE(user_id, date)` is described
 by a `_ProtocolTable` specification in `cardiolab/database/repository.py`; the
 generic `HRVRepository._create`, `_upsert` and `_select` methods do the SQL.
-Adding a protocol therefore takes four small steps:
+Adding a protocol therefore takes five small steps:
 
 1. **Column registry** — `_MYPROTO_COLUMNS = {"user_id": "TEXT NOT NULL",
    "date": "DATE NOT NULL", ...}`. Name each metric column **exactly like the
@@ -125,6 +126,32 @@ Adding a protocol therefore takes four small steps:
    `self._create(_MYPROTO)`, `save_myproto()` →
    `self._upsert(_MYPROTO, (user_id, date, *_MYPROTO.values(result)))`,
    `load_myproto()` → `self._select(_MYPROTO, user_id)`.
+5. **User data list** — add `"myproto_table_name"` to `USER_DATA_TABLE_ATTRS`,
+   before `raw_sessions_table_name`: every table with a `user_id` column must be
+   erased by `delete_user_data()` (right to erasure). The integration test
+   `TestUserTablesGuard` runs all migrations in an empty schema and fails if a
+   table with a `user_id` column is missing from the list.
 
 Then ship the matching `V00N__add_myproto.sql` migration (one schema change per
 version) and integration tests for the round trip.
+
+## Erasing a user (right to erasure)
+
+`HRVRepository.delete_user_data(user_id)` deletes every row of a user from all user
+tables (`user_data_tables()`, built from `USER_DATA_TABLE_ATTRS`) and returns the
+number of deleted rows per table:
+
+```python
+with HRVRepository.from_env() as repo:
+    counts = repo.delete_user_data(user_id)   # {"hrv_features": 112, ..., "user_profiles": 1}
+```
+
+- **All or nothing** — one transaction, committed when the `with` block exits; on any
+  error the deletions already made are undone (savepoint) and the exception is raised.
+- **Idempotent** — a second call, or a user without data, returns 0 for every table; a
+  table that does not exist on the database counts as 0.
+- **Order** — derived results, then training sessions, raw intervals, and the profile
+  last, so the order stays valid if foreign keys to the profile are added.
+- **Logs** — only the counts (`User data deleted: N rows in 9 tables`), never the
+  `user_id`.
+

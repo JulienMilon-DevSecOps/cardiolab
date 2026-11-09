@@ -1,5 +1,10 @@
 # DFA α1 Thresholds Protocol
 
+> **Status (v0.6.0):** the calculation follows the published method and is tested on
+> synthetic recordings, but it has **not yet been checked on a real incremental test**.
+> Treat the thresholds as indicative until then. The test goes to exhaustion: it is not
+> offered in the first version of the cardioanalysis interface.
+
 ## Physiological principle
 
 DFA α1 measures how successive heartbeats are correlated over short scales (4–16
@@ -22,10 +27,16 @@ On an incremental test, the heart rate at which α1 crosses 0.75 (HRVT1) and 0.5
 
 ### Equipment
 
+Set-ups in detail: [`sensors/indoor_cycling.md`](../sensors/indoor_cycling.md) (indoor
+trainer) and [`sensors/garmin.md`](../sensors/garmin.md) (watch).
+
 - A **chest strap** recording beat intervals (Polar H10 or similar). Optical sensors
   (watch, armband) do not give beat-accurate intervals during exercise: do not use them.
 - Optional: a power meter (cycling) or a speed source (treadmill, GPS track) to get the
   power or speed at each threshold.
+- On an indoor trainer driven by an app (MyWhoosh, Zwift…), the app does not record the
+  beat intervals: record the test on the watch with the chest strap and the trainer as power
+  sensor — set-up B of [`sensors/indoor_cycling.md`](../sensors/indoor_cycling.md).
 
 ### Procedure
 
@@ -147,6 +158,23 @@ percentages, the boundaries are anchored on the measured thresholds:
 
 `cardiolab.analytics.zones` also exposes `three_zones()`, `five_zones()` and `zone_of()`
 for thresholds obtained elsewhere (laboratory test).
+
+**Without thresholds**, `five_zones_from_hr_max(hr_max)` and `three_zones_from_hr_max(hr_max)`
+give the fixed I-scale percentages (55 / 72 / 82 / 87 / 92 / 100 % of HRmax; three zones
+< 82, 82–87, > 87 %). They are generic zones, for an athlete who has not done a threshold
+test: individual thresholds can sit well away from 82 and 87 % of HRmax.
+
+## Storage, charts and reports
+
+- **Storage** (migration V007, table `hrv_dfa_thresholds`):
+  `repo.save_dfa_thresholds(ThresholdRecord.from_result(result, date, sport="cycling"), user_id)`.
+  Thresholds measured elsewhere (laboratory) are entered with
+  `ThresholdRecord.manual(date, vt1_hr, vt2_hr, sport=...)` — same table, `source = 'manual'`;
+  `record.zones(hr_max=...)` gives the zones either way. `repo.load_dfa_thresholds(user_id)`
+  returns them by date: the last one of a sport sets its zones.
+- **Charts** (`cardiolab.visualization`): `plot_dfa_alpha1` (α1 and heart rate over the test,
+  both thresholds), `plot_alpha1_vs_hr`, `plot_training_zones`, `plot_threshold_evolution`.
+- **Report and export**: `table_dfa_thresholds_history`, `dfa_thresholds_to_csv` / `_json`.
 
 ## Limitations and precautions
 

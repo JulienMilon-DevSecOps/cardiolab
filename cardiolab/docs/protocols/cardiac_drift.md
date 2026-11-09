@@ -31,6 +31,17 @@ with a warning (the drift is then overestimated).
 
 ## How to perform the protocol
 
+### Equipment
+
+A **chest strap** is required (beat intervals during a long effort). A power meter or a
+constant treadmill speed helps keep the work rate constant.
+
+| Situation | Set-up | Notes |
+|-----------|--------|-------|
+| Outdoors, or treadmill | **Watch with HRV logging + chest strap** (or the strap's app) | Start the recording before the effort and keep it running — [`sensors/garmin.md`](../sensors/garmin.md) |
+| Indoor trainer driven by an app (MyWhoosh, Zwift…) | **Set-up B**: the watch also records, with the strap and the trainer as power sensor | The app alone records heart rate once per second, **not the beat intervals** — [`sensors/indoor_cycling.md`](../sensors/indoor_cycling.md) |
+| Watch alone (optical) | ❌ | Beats lost during effort and movement |
+
 ### Measurement conditions
 
 - **Constant work rate** exercise: cycling at a fixed wattage, running at a steady
@@ -42,8 +53,8 @@ with a warning (the drift is then overestimated).
 
 ### Procedure
 
-1. Start RR recording at the beginning of constant-load exercise (no warm-up in the
-   series).
+1. Start the recording at the beginning of the effort: cardiolab leaves out the first
+   10 minutes itself (`warmup_sec=600`, HR still rising).
 2. Maintain a stable breathing cadence and posture.
 3. Do not drink or stop during the measurement (or log any interruptions).
 4. Export the RR intervals at the end of the session.
@@ -51,10 +62,10 @@ with a warning (the drift is then overestimated).
 ### Recording
 
 ```python
-from cardiolab.signals.rr import RRSeries
 from cardiolab.protocols.cardiac_drift import cardiac_drift
+from cardiolab.sensors_tools import parse_garmin_fit
 
-rr = RRSeries.from_csv("constant_effort.csv")
+rr = parse_garmin_fit("constant_effort.fit")   # watch + chest strap, HRV logging
 result = cardiac_drift(rr, window_sec=60.0)
 
 print(f"Drift rate: {result.drift_rate:.2f} bpm/min")

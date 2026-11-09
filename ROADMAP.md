@@ -30,7 +30,7 @@ starts once the previous one is tagged. Each item maps to one GitLab issue
 | [v0.3.4](#v034--sports-p1) | P1 | Sports reference list, sport validated on save, sport read from `.fit` files — **released 2026-10-16** (includes v0.3.3) | — | No |
 | [v0.4.0](#v040--signal-reliability-p1) | P1 | Artefact correction, spectral fixes, signal quality, reprocessing — **released 2026-10-18** | V005 | **Yes** |
 | [v0.5.0](#v050--athlete-longitudinal-monitoring-p2) | P2 | 7-day lnRMSSD + CV + SWC, trend analysis, real trend component, effort-based load (session RPE), load method per athlete, calculation review — **ready 2026-10-19** | V006 | **Yes** (readiness trend) |
-| [v0.6.0](#v060--exercise-protocols-p2) | P2 | DFA α1 thresholds (VT1/VT2), submaximal test | V007 | No (new protocols) |
+| [v0.6.0](#v060--exercise-protocols-p2) | P2 | DFA α1 thresholds (VT1/VT2), submaximal test, merging two FIT files, zones from HRmax — **ready 2026-11-09** (DFA thresholds not yet validated on a real test) | V007 | No (new protocols) |
 | [v0.7.0](#v070--statistical-intelligence-p3) | P3 | Multivariate anomaly, statistical plots | — | No |
 | [v0.8.0](#v080--autonomic-function-tests-p3) | P3 | Ewing battery (E/I, Valsalva, 30:15) | V008 | No (new protocol) |
 | [v0.9.0](#v090--ppg--prv-p3) | P3 | PPG signals / pulse rate variability | — | No |
@@ -91,10 +91,10 @@ DB: migration V006 (`rpe` and `hr_mean` on training sessions, `load_method` on u
 
 ## v0.6.0 — Exercise protocols (P2)
 
-DB: migration V007 (exercise test results). Requires v0.4.0 (DFA α1 is very sensitive to artefacts).
+Ready 2026-11-09. DB: migration V007 (exercise test results). Requires v0.4.0 (DFA α1 is very sensitive to artefacts).
 
-* 🚧 **DFA α1 during exercise — ventilatory thresholds (VT1 / VT2)** (in progress — done 2026-11-05: calculation, training zones; to do: power / speed import, charts, storage V007, reporting): windowed DFA α1 (2 min, rolling) on an incremental test; HR and power at α1 = 0.75 (aerobic threshold) and α1 = 0.5 (anaerobic threshold). Garmin `.fit` and Polar H10 already provide the RR data.
-* **Submaximal fitness test (LSCT, Lamberts 2011)**: standardised 3-stage test; HR at each stage + HRR60; weekly monitoring without a maximal test.
+* ✅ **DFA α1 during exercise — ventilatory thresholds (VT1 / VT2)** (shipped, **not yet validated on a real test** — the incremental test goes to exhaustion and is left out of the first version of the interface; done: calculation and training zones (2026-11-05), power / heart rate from FIT files, indoor set-ups doc, charts, storage V007 with manual thresholds, reporting (2026-11-06), merging two files (2026-11-08); to do: validation on a real ramp test, in a later version): windowed DFA α1 (2 min, rolling) on an incremental test; HR and power at α1 = 0.75 (aerobic threshold) and α1 = 0.5 (anaerobic threshold). Garmin `.fit` and Polar H10 already provide the RR data.
+* ✅ **Submaximal fitness test (LSCT, Lamberts 2011)** (shipped — done 2026-11-06: protocol, comparison, charts, storage V007, reporting, merging of a watch file and an app file (2026-11-08); first real test 2026-11-09 — chain validated (MyWhoosh FIT, chest strap, analysis), stages 1 and 3 off target because of a hilly route, procedure completed (ERG or flat route); to do: a clean reference test, 2026-11-12 — any fix goes in a patch release): standardised 3-stage test; HR at each stage + HRR60; weekly monitoring without a maximal test.
 
 ## v0.7.0 — Statistical intelligence (P3)
 

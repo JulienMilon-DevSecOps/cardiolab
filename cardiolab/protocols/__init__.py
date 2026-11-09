@@ -5,10 +5,19 @@ from cardiolab.protocols.cardiac_drift import DriftResult, cardiac_drift
 from cardiolab.protocols.dfa_thresholds import (
     DFAThresholdsResult,
     ThresholdEstimate,
+    ThresholdRecord,
     dfa_alpha1_series,
     dfa_thresholds,
 )
 from cardiolab.protocols.hrr import HRRResult, heart_rate_recovery
+from cardiolab.protocols.lsct import (
+    LSCTComparison,
+    LSCTResult,
+    LSCTStage,
+    compare_lsct,
+    lsct,
+    lsct_from_records,
+)
 from cardiolab.protocols.orthostatic import (
     OrthostaticPhases,
     OrthostaticResult,
@@ -46,6 +55,14 @@ __all__ = [
     # DFA α1 thresholds (incremental test)
     "DFAThresholdsResult",
     "ThresholdEstimate",
+    "ThresholdRecord",
     "dfa_alpha1_series",
     "dfa_thresholds",
+    # Lamberts submaximal cycle test
+    "LSCTComparison",
+    "LSCTResult",
+    "LSCTStage",
+    "compare_lsct",
+    "lsct",
+    "lsct_from_records",
 ]

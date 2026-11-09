@@ -18,6 +18,16 @@ Two indicators are computed:
 
 ## How to perform the protocol
 
+### Equipment
+
+A **chest strap** is required: the analysis uses the beat intervals during a hard effort.
+
+| Situation | Set-up | Notes |
+|-----------|--------|-------|
+| Outdoors, or treadmill | **Watch with HRV logging + chest strap** (or the strap's app) | Start the recording before the effort and keep it running — [`sensors/garmin.md`](../sensors/garmin.md) |
+| Indoor trainer driven by an app (MyWhoosh, Zwift…) | **Set-up B**: the watch also records, with the strap and the trainer as power sensor | The app alone records heart rate once per second, **not the beat intervals** — [`sensors/indoor_cycling.md`](../sensors/indoor_cycling.md) |
+| Watch alone (optical) | ❌ | Beats lost during effort and movement |
+
 ### Measurement conditions
 
 - Continuous RR interval recording during exercise AND recovery.
@@ -34,7 +44,8 @@ Two indicators are computed:
 ### Procedure
 
 1. Start RR recording at least 2 min before the effort peak.
-2. Continue recording for **at least 2 min** after the peak.
+2. Continue recording for **at least 2 min** after the peak — do **not** stop the watch
+   activity at the end of the effort: stop it after the recovery.
 3. Identify the effort peak (maximum HR) and trim the series from that point.
 4. Export the RR intervals from the recovery phase.
 
@@ -45,7 +56,13 @@ from cardiolab.signals.rr import RRSeries
 from cardiolab.protocols.hrr import heart_rate_recovery
 
 # The series must start at the effort peak
-rr_recovery = RRSeries.from_csv("recovery.csv")
+import numpy as np
+
+from cardiolab.sensors_tools import parse_garmin_fit
+
+rr = parse_garmin_fit("session.fit")       # whole session, chest strap
+peak_index = int(np.argmax(rr.to_hr()))    # beat of the highest heart rate
+rr_recovery = RRSeries(rr.intervals[peak_index:])
 result = heart_rate_recovery(rr_recovery)
 
 print(f"Peak HR: {result.hr_peak:.0f} bpm")

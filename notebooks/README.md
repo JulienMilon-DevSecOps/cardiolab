@@ -18,7 +18,7 @@ pip install cardiolab jupyter matplotlib
 Pour les notebooks qui accèdent à la base de données (00, 02–08) :
 
 ```bash
-pip install cardiolab[db]   # psycopg2-binary + python-dotenv
+pip install "cardiolab[database]" python-dotenv   # psycopg2-binary ; python-dotenv lit le .env
 ```
 
 Créer un fichier `.env` à la racine du dépôt :

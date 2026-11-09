@@ -55,6 +55,8 @@ Schema migrations:
 
 from __future__ import annotations
 
+import contextlib
+import logging
 import math
 import os
 import re
@@ -69,7 +71,10 @@ from psycopg2.extras import Json
 from cardiolab.analytics.training_load import validate_load_method, validate_rpe
 from cardiolab.protocols.cardiac_coherence import CoherenceResult
 from cardiolab.protocols.cardiac_drift import DriftResult
+from cardiolab.protocols.dfa_thresholds import ThresholdRecord
 from cardiolab.protocols.hrr import HRRResult
+from cardiolab.protocols.lsct import STAGES as _LSCT_STAGES
+from cardiolab.protocols.lsct import LSCTResult, LSCTStage
 from cardiolab.protocols.orthostatic import OrthostaticResult
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.protocols.vo2max import VO2maxResult
@@ -285,6 +290,48 @@ _VO2MAX_COLUMNS: dict[str, str] = {
     "fitness_category": "TEXT",
     "score": "FLOAT DEFAULT 0.0",
     "quality": "JSONB",
+}
+
+
+# ======================
+# EXERCISE TESTS (V007) — COLUMN REGISTRIES
+# ======================
+
+_DFA_THRESHOLDS_COLUMNS: dict[str, str] = {
+    "user_id": "TEXT NOT NULL",
+    "date": "DATE NOT NULL",
+    "sport": "TEXT",
+    "source": "TEXT NOT NULL DEFAULT 'dfa'",
+    "vt1_hr": "FLOAT",
+    "vt2_hr": "FLOAT",
+    "vt1_status": "TEXT",
+    "vt2_status": "TEXT",
+    "vt1_intensity": "FLOAT",
+    "vt2_intensity": "FLOAT",
+    "intensity_unit": "TEXT",
+    "vt1_r_squared": "FLOAT",
+    "vt2_r_squared": "FLOAT",
+    "hr_max_observed": "FLOAT",
+    "quality": "JSONB",
+}
+
+_LSCT_COLUMNS: dict[str, str] = {
+    "user_id": "TEXT NOT NULL",
+    "date": "DATE NOT NULL",
+    "hr_max": "FLOAT",
+    "start_sec": "FLOAT",
+    "hrr_60": "FLOAT",
+    **{
+        f"stage{n}_{field}": sql_type
+        for n in (1, 2, 3)
+        for field, sql_type in (
+            ("power", "FLOAT"),
+            ("hr", "FLOAT"),
+            ("hr_end", "FLOAT"),
+            ("target_reached", "BOOLEAN"),
+            ("rpe", "FLOAT"),
+        )
+    },
 }
 
 
@@ -746,6 +793,65 @@ def _vo2max_from_row(r: dict) -> VO2maxResult:
     )
 
 
+def _dfa_thresholds_from_row(r: dict) -> ThresholdRecord:
+    """Rebuild stored thresholds (NULL floats → ``nan``)."""
+    floats = {
+        k: _or(r[k], math.nan)
+        for k in (
+            "vt1_hr",
+            "vt2_hr",
+            "vt1_intensity",
+            "vt2_intensity",
+            "vt1_r_squared",
+            "vt2_r_squared",
+            "hr_max_observed",
+        )
+    }
+    return ThresholdRecord(
+        **r
+        | floats
+        | {
+            "date": str(r["date"]),
+            "sport": r["sport"] or "other",
+            "vt1_status": r["vt1_status"] or "not_reached",
+            "vt2_status": r["vt2_status"] or "not_reached",
+            "quality": SignalQuality.from_dict(r["quality"]),
+        }
+    )
+
+
+def _lsct_from_row(r: dict) -> LSCTResult:
+    """Rebuild an LSCT (targets recomputed from ``hr_max``)."""
+    hr_max = _or(r["hr_max"], math.nan)
+    stages = [
+        LSCTStage(
+            stage=n,
+            target_pct=pct,
+            target_hr=pct / 100.0 * hr_max,
+            mean_power=_or(r[f"stage{n}_power"], math.nan),
+            mean_hr=_or(r[f"stage{n}_hr"], math.nan),
+            hr_end=_or(r[f"stage{n}_hr_end"], math.nan),
+            target_reached=bool(r[f"stage{n}_target_reached"]),
+            rpe=r[f"stage{n}_rpe"],
+        )
+        for n, (pct, _duration) in enumerate(_LSCT_STAGES, start=1)
+    ]
+    return LSCTResult(
+        stages=stages,
+        hrr_60=_or(r["hrr_60"], math.nan),
+        hr_max=hr_max,
+        start_sec=_or(r["start_sec"], 0.0),
+        date=str(r["date"]),
+    )
+
+
+class _Flat:
+    """Attribute view of a dict, for :meth:`_ProtocolTable.values`."""
+
+    def __init__(self, data: dict) -> None:
+        self.__dict__.update(data)
+
+
 # ======================
 # PROTOCOL TABLE SPECIFICATIONS
 # ======================
@@ -792,6 +898,10 @@ _COHERENCE = _ProtocolTable(
 _HRR = _ProtocolTable("hrr_table_name", _HRR_COLUMNS, _hrr_from_row)
 _DRIFT = _ProtocolTable("drift_table_name", _DRIFT_COLUMNS, _drift_from_row)
 _VO2MAX = _ProtocolTable("vo2max_table_name", _VO2MAX_COLUMNS, _vo2max_from_row)
+_DFA_THRESHOLDS = _ProtocolTable(
+    "dfa_thresholds_table_name", _DFA_THRESHOLDS_COLUMNS, _dfa_thresholds_from_row
+)
+_LSCT = _ProtocolTable("lsct_table_name", _LSCT_COLUMNS, _lsct_from_row)
 
 
 # ======================
@@ -897,6 +1007,31 @@ def _register_quality_adapter() -> None:
 # REPOSITORY
 # ======================
 
+logger = logging.getLogger(__name__)
+
+USER_DATA_TABLE_ATTRS: tuple[str, ...] = (
+    "table_name",
+    "ortho_table_name",
+    "coherence_table_name",
+    "hrr_table_name",
+    "drift_table_name",
+    "vo2max_table_name",
+    "dfa_thresholds_table_name",
+    "lsct_table_name",
+    "training_sessions_table_name",
+    "raw_sessions_table_name",
+    "user_profiles_table_name",
+)
+"""Attributes of :class:`HRVRepository` naming every table that holds user data.
+
+Single list used to validate the table names and to erase a user
+(:meth:`HRVRepository.delete_user_data`): **a new user table must be added
+here** — ``tests/database/test_repository.py`` fails if a migration creates a
+table with a ``user_id`` column that is not listed. Order = deletion order:
+derived results first, then raw intervals, the profile last (the table other
+tables would reference if foreign keys were added).
+"""
+
 
 class HRVRepository:
     """PostgreSQL repository for storing and loading HRV session records.
@@ -945,21 +1080,11 @@ class HRVRepository:
         raw_sessions_table_name: str = "hrv_raw_sessions",
         training_sessions_table_name: str = "hrv_training_sessions",
         user_profiles_table_name: str = "user_profiles",
+        dfa_thresholds_table_name: str = "hrv_dfa_thresholds",
+        lsct_table_name: str = "hrv_lsct",
         port: int = 5432,
     ) -> None:
         """Store connection parameters and validate table names."""
-        for name in (
-            table_name,
-            ortho_table_name,
-            coherence_table_name,
-            hrr_table_name,
-            drift_table_name,
-            vo2max_table_name,
-            raw_sessions_table_name,
-            training_sessions_table_name,
-            user_profiles_table_name,
-        ):
-            _validate_identifier(name)
         self._dsn = {
             "host": host,
             "database": database,
@@ -976,6 +1101,10 @@ class HRVRepository:
         self.raw_sessions_table_name = raw_sessions_table_name
         self.training_sessions_table_name = training_sessions_table_name
         self.user_profiles_table_name = user_profiles_table_name
+        self.dfa_thresholds_table_name = dfa_thresholds_table_name
+        self.lsct_table_name = lsct_table_name
+        for name in self.user_data_tables():
+            _validate_identifier(name)
         self._conn = None
 
     # ── Factory ──────────────────────────────────────────────────────────
@@ -992,6 +1121,8 @@ class HRVRepository:
         raw_sessions_table_name: str = "hrv_raw_sessions",
         training_sessions_table_name: str = "hrv_training_sessions",
         user_profiles_table_name: str = "user_profiles",
+        dfa_thresholds_table_name: str = "hrv_dfa_thresholds",
+        lsct_table_name: str = "hrv_lsct",
     ) -> HRVRepository:
         """Build a repository from environment variables.
 
@@ -1023,6 +1154,9 @@ class HRVRepository:
                 Defaults to ``"hrv_training_sessions"``.
             user_profiles_table_name: User profiles table name. Defaults to
                 ``"user_profiles"``.
+            dfa_thresholds_table_name: DFA α1 thresholds table name. Defaults
+                to ``"hrv_dfa_thresholds"``.
+            lsct_table_name: LSCT table name. Defaults to ``"hrv_lsct"``.
 
         Returns:
             A configured ``HRVRepository`` instance (not yet connected).
@@ -1046,6 +1180,8 @@ class HRVRepository:
             raw_sessions_table_name=raw_sessions_table_name,
             training_sessions_table_name=training_sessions_table_name,
             user_profiles_table_name=user_profiles_table_name,
+            dfa_thresholds_table_name=dfa_thresholds_table_name,
+            lsct_table_name=lsct_table_name,
         )
 
     # ── Connection lifecycle ──────────────────────────────────────────────
@@ -1582,6 +1718,101 @@ class HRVRepository:
 
         """
         return self._select(_VO2MAX, user_id)
+
+    # ── DFA α1 thresholds (V007) ──────────────────────────────────────────
+
+    def create_dfa_thresholds_table(self) -> None:
+        """Create the DFA α1 thresholds table if it does not exist (V007).
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the SQL statement is rejected.
+
+        """
+        self._create(_DFA_THRESHOLDS)
+
+    def save_dfa_thresholds(self, record: ThresholdRecord, user_id: str) -> None:
+        """Insert or update the thresholds of ``record.date`` (test or manual entry).
+
+        Args:
+            record: ``ThresholdRecord.from_result(...)`` for a DFA α1 test, or
+                ``ThresholdRecord.manual(...)`` for values entered by hand.
+            user_id: User identifier.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the insert fails.
+
+        """
+        self._upsert(
+            _DFA_THRESHOLDS,
+            (user_id, record.date, *_DFA_THRESHOLDS.values(record)),
+        )
+
+    def load_dfa_thresholds(self, user_id: str) -> list[ThresholdRecord]:
+        """Load all thresholds of a user, by ascending date (the last one sets the zones).
+
+        Args:
+            user_id: Identifier of the user.
+
+        Returns:
+            List of ``ThresholdRecord``.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        return self._select(_DFA_THRESHOLDS, user_id)
+
+    # ── Lamberts submaximal cycle test (V007) ─────────────────────────────
+
+    def create_lsct_table(self) -> None:
+        """Create the LSCT table if it does not exist (V007).
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the SQL statement is rejected.
+
+        """
+        self._create(_LSCT)
+
+    def save_lsct(
+        self, result: LSCTResult, user_id: str, date: str | None = None
+    ) -> None:
+        """Insert or update one LSCT.
+
+        Args:
+            result: Output of :func:`~cardiolab.protocols.lsct.lsct`.
+            user_id: User identifier.
+            date: ISO date; defaults to ``result.date``.
+
+        Raises:
+            ValueError: If neither ``date`` nor ``result.date`` is set.
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the insert fails.
+
+        """
+        date = date or result.date
+        if not date:
+            raise ValueError("date is required (result.date is not set)")
+        self._upsert(_LSCT, (user_id, date, *_LSCT.values(_Flat(result.to_dict()))))
+
+    def load_lsct(self, user_id: str) -> list[LSCTResult]:
+        """Load all LSCTs of a user, by ascending date.
+
+        Args:
+            user_id: Identifier of the user.
+
+        Returns:
+            List of ``LSCTResult`` (targets recomputed from the stored HRmax).
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        return self._select(_LSCT, user_id)
 
     # ── Raw sessions — schema ────────────────────────────────────────────
 
@@ -2286,6 +2517,81 @@ class HRVRepository:
             return cur.rowcount > 0
 
     # ── User profiles — read ──────────────────────────────────────────────
+
+    # ── User data — erasure (GDPR art. 17) ───────────────────────────────
+
+    def user_data_tables(self) -> list[str]:
+        """Return the names of every table holding user data, in deletion order.
+
+        Built from :data:`USER_DATA_TABLE_ATTRS` with this repository's table
+        names (custom names included).
+
+        Returns:
+            Table names, derived results first, user profile last.
+
+        """
+        return [getattr(self, attr) for attr in USER_DATA_TABLE_ATTRS]
+
+    def delete_user_data(self, user_id: str) -> dict[str, int]:
+        """Delete every row of ``user_id`` from all user tables (right to erasure).
+
+        Deletes from each table of :meth:`user_data_tables`, in that order,
+        inside one transaction: the deletions are committed together when the
+        ``with`` block exits, or not at all. On any error the deletions already
+        made are undone (savepoint) and the exception is raised — even if the
+        caller catches it and goes on in the same block. A table that does not
+        exist on this database counts as 0.
+
+        Idempotent: a second call, or a ``user_id`` without data, returns 0 for
+        every table. Only the row counts are logged — never the ``user_id``.
+
+        Args:
+            user_id: User whose data is erased.
+
+        Returns:
+            Number of deleted rows per table name, in deletion order.
+
+        Raises:
+            ValueError: If ``user_id`` is not a non-empty string.
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If a deletion fails (nothing is deleted).
+
+        Example::
+
+            with HRVRepository.from_env() as repo:
+                counts = repo.delete_user_data(user_id)
+
+        """
+        if not isinstance(user_id, str) or not user_id.strip():
+            raise ValueError("user_id must be a non-empty string")
+        counts: dict[str, int] = {}
+        with self._conn_or_raise().cursor() as cur:
+            cur.execute("SAVEPOINT cardiolab_delete_user_data;")
+            try:
+                for table in self.user_data_tables():
+                    cur.execute("SELECT to_regclass(%s) IS NOT NULL;", (table,))
+                    if not cur.fetchone()[0]:
+                        counts[table] = 0
+                        continue
+                    cur.execute(
+                        sql.SQL("DELETE FROM {table} WHERE user_id = %s;").format(
+                            table=sql.Identifier(table)
+                        ),
+                        (user_id,),
+                    )
+                    counts[table] = cur.rowcount
+            except BaseException:
+                # Undo the deletions already made; keep the original error
+                with contextlib.suppress(Exception):
+                    cur.execute("ROLLBACK TO SAVEPOINT cardiolab_delete_user_data;")
+                raise
+            cur.execute("RELEASE SAVEPOINT cardiolab_delete_user_data;")
+        logger.info(
+            "User data deleted: %d rows in %d tables",
+            sum(counts.values()),
+            len(counts),
+        )
+        return counts
 
     def table_exists(self, table_name: str) -> bool:
         """Return ``True`` when ``table_name`` exists (current ``search_path``).
