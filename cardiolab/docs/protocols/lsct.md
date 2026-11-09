@@ -35,11 +35,20 @@ the heart rate recovery is less informative (r = 0.55–0.68).
 
 1. Warm-up as you like (it is not analysed): note when stage 1 starts.
 2. Ride each stage at its **target heart rate** (±1–2 bpm), not at a power: adjust the power
-   (ERG off, or change the power target) to hold the heart rate.
+   to hold the heart rate. **No gradients**: in the app, use ERG mode (you set the watts,
+   in steps of 5–10 W) or an entirely flat route (gears and cadence). On a hilly route the
+   trainer imposes the resistance — a climb pushes the heart rate above the target, a
+   descent leaves no power to push — and the stages are no longer held at their target
+   (seen on the author's first test, 2026-11-09).
+   The heart rate lags the power by 1–2 min: at the start of a stage, go straight to a
+   reasonable power instead of a burst, then adjust in small steps; lower the power when the
+   heart rate drifts up within a stage.
 3. Note your **perceived exertion** at the end of each stage (same scale every time — the
    0–10 scale of cardioanalysis).
-4. At the end of stage 3, **stop pedalling and sit upright for 90 s**, recording.
-5. Same bike, trainer, time of day and conditions each week.
+4. At the end of stage 3, **stop pedalling and sit upright for 90 s**, recording. Check that
+   the app does not pause the recording when the wheel stops (otherwise HRR60 is missing);
+   if it does, record on the watch too, auto-pause off.
+5. Same bike, trainer, app mode (ERG or flat route), time of day and conditions each week.
 
 ### Recording
 

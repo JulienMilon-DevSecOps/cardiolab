@@ -20,7 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stages 2–3 power and RPE, HRR60; reading `improving` / `fatigue_possible` /
   `overreaching_possible` / `stable` (power ±5 %, RPE +1 — cardiolab heuristics after
   Lamberts 2011 and Decroix et al. 2017).
-* `docs/protocols/lsct.md`. 20 tests on synthetic 1-Hz sessions.
+* `docs/protocols/lsct.md`. 20 tests on synthetic 1-Hz sessions. Procedure completed after a
+  first real test (2026-11-09): ERG mode or flat route, never gradients; no power bursts at
+  the start of a stage; check the app keeps recording during the seated recovery.
 
 ### Added — Storage of the exercise tests (migration V007)
 
