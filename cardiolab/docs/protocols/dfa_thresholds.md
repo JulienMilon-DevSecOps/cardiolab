@@ -1,5 +1,10 @@
 # DFA α1 Thresholds Protocol
 
+> **Status (v0.6.0):** the calculation follows the published method and is tested on
+> synthetic recordings, but it has **not yet been checked on a real incremental test**.
+> Treat the thresholds as indicative until then. The test goes to exhaustion: it is not
+> offered in the first version of the cardioanalysis interface.
+
 ## Physiological principle
 
 DFA α1 measures how successive heartbeats are correlated over short scales (4–16

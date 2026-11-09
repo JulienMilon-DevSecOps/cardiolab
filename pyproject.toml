@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cardiolab"
-version = "0.5.0"
+version = "0.6.0"
 description = "HRV analysis toolkit — scientific core of the cardioanalysis platform"
 authors = [{name = "Julien MILON", email = "julienmilon.devsecops@gmail.com"}]
 readme = "README.md"
@@ -43,10 +43,10 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage"  = "https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab"
-"Source"    = "https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab"
-"Issues"    = "https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/issues"
-"Changelog" = "https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/CHANGELOG.md"
+"Homepage"  = "https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab"
+"Source"    = "https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab"
+"Issues"    = "https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/issues"
+"Changelog" = "https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 analysis = [

@@ -2,9 +2,9 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/cardiolab)](https://pypi.org/project/cardiolab/)
 [![Python versions](https://img.shields.io/pypi/pyversions/cardiolab)](https://pypi.org/project/cardiolab/)
-[![Pipeline](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/badges/main/pipeline.svg)](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/pipelines?ref=main)
-[![Coverage](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/badges/main/coverage.svg)](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/pipelines?ref=main)
-[![License](https://img.shields.io/pypi/l/cardiolab)](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/LICENCE)
+[![Pipeline](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/badges/main/pipeline.svg)](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/pipelines?ref=main)
+[![Coverage](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/badges/main/coverage.svg)](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/pipelines?ref=main)
+[![License](https://img.shields.io/pypi/l/cardiolab)](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/LICENCE)
 
 **Heart rate variability (HRV) analysis for athletes and researchers, in Python.**
 
@@ -120,7 +120,7 @@ interpreted results. Each step is a sub-package that can be used on its own:
 | 6. Present / store | Charts, tables, CSV / JSON, PostgreSQL | `visualization`, `reporting`, `io`, `database` |
 
 Every step is deterministic and covered by tests; the metrics are documented in
-[`docs/features/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/features).
+[`docs/features/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/tree/main/cardiolab/docs/features).
 
 ---
 
@@ -128,18 +128,18 @@ Every step is deterministic and covered by tests; the metrics are documented in
 
 | Protocol | What it tells you | Recording | Function |
 |----------|-------------------|-----------|----------|
-| [Resting](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/docs/protocols/resting.md) | Daily recovery — basis of the readiness score | 5 min lying down, on waking | `resting_hrv()` |
-| [Orthostatic](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/docs/protocols/orthostatic.md) | Response of the nervous system to standing up | 5 min lying + 5 min standing | `orthostatic_hrv()` |
-| [Cardiac coherence](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/docs/protocols/cardiac_coherence.md) | Share of the variability concentrated at the breathing rhythm | 5 min paced breathing, 6 breaths/min | `cardiac_coherence()` |
-| [Heart rate recovery](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/docs/protocols/hrr.md) | How fast the heart slows down after an effort (HRR1, HRR2) | From peak effort, ≥ 2 min | `heart_rate_recovery()` |
-| [Cardiac drift](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/docs/protocols/cardiac_drift.md) | Heart rate rise at a constant pace — endurance | ≥ 20 min of steady effort | `cardiac_drift()` |
-| [VO2max](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/docs/protocols/vo2max.md) | Estimated aerobic capacity, percentile by age and sex | Resting recording + HRmax or age | `vo2max_from_hrv()` |
-| [DFA α1 thresholds](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/docs/protocols/dfa_thresholds.md) | Aerobic and anaerobic thresholds (HRVT1, HRVT2) — heart rate, and power or speed | Incremental test to exhaustion, chest strap | `dfa_thresholds()` |
-| [Submaximal cycle test (LSCT)](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/docs/protocols/lsct.md) | Fitness and fatigue week after week: power at a fixed heart rate | 17 min on the bike, heart rate + power | `lsct()` |
+| [Resting](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/protocols/resting.md) | Daily recovery — basis of the readiness score | 5 min lying down, on waking | `resting_hrv()` |
+| [Orthostatic](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/protocols/orthostatic.md) | Response of the nervous system to standing up | 5 min lying + 5 min standing | `orthostatic_hrv()` |
+| [Cardiac coherence](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/protocols/cardiac_coherence.md) | Share of the variability concentrated at the breathing rhythm | 5 min paced breathing, 6 breaths/min | `cardiac_coherence()` |
+| [Heart rate recovery](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/protocols/hrr.md) | How fast the heart slows down after an effort (HRR1, HRR2) | From peak effort, ≥ 2 min | `heart_rate_recovery()` |
+| [Cardiac drift](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/protocols/cardiac_drift.md) | Heart rate rise at a constant pace — endurance | ≥ 20 min of steady effort | `cardiac_drift()` |
+| [VO2max](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/protocols/vo2max.md) | Estimated aerobic capacity, percentile by age and sex | Resting recording + HRmax or age | `vo2max_from_hrv()` |
+| [DFA α1 thresholds](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/protocols/dfa_thresholds.md) | Aerobic and anaerobic thresholds (HRVT1, HRVT2) — heart rate, and power or speed | Incremental test to exhaustion, chest strap | `dfa_thresholds()` |
+| [Submaximal cycle test (LSCT)](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/protocols/lsct.md) | Fitness and fatigue week after week: power at a fixed heart rate | 17 min on the bike, heart rate + power | `lsct()` |
 
 Each linked page describes how to record the test, how the result is computed and how to
 read it. What comes next: see the
-[roadmap](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/ROADMAP.md).
+[roadmap](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/ROADMAP.md).
 
 ### Example — the orthostatic test
 
@@ -170,16 +170,16 @@ The other protocols follow the same pattern: one function, one result dataclass 
   today's recording with your previous 28 days: lnRMSSD 45 %, resting heart rate 25 %,
   7-day trend 20 %, DFA α1 10 %. It stays at 50 until about a week of history exists
   (two weeks for the trend component).
-  → [`docs/analytics/monitoring.md`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/docs/analytics/monitoring.md)
+  → [`docs/analytics/monitoring.md`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/analytics/monitoring.md)
 * **Training adaptation** — 7-day rolling lnRMSSD, its coefficient of variation and the
   smallest worthwhile change (Plews, Buchheit): `monitoring_series()`.
 * **Trends** — slope and significance over a window of days, sustained declines:
   `linear_trend()`, `detect_sustained_decline()`.
-  → [`docs/analytics/trends.md`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/docs/analytics/trends.md)
+  → [`docs/analytics/trends.md`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/analytics/trends.md)
 * **Training load** — the load of each session (session RPE, heart rate or readiness
   based), then fatigue (ATL, 7 days), fitness (CTL, 42 days) and freshness in % of fitness,
   with zones: `TrainingLoad.from_sessions()`.
-  → [`docs/training_load/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/training_load)
+  → [`docs/training_load/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/tree/main/cardiolab/docs/training_load)
 
 ---
 
@@ -213,7 +213,7 @@ fig.savefig("orthostatic.png", dpi=150, bbox_inches="tight")
 ```
 
 How to read each chart:
-[`docs/visualization/reading_charts.md`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/docs/visualization/reading_charts.md).
+[`docs/visualization/reading_charts.md`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/visualization/reading_charts.md).
 
 ---
 
@@ -222,7 +222,7 @@ How to read each chart:
 * **Tables** (`analysis` extra) — `cardiolab.reporting` builds colour-coded pandas tables
   for every protocol and for the training load, ready for a notebook or
   `styler.to_html()`: `table_orthostatic_comparison(results, dates=dates)`.
-  → [`docs/reporting/tables.md`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/docs/reporting/tables.md)
+  → [`docs/reporting/tables.md`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/reporting/tables.md)
 * **Export** — every result has `to_dict()`; `cardiolab.io` writes CSV and JSON for every
   protocol (`orthostatic_to_json(result, "test.json")`).
 * **Labels** — `LABELS_EN` (default) and `LABELS_FR` translate column headers, legends and
@@ -246,7 +246,7 @@ with HRVRepository.from_env() as repo:     # connection settings from environmen
 
 Raw intervals are kept, so when a release improves a calculation, `reprocess_sessions()`
 recomputes the whole history (dry run first).
-→ [`docs/database/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/database)
+→ [`docs/database/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/tree/main/cardiolab/docs/database)
 
 ---
 
@@ -260,20 +260,20 @@ recomputes the whole history (dry run first).
 | Apple Health | `export.xml` (SDNN only — Apple does not export beat intervals) | `parse_apple_health_export()` | — |
 
 A chest strap gives the most accurate intervals. Recording guides per sensor:
-[`docs/sensors/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/sensors).
+[`docs/sensors/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/tree/main/cardiolab/docs/sensors).
 
 ---
 
 ## Examples and notebooks
 
-* **[`examples/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/examples)**
+* **[`examples/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/tree/main/examples)**
   — 16 runnable scripts, from validating a signal to a full daily workflow: protocols,
   plots, training load, database, reprocessing.
-* **[`notebooks/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/notebooks)**
+* **[`notebooks/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/tree/main/notebooks)**
   — 10 thematic Jupyter notebooks (signal, protocols, analytics, training load, sensors).
 * **Sample data** — 7 real Polar H10 recordings (6 resting, 1 orthostatic) in
   `cardiolab.datasets`: `list_samples()`, `load_sample()`. Data licence CC BY 4.0, see
-  [`datasets/README.md`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/cardiolab/datasets/README.md).
+  [`datasets/README.md`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/datasets/README.md).
 
 ---
 
@@ -281,14 +281,14 @@ A chest strap gives the most accurate intervals. Recording guides per sensor:
 
 | Topic | Where |
 |-------|-------|
-| HRV metrics, artefact correction, signal quality | [`docs/features/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/features) |
-| The eight protocols | [`docs/protocols/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/protocols) |
-| Readiness, monitoring, trends | [`docs/analytics/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/analytics) |
-| Training load, load methods, RPE guide, sports | [`docs/training_load/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/training_load) |
-| Reading the charts | [`docs/visualization/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/visualization) |
-| Report tables | [`docs/reporting/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/reporting) |
-| Database, migrations, reprocessing | [`docs/database/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/database) |
-| Sensors and recording | [`docs/sensors/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/tree/main/cardiolab/docs/sensors) |
+| HRV metrics, artefact correction, signal quality | [`docs/features/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/tree/main/cardiolab/docs/features) |
+| The eight protocols | [`docs/protocols/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/tree/main/cardiolab/docs/protocols) |
+| Readiness, monitoring, trends | [`docs/analytics/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/tree/main/cardiolab/docs/analytics) |
+| Training load, load methods, RPE guide, sports | [`docs/training_load/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/tree/main/cardiolab/docs/training_load) |
+| Reading the charts | [`docs/visualization/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/tree/main/cardiolab/docs/visualization) |
+| Report tables | [`docs/reporting/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/tree/main/cardiolab/docs/reporting) |
+| Database, migrations, reprocessing | [`docs/database/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/tree/main/cardiolab/docs/database) |
+| Sensors and recording | [`docs/sensors/`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/tree/main/cardiolab/docs/sensors) |
 
 ---
 
@@ -299,9 +299,9 @@ values** is always a minor version (`0.x.0`) and comes with a migration note and
 reprocess the history.
 
 * What changed in each release, and how to upgrade:
-  [CHANGELOG.md](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/CHANGELOG.md)
+  [CHANGELOG.md](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/CHANGELOG.md)
 * What comes next:
-  [ROADMAP.md](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/ROADMAP.md)
+  [ROADMAP.md](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/ROADMAP.md)
 
 ---
 
@@ -310,7 +310,7 @@ reprocess the history.
 Contributors work from the lock file with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-git clone https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab.git
+git clone https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab.git
 cd cardiolab
 uv sync --all-extras          # .venv with Python 3.13, all extras + dev tools
 uv run ruff check . && uv run ruff format --check .
@@ -391,7 +391,7 @@ The main sources are below; each documentation page lists the references of its 
 
 ## Licence
 
-* Code: [GNU AGPL v3 or later](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/cardiolab/-/blob/main/LICENCE).
+* Code: [GNU AGPL v3 or later](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/LICENCE).
 * Sample recordings (`cardiolab.datasets`): CC BY 4.0.
 
 cardiolab is developed by Julien MILON as the scientific core of the **cardioanalysis**

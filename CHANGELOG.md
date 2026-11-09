@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 2026-11-03
+## [0.6.0] - 2026-11-09
 
 ### Added — Lamberts submaximal cycle test (LSCT)
 
@@ -117,6 +117,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added — DFA α1 thresholds (HRVT1 / HRVT2)
 
+* **Not yet validated on a real incremental test** (synthetic recordings only): thresholds
+  are indicative — status note at the top of `docs/protocols/dfa_thresholds.md`.
 * New protocol `cardiolab.protocols.dfa_thresholds` — aerobic and anaerobic thresholds from
   an incremental test recorded with a chest strap (Rogers et al. 2021):
   * `dfa_alpha1_series(rr)` — time-varying DFA α1: 2-minute window centred on each time
