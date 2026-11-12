@@ -11,6 +11,7 @@ import pytest
 from cardiolab.sensors_tools.garmin import (
     FitRecords,
     _require_fitparse,
+    align_from_anchors,
     extract_training_session_garmin,
     merge_fit_records,
     parse_fit_records,
@@ -725,3 +726,104 @@ class TestMergeFitRecords:
         res = lsct_from_records(merge_fit_records(watch, app), hr_max=190.0)
         assert res.stage(1).mean_power == pytest.approx(120.0)
         assert res.stage(3).mean_power == pytest.approx(250.0)
+
+    def test_time_scale(self):
+        """A recording whose seconds last 0.96 real second is stretched back."""
+        watch = _records(_T0, range(1000), hr=np.arange(1000.0))  # hr = real time
+        app = _records(_T0, range(1000), power=np.arange(1000.0))
+        res = merge_fit_records(watch, app, second_time_scale=0.96)
+        assert res.duration_sec == 959.0
+        # App second 500 happened at real second 480
+        assert res.power[480] == pytest.approx(500.0)
+        assert res.heart_rate[480] == pytest.approx(480.0)
+
+    def test_clock_second(self):
+        """clock="second": one grid step is one second of the app."""
+        watch = _records(_T0, range(1000), hr=np.arange(1000.0))
+        app = _records(_T0 + timedelta(seconds=40), range(900), power=np.arange(900.0))
+        res = merge_fit_records(watch, app, second_time_scale=0.96, clock="second")
+        assert res.start == _T0 + timedelta(seconds=40)
+        assert res.duration_sec == 899.0
+        assert res.power[500] == 500.0
+        assert res.heart_rate[500] == pytest.approx(40.0 + 0.96 * 500)
+
+    def test_span_first_keeps_the_watch_only_part(self):
+        """span="first": the recovery recorded by the watch alone is kept."""
+        watch = _records(_T0, range(200), hr=[150.0] * 200)
+        app = _records(_T0, range(100), power=[200.0] * 100)
+        res = merge_fit_records(watch, app, span="first")
+        assert res.duration_sec == 199.0
+        assert res.power[99] == 200.0
+        assert np.isnan(res.power[150])
+        assert res.heart_rate[150] == 150.0
+
+    def test_span_all_on_second_clock(self):
+        """span="all" covers both recordings, on the chosen clock."""
+        watch = _records(_T0, range(100), hr=[150.0] * 100)
+        app = _records(_T0 + timedelta(seconds=50), range(100), power=[200.0] * 100)
+        res = merge_fit_records(watch, app, clock="second", span="all")
+        assert res.start == _T0
+        assert res.duration_sec == 149.0
+        assert np.isnan(res.heart_rate[-1])
+        assert np.isnan(res.power[0])
+
+    @pytest.mark.parametrize(
+        ("kwargs", "match"),
+        [
+            ({"second_time_scale": 0.0}, "second_time_scale"),
+            ({"clock": "app"}, "clock"),
+            ({"span": "union"}, "span"),
+        ],
+    )
+    def test_invalid_options_raise(self, kwargs, match):
+        """Unknown clock / span, non-positive scale."""
+        rec = _records(_T0, range(5), hr=[120.0] * 5)
+        with pytest.raises(ValueError, match=match):
+            merge_fit_records(rec, rec, **kwargs)
+
+
+class TestAlignFromAnchors:
+    """align_from_anchors(): offset and scale from landmarks."""
+
+    def test_two_anchors(self):
+        """Test of 2026-11-12: app written 40 s late, 0.96 s per app second."""
+        watch = _records(_T0, range(1023), hr=[120.0] * 1023)
+        app = _records(_T0 + timedelta(seconds=40), range(992), power=[0.0] * 992)
+        offset, scale = align_from_anchors(watch, app, [(40.0, 2.0), (905.0, 902.0)])
+        assert scale == pytest.approx(865 / 900)
+        # App second 2 → watch second 40, app second 902 → watch second 905
+        assert 40 + offset + scale * 2 == pytest.approx(40.0)
+        assert 40 + offset + scale * 902 == pytest.approx(905.0)
+
+    def test_round_trip_with_merge(self):
+        """The anchors put the landmarks at the same merged second."""
+        watch = _records(_T0, range(1000), hr=np.arange(1000.0))
+        app = _records(_T0 + timedelta(seconds=30), range(900), power=np.arange(900.0))
+        offset, scale = align_from_anchors(watch, app, [(10.0, 0.0), (874.0, 900.0)])
+        res = merge_fit_records(
+            watch,
+            app,
+            second_offset_sec=offset,
+            second_time_scale=scale,
+            clock="second",
+        )
+        assert res.heart_rate[0] == pytest.approx(10.0)
+        assert res.heart_rate[450] == pytest.approx(10.0 + 0.96 * 450)
+
+    def test_one_anchor_offset_only(self):
+        """One landmark: offset only, scale 1."""
+        watch = _records(_T0, range(100), hr=[120.0] * 100)
+        app = _records(_T0 + timedelta(seconds=40), range(50), power=[0.0] * 50)
+        offset, scale = align_from_anchors(watch, app, [(10.0, 0.0)])
+        assert scale == 1.0
+        assert offset == pytest.approx(-30.0)
+
+    def test_invalid_anchors(self):
+        """No anchor, twice the same app time, reversed order."""
+        rec = _records(_T0, range(100), hr=[120.0] * 100)
+        with pytest.raises(ValueError, match="anchor"):
+            align_from_anchors(rec, rec, [])
+        with pytest.raises(ValueError, match="different times"):
+            align_from_anchors(rec, rec, [(0.0, 5.0), (10.0, 5.0)])
+        with pytest.raises(ValueError, match="non-positive"):
+            align_from_anchors(rec, rec, [(0.0, 10.0), (10.0, 0.0)])

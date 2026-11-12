@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — Clock correction when merging two FIT files
+
+* `align_from_anchors(first, second, anchors)` — offset and time scale of the second
+  recording from landmarks seen in both (first pedal stroke, stopping pedalling), in seconds
+  since the start of each file; one landmark gives the offset only, two or more the scale too.
+* `merge_fit_records` gains `second_time_scale` (real seconds per recorded second),
+  `clock="first" | "second"` (clock of the result: the watch's real time or the app's time,
+  on which LSCT stages are timed) and `span="overlap" | "first" | "all"` (keep the part only
+  one file recorded, e.g. the seated recovery after the app stopped). Defaults unchanged.
+* Found on the author's reference LSCT (2026-11-12): MyWhoosh wrote its start 40 s late and
+  drifted about 35 s behind the watch over 15 min, irregularly. Without correction the end of
+  stage 3 fell 35 s after the heart rate started to drop: stage 3 read « not reached » and the
+  test « overreaching possible ». `docs/sensors/indoor_cycling.md` (set-up C) explains how to
+  check and correct the alignment. 11 tests.
+
 ## [0.6.0] - 2026-11-09
 
 ### Added — Lamberts submaximal cycle test (LSCT)

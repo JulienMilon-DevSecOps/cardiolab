@@ -130,9 +130,19 @@ Chest strap ──(heart rate)──► watch (indoor cycling activity) ──�
   second over the period both cover. Each series comes from the first file that has it (heart
   rate from the watch, power and cadence from the app). Gaps up to 30 s are interpolated
   (smart recording), longer ones stay missing.
-- Clocks: both devices take their time from GPS or the phone; a difference of a few seconds
-  does not matter for the LSCT (stages of 3–6 min). Correct a larger one with
-  `second_offset_sec`.
+- Clocks: **do not trust them blindly**. On the author's test of 2026-11-12, the start time
+  written by MyWhoosh was 40 s late, and its time drifted from the watch's: about 35 s lost
+  over 15 min, irregularly. Check the alignment on the plot: the heart rate must rise a few
+  seconds *after* each power increase and start falling as soon as you stop pedalling.
+- Correction: locate two **landmarks** in both files (seconds since the start of each): the
+  first pedal stroke (power rises in the app; heart rate rises on the watch a few seconds
+  later), and stopping pedalling (heart rate starts to fall). `align_from_anchors(watch, app,
+  [(watch_s, app_s), (watch_s, app_s)])` returns the offset and the time scale for
+  `merge_fit_records(..., second_offset_sec=, second_time_scale=)`. The correction is linear:
+  an irregular drift is only averaged between the landmarks.
+- For the LSCT, add `clock="second"` (the stages were timed on the app's screen) and
+  `span="all"` (keeps the seated recovery the watch recorded after the app stopped or
+  paused). By default (`span="overlap"`), only the seconds both files cover are kept.
 - Enough for training sessions and the LSCT. For DFA thresholds, the beats still come from the
   watch file (HRV logging on).
 
@@ -144,9 +154,22 @@ Chest strap ──(heart rate)──► watch (indoor cycling activity) ──�
   chaque seconde sur la période couverte par les deux. Chaque série vient du premier fichier
   qui la contient (FC de la montre, puissance et cadence de l'application). Les trous jusqu'à
   30 s sont interpolés (enregistrement intelligent), les plus longs restent vides.
-- Horloges : les deux appareils prennent l'heure du GPS ou du téléphone ; quelques secondes
-  d'écart ne comptent pas pour le LSCT (paliers de 3 à 6 min). Un écart plus grand se corrige
-  avec `second_offset_sec`.
+- Horloges : **ne pas s'y fier les yeux fermés**. Au test de l'auteur du 12/11/2026, l'heure de
+  début écrite par MyWhoosh avait 40 s de retard, et son temps dérivait par rapport à celui de
+  la montre : environ 35 s perdues en 15 min, de façon irrégulière. Vérifiez le recalage sur
+  le graphique : la FC doit monter quelques secondes *après* chaque hausse de puissance, et
+  commencer à baisser dès l'arrêt du pédalage.
+- Correction : repérez deux **repères** dans les deux fichiers (secondes depuis le début de
+  chacun) : le premier coup de pédale (la puissance monte dans l'application, la FC monte sur
+  la montre quelques secondes après) et l'arrêt du pédalage (la FC commence à baisser).
+  `align_from_anchors(montre, application, [(s_montre, s_appli), (s_montre, s_appli)])` donne
+  le décalage et l'échelle de temps pour `merge_fit_records(..., second_offset_sec=,
+  second_time_scale=)`. La correction est linéaire : une dérive irrégulière est seulement
+  moyennée entre les repères.
+- Pour le LSCT, ajoutez `clock="second"` (les paliers ont été chronométrés sur l'écran de
+  l'application) et `span="all"` (garde la récupération assise enregistrée par la montre
+  après l'arrêt ou la pause de l'application). Par défaut (`span="overlap"`), seules les
+  secondes couvertes par les deux fichiers sont gardées.
 - Suffit pour les séances et le LSCT. Pour les seuils DFA, les battements viennent toujours du
   fichier de la montre (VFC activée).
 
@@ -158,6 +181,7 @@ Chest strap ──(heart rate)──► watch (indoor cycling activity) ──�
 from cardiolab.protocols import dfa_thresholds, lsct_from_records
 from cardiolab.sensors_tools import (
     extract_training_session_garmin,
+    align_from_anchors,
     merge_fit_records,
     parse_fit_records,
     parse_garmin_fit,
@@ -177,10 +201,18 @@ rr = parse_garmin_fit("2026-11-12_ramp.fit")
 result = dfa_thresholds(rr, intensity=records.intensity("power"), intensity_unit="W")
 
 # Set-up C — heart rate from the watch, power from the app
-watch = parse_fit_records("2026-11-08_hometrainer_garmin.fit")
-app = parse_fit_records("2026-11-08_hometrainer_mywhoosh.fit")
-merged = merge_fit_records(watch, app)
-lsct_result = lsct_from_records(merged, hr_max=180, start_sec=0)
+watch = parse_fit_records("2026-11-12_hometrainer_garmin_lsct.fit")
+app = parse_fit_records("2026-11-12_hometrainer_mywhoosh_lsct.fit")
+# Landmarks: first pedal stroke (watch 40 s / app 2 s), stop at 15:00 (watch 905 s / app 902 s)
+offset, scale = align_from_anchors(watch, app, [(40, 2), (905, 902)])  # → -1.9 s, 0.961
+merged = merge_fit_records(
+    watch, app, second_offset_sec=offset, second_time_scale=scale,
+    clock="second", span="all",
+)
+# The merged time counts app seconds from the watch start: stage 1 (app second 0)
+# is 39 merged seconds in (the watch started about 38 real seconds before the app)
+app_zero = (app.start - merged.start).total_seconds() + offset  # real seconds
+lsct_result = lsct_from_records(merged, hr_max=180, start_sec=round(app_zero / scale))
 ```
 
 **EN**
