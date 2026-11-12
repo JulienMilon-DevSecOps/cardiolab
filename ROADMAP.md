@@ -31,7 +31,7 @@ starts once the previous one is tagged. Each item maps to one GitLab issue
 | [v0.4.0](#v040--signal-reliability-p1) | P1 | Artefact correction, spectral fixes, signal quality, reprocessing — **released 2026-10-18** | V005 | **Yes** |
 | [v0.5.0](#v050--athlete-longitudinal-monitoring-p2) | P2 | 7-day lnRMSSD + CV + SWC, trend analysis, real trend component, effort-based load (session RPE), load method per athlete, calculation review — **ready 2026-10-19** | V006 | **Yes** (readiness trend) |
 | [v0.6.0](#v060--exercise-protocols-p2) | P2 | DFA α1 thresholds (VT1/VT2), submaximal test, merging two FIT files, zones from HRmax — **ready 2026-11-09** (DFA thresholds not yet validated on a real test) | V007 | No (new protocols) |
-| [v0.6.1](#v061--merging-fixes-p2) | P2 | Clock correction when merging two FIT files (MyWhoosh drift) | — | No |
+| [v0.6.1](#v061--merging-fixes-p2) | P2 | Clock correction when merging two FIT files (MyWhoosh drift) — **ready 2026-11-12** | — | No |
 | [v0.7.0](#v070--statistical-intelligence-p3) | P3 | Multivariate anomaly, statistical plots | — | No |
 | [v0.8.0](#v080--autonomic-function-tests-p3) | P3 | Ewing battery (E/I, Valsalva, 30:15) | V008 | No (new protocol) |
 | [v0.9.0](#v090--ppg--prv-p3) | P3 | PPG signals / pulse rate variability | — | No |
@@ -99,7 +99,9 @@ Ready 2026-11-09. DB: migration V007 (exercise test results). Requires v0.4.0 (D
 
 ## v0.6.1 — Merging fixes (P2)
 
-* 🚧 **Clock correction when merging two FIT files** (in progress 2026-11-12 — done: `align_from_anchors`, `merge_fit_records(second_time_scale, clock, span)`, doc set-up C, local script `--watch-file` / `--anchor`): found on the first reference LSCT (MyWhoosh 35 s behind the watch over 15 min). To consider: piecewise correction with more than two landmarks (the drift was irregular), automatic detection of the landmarks.
+Ready 2026-11-12. No DB change, no change to computed values (new options only).
+
+* ✅ **Clock correction when merging two FIT files** (ready 2026-11-12 — done: `align_from_anchors`, `merge_fit_records(second_time_scale, clock, span)`, doc set-up C, local script `--watch-file` / `--anchor`): found on the first reference LSCT (MyWhoosh 35 s behind the watch over 15 min). To consider: piecewise correction with more than two landmarks (the drift was irregular), automatic detection of the landmarks.
 
 ## v0.7.0 — Statistical intelligence (P3)
 
