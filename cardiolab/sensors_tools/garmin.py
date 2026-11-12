@@ -10,7 +10,8 @@ FIT is the activity format of Garmin devices and of most training apps
 * :func:`extract_training_session_garmin` — the session summary;
 
 and :func:`merge_fit_records`, which combines two recordings of the same
-session (heart rate from the watch, power from the training app).
+session (heart rate from the watch, power from the training app), with
+:func:`align_from_anchors` to correct the clock of one of them.
 
 See ``docs/sensors/indoor_cycling.md`` for the recording set-ups that give
 power, heart rate and beat intervals together.
@@ -250,6 +251,9 @@ def merge_fit_records(
     second: FitRecords,
     *,
     second_offset_sec: float = 0.0,
+    second_time_scale: float = 1.0,
+    clock: str = "first",
+    span: str = "overlap",
     max_gap_sec: float = MERGE_MAX_GAP_SEC,
 ) -> FitRecords:
     """Merge two recordings of the same session into one, on a 1-second grid.
@@ -257,50 +261,96 @@ def merge_fit_records(
     Set-up C of ``docs/sensors/indoor_cycling.md``: the watch records the
     heart rate (chest strap), the training app records the power. Both files
     are aligned on their **timestamps** (UTC, as written in the files) and
-    resampled every second over the period they **both** cover.
+    resampled every second.
 
     Each series comes from the first file that has it (``first`` wins when
     both do): heart rate from the watch, power, cadence and speed from the
     app. Gaps up to ``max_gap_sec`` are filled by linear interpolation —
     watches in "smart recording" write a sample only every 1–15 s; longer
-    gaps (pause, sensor drop-out) stay ``nan``.
+    gaps (pause, sensor drop-out) stay ``nan``. Outside the period a file
+    covers, its series are ``nan``.
+
+    **Clock correction.** A time ``t`` of ``second`` (seconds since its own
+    start) is placed at ``second_offset_sec + second_time_scale × t`` seconds
+    after its written start, on the clock of ``first``. The offset corrects a
+    start time written late or early; the scale corrects a recording that
+    drifts from the watch (MyWhoosh, author's test of 2026-11-12: about 35 s
+    lost over 15 min, scale ≈ 0.96). The correction is linear: a drift that
+    is not regular is only averaged out between the landmarks. Both can be
+    computed from two landmarks with :func:`align_from_anchors`.
 
     Beat intervals (``hrv`` messages) are not part of the records: read them
     with :func:`parse_garmin_fit` from the watch file. They start with the
     watch recording, while ``time_sec`` of the result counts from its own
-    ``start`` (the first second both files cover): add
+    ``start``: with ``clock="first"``, add
     ``(merged.start - watch.start).total_seconds()`` to the merged times
     before pairing them with the beats.
 
     Args:
         first: Recording that takes precedence (usually the watch).
         second: Other recording (usually the training app).
-        second_offset_sec: Seconds added to the timestamps of ``second`` to
+        second_offset_sec: Seconds added to the times of ``second`` to
             correct a clock difference between the two devices (positive when
             its clock is behind).
-        max_gap_sec: Longest gap filled by interpolation (s).
+        second_time_scale: Real seconds (clock of ``first``) per recorded
+            second of ``second``; 1.0 when both clocks run at the same rate.
+        clock: Clock of the result's ``time_sec``: ``"first"`` (real time of
+            the watch) or ``"second"`` (the app's time, the one shown on its
+            screen — use it when a protocol was timed on the app, like the
+            LSCT stages). One step of the grid is one second of that clock.
+        span: Period of the result: ``"overlap"`` (only the seconds both
+            files cover), ``"first"`` (the whole of ``first`` — keeps, for
+            instance, a seated recovery recorded by the watch after the app
+            stopped) or ``"all"`` (from the earliest start to the latest end).
+        max_gap_sec: Longest gap filled by interpolation (s, on ``clock``).
 
     Returns:
-        :class:`FitRecords` at 1 Hz, starting at the first common second.
+        :class:`FitRecords` at 1 Hz on ``clock``. ``start`` is the real time
+        (clock of ``first``) of its first sample.
 
     Raises:
-        ValueError: If the two recordings do not overlap, or ``max_gap_sec``
-            is negative.
+        ValueError: If the two recordings do not overlap, ``max_gap_sec`` is
+            negative, ``second_time_scale`` is not positive, or ``clock`` /
+            ``span`` is unknown.
 
     """
     if max_gap_sec < 0:
         raise ValueError("max_gap_sec must not be negative")
-    abs_first = _absolute_seconds(first, first.start, 0.0)
-    abs_second = _absolute_seconds(second, first.start, second_offset_sec)
-    t_start = np.ceil(max(abs_first[0], abs_second[0]))
-    t_end = np.floor(min(abs_first[-1], abs_second[-1]))
-    if t_end <= t_start:
+    if not second_time_scale > 0:
+        raise ValueError(f"second_time_scale must be positive, got {second_time_scale}")
+    if clock not in ("first", "second"):
+        raise ValueError(f"clock must be 'first' or 'second', got {clock!r}")
+    if span not in ("overlap", "first", "all"):
+        raise ValueError(f"span must be 'overlap', 'first' or 'all', got {span!r}")
+
+    # Times of both recordings in seconds since first.start (clock of first)
+    second_shift = (second.start - first.start).total_seconds() + second_offset_sec
+    abs_first = np.asarray(first.time_sec, dtype=float)
+    abs_second = second_shift + second_time_scale * np.asarray(
+        second.time_sec, dtype=float
+    )
+
+    def to_clock(t_abs: np.ndarray) -> np.ndarray:
+        if clock == "first":
+            return t_abs
+        return (t_abs - second_shift) / second_time_scale
+
+    t_first, t_second = to_clock(abs_first), to_clock(abs_second)
+    overlap_start = max(t_first[0], t_second[0])
+    overlap_end = min(t_first[-1], t_second[-1])
+    if overlap_end <= overlap_start:
         raise ValueError("The two recordings do not overlap in time")
+    lo, hi = {
+        "overlap": (overlap_start, overlap_end),
+        "first": (t_first[0], t_first[-1]),
+        "all": (min(t_first[0], t_second[0]), max(t_first[-1], t_second[-1])),
+    }[span]
+    t_start, t_end = np.ceil(lo), np.floor(hi)
     grid = np.arange(t_start, t_end + 1.0)
 
     series: dict[str, np.ndarray] = {}
     for field in RECORD_FIELDS:
-        source, times = (first, abs_first) if first.has(field) else (second, abs_second)
+        source, times = (first, t_first) if first.has(field) else (second, t_second)
         series[field] = _resample(times, getattr(source, field), grid, max_gap_sec)
 
     sport, sport_raw = (
@@ -308,13 +358,68 @@ def merge_fit_records(
         if first.sport != "other"
         else (second.sport, second.sport_raw)
     )
+    real_start = (
+        float(t_start)
+        if clock == "first"
+        else (second_shift + second_time_scale * float(t_start))
+    )
     return FitRecords(
-        start=first.start + timedelta(seconds=float(t_start)),
+        start=first.start + timedelta(seconds=real_start),
         time_sec=grid - t_start,
         sport=sport,
         sport_raw=sport_raw,
         **series,
     )
+
+
+def align_from_anchors(
+    first: FitRecords,
+    second: FitRecords,
+    anchors: list[tuple[float, float]] | tuple[tuple[float, float], ...],
+) -> tuple[float, float]:
+    """Clock correction of ``second`` from landmarks seen in both recordings.
+
+    A landmark is one moment located in each file, in seconds since the
+    start of that file — for an indoor session: the first pedal stroke (power
+    rises in the app, heart rate starts rising on the watch a few seconds
+    later), or stopping pedalling at the end of an LSCT (the heart rate
+    starts to fall). One landmark gives the offset only; two or more also
+    give the scale (least squares when more than two).
+
+    Args:
+        first: Recording used as the reference clock (usually the watch).
+        second: Recording to correct (usually the training app).
+        anchors: ``(first_sec, second_sec)`` pairs.
+
+    Returns:
+        ``(second_offset_sec, second_time_scale)`` for
+        :func:`merge_fit_records`.
+
+    Raises:
+        ValueError: Without any landmark, or with landmarks that give a
+            non-positive scale (same time twice in ``second``, or order
+            reversed).
+
+    """
+    pairs = np.asarray(anchors, dtype=float).reshape(-1, 2)
+    if len(pairs) == 0:
+        raise ValueError("At least one anchor is needed")
+    shift = (second.start - first.start).total_seconds()
+    f, s = pairs[:, 0], pairs[:, 1]
+    if len(pairs) == 1:
+        scale = 1.0
+    else:
+        if np.ptp(s) == 0:
+            raise ValueError(
+                "The anchors must be at different times in the second file"
+            )
+        scale = float(np.polyfit(s, f, 1)[0])
+        if not scale > 0:
+            raise ValueError(
+                f"The anchors give a non-positive time scale ({scale:.3f})"
+            )
+    offset = float(np.mean(f - scale * s)) - shift
+    return offset, scale
 
 
 def extract_training_session_garmin(filepath: str | Path) -> dict:
@@ -399,14 +504,6 @@ def _read_records(fitfile) -> FitRecords | None:
         cadence=np.array(cadence),
         speed=np.array(speed),
     )
-
-
-def _absolute_seconds(
-    records: FitRecords, origin: datetime, offset_sec: float
-) -> np.ndarray:
-    """Return the record times of ``records`` in seconds since ``origin``."""
-    shift = (records.start - origin).total_seconds() + offset_sec
-    return np.asarray(records.time_sec, dtype=float) + shift
 
 
 def _resample(
