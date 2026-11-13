@@ -176,6 +176,11 @@ The other protocols follow the same pattern: one function, one result dataclass 
 * **Trends** — slope and significance over a window of days, sustained declines:
   `linear_trend()`, `detect_sustained_decline()`.
   → [`docs/analytics/trends.md`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/analytics/trends.md)
+* **Unusual days** — sessions that differ from your previous 90 days on several metrics at
+  once (lnRMSSD, resting heart rate, DFA α1, SD1/SD2), with the metric that deviates most:
+  `is_multivariate_anomaly()`, `anomaly_report()` (robust Mahalanobis distance, from 40
+  sessions).
+  → [`docs/analytics/anomaly.md`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/analytics/anomaly.md)
 * **Training load** — the load of each session (session RPE, heart rate or readiness
   based), then fatigue (ATL, 7 days), fitness (CTL, 42 days) and freshness in % of fitness,
   with zones: `TrainingLoad.from_sessions()`.

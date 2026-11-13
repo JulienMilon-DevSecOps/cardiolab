@@ -17,6 +17,16 @@ from cardiolab.analytics.monitoring import (
     sd_ratio_score,
     swc_band,
 )
+from cardiolab.analytics.multivariate import (
+    MultivariateAnomaly,
+    RobustEstimate,
+    anomaly_report,
+    chi2_threshold,
+    is_multivariate_anomaly,
+    mahalanobis_distance,
+    prediction_threshold,
+    robust_covariance,
+)
 from cardiolab.analytics.scoring import (
     coherence_score_100,
     drift_score,
@@ -70,6 +80,14 @@ __all__ = [
     "orthostatic_readiness_score",
     "orthostatic_score",
     "detect_rmssd_anomaly",
+    "mahalanobis_distance",
+    "robust_covariance",
+    "chi2_threshold",
+    "prediction_threshold",
+    "RobustEstimate",
+    "is_multivariate_anomaly",
+    "MultivariateAnomaly",
+    "anomaly_report",
     "trend_rmssd",
     "linear_trend",
     "TrendResult",

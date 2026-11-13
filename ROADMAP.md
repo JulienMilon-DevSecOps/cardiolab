@@ -107,7 +107,7 @@ Ready 2026-11-12. No DB change, no change to computed values (new options only).
 
 Most useful with ~100+ sessions per user.
 
-* **Multivariate anomaly (Mahalanobis)**: `mahalanobis_distance`, `is_multivariate_anomaly`, `anomaly_report`; guard `n < 30 → insufficient_data`.
+* 🚧 **Multivariate anomaly (Mahalanobis)** (in progress — done 2026-11-12: `mahalanobis_distance`, `robust_covariance` (MCD + screening), `prediction_threshold` (Hotelling T²), `is_multivariate_anomaly`, `anomaly_report`, doc `analytics/anomaly.md`; guard raised to 40 sessions after calibration; to do: try on the author's real history): unusual days on lnRMSSD, resting HR, DFA α1 and SD1/SD2 together, with the metric that deviates most.
 * **Statistical plots**: `visualization/statistical_plots.py` — anomaly timeline, trend overlay with 95 % CI.
 
 ## v0.8.0 — Autonomic function tests (P3)
