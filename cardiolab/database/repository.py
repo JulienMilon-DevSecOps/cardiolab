@@ -69,6 +69,13 @@ from psycopg2 import connect, sql
 from psycopg2.extras import Json
 
 from cardiolab.analytics.training_load import validate_load_method, validate_rpe
+from cardiolab.protocols.autonomic_tests import (
+    AutonomicTestsResult,
+    DeepBreathingResult,
+    Ratio3015Result,
+    ValsalvaResult,
+    deep_breathing_limits,
+)
 from cardiolab.protocols.cardiac_coherence import CoherenceResult
 from cardiolab.protocols.cardiac_drift import DriftResult
 from cardiolab.protocols.dfa_thresholds import ThresholdRecord
@@ -332,6 +339,34 @@ _LSCT_COLUMNS: dict[str, str] = {
             ("rpe", "FLOAT"),
         )
     },
+}
+
+
+# ======================
+# AUTONOMIC TESTS — COLUMN REGISTRY (V008)
+# ======================
+
+_AUTONOMIC_COLUMNS: dict[str, str] = {
+    "user_id": "TEXT NOT NULL",
+    "date": "DATE NOT NULL",
+    "age": "FLOAT",
+    "db_hr_difference": "FLOAT",
+    "db_ei_ratio": "FLOAT",
+    "db_n_cycles": "INTEGER",
+    "db_breathing_rate": "FLOAT",
+    "db_interpretation": "TEXT",
+    "db_reference": "TEXT",
+    "db_status": "TEXT",
+    "valsalva_ratio": "FLOAT",
+    "valsalva_max_hr": "FLOAT",
+    "valsalva_min_hr": "FLOAT",
+    "valsalva_strain_sec": "FLOAT",
+    "valsalva_interpretation": "TEXT",
+    "valsalva_status": "TEXT",
+    "ratio_30_15": "FLOAT",
+    "ratio_30_15_stand_sec": "FLOAT",
+    "ratio_30_15_stand_estimated": "BOOLEAN",
+    "ratio_30_15_interpretation": "TEXT",
 }
 
 
@@ -845,6 +880,50 @@ def _lsct_from_row(r: dict) -> LSCTResult:
     )
 
 
+def _autonomic_from_row(r: dict) -> AutonomicTestsResult:
+    """Rebuild the autonomic tests of a day (cycles and warnings are not stored)."""
+    deep = valsalva = r3015 = None
+    if r["db_hr_difference"] is not None or r["db_status"] is not None:
+        age = r["age"]
+        diff_limit, ratio_limit = (
+            deep_breathing_limits(age) if age is not None else (10.0, math.nan)
+        )
+        deep = DeepBreathingResult(
+            hr_difference=_or(r["db_hr_difference"], math.nan),
+            ei_ratio=_or(r["db_ei_ratio"], math.nan),
+            n_cycles=int(_or(r["db_n_cycles"], 0)),
+            breathing_rate=_or(r["db_breathing_rate"], math.nan),
+            interpretation=_or(r["db_interpretation"], ""),
+            reference=_or(r["db_reference"], "ewing_1985"),
+            age=age,
+            hr_difference_limit=diff_limit,
+            ei_ratio_limit=ratio_limit,
+            status=_or(r["db_status"], "ok"),
+        )
+    if r["valsalva_ratio"] is not None:
+        valsalva = ValsalvaResult(
+            ratio=r["valsalva_ratio"],
+            max_hr=_or(r["valsalva_max_hr"], math.nan),
+            min_hr=_or(r["valsalva_min_hr"], math.nan),
+            baseline_hr=math.nan,
+            strain_sec=_or(r["valsalva_strain_sec"], math.nan),
+            interpretation=_or(r["valsalva_interpretation"], ""),
+            status=_or(r["valsalva_status"], "ok"),
+        )
+    if r["ratio_30_15"] is not None:
+        r3015 = Ratio3015Result(
+            ratio=r["ratio_30_15"],
+            stand_sec=_or(r["ratio_30_15_stand_sec"], math.nan),
+            stand_estimated=bool(r["ratio_30_15_stand_estimated"]),
+            shortest_beat=-1,
+            longest_beat=-1,
+            interpretation=_or(r["ratio_30_15_interpretation"], ""),
+        )
+    return AutonomicTestsResult(
+        date=str(r["date"]), deep_breathing=deep, valsalva=valsalva, ratio_30_15=r3015
+    )
+
+
 class _Flat:
     """Attribute view of a dict, for :meth:`_ProtocolTable.values`."""
 
@@ -902,6 +981,9 @@ _DFA_THRESHOLDS = _ProtocolTable(
     "dfa_thresholds_table_name", _DFA_THRESHOLDS_COLUMNS, _dfa_thresholds_from_row
 )
 _LSCT = _ProtocolTable("lsct_table_name", _LSCT_COLUMNS, _lsct_from_row)
+_AUTONOMIC = _ProtocolTable(
+    "autonomic_table_name", _AUTONOMIC_COLUMNS, _autonomic_from_row
+)
 
 
 # ======================
@@ -1018,6 +1100,7 @@ USER_DATA_TABLE_ATTRS: tuple[str, ...] = (
     "vo2max_table_name",
     "dfa_thresholds_table_name",
     "lsct_table_name",
+    "autonomic_table_name",
     "training_sessions_table_name",
     "raw_sessions_table_name",
     "user_profiles_table_name",
@@ -1082,6 +1165,7 @@ class HRVRepository:
         user_profiles_table_name: str = "user_profiles",
         dfa_thresholds_table_name: str = "hrv_dfa_thresholds",
         lsct_table_name: str = "hrv_lsct",
+        autonomic_table_name: str = "hrv_autonomic_tests",
         port: int = 5432,
     ) -> None:
         """Store connection parameters and validate table names."""
@@ -1103,6 +1187,7 @@ class HRVRepository:
         self.user_profiles_table_name = user_profiles_table_name
         self.dfa_thresholds_table_name = dfa_thresholds_table_name
         self.lsct_table_name = lsct_table_name
+        self.autonomic_table_name = autonomic_table_name
         for name in self.user_data_tables():
             _validate_identifier(name)
         self._conn = None
@@ -1123,6 +1208,7 @@ class HRVRepository:
         user_profiles_table_name: str = "user_profiles",
         dfa_thresholds_table_name: str = "hrv_dfa_thresholds",
         lsct_table_name: str = "hrv_lsct",
+        autonomic_table_name: str = "hrv_autonomic_tests",
     ) -> HRVRepository:
         """Build a repository from environment variables.
 
@@ -1157,6 +1243,8 @@ class HRVRepository:
             dfa_thresholds_table_name: DFA α1 thresholds table name. Defaults
                 to ``"hrv_dfa_thresholds"``.
             lsct_table_name: LSCT table name. Defaults to ``"hrv_lsct"``.
+            autonomic_table_name: Autonomic tests table name. Defaults to
+                ``"hrv_autonomic_tests"``.
 
         Returns:
             A configured ``HRVRepository`` instance (not yet connected).
@@ -1182,6 +1270,7 @@ class HRVRepository:
             user_profiles_table_name=user_profiles_table_name,
             dfa_thresholds_table_name=dfa_thresholds_table_name,
             lsct_table_name=lsct_table_name,
+            autonomic_table_name=autonomic_table_name,
         )
 
     # ── Connection lifecycle ──────────────────────────────────────────────
@@ -1813,6 +1902,60 @@ class HRVRepository:
 
         """
         return self._select(_LSCT, user_id)
+
+    # ── Autonomic tests — Ewing battery (V008) ────────────────────────────
+
+    def create_autonomic_tests_table(self) -> None:
+        """Create the autonomic tests table if it does not exist (V008).
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the SQL statement is rejected.
+
+        """
+        self._create(_AUTONOMIC)
+
+    def save_autonomic_tests(
+        self, result: AutonomicTestsResult, user_id: str, date: str | None = None
+    ) -> None:
+        """Insert or update the autonomic tests of one day.
+
+        A test missing from ``result`` is stored as ``NULL`` (an update of the
+        same day replaces the whole row: pass every test done that day).
+
+        Args:
+            result: ``AutonomicTestsResult`` (deep breathing, Valsalva, 30:15).
+            user_id: User identifier.
+            date: ISO date; defaults to ``result.date``.
+
+        Raises:
+            ValueError: If neither ``date`` nor ``result.date`` is set.
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the insert fails.
+
+        """
+        date = date or result.date
+        if not date:
+            raise ValueError("date is required (result.date is not set)")
+        self._upsert(
+            _AUTONOMIC, (user_id, date, *_AUTONOMIC.values(_Flat(result.to_dict())))
+        )
+
+    def load_autonomic_tests(self, user_id: str) -> list[AutonomicTestsResult]:
+        """Load all autonomic tests of a user, by ascending date.
+
+        Args:
+            user_id: Identifier of the user.
+
+        Returns:
+            List of ``AutonomicTestsResult`` (without the breathing cycles).
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        return self._select(_AUTONOMIC, user_id)
 
     # ── Raw sessions — schema ────────────────────────────────────────────
 

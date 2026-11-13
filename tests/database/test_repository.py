@@ -2371,6 +2371,28 @@ def _lsct_result():
     return lsct(t, hr, pw, HR_MAX, start_sec=300.0, rpe=(3, 5, 7), date="2099-12-02")
 
 
+def _autonomic_result():
+    """Return the three autonomic tests of one day (synthetic signals)."""
+    from cardiolab.protocols.autonomic_tests import (
+        AutonomicTestsResult,
+        deep_breathing_test,
+        ratio_30_15,
+        valsalva_ratio,
+    )
+    from tests.protocols.test_autonomic_tests import (
+        _deep_breathing_rr,
+        _standing_rr,
+        _valsalva_rr,
+    )
+
+    return AutonomicTestsResult(
+        date="2099-12-05",
+        deep_breathing=deep_breathing_test(_deep_breathing_rr(), age=45),
+        valsalva=valsalva_ratio(_valsalva_rr(), 30.0),
+        ratio_30_15=ratio_30_15(_standing_rr()),
+    )
+
+
 _DEFAULT_USER_TABLES = [
     "hrv_features",
     "hrv_orthostatic",
@@ -2380,6 +2402,7 @@ _DEFAULT_USER_TABLES = [
     "hrv_vo2max",
     "hrv_dfa_thresholds",
     "hrv_lsct",
+    "hrv_autonomic_tests",
     "hrv_training_sessions",
     "hrv_raw_sessions",
     "user_profiles",
@@ -2485,7 +2508,7 @@ class TestDeleteUserDataUnit:
         _erasure_cursor(repo)
         with caplog.at_level("INFO", logger="cardiolab.database.repository"):
             repo.delete_user_data("secret-user-42")
-        assert "22 rows in 11 tables" in caplog.text
+        assert "24 rows in 12 tables" in caplog.text
         assert "secret-user-42" not in caplog.text
 
 
@@ -2515,6 +2538,7 @@ class TestDeleteUserDataIntegration:
             repo.create_vo2max_table()
             repo.create_dfa_thresholds_table()
             repo.create_lsct_table()
+            repo.create_autonomic_tests_table()
             repo.create_raw_sessions_table()
             repo.create_training_sessions_table()
             repo.create_user_profiles_table()
@@ -2558,6 +2582,7 @@ class TestDeleteUserDataIntegration:
             ThresholdRecord.manual("2099-12-01", 145, 168, sport="cycling"), user
         )
         repo.save_lsct(_lsct_result(), user, date="2099-12-01")
+        repo.save_autonomic_tests(_autonomic_result(), user, date="2099-12-01")
         repo.save_raw_session(rest, user_id=user, date="2099-12-01", protocol="resting")
         repo.save_training_session(user, "2099-12-01", 45, "running", rpe=3)
         repo.save_user_profile(user)
@@ -2800,3 +2825,87 @@ class TestExerciseTestsUnit:
             ThresholdRecord.manual("2099-12-01", 170, 150)
         with pytest.raises(ValueError, match="HRmax unknown"):
             ThresholdRecord.manual("2099-12-01", 145, 168).zones()
+
+
+@pytest.mark.integration
+class TestAutonomicTestsIntegration:
+    """V008 table: autonomic tests round trips."""
+
+    _USER = "test-v008-user"
+    _TABLES = {"autonomic_table_name": "_cardiolab_test_v008_autonomic"}
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        """Create the table, remove the test user afterwards."""
+        for table in self._TABLES.values():
+            _test_table_drop(table)
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.create_autonomic_tests_table()
+        yield
+        for table in self._TABLES.values():
+            _test_db_cleanup(table, self._USER)
+
+    def test_round_trip(self):
+        """The three tests survive save / load; age limits rebuilt."""
+        result = _autonomic_result()
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_autonomic_tests(result, self._USER)
+            loaded = repo.load_autonomic_tests(self._USER)[0]
+        assert loaded.date == "2099-12-05"
+        db = loaded.deep_breathing
+        assert db.hr_difference == pytest.approx(result.deep_breathing.hr_difference)
+        assert db.reference == "may_1999"
+        assert db.ei_ratio_limit == pytest.approx(result.deep_breathing.ei_ratio_limit)
+        assert loaded.valsalva.ratio == pytest.approx(result.valsalva.ratio)
+        assert loaded.ratio_30_15.stand_estimated is True
+
+    def test_missing_tests_stay_missing(self):
+        """Only the 30:15 that day: the other tests load as None."""
+        from cardiolab.protocols.autonomic_tests import AutonomicTestsResult
+
+        only = AutonomicTestsResult(
+            "2099-12-06", ratio_30_15=_autonomic_result().ratio_30_15
+        )
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_autonomic_tests(only, self._USER)
+            loaded = repo.load_autonomic_tests(self._USER)[0]
+        assert loaded.deep_breathing is None and loaded.valsalva is None
+        assert loaded.ratio_30_15 is not None
+
+
+class TestAutonomicTestsUnit:
+    """V008 methods with a mocked connection, row rebuilding."""
+
+    def test_save_row(self):
+        """One row: user, date, then the 18 flat values."""
+        repo = HRVRepository("h", "db", "u", "p")
+        cur = _mock_repo_conn(repo)
+        repo.save_autonomic_tests(_autonomic_result(), "uid")
+        row = cur.execute.call_args[0][1]
+        assert row[:2] == ("uid", "2099-12-05")
+        assert len(row) == 2 + 18
+
+    def test_save_requires_date(self):
+        """No date on the result nor in the call: ValueError."""
+        from cardiolab.protocols.autonomic_tests import AutonomicTestsResult
+
+        repo = HRVRepository("h", "db", "u", "p")
+        _mock_repo_conn(repo)
+        with pytest.raises(ValueError, match="date is required"):
+            repo.save_autonomic_tests(AutonomicTestsResult(date=""), "uid")
+
+    def test_from_row(self):
+        """A stored row gives back the results; NULL tests are None."""
+        from cardiolab.database.repository import _autonomic_from_row
+
+        row = _autonomic_result().to_dict()
+        rebuilt = _autonomic_from_row(row)
+        assert rebuilt.deep_breathing.interpretation == row["db_interpretation"]
+        assert rebuilt.valsalva.ratio == row["valsalva_ratio"]
+        empty = {k: None for k in row} | {"date": "2099-12-07"}
+        rebuilt = _autonomic_from_row(empty)
+        assert (rebuilt.deep_breathing, rebuilt.valsalva, rebuilt.ratio_30_15) == (
+            None,
+            None,
+            None,
+        )
