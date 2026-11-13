@@ -26,6 +26,7 @@ CSV parsing works without any optional dependency.
 from __future__ import annotations
 
 import csv
+import math
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -444,6 +445,9 @@ def extract_training_session_garmin(filepath: str | Path) -> dict:
           derived from the first and last ``timestamp`` fields.
         * ``"hr_mean"`` / ``"hr_max"`` (:class:`float` | ``None``) — mean and
           maximum heart rate (bpm), ``None`` without heart rate.
+        * ``"hr_peak"`` (:class:`float` | ``None``) — highest heart rate
+          held 5 s (:func:`cardiolab.analytics.hr_max.sustained_peak`), the
+          value stored for the HRmax observed in sessions. Added in 0.10.0.
         * ``"power_mean"`` / ``"power_max"`` (:class:`float` | ``None``) —
           mean and maximum power (W), ``None`` without power.
         * ``"sport"`` (:class:`str`) — sport code of the reference list
@@ -463,6 +467,7 @@ def extract_training_session_garmin(filepath: str | Path) -> dict:
         "duration_min": round(rec.duration_sec / 60.0, 2),
         "hr_mean": _rounded_mean(rec.heart_rate),
         "hr_max": _finite_max(rec.heart_rate),
+        "hr_peak": _held_peak(rec),
         "power_mean": _rounded_mean(rec.power),
         "power_max": _finite_max(rec.power),
         "sport": rec.sport,
@@ -473,6 +478,14 @@ def extract_training_session_garmin(filepath: str | Path) -> dict:
 # ======================
 # INTERNAL HELPERS
 # ======================
+
+
+def _held_peak(rec: FitRecords) -> float | None:
+    """Highest heart rate held 5 s, rounded to 0.1 bpm (``None`` without one)."""
+    from cardiolab.analytics.hr_max import sustained_peak
+
+    peak = sustained_peak(rec.time_sec, rec.heart_rate)
+    return round(peak.hr_max, 1) if math.isfinite(peak.hr_max) else None
 
 
 def _read_records(fitfile) -> FitRecords | None:

@@ -59,7 +59,7 @@ import numpy as np
 
 from cardiolab.analytics.hr_max import (
     SUSTAINED_SEC,
-    clean_heart_rate,
+    heart_rate_1hz,
     held_heart_rate,
     round_bpm,
     sustained_peak,
@@ -171,7 +171,7 @@ def hr_max_test(
     peak = sustained_peak(time_sec, heart_rate)
     if not math.isfinite(peak.hr_max):
         raise ValueError("No 5-s window with a plausible heart rate.")
-    t, hr = clean_heart_rate(time_sec, heart_rate)
+    t, hr = heart_rate_1hz(time_sec, heart_rate)
     held = held_heart_rate(t, hr, SUSTAINED_SEC)
 
     before = t <= peak.time_sec

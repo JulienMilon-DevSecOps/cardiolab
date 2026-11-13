@@ -10,7 +10,9 @@ import numpy as np
 import pytest
 
 from cardiolab.analytics.hr_max import (
+    heart_rate_1hz,
     held_heart_rate,
+    observed_from_peaks,
     observed_hr_max,
     propose_hr_max_update,
     round_bpm,
@@ -230,6 +232,53 @@ class TestObservedHRMax:
         ]
         assert observed_hr_max(sessions)["running"].optical
         assert observed_hr_max(sessions, include_optical=False) == {}
+
+
+class TestSmartRecording:
+    """One sample every few seconds (Garmin smart recording)."""
+
+    def test_resampled_to_1hz(self):
+        """Gaps up to 10 s interpolated, longer ones left empty."""
+        t = np.array([0.0, 5.0, 10.0, 30.0, 31.0])
+        grid, hr = heart_rate_1hz(t, np.array([150.0, 160.0, 170.0, 170.0, 170.0]))
+        assert len(grid) == 32 and hr[2] == pytest.approx(154.0)
+        assert np.isnan(hr[20]) and hr[30] == 170.0
+
+    def test_peak_every_5_s(self):
+        """A plateau sampled every 5 s is still held 5 s."""
+        t = np.arange(0, 600, 5.0)
+        hr = np.where((t >= 300) & (t < 340), 182.0, 150.0)
+        assert sustained_peak(t, hr).hr_max == pytest.approx(182.0)
+
+
+def test_observed_from_peaks():
+    """Stored per-session peaks: highest per sport, optical left out on demand."""
+    rows = [
+        {
+            "activity_id": "a",
+            "date": "2026-11-09",
+            "sport_type": "cycling",
+            "hr_peak": 170.0,
+        },
+        {
+            "activity_id": "b",
+            "date": "2026-09-06",
+            "sport": "running",
+            "hr_peak": 188.0,
+            "hr_peak_optical": True,
+        },
+        {
+            "activity_id": "c",
+            "date": "2026-11-08",
+            "sport_type": "cycling",
+            "hr_peak": None,
+        },
+    ]
+    best = observed_from_peaks(rows)
+    assert (best["cycling"].hr_max, best["cycling"].session_id) == (170.0, "a")
+    assert best["running"].optical
+    assert set(observed_from_peaks(rows, include_optical=False)) == {"cycling"}
+    assert set(observed_from_peaks(rows, sport="running")) == {"running"}
 
 
 # ======================

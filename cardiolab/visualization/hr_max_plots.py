@@ -9,7 +9,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 
-from cardiolab.analytics.hr_max import clean_heart_rate, held_heart_rate
+from cardiolab.analytics.hr_max import (
+    clean_heart_rate,
+    heart_rate_1hz,
+    held_heart_rate,
+)
 from cardiolab.labels import LABELS_EN, lbl
 from cardiolab.sports import get_sport
 
@@ -63,11 +67,14 @@ def plot_hr_max_test(
 
     """
     t, hr = clean_heart_rate(time_sec, heart_rate)
-    held = held_heart_rate(t, hr)
+    grid, hr_1hz = heart_rate_1hz(time_sec, heart_rate)
+    held = held_heart_rate(grid, hr_1hz)
     minutes = t / 60.0
     fig, ax = plt.subplots(figsize=figsize)
     ax.plot(minutes, hr, color=_RAW, linewidth=0.8, label=_t(labels, "hr_max_raw"))
-    ax.plot(minutes, held, color=_HELD, linewidth=1.6, label=_t(labels, "hr_max_held"))
+    ax.plot(
+        grid / 60.0, held, color=_HELD, linewidth=1.6, label=_t(labels, "hr_max_held")
+    )
 
     peak_min = result.peak_time_sec / 60.0
     if result.final_effort_sec > 0:

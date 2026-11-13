@@ -297,6 +297,7 @@ class TestExtractTrainingSessionGarmin:
             "duration_min",
             "hr_mean",
             "hr_max",
+            "hr_peak",
             "power_mean",
             "power_max",
             "sport",
@@ -314,6 +315,18 @@ class TestExtractTrainingSessionGarmin:
 
         expected_mean = sum(_HR_SAMPLES) / len(_HR_SAMPLES)
         assert result["hr_mean"] == pytest.approx(expected_mean, abs=0.1)
+
+    def test_hr_peak_smart_recording(self, tmp_path):
+        """One sample every 5 s (smart recording): held peak still found, below hr_max."""
+        fit_file = tmp_path / "activity.fit"
+        fit_file.write_bytes(b"")
+
+        with patch("cardiolab.sensors_tools.garmin._fitparse") as mock_fp:
+            mock_fp.FitFile.return_value = _make_training_fitfile()
+            result = extract_training_session_garmin(fit_file)
+
+        assert result["hr_peak"] is not None
+        assert 148.0 <= result["hr_peak"] <= max(_HR_SAMPLES)
 
     def test_hr_max_computed(self, tmp_path):
         """hr_max is the maximum HR value."""

@@ -81,8 +81,9 @@ Chart: `plot_hr_max_test(time_sec, heart_rate, res, profile_hr_max=185)`; over t
 
 ## How it is computed
 
-- **Held 5 s**: the heart rate second by second, values outside 30–230 bpm and jumps of more
-  than 25 bpm in one second (sensor drop-outs) removed; a 3-sample median removes an isolated
+- **Held 5 s**: values outside 30–230 bpm and jumps of more than 25 bpm in one second
+  (sensor drop-outs) removed; the heart rate resampled to 1 s (gaps ≤ 10 s interpolated);
+  a 3-sample median removes an isolated
   beat; then the **minimum over each 5-s window** — a value counts only if it was reached for
   the whole 5 seconds. HRmax = the highest of these. A spike of 1 to 4 s never passes; when the
   raw maximum is more than 5 bpm above the held one, a warning reports it (artefact).
@@ -111,6 +112,28 @@ best["cycling"].hr_max                            # sports kept apart
 Same « held 5 s » rule. Sessions recorded with an optical sensor can be flagged
 (`"optical": True`) — the value is marked less reliable — or left out
 (`include_optical=False`).
+
+**From the database, without the files** (migration V010): the peak of each session is
+computed at import and stored with it (`hrv_training_sessions.hr_peak`, and
+`hr_peak_optical`).
+
+```python
+from cardiolab.sensors_tools import extract_training_session_garmin
+
+s = extract_training_session_garmin("2026-11-09_lsct.fit")   # s["hr_peak"] → 170.0
+repo.save_training_session(user_id, "2026-11-09", s["duration_min"], s["sport"],
+                           hr_mean=s["hr_mean"], hr_peak=s["hr_peak"], hr_peak_optical=False)
+
+best = repo.observed_hr_max(user_id)          # {sport: ObservedHRMax}, session_id = activity_id
+```
+
+Sessions imported before v0.10.0 have no peak: import their file again, or fill it with
+`update_training_session(activity_id, hr_peak=...)`. `observed_from_peaks(rows)` does the
+same from any list of stored sessions.
+
+**Smart recording**: many watches store a sample every few seconds. The heart rate is
+resampled to 1 s first (gaps up to 10 s interpolated, longer ones left empty), so a plateau
+sampled every 5 s still counts as held 5 s.
 
 ---
 
@@ -149,7 +172,8 @@ with HRVRepository.from_env() as repo:
 ```
 
 Storage: table `hrv_hr_max_tests` and column `user_profiles.hr_max_source`, migration
-`V009__hr_max.sql`.
+`V009__hr_max.sql`; per-session peaks `hrv_training_sessions.hr_peak` /
+`hr_peak_optical`, migration `V010__session_hr_peak.sql`.
 
 ## Limitations
 

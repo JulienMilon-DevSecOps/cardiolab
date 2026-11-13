@@ -12,9 +12,10 @@ Three better sources, from the most to the least reliable:
 * ``observed`` — the highest heart rate **held 5 s** in the imported sessions
   (:func:`observed_hr_max`). A lower bound: the true HRmax is at least as high.
 
-**Held 5 s**: a 3-sample median of the second-by-second heart rate (an
-isolated spike or dip removed), then the minimum over each 5-s window, then
-the highest of these. A value counts only if it was reached for the whole 5
+**Held 5 s**: the heart rate resampled to 1 s (gaps up to 10 s
+interpolated — « smart recording » files store a sample every few seconds), a
+3-sample median (an isolated spike or dip removed), then the minimum over each
+5-s window, then the highest of these. A value counts only if it was reached for the whole 5
 seconds: a one- to four-second spike (a strap that touches badly, a wrist
 sensor) never passes.
 
@@ -107,6 +108,40 @@ def clean_heart_rate(time_sec, heart_rate) -> tuple[np.ndarray, np.ndarray]:
     return t, hr
 
 
+MAX_GAP_SEC = 10.0
+"""Gaps up to this length (s) are interpolated when resampling to 1 Hz."""
+
+
+def heart_rate_1hz(time_sec, heart_rate, *, max_gap_sec: float = MAX_GAP_SEC):
+    """Return the cleaned heart rate on a 1-s grid.
+
+    Files written with « smart recording » (Garmin) store a sample every few
+    seconds. The cleaned samples (:func:`clean_heart_rate`) are linearly
+    interpolated on a 1-s grid; gaps longer than ``max_gap_sec`` stay ``nan``.
+
+    Args:
+        time_sec: Time of each sample (s).
+        heart_rate: Heart rate (bpm).
+        max_gap_sec: Longest gap filled.
+
+    Returns:
+        ``(grid_sec, heart_rate)`` — empty arrays without a valid sample.
+
+    """
+    t, hr = clean_heart_rate(time_sec, heart_rate)
+    if len(t) == 0:
+        return t, hr
+    grid = np.arange(np.ceil(t[0]), np.floor(t[-1]) + 1.0)
+    values = np.interp(grid, t, hr)
+    if len(t) > 1:
+        gap_end = np.searchsorted(t, grid, side="left")
+        gap_end = np.clip(gap_end, 1, len(t) - 1)
+        too_long = (t[gap_end] - t[gap_end - 1]) > max_gap_sec
+        exact = np.isin(grid, t)
+        values[too_long & ~exact] = math.nan
+    return grid, values
+
+
 def held_heart_rate(
     time_sec, heart_rate, window_sec: float = SUSTAINED_SEC
 ) -> np.ndarray:
@@ -190,7 +225,9 @@ def sustained_peak(
         np.isfinite(raw) & (raw >= HR_PLAUSIBLE[0]) & (raw <= HR_PLAUSIBLE[1])
     ]
     raw_max = float(plausible.max()) if plausible.size else math.nan
-    t, hr = clean_heart_rate(time_sec, heart_rate)
+    t, hr = heart_rate_1hz(time_sec, heart_rate)
+    keep = np.isfinite(hr)
+    t, hr = t[keep], hr[keep]
     if len(hr) == 0:
         return SustainedPeak(math.nan, math.nan, raw_max, window_sec)
     med = held_heart_rate(t, hr, window_sec)
@@ -282,6 +319,53 @@ def observed_hr_max(
                 date=str(date) if date is not None else None,
                 session_id=get("session_id", None),
                 time_sec=peak.time_sec,
+                optical=optical,
+            )
+    return best
+
+
+def observed_from_peaks(
+    sessions: Iterable[dict],
+    *,
+    sport: str | None = None,
+    include_optical: bool = True,
+) -> dict[str, ObservedHRMax]:
+    """Return the HRmax observed per sport from per-session peaks already computed.
+
+    For stored sessions (``HRVRepository.load_training_sessions``): each one
+    carries its ``hr_peak`` (highest heart rate held 5 s, computed at import),
+    so the original files are not needed.
+
+    Args:
+        sessions: Dicts with ``hr_peak`` and optionally ``sport_type`` (or
+            ``sport``), ``date``, ``activity_id`` (or ``session_id``),
+            ``hr_peak_optical``. Sessions without ``hr_peak`` are skipped.
+        sport: Only this sport.
+        include_optical: ``False`` to ignore optical-sensor sessions.
+
+    Returns:
+        ``{sport: ObservedHRMax}``.
+
+    """
+    best: dict[str, ObservedHRMax] = {}
+    for s in sessions:
+        peak = s.get("hr_peak")
+        if peak is None or not math.isfinite(float(peak)):
+            continue
+        s_sport = s.get("sport_type") or s.get("sport") or "other"
+        if sport is not None and s_sport != sport:
+            continue
+        optical = bool(s.get("hr_peak_optical"))
+        if optical and not include_optical:
+            continue
+        current = best.get(s_sport)
+        if current is None or float(peak) > current.hr_max:
+            date = s.get("date")
+            best[s_sport] = ObservedHRMax(
+                sport=s_sport,
+                hr_max=float(peak),
+                date=str(date)[:10] if date is not None else None,
+                session_id=s.get("activity_id") or s.get("session_id"),
                 optical=optical,
             )
     return best

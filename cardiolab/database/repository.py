@@ -68,7 +68,11 @@ from typing import Any
 from psycopg2 import connect, sql
 from psycopg2.extras import Json
 
-from cardiolab.analytics.hr_max import validate_hr_max_source
+from cardiolab.analytics.hr_max import (
+    ObservedHRMax,
+    observed_from_peaks,
+    validate_hr_max_source,
+)
 from cardiolab.analytics.training_load import validate_load_method, validate_rpe
 from cardiolab.protocols.autonomic_tests import (
     AutonomicTestsResult,
@@ -405,6 +409,9 @@ _TRAINING_SESSIONS_COLUMNS: dict[str, str] = {
     "rpe": "SMALLINT CHECK (rpe IS NULL OR rpe BETWEEN 0 AND 10)",
     # Mean heart rate of the session (v0.5.0) — Banister load
     "hr_mean": "FLOAT",
+    # Highest heart rate held 5 s (v0.10.0, V010) — HRmax observed in sessions
+    "hr_peak": "FLOAT",
+    "hr_peak_optical": "BOOLEAN",
 }
 
 # Columns writable by save_training_session() (excludes activity_id, user_id, date)
@@ -422,6 +429,8 @@ _TRAINING_SESSIONS_SELECT_COLUMNS: list[str] = [
     "notes",
     "rpe",
     "hr_mean",
+    "hr_peak",
+    "hr_peak_optical",
 ]
 
 
@@ -2346,6 +2355,8 @@ class HRVRepository:
         notes: str | None = None,
         rpe: int | None = None,
         hr_mean: float | None = None,
+        hr_peak: float | None = None,
+        hr_peak_optical: bool | None = None,
     ) -> str:
         """Insert a new training activity and return its ``activity_id``.
 
@@ -2371,6 +2382,11 @@ class HRVRepository:
                 (CR-10, Foster 2001). ``None`` = not entered. Added in 0.5.0.
             hr_mean: Mean heart rate of the session (bpm), for the Banister
                 load. ``None`` = unknown. Added in 0.5.0.
+            hr_peak: Highest heart rate held 5 s in the session (bpm) —
+                ``extract_training_session_garmin(...)["hr_peak"]``. Feeds
+                :meth:`observed_hr_max`. ``None`` = unknown. Added in 0.10.0.
+            hr_peak_optical: ``True`` when the session was recorded with an
+                optical (wrist) sensor — a less reliable peak. Added in 0.10.0.
 
         Returns:
             The ``activity_id`` (UUID string) of the newly created row.
@@ -2406,6 +2422,8 @@ class HRVRepository:
             notes,
             rpe,
             hr_mean,
+            hr_peak,
+            hr_peak_optical,
         )
         with self._conn_or_raise().cursor() as cur:
             cur.execute(query, row)
@@ -2417,7 +2435,7 @@ class HRVRepository:
         Args:
             activity_id: Identifier returned by :meth:`save_training_session`.
             **fields: Among ``duration_min``, ``sport_type``, ``trimp``,
-                ``notes``, ``rpe``, ``hr_mean``. ``sport_type`` and ``rpe`` are
+                ``notes``, ``rpe``, ``hr_mean``, ``hr_peak``, ``hr_peak_optical``. ``sport_type`` and ``rpe`` are
                 validated as in :meth:`save_training_session`.
 
         Returns:
@@ -2485,8 +2503,8 @@ class HRVRepository:
         Returns:
             List of dicts, one per activity, sorted ascending by date.
             Each dict has keys: ``activity_id``, ``date``, ``duration_min``,
-            ``sport_type``, ``trimp``, ``notes``, ``rpe``, ``hr_mean`` (``None`` if
-            not entered).
+            ``sport_type``, ``trimp``, ``notes``, ``rpe``, ``hr_mean``,
+            ``hr_peak``, ``hr_peak_optical`` (``None`` if not entered).
             Multiple activities on the same day appear as distinct rows.
 
         Raises:
@@ -2514,6 +2532,43 @@ class HRVRepository:
             | {"date": str(row[1])}
             for row in rows
         ]
+
+    def observed_hr_max(
+        self,
+        user_id: str,
+        *,
+        sport: str | None = None,
+        include_optical: bool = True,
+    ) -> dict[str, ObservedHRMax]:
+        """Return the HRmax observed in the stored sessions, per sport (V010).
+
+        Reads the ``hr_peak`` of each session (highest heart rate held 5 s,
+        stored at import); sessions without it are skipped. Same result as
+        :func:`~cardiolab.analytics.hr_max.observed_hr_max` on the original
+        files, without them.
+
+        Args:
+            user_id: User identifier.
+            sport: Only this sport (``None`` → every sport, separately).
+            include_optical: ``False`` to ignore sessions recorded with an
+                optical sensor.
+
+        Returns:
+            ``{sport: ObservedHRMax}`` (``session_id`` = ``activity_id``).
+            Propose an update with
+            :func:`~cardiolab.analytics.hr_max.propose_hr_max_update` — never
+            applied here.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        return observed_from_peaks(
+            self.load_training_sessions(user_id),
+            sport=sport,
+            include_optical=include_optical,
+        )
 
     def find_training_sessions(
         self,
