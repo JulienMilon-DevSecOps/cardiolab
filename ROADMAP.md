@@ -33,7 +33,7 @@ starts once the previous one is tagged. Each item maps to one GitLab issue
 | [v0.6.0](#v060--exercise-protocols-p2) | P2 | DFA α1 thresholds (VT1/VT2), submaximal test, merging two FIT files, zones from HRmax — **ready 2026-11-09** (DFA thresholds not yet validated on a real test) | V007 | No (new protocols) |
 | [v0.6.1](#v061--merging-fixes-p2) | P2 | Clock correction when merging two FIT files (MyWhoosh drift) — **ready 2026-11-12** | — | No |
 | [v0.7.0](#v070--statistical-intelligence-p3) | P3 | Multivariate anomaly, statistical plots — **ready 2026-11-13** (not yet tried on a real history) | — | No |
-| [v0.8.0](#v080--autonomic-function-tests-p3) | P3 | Ewing battery (E/I, Valsalva, 30:15) | V008 | No (new protocol) |
+| [v0.8.0](#v080--autonomic-function-tests-p3) | P3 | Ewing battery (E/I, Valsalva, 30:15) — **ready 2026-11-13** (age-corrected values for deep breathing only; not yet tried on a real test) | V008 | No (new protocol) |
 | [v0.9.0](#v090--ppg--prv-p3) | P3 | PPG signals / pulse rate variability | — | No |
 | [v0.10.0](#v0100--hrmax-field-test-p3) | P3 | HRmax field test, observed HRmax — **last, after v0.9.0** | V009 | No (new protocol; HRmax-based values change only if the athlete adopts the measured HRmax) |
 
@@ -114,9 +114,9 @@ Most useful with ~100+ sessions per user.
 
 ## v0.8.0 — Autonomic function tests (P3)
 
-DB: migration V008.
+Ready 2026-11-13. DB: migration V008 (new table `hrv_autonomic_tests`, nothing changed in the existing ones).
 
-* 🚧 **Ewing battery** (in progress — done 2026-11-13: `deep_breathing_test`, `valsalva_ratio`, `ratio_30_15`, Ewing 1985 cut-offs, age-corrected deep breathing limits (May 1999), migration V008 `hrv_autonomic_tests`, doc `protocols/autonomic_tests.md`; to do: age-specific values for Valsalva and 30:15 (Low 1997, Gelber 1997 tables not integrated), a real test of the author): deep breathing (6 breaths/min, E/I ratio), Valsalva ratio, 30:15 ratio on standing (reuses orthostatic phase detection).
+* ✅ **Ewing battery** (ready 2026-11-13 — done: `deep_breathing_test`, `valsalva_ratio`, `ratio_30_15`, Ewing 1985 cut-offs, age-corrected deep breathing limits (May 1999), migration V008 `hrv_autonomic_tests`, doc `protocols/autonomic_tests.md`; still to do: age-specific values for Valsalva and 30:15 (Low 1997, Gelber 1997 tables not integrated), a real test of the author): deep breathing (6 breaths/min, E/I ratio), Valsalva ratio, 30:15 ratio on standing (reuses orthostatic phase detection).
 
 ## v0.9.0 — PPG / PRV (P3)
 
