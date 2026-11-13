@@ -120,7 +120,7 @@ Ready 2026-11-13. DB: migration V008 (new table `hrv_autonomic_tests`, nothing c
 
 ## v0.9.0 — PPG / PRV (P3)
 
-* **PPG signals and pulse rate variability**: `PPGSignal` (filtering, systolic peak detection), conversion to an RR-like series, PRV vs HRV limits (documented), Lomb-Scargle by default.
+* 🚧 **PPG signals and pulse rate variability** (in progress — done 2026-11-13: `PPGSignal` (band-pass, motion, Elgendi peaks with sub-sample timing, pulse regularity), `to_rr()`, `parse_ppg_csv`, `is_ppg`, PPG-aware signal quality, doc `sensors/ppg.md`; to do: compare with a chest strap on a real recording — phone camera or optical sensor — before relying on it): `PPGSignal` (filtering, systolic peak detection), conversion to an RR-like series, PRV vs HRV limits (documented), Lomb-Scargle by default.
 
 ## v0.10.0 — HRmax field test (P3)
 

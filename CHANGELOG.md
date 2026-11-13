@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — PPG signals and pulse rate variability (PRV)
+
+* New `cardiolab.signals.ppg.PPGSignal(data, sampling_rate | timestamps, source=,
+  invert=)`: band-pass 0.5–8 Hz, motion windows set aside, systolic peaks (two moving
+  averages, Elgendi et al. 2013) with sub-sample timing (parabola — usable at 30 Hz from a
+  phone camera), `to_rr()` → `RRSeries` of pulse intervals, artefacts corrected, metadata
+  `signal_type = "ppg"`, source, sampling rate, motion share, pulse regularity.
+  Uneven timestamps resampled; under 20 Hz refused, under 50 Hz a warning.
+* `pulse_regularity()`: autocorrelation at one beat, median over 10-s windows (pulse
+  ≈ 0.7–0.8, noise ≈ 0.15). `signal_quality()` grades PPG intervals `poor` below 0.4 — a
+  sensor off the skin no longer gives "good" intervals made of noise.
+* `cardiolab.signals.is_ppg(rr)` to keep PPG and chest-strap sessions apart.
+* `cardiolab.sensors_tools.parse_ppg_csv(path, value_column, time_column= | sampling_rate=)`:
+  any CSV (delimiter detected, decimal commas, time in s / ms / µs / ns).
+* Lomb-Scargle stays the default spectral method (since 0.4.0) — suited to pulse intervals.
+* Doc `docs/sensors/ppg.md`: PRV vs HRV, rest only, one sensor type per baseline, which
+  devices export a raw PPG, how to record (finger on the camera, wrist). Checked on
+  synthetic pulse waves: largest interval error 3.4 ms at 100 Hz, 6.8 ms at 30 Hz; not yet
+  compared with a chest strap on a real recording.
+
 ## [0.8.0] - 2026-11-13
 
 ### Added — Autonomic reflex tests (Ewing battery)
