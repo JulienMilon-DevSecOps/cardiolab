@@ -38,6 +38,9 @@ orthostatic_plots
 monitoring_plots
     Training adaptation monitoring (Plews): 7-day lnRMSSD mean against the SWC
     band, coloured by state, with the 7-day CV on a second axis.
+statistical_plots
+    Multivariate anomalies over time (Mahalanobis distance, threshold, deviation
+    of each metric) and trend lines with their 95 % confidence band.
 vo2max_plots
     VO2max estimation from HRV: grouped model comparison bars with ACSM zone
     backgrounds, multi-session best-estimate evolution with ±10 % uncertainty
@@ -109,6 +112,10 @@ from cardiolab.visualization.spectral_plots import (
     plot_psd_welch,
     plot_spectral_heatmap,
 )
+from cardiolab.visualization.statistical_plots import (
+    plot_anomaly_timeline,
+    plot_trend_overlay,
+)
 from cardiolab.visualization.training_load_plots import (
     plot_atl_ctl_tsb,
     plot_trimp_history,
@@ -131,6 +138,9 @@ __all__ = [
     "plot_lsct_evolution",
     # monitoring_plots
     "plot_ln_rmssd_monitoring",
+    # statistical_plots
+    "plot_anomaly_timeline",
+    "plot_trend_overlay",
     # training_load_plots
     "plot_atl_ctl_tsb",
     "plot_trimp_history",
