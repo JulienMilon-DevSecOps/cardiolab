@@ -2334,6 +2334,9 @@ class TestV006Integration:
             (self._TABLES["training_sessions_table_name"], "hr_mean"),
             (self._TABLES["user_profiles_table_name"], "load_method"),
             (self._TABLES["vo2max_table_name"], "hr_max_source"),
+            # Not from V006: the profiles table is created from the current
+            # registry, which has user_profiles.hr_max_source since V009 (v0.10.0)
+            (self._TABLES["user_profiles_table_name"], "hr_max_source"),
         }
 
     def test_load_method_and_hr_mean(self):
