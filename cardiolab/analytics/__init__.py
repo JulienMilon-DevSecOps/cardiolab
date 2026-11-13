@@ -51,9 +51,11 @@ from cardiolab.analytics.training_load import (
 )
 from cardiolab.analytics.trends import (
     SustainedDecline,
+    TrendLine,
     TrendResult,
     detect_sustained_decline,
     linear_trend,
+    trend_line,
     trend_report,
     trend_rmssd,
 )
@@ -91,6 +93,8 @@ __all__ = [
     "trend_rmssd",
     "linear_trend",
     "TrendResult",
+    "trend_line",
+    "TrendLine",
     "detect_sustained_decline",
     "SustainedDecline",
     "trend_report",

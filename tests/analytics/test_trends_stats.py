@@ -8,11 +8,13 @@ from datetime import date, timedelta
 import numpy as np
 import pytest
 from scipy.stats import linregress
+from scipy.stats import t as student_t
 
 from cardiolab.analytics.baseline import Baseline
 from cardiolab.analytics.trends import (
     detect_sustained_decline,
     linear_trend,
+    trend_line,
     trend_report,
     trend_rmssd,
 )
@@ -246,3 +248,81 @@ class TestReport:
         assert result["slope"] > 1.0  # labelled "increasing" before 0.5.0
         assert result["p_value"] > 0.05
         assert result["trend"] == "stable"
+
+
+# ======================
+# trend_line — confidence band of the line
+# ======================
+
+
+@pytest.mark.unit
+class TestTrendLine:
+    """trend_line(): same fit as linear_trend, band corrected like the p-value."""
+
+    def test_same_fit_as_linear_trend(self):
+        """Fitted line and result identical to linear_trend on the same window."""
+        rng = np.random.default_rng(1)
+        series = _dated([50 + 0.2 * d + rng.normal(0, 2) for d in range(60)])
+        tl = trend_line(series, 30)
+        assert tl.result == linear_trend(series, 30)
+        assert len(tl.days) == len(tl.values) == 30
+        assert tl.days[0] > date.fromisoformat(series[-31][0])
+        np.testing.assert_allclose(
+            tl.fitted, tl.result.intercept + tl.result.slope * tl.x
+        )
+
+    def test_band_formula_without_autocorrelation(self):
+        """Independent noise: half-width t × s × √(1/n + …), narrowest at the centre."""
+        values = [50 + 0.1 * d + (1.0 if d % 2 else -1.0) for d in range(21)]
+        tl = trend_line(_dated(values))
+        assert tl.result.n_eff == tl.result.n  # alternating residuals: r1 < 0
+        fit = linregress(tl.x, tl.values)
+        s = np.sqrt(np.sum((tl.values - tl.fitted) ** 2) / (21 - 2))
+        centre = student_t.ppf(0.975, 19) * s / np.sqrt(21)
+        half = (tl.upper - tl.lower) / 2
+        assert half[10] == pytest.approx(centre)
+        assert half.argmin() == 10
+        assert half[0] > half[10] and half[-1] > half[10]
+        assert np.all(tl.lower <= tl.fitted) and np.all(tl.fitted <= tl.upper)
+        assert fit.slope == pytest.approx(tl.result.slope)
+
+    def test_autocorrelation_widens_band(self):
+        """Slowly wandering residuals: n_eff < n, band wider than the naive one."""
+        rng = np.random.default_rng(4)
+        walk = np.cumsum(rng.normal(0, 1, 60))
+        tl = trend_line(_dated(list(50 + walk)))
+        assert tl.result.n_eff < tl.result.n
+        n = tl.result.n
+        s = np.sqrt(np.sum((tl.values - tl.fitted) ** 2) / (n - 2))
+        naive = student_t.ppf(0.975, n - 2) * s / np.sqrt(n)
+        assert (tl.upper - tl.lower).min() / 2 > naive
+
+    def test_coverage(self):
+        """White noise: the true line at the centre is inside the band ≈ 95 % of the time."""
+        rng = np.random.default_rng(0)
+        inside = 0
+        for _ in range(400):
+            values = [40 + 0.3 * d + rng.normal(0, 3) for d in range(31)]
+            tl = trend_line(_dated(values))
+            inside += tl.lower[15] <= 40 + 0.3 * 15 <= tl.upper[15]
+        assert 0.90 <= inside / 400 <= 0.99
+
+    def test_level(self):
+        """A lower level gives a narrower band."""
+        series = _dated([50 + np.sin(d) for d in range(20)])
+        wide, narrow = trend_line(series), trend_line(series, level=0.8)
+        assert np.all(narrow.upper - narrow.lower < wide.upper - wide.lower)
+        with pytest.raises(ValueError, match="level"):
+            trend_line(series, level=1.0)
+
+    def test_insufficient_data(self):
+        """Fewer than 5 values: everything nan."""
+        tl = trend_line(_dated([50, 51, 52]))
+        assert tl.result.label == "insufficient_data"
+        assert np.isnan(tl.fitted).all() and np.isnan(tl.lower).all()
+
+    def test_flat_series(self):
+        """Perfectly flat: zero-width band on the line."""
+        tl = trend_line(_dated([50.0] * 10))
+        np.testing.assert_allclose(tl.lower, 50.0)
+        np.testing.assert_allclose(tl.upper, 50.0)

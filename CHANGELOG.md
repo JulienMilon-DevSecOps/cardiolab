@@ -32,6 +32,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   proposed 30 and a fixed threshold of 3.0, still available with `threshold=`).
 * `docs/analytics/anomaly.md`. 21 tests.
 
+### Added — Statistical plots
+
+* `trend_line(series, window_days)` → `TrendLine`: the fitted line of `linear_trend()` and
+  its confidence band (95 % by default), with the same autocorrelation correction as the
+  p-value (effective sample size).
+* New module `cardiolab.visualization.statistical_plots`:
+  * `plot_anomaly_timeline(report)` — distance of each session against its threshold,
+    unusual sessions (purple diamonds), period without enough reference, sessions not
+    checked; bottom panel with the deviation of each metric (SD).
+  * `plot_trend_overlay(series, windows=(30,))` — values, one trend line per window
+    coloured by its label, confidence band, slope per week and p-value in the legend,
+    sustained decline highlighted.
+* EN / FR labels (`anomaly_*`, `trend_*`). Docs: `analytics/anomaly.md` and
+  `analytics/trends.md`. 23 tests.
+
+### Changed
+
+* `linear_trend()`: the window selection moved to a shared helper (no change of results).
+
 ## [0.6.1] - 2026-11-12
 
 ### Added — Clock correction when merging two FIT files

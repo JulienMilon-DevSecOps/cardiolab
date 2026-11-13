@@ -98,6 +98,54 @@ threshold without significance, so noise alone often produced a "trend".
 
 ---
 
+## Trend line and confidence band — `trend_line()`
+
+Added in v0.7.0. Same window and fit as `linear_trend()`, plus the confidence band of
+the **line** (where the mean of the series lies, not where single values fall):
+
+```python
+from cardiolab.analytics import trend_line
+
+tl = trend_line(series, window_days=30)       # level=0.95 by default
+tl.days, tl.fitted, tl.lower, tl.upper      # one value per session of the window
+tl.result                                   # the TrendResult of linear_trend()
+```
+
+- Half-width `t × s × √(1/n + (x − x̄)² / Σ(x − x̄)²)`: narrowest at the centre of the
+  window, wider at its edges.
+- Same autocorrelation correction as the p-value: with `n_eff < n`, the standard
+  error is multiplied by `√((n − 2) / (n_eff − 2))` and `t` has `n_eff − 2` degrees
+  of freedom. The band is as cautious as the label.
+- `insufficient_data`: everything `nan`. `n_eff ≤ 2`: line drawn, band `nan`.
+- Coverage checked by simulation (white noise): the true line lies inside the 95 %
+  band 90–99 % of the time in the tests.
+
+---
+
+## Chart — `plot_trend_overlay()`
+
+Added in v0.7.0. Module: `cardiolab.visualization.statistical_plots`.
+
+```python
+from cardiolab.labels import LABELS_FR
+from cardiolab.visualization import plot_trend_overlay
+
+fig = plot_trend_overlay(baseline, windows=(None, 28), metric="score", labels=LABELS_FR)
+```
+
+| Element | Meaning |
+|---|---|
+| Grey dots | The values (`series` as `[(date, value), …]`, a `Baseline` or dated `HRVFeatures`, read through `metric`) |
+| One line per window | Fitted trend; green `increasing`, red `decreasing`, blue `stable`; solid, dashed, then dotted for the next windows (`None` = whole series) |
+| Band of the same colour | Confidence band of the line (`level`, 95 % by default) |
+| Legend | Slope per week, p-value and label of each window |
+| Red rings and dotted line | `show_decline=True`: last values below the usual range (`detect_sustained_decline`) and the limit |
+
+A line that slopes but stays blue is **not a trend yet**: day-to-day variation can
+explain it.
+
+---
+
 ## Trend or monitoring?
 
 | Question | Tool |

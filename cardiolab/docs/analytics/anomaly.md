@@ -101,6 +101,32 @@ previous ones: possible causes include illness, a bad night, alcohol, stress, a 
 taken in different conditions, or a faulty recording. Check the signal quality and how you
 feel. Repeated anomalies matter more than a single one.
 
+### Chart — `plot_anomaly_timeline()`
+
+Added in v0.7.0. Module: `cardiolab.visualization.statistical_plots`.
+
+```python
+from cardiolab.analytics import anomaly_report
+from cardiolab.labels import LABELS_FR
+from cardiolab.visualization import plot_anomaly_timeline
+
+fig = plot_anomaly_timeline(anomaly_report(baseline), labels=LABELS_FR)
+fig.savefig("anomalies.png", dpi=150, bbox_inches="tight")
+```
+
+| Element | Meaning |
+|---|---|
+| Dark dots and line | Distance of each session to its reference cloud |
+| Red dashed steps | Threshold of the day (it decreases as reference sessions accumulate) |
+| Purple diamond and shading | Unusual session: distance above the threshold |
+| Grey band | Fewer than 40 reference sessions (`insufficient_data`) |
+| Hollow grey circle on the axis | Session not checked (`missing_features` or `no_variability`) |
+| Bottom panel | One row per metric, one square per session, coloured by its deviation from the reference in SD (blue below, red above, capped at ±4) |
+
+How to read it: about one session in 40 crosses the threshold by chance. Look at
+**repeated** diamonds, and at the bottom panel to see which metric moves; a dark
+square in the same column as a diamond is the `main_driver`.
+
 ### Limits
 
 - The method assumes a roughly normal cloud. lnRMSSD is used for that reason (RMSSD itself
