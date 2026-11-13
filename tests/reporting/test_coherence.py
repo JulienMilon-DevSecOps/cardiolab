@@ -8,7 +8,6 @@ from pandas.io.formats.style import Styler
 from cardiolab.protocols.cardiac_coherence import CoherenceResult
 from cardiolab.reporting.coherence import (
     _coherence_category,
-    _validate_list,
     table_coherence_history,
 )
 
@@ -66,32 +65,6 @@ def test_coherence_category_low() -> None:
     """Score < 30 → 'low'."""
     assert _coherence_category(29.9) == "low"
     assert _coherence_category(0.0) == "low"
-
-
-# ── _validate_list ────────────────────────────────────────────────────────────
-
-
-def test_validate_list_not_a_list() -> None:
-    """Raise TypeError when argument is not a list."""
-    with pytest.raises(TypeError, match="must be a list"):
-        _validate_list("not a list", CoherenceResult, "results")
-
-
-def test_validate_list_empty() -> None:
-    """Raise ValueError when list is empty."""
-    with pytest.raises(ValueError, match="at least one element"):
-        _validate_list([], CoherenceResult, "results")
-
-
-def test_validate_list_wrong_type(one_result: CoherenceResult) -> None:
-    """Raise TypeError when element has wrong type."""
-    with pytest.raises(TypeError, match="results\\[1\\]"):
-        _validate_list([one_result, "bad"], CoherenceResult, "results")
-
-
-def test_validate_list_ok(one_result: CoherenceResult) -> None:
-    """Pass silently for a valid single-element list."""
-    _validate_list([one_result], CoherenceResult, "results")
 
 
 # ── table_coherence_history ───────────────────────────────────────────────────

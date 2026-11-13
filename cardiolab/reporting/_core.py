@@ -165,6 +165,26 @@ def highlight_category(
     return styler.map(_colour, subset=[col])
 
 
+def validate_list(lst: list, expected_type: type, name: str) -> None:
+    """Raise unless ``lst`` is a non-empty list of ``expected_type``.
+
+    Raises:
+        TypeError: Not a list, or an item of another type.
+        ValueError: Empty list.
+
+    """
+    if not isinstance(lst, list):
+        raise TypeError(f"{name} must be a list, got {type(lst).__name__}")
+    if not lst:
+        raise ValueError(f"{name} must contain at least one element.")
+    for i, item in enumerate(lst):
+        if not isinstance(item, expected_type):
+            raise TypeError(
+                f"{name}[{i}] must be a {expected_type.__name__}, "
+                f"got {type(item).__name__}"
+            )
+
+
 def quality_grade(result) -> str | None:
     """Return the signal quality grade of a result, ``None`` when unknown."""
     quality = getattr(result, "quality", None)

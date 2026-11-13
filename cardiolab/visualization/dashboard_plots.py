@@ -33,12 +33,11 @@ from cardiolab.protocols.hrr import HRRResult
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.protocols.vo2max import VO2maxResult
 from cardiolab.signals.rr import RRSeries
+from cardiolab.visualization._common import DARK, GRAY
 from cardiolab.visualization._quality import mark_poor_sessions, session_qualities
 
 # ── Shared colour / style constants ──────────────────────────────────────────
 
-_DARK = "#2c3e50"
-_GRAY = "#95a5a6"
 _BLUE = "#2980b9"
 _GREEN = "#27ae60"
 _ORANGE = "#e67e22"
@@ -357,13 +356,13 @@ def plot_longitudinal_heatmap(
             v = norm_data[ri, ci]
             if np.isnan(v):
                 color = "#cccccc"
-                txt_color = _DARK
+                txt_color = DARK
             else:
                 rgba = cmap(v)
                 color = rgba
                 # Raw value annotation
                 raw = data[ri, ci]
-                txt_color = "white" if v < 0.25 or v > 0.75 else _DARK
+                txt_color = "white" if v < 0.25 or v > 0.75 else DARK
                 ax.text(
                     ci,
                     ri,
@@ -474,8 +473,8 @@ def plot_readiness_evolution(
     ax.axhspan(0.0, 33.0, color="#fadbd8", alpha=0.35, zorder=0)
     ax.axhspan(33.0, 66.0, color="#fef9e7", alpha=0.35, zorder=0)
     ax.axhspan(66.0, 100.0, color="#d5f5e3", alpha=0.35, zorder=0)
-    ax.axhline(33.0, color=_GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
-    ax.axhline(66.0, color=_GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
+    ax.axhline(33.0, color=GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
+    ax.axhline(66.0, color=GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
 
     # Rolling average band
     if n >= _ROLLING_WIN:
@@ -503,7 +502,7 @@ def plot_readiness_evolution(
         )
 
     # Score line
-    ax.plot(xs, scores, color=_DARK, linewidth=1.8, zorder=3, label="Score")
+    ax.plot(xs, scores, color=DARK, linewidth=1.8, zorder=3, label="Score")
     mark_poor_sessions(ax, xs, scores, session_qualities(features), labels)
 
     # Session dots coloured by zone
@@ -533,7 +532,7 @@ def plot_readiness_evolution(
         ha="right",
         va="center",
         fontsize=8,
-        color=_GRAY,
+        color=GRAY,
     )
     ax.text(
         n - 0.5,
@@ -542,7 +541,7 @@ def plot_readiness_evolution(
         ha="right",
         va="center",
         fontsize=8,
-        color=_GRAY,
+        color=GRAY,
     )
     ax.text(
         n - 0.5,
@@ -551,7 +550,7 @@ def plot_readiness_evolution(
         ha="right",
         va="center",
         fontsize=8,
-        color=_GRAY,
+        color=GRAY,
     )
 
     ax.set_xticks(xs)
@@ -629,8 +628,8 @@ def plot_score_evolution(
     ax.axhspan(0.0, 33.0, color="#fadbd8", alpha=0.35, zorder=0)
     ax.axhspan(33.0, 66.0, color="#fef9e7", alpha=0.35, zorder=0)
     ax.axhspan(66.0, 100.0, color="#d5f5e3", alpha=0.35, zorder=0)
-    ax.axhline(33.0, color=_GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
-    ax.axhline(66.0, color=_GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
+    ax.axhline(33.0, color=GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
+    ax.axhline(66.0, color=GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
 
     # Rolling average band (≥ 5 sessions)
     if n >= _ROLLING_WIN:
@@ -658,7 +657,7 @@ def plot_score_evolution(
         )
 
     # Score line
-    ax.plot(xs, scores, color=_DARK, linewidth=1.8, zorder=3, label="Score")
+    ax.plot(xs, scores, color=DARK, linewidth=1.8, zorder=3, label="Score")
     mark_poor_sessions(ax, xs, scores, session_qualities(results), labels)
 
     # Session dots coloured by zone
@@ -683,7 +682,7 @@ def plot_score_evolution(
         ha="right",
         va="center",
         fontsize=8,
-        color=_GRAY,
+        color=GRAY,
     )
     ax.text(
         n - 0.5,
@@ -692,7 +691,7 @@ def plot_score_evolution(
         ha="right",
         va="center",
         fontsize=8,
-        color=_GRAY,
+        color=GRAY,
     )
     ax.text(
         n - 0.5,
@@ -701,7 +700,7 @@ def plot_score_evolution(
         ha="right",
         va="center",
         fontsize=8,
-        color=_GRAY,
+        color=GRAY,
     )
 
     ax.set_xticks(xs)
@@ -921,7 +920,7 @@ def _draw_tachogram(ax: plt.Axes, rr: RRSeries, title: str = "") -> None:
         alpha=0.12,
         zorder=0,
     )
-    ax.axhline(hr.mean(), color=_DARK, linewidth=0.8, linestyle="--", alpha=0.6)
+    ax.axhline(hr.mean(), color=DARK, linewidth=0.8, linestyle="--", alpha=0.6)
     ax.set_xlabel("Time (min)", fontsize=7)
     ax.set_ylabel("HR (bpm)", fontsize=7)
     ax.tick_params(labelsize=6)
@@ -939,7 +938,7 @@ def _draw_poincare(
 
     # Identity line
     lo, hi = vals.min(), vals.max()
-    ax.plot([lo, hi], [lo, hi], color=_GRAY, linewidth=0.7, linestyle="--", alpha=0.5)
+    ax.plot([lo, hi], [lo, hi], color=GRAY, linewidth=0.7, linestyle="--", alpha=0.5)
 
     ax.set_aspect("equal")
     ax.set_xlabel("RRₙ (ms)", fontsize=7)
@@ -1044,7 +1043,7 @@ def _draw_resting_stats(ax: plt.Axes, features: HRVFeatures, title: str = "") ->
             label,
             transform=ax.transAxes,
             fontsize=8,
-            color=_DARK,
+            color=DARK,
             ha="left",
         )
         ax.text(
@@ -1074,7 +1073,7 @@ def _draw_hrr_curve_ax(
     t_from_peak = (np.arange(len(hr_from_peak)) / _FS) / 60.0  # minutes
 
     ax.plot(t_from_peak, hr_from_peak, color=_RED, linewidth=1.0, alpha=0.85)
-    ax.axhline(hr_from_peak[0], color=_GRAY, linewidth=0.6, linestyle=":", alpha=0.7)
+    ax.axhline(hr_from_peak[0], color=GRAY, linewidth=0.6, linestyle=":", alpha=0.7)
 
     # HRR1 marker
     idx_60 = min(int(60 * _FS), len(hr_from_peak) - 1)
@@ -1083,8 +1082,8 @@ def _draw_hrr_curve_ax(
         xy=(t_from_peak[idx_60], hr_from_peak[idx_60]),
         xytext=(t_from_peak[idx_60] + 0.05, hr_from_peak[idx_60] + 3),
         fontsize=6.5,
-        arrowprops={"arrowstyle": "->", "color": _DARK, "lw": 0.8},
-        color=_DARK,
+        arrowprops={"arrowstyle": "->", "color": DARK, "lw": 0.8},
+        color=DARK,
     )
 
     ax.set_xlabel("Time from peak (min)", fontsize=7)
@@ -1107,7 +1106,7 @@ def _draw_hrr_summary(ax: plt.Axes, result: HRRResult, title: str = "") -> None:
     ]
     y = 0.75
     for label, val in stats:
-        ax.text(0.10, y, label, transform=ax.transAxes, fontsize=9, color=_DARK)
+        ax.text(0.10, y, label, transform=ax.transAxes, fontsize=9, color=DARK)
         ax.text(
             0.90,
             y,
@@ -1144,7 +1143,7 @@ def _draw_hrr_gauge_ax(ax: plt.Axes, result: HRRResult, title: str = "") -> None
             180,
             width=gauge_w,
             fill=False,
-            edgecolor=_DARK,
+            edgecolor=DARK,
             linewidth=0.8,
             zorder=3,
         )
@@ -1155,12 +1154,12 @@ def _draw_hrr_gauge_ax(ax: plt.Axes, result: HRRResult, title: str = "") -> None
     ax.plot(
         [0, _HRR_R_NEEDLE * math.cos(a)],
         [0, _HRR_R_NEEDLE * math.sin(a)],
-        color=_DARK,
+        color=DARK,
         linewidth=1.8,
         solid_capstyle="round",
         zorder=5,
     )
-    ax.add_patch(plt.Circle((0, 0), 0.055, color=_DARK, zorder=6))
+    ax.add_patch(plt.Circle((0, 0), 0.055, color=DARK, zorder=6))
 
     cat = result.hrr_60_category.replace("_", " ").title()
     ax.text(
@@ -1170,10 +1169,10 @@ def _draw_hrr_gauge_ax(ax: plt.Axes, result: HRRResult, title: str = "") -> None
         ha="center",
         fontsize=20,
         fontweight="bold",
-        color=_DARK,
+        color=DARK,
     )
-    ax.text(0, -0.38, "bpm", ha="center", fontsize=8, color=_GRAY)
-    ax.text(0, -0.52, cat, ha="center", fontsize=9, fontweight="bold", color=_DARK)
+    ax.text(0, -0.38, "bpm", ha="center", fontsize=8, color=GRAY)
+    ax.text(0, -0.52, cat, ha="center", fontsize=9, fontweight="bold", color=DARK)
 
 
 def _draw_drift_curve_ax(
@@ -1230,7 +1229,7 @@ def _draw_drift_summary(ax: plt.Axes, result: DriftResult, title: str = "") -> N
     """Draw a text-based drift metrics summary panel on ``ax``."""
     ax.axis("off")
     ax.set_title(title, fontsize=8, fontweight="bold")
-    cat_color = _DRIFT_CAT_COLORS.get(result.interpretation, _DARK)
+    cat_color = _DRIFT_CAT_COLORS.get(result.interpretation, DARK)
     ax.text(
         0.50,
         0.88,
@@ -1251,7 +1250,7 @@ def _draw_drift_summary(ax: plt.Axes, result: DriftResult, title: str = "") -> N
     ]
     y = 0.70
     for label, val in stats:
-        ax.text(0.10, y, label, transform=ax.transAxes, fontsize=8.5, color=_DARK)
+        ax.text(0.10, y, label, transform=ax.transAxes, fontsize=8.5, color=DARK)
         ax.text(
             0.90,
             y,
@@ -1325,7 +1324,7 @@ def _draw_vo2max_gauge_ax(ax: plt.Axes, result: VO2maxResult, title: str = "") -
             180,
             width=gauge_w,
             fill=False,
-            edgecolor=_DARK,
+            edgecolor=DARK,
             linewidth=0.8,
             zorder=3,
         )
@@ -1337,15 +1336,15 @@ def _draw_vo2max_gauge_ax(ax: plt.Axes, result: VO2maxResult, title: str = "") -
     ax.plot(
         [0, _HRR_R_NEEDLE * math.cos(a)],
         [0, _HRR_R_NEEDLE * math.sin(a)],
-        color=_DARK,
+        color=DARK,
         linewidth=1.8,
         solid_capstyle="round",
         zorder=5,
     )
-    ax.add_patch(plt.Circle((0, 0), 0.055, color=_DARK, zorder=6))
+    ax.add_patch(plt.Circle((0, 0), 0.055, color=DARK, zorder=6))
 
     cat = result.fitness_category.replace("_", " ").title()
-    cat_color = _VO2_CAT_COLORS.get(result.fitness_category, _DARK)
+    cat_color = _VO2_CAT_COLORS.get(result.fitness_category, DARK)
     ax.text(
         0,
         -0.20,
@@ -1355,7 +1354,7 @@ def _draw_vo2max_gauge_ax(ax: plt.Axes, result: VO2maxResult, title: str = "") -
         fontweight="bold",
         color=cat_color,
     )
-    ax.text(0, -0.38, "mL/kg/min", ha="center", fontsize=7.5, color=_GRAY)
+    ax.text(0, -0.38, "mL/kg/min", ha="center", fontsize=7.5, color=GRAY)
     ax.text(0, -0.52, cat, ha="center", fontsize=9, fontweight="bold", color=cat_color)
 
 
@@ -1372,7 +1371,7 @@ def _draw_coherence_psd_ax(
         return
 
     mask = freqs <= _HF_HI
-    ax.semilogy(freqs[mask], psd[mask], color=_DARK, linewidth=0.9)
+    ax.semilogy(freqs[mask], psd[mask], color=DARK, linewidth=0.9)
 
     # Resonance band ±0.02 Hz around resonance_freq
     res_f = result.resonance_freq
@@ -1413,7 +1412,7 @@ def _draw_coherence_tachogram_ax(
     mean_rr = float(np.mean(vals))
     amplitude = float(np.std(vals))
 
-    ax.plot(t_s, vals, color=_DARK, linewidth=0.9, alpha=0.85, label="RR intervals")
+    ax.plot(t_s, vals, color=DARK, linewidth=0.9, alpha=0.85, label="RR intervals")
 
     # Sinusoidal reference at resonance frequency
     t_ref = np.linspace(t_s[0], t_s[-1], 500)
@@ -1447,7 +1446,7 @@ def _draw_no_data(ax: plt.Axes, label: str = "No data") -> None:
         ha="center",
         va="center",
         fontsize=10,
-        color=_GRAY,
+        color=GRAY,
         fontstyle="italic",
     )
     for spine in ax.spines.values():

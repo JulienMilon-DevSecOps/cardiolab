@@ -14,12 +14,12 @@ from matplotlib.figure import Figure
 
 from cardiolab.labels import lbl
 from cardiolab.protocols.lsct import HRR_SEC, RECOVERY_SEC, STAGES, LSCTResult
+from cardiolab.visualization._common import GRAY
 
 _STAGE_COLORS = ("#d6eaf8", "#fcf3cf", "#fadbd8")
 _HR_COLOR = "#c0392b"
 _POWER_COLOR = "#2c3e50"
 _RECOVERY_COLOR = "#e8f8f5"
-_GRAY = "#95a5a6"
 
 
 def plot_lsct_session(
@@ -95,7 +95,7 @@ def plot_lsct_session(
         ax.axvspan(t0, t0 + RECOVERY_SEC / 60.0, color=_RECOVERY_COLOR, lw=0)
 
     ax_hr.plot(t_min[view], hr[view], color=_HR_COLOR, lw=1)
-    ax_pw.plot(t_min[view], pw[view], color=_GRAY, lw=0.8)
+    ax_pw.plot(t_min[view], pw[view], color=GRAY, lw=0.8)
     ax_hr.set_ylabel(lbl(labels, "mean_hr", "HR (bpm)"))
     ax_pw.set_ylabel(lbl(labels, "power", "Power (W)"))
     ax_pw.set_xlabel(lbl(labels, "lsct_time", "Time from the start of stage 1 (min)"))
@@ -166,7 +166,7 @@ def plot_lsct_evolution(
             x,
             [r.stage(number).mean_power for r in results],
             style,
-            color=_POWER_COLOR if number == 3 else _GRAY,
+            color=_POWER_COLOR if number == 3 else GRAY,
             label=lbl(labels, f"lsct_stage{number}_power", f"Stage {number} power (W)"),
         )
     missed = [i for i, r in enumerate(results) if not r.stage(3).target_reached]

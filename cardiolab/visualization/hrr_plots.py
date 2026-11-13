@@ -19,6 +19,13 @@ from matplotlib.patches import Wedge
 from cardiolab.labels import lbl
 from cardiolab.protocols.hrr import HRRResult
 from cardiolab.signals.rr import RRSeries
+from cardiolab.visualization._common import (
+    DARK,
+    GRAY,
+    check_rr,
+    check_type,
+    default_labels,
+)
 
 # ── Clinical thresholds (Cole et al. 1999 for HRR1) ──────────────────────────
 
@@ -46,8 +53,6 @@ _GAUGE_R_TICK_OUT: float = 1.04
 _HR_COLOR = "#2980b9"
 _HRR1_COLOR = "#e74c3c"
 _HRR2_COLOR = "#8e44ad"
-_DARK = "#2c3e50"
-_GRAY = "#95a5a6"
 
 _PALETTE = [
     "#2980b9",
@@ -115,8 +120,8 @@ def plot_hrr_curve(
         ValueError: If ``rr`` has fewer than ``_MIN_INTERVALS_HRR`` intervals.
 
     """
-    _validate_rr(rr)
-    _validate_result(result)
+    check_rr(rr, _MIN_INTERVALS_HRR)
+    check_type(result, HRRResult, "result")
 
     time_s, hr_interp = _hrr_time_series(rr, fs)
 
@@ -127,7 +132,7 @@ def plot_hrr_curve(
     )
     ax.axhline(
         result.hr_peak,
-        color=_GRAY,
+        color=GRAY,
         linewidth=0.8,
         linestyle="--",
         alpha=0.7,
@@ -211,7 +216,7 @@ def plot_hrr_comparison(
         raise ValueError(
             f"session_labels length ({len(session_labels)}) must match results length ({n})"
         )
-    session_labels = session_labels or _default_labels(results)
+    session_labels = session_labels or default_labels(results)
 
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -219,11 +224,11 @@ def plot_hrr_comparison(
     for low, high, color, _ in _HRR_ZONES:
         ax.axhspan(low, high, color=color, alpha=0.30, zorder=0)
     for threshold in (_HRR_NORMAL_BPM, _HRR_GOOD_BPM, _HRR_EXCELLENT_BPM):
-        ax.axhline(threshold, color=_GRAY, linewidth=0.6, linestyle=":", alpha=0.7)
+        ax.axhline(threshold, color=GRAY, linewidth=0.6, linestyle=":", alpha=0.7)
 
     # Vertical reference line at t=60 s
-    ax.axvline(60.0, color=_GRAY, linewidth=0.7, linestyle="--", alpha=0.5)
-    ax.text(60.5, 1.5, "60 s", fontsize=7, color=_GRAY)
+    ax.axvline(60.0, color=GRAY, linewidth=0.7, linestyle="--", alpha=0.5)
+    ax.text(60.5, 1.5, "60 s", fontsize=7, color=GRAY)
 
     max_t = 0.0
     for idx, (rr, res, session_lbl) in enumerate(
@@ -259,7 +264,7 @@ def plot_hrr_comparison(
             ha="right",
             va="center",
             fontsize=7,
-            color=_GRAY,
+            color=GRAY,
         )
 
     ax.set_xlim(left=0.0)
@@ -300,7 +305,7 @@ def plot_hrr_gauge(
         TypeError: If ``result`` is not a :class:`~cardiolab.protocols.hrr.HRRResult`.
 
     """
-    _validate_result(result)
+    check_type(result, HRRResult, "result")
 
     gauge_width = _GAUGE_R_OUTER - _GAUGE_R_INNER
 
@@ -333,7 +338,7 @@ def plot_hrr_gauge(
         180.0,
         width=gauge_width,
         fill=False,
-        edgecolor=_DARK,
+        edgecolor=DARK,
         linewidth=0.8,
         zorder=3,
     )
@@ -352,10 +357,10 @@ def plot_hrr_gauge(
         yi = _GAUGE_R_TICK_IN * math.sin(angle_rad)
         xo = _GAUGE_R_TICK_OUT * math.cos(angle_rad)
         yo = _GAUGE_R_TICK_OUT * math.sin(angle_rad)
-        ax.plot([xi, xo], [yi, yo], color=_DARK, linewidth=0.8, zorder=4)
+        ax.plot([xi, xo], [yi, yo], color=DARK, linewidth=0.8, zorder=4)
         xl = _GAUGE_R_LABEL * math.cos(angle_rad)
         yl = _GAUGE_R_LABEL * math.sin(angle_rad)
-        ax.text(xl, yl, tick_label, ha="center", va="center", fontsize=8, color=_DARK)
+        ax.text(xl, yl, tick_label, ha="center", va="center", fontsize=8, color=DARK)
 
     # ── Zone labels (inside sectors) ─────────────────────────────────────────
     zone_label_r = (_GAUGE_R_OUTER + _GAUGE_R_INNER) / 2.0
@@ -375,7 +380,7 @@ def plot_hrr_gauge(
             ha="center",
             va="center",
             fontsize=6,
-            color=_DARK,
+            color=DARK,
             alpha=0.8,
             rotation=_angle_from_hrr(mid_val) - 90,
         )
@@ -388,16 +393,16 @@ def plot_hrr_gauge(
     ax.plot(
         [0.0, nx],
         [0.0, ny],
-        color=_DARK,
+        color=DARK,
         linewidth=2.2,
         solid_capstyle="round",
         zorder=5,
     )
-    ax.add_patch(plt.Circle((0.0, 0.0), 0.06, color=_DARK, zorder=6))
+    ax.add_patch(plt.Circle((0.0, 0.0), 0.06, color=DARK, zorder=6))
 
     # ── Central value display ─────────────────────────────────────────────────
     cat = result.hrr_60_category or "—"
-    cat_color = _CATEGORY_COLORS.get(cat, _DARK)
+    cat_color = _CATEGORY_COLORS.get(cat, DARK)
     ax.text(
         0.0,
         -0.18,
@@ -408,7 +413,7 @@ def plot_hrr_gauge(
         fontweight="bold",
         color=cat_color,
     )
-    ax.text(0.0, -0.38, "bpm HRR1", ha="center", va="center", fontsize=9, color=_GRAY)
+    ax.text(0.0, -0.38, "bpm HRR1", ha="center", va="center", fontsize=9, color=GRAY)
     ax.text(
         0.0,
         -0.54,
@@ -488,23 +493,6 @@ def _angle_from_hrr(value: float) -> float:
     return 180.0 - (clamped / _HRR_MAX_GAUGE_BPM) * 180.0
 
 
-def _validate_rr(rr: RRSeries) -> None:
-    """Raise TypeError or ValueError when rr is not a valid RRSeries."""
-    if not isinstance(rr, RRSeries):
-        raise TypeError(f"rr must be an RRSeries, got {type(rr).__name__}")
-    if len(rr.intervals) < _MIN_INTERVALS_HRR:
-        raise ValueError(
-            f"rr must have at least {_MIN_INTERVALS_HRR} intervals, "
-            f"got {len(rr.intervals)}"
-        )
-
-
-def _validate_result(result: HRRResult) -> None:
-    """Raise TypeError when result is not an HRRResult."""
-    if not isinstance(result, HRRResult):
-        raise TypeError(f"result must be an HRRResult, got {type(result).__name__}")
-
-
 def _validate_rr_results(
     rr_list: list[RRSeries],
     results: list[HRRResult],
@@ -522,19 +510,6 @@ def _validate_rr_results(
             f"results length ({len(results)})"
         )
     for idx, rr in enumerate(rr_list):
-        if not isinstance(rr, RRSeries):
-            raise TypeError(
-                f"rr_list[{idx}] must be an RRSeries, got {type(rr).__name__}"
-            )
+        check_type(rr, RRSeries, f"rr_list[{idx}]")
     for idx, res in enumerate(results):
-        if not isinstance(res, HRRResult):
-            raise TypeError(
-                f"results[{idx}] must be an HRRResult, got {type(res).__name__}"
-            )
-
-
-def _default_labels(results: list[HRRResult]) -> list[str]:
-    """Return date strings from results or fallback 'Session N' labels."""
-    return [
-        str(r.date) if r.date else f"Session {i + 1}" for i, r in enumerate(results)
-    ]
+        check_type(res, HRRResult, f"results[{idx}]")

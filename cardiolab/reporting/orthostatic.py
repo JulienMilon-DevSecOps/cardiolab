@@ -542,16 +542,3 @@ def table_orthostatic_history(
 
 
 # ── Validation helper ─────────────────────────────────────────────────────────
-
-
-def _validate_list(lst: list, expected_type: type, name: str) -> None:
-    if not isinstance(lst, list):
-        raise TypeError(f"{name} must be a list, got {type(lst).__name__}")
-    if len(lst) == 0:
-        raise ValueError(f"{name} must contain at least one element.")
-    for i, item in enumerate(lst):
-        if not isinstance(item, expected_type):
-            raise TypeError(
-                f"{name}[{i}] must be a {expected_type.__name__}, "
-                f"got {type(item).__name__}"
-            )

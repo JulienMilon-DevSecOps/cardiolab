@@ -17,12 +17,12 @@ from matplotlib.figure import Figure
 from cardiolab.analytics.zones import HeartRateZone
 from cardiolab.labels import lbl
 from cardiolab.protocols.dfa_thresholds import DFAThresholdsResult
+from cardiolab.visualization._common import GRAY
 
 _VT1_COLOR = "#e67e22"
 _VT2_COLOR = "#c0392b"
 _ALPHA_COLOR = "#2c3e50"
 _HR_COLOR = "#2980b9"
-_GRAY = "#95a5a6"
 
 _ZONE_COLORS: dict[int, str] = {
     1: "#aed6f1",
@@ -179,7 +179,7 @@ def plot_training_zones(
     fig, ax = plt.subplots(figsize=figsize)
     for z in zones:
         start = max(z.hr_low, lo)
-        ax.barh(0, z.hr_high - start, left=start, color=colors.get(z.zone, _GRAY))
+        ax.barh(0, z.hr_high - start, left=start, color=colors.get(z.zone, GRAY))
         ax.text(
             (start + z.hr_high) / 2,
             0,

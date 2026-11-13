@@ -18,6 +18,7 @@ import numpy as np
 from matplotlib.figure import Figure
 
 from cardiolab.labels import lbl
+from cardiolab.visualization._common import DARK, GRAY
 from cardiolab.visualization._quality import (
     mark_poor_sessions,
     session_qualities,
@@ -28,8 +29,6 @@ _SUPINE_COLOR = "#2980b9"
 _TRANSITION_COLOR = "#e67e22"
 _STANDING_COLOR = "#27ae60"
 _DELTA_COLOR = "#8e44ad"
-_DARK = "#2c3e50"
-_GRAY = "#95a5a6"
 
 _ROLLING_WIN: int = 3
 
@@ -181,7 +180,7 @@ def plot_orthostatic_phases_evolution(
         x - width / 2,
         hr_resp,
         width,
-        color=_DARK,
+        color=DARK,
         alpha=0.75,
         label=lbl(labels, "hr_response", "ΔHR (bpm)"),
     )
@@ -224,7 +223,7 @@ def plot_orthostatic_phases_evolution(
         markersize=5,
         label=lbl(labels, "lf_hr_pct_change", "LF/HR Δ (%)"),
     )
-    ax_balance.axhline(0, color=_GRAY, linewidth=0.8, linestyle="--", alpha=0.6)
+    ax_balance.axhline(0, color=GRAY, linewidth=0.8, linestyle="--", alpha=0.6)
     ax_balance.set_ylabel("%", fontsize=10)
     ax_balance.legend(loc="upper right", fontsize=8)
     ax_balance.grid(alpha=0.20, linestyle=":")
@@ -306,8 +305,8 @@ def plot_orthostatic_dual_score_evolution(
     ax_read.axhspan(55.0, 65.0, color=_ZONE_LIGHTGREEN, alpha=0.40, zorder=0)
     ax_read.axhspan(65.0, 100.0, color=_ZONE_GREEN, alpha=0.40, zorder=0)
     for y in (35.0, 45.0, 55.0, 65.0):
-        ax_read.axhline(y, color=_GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
-    ax_read.axhline(50.0, color=_DARK, linewidth=0.9, linestyle="--", alpha=0.45)
+        ax_read.axhline(y, color=GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
+    ax_read.axhline(50.0, color=DARK, linewidth=0.9, linestyle="--", alpha=0.45)
 
     if n >= _ROLLING_WIN:
         kernel = np.ones(_ROLLING_WIN) / _ROLLING_WIN
@@ -336,7 +335,7 @@ def plot_orthostatic_dual_score_evolution(
     ax_read.plot(
         xs,
         read_scores,
-        color=_DARK,
+        color=DARK,
         zorder=3,
         label=lbl(labels, "readiness_score", "Readiness Score"),
         **mk,
@@ -362,7 +361,7 @@ def plot_orthostatic_dual_score_evolution(
         ha="right",
         va="center",
         fontsize=8,
-        color=_GRAY,
+        color=GRAY,
         alpha=0.8,
     )
     ax_read.text(
@@ -372,7 +371,7 @@ def plot_orthostatic_dual_score_evolution(
         ha="right",
         va="center",
         fontsize=8,
-        color=_GRAY,
+        color=GRAY,
         alpha=0.8,
     )
     ax_read.text(
@@ -382,7 +381,7 @@ def plot_orthostatic_dual_score_evolution(
         ha="right",
         va="center",
         fontsize=8,
-        color=_GRAY,
+        color=GRAY,
         alpha=0.8,
     )
     ax_read.text(
@@ -392,7 +391,7 @@ def plot_orthostatic_dual_score_evolution(
         ha="right",
         va="center",
         fontsize=8,
-        color=_GRAY,
+        color=GRAY,
         alpha=0.8,
     )
     ax_read.text(
@@ -402,7 +401,7 @@ def plot_orthostatic_dual_score_evolution(
         ha="right",
         va="center",
         fontsize=8,
-        color=_GRAY,
+        color=GRAY,
         alpha=0.8,
     )
     ax_read.set_ylim(0.0, 100.0)
@@ -421,9 +420,9 @@ def plot_orthostatic_dual_score_evolution(
     ax_auto.axhspan(70.0, 85.0, color=_ZONE_LIGHTGREEN, alpha=0.40, zorder=0)
     ax_auto.axhspan(85.0, 100.0, color=_ZONE_GREEN, alpha=0.40, zorder=0)
     for y in (30.0, 50.0, 70.0, 85.0):
-        ax_auto.axhline(y, color=_GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
+        ax_auto.axhline(y, color=GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
 
-    ax_auto.plot(xs, auto_scores, color=_DARK, zorder=3, **mk)
+    ax_auto.plot(xs, auto_scores, color=DARK, zorder=3, **mk)
     if mark_poor_sessions(ax_auto, xs, auto_scores, session_qualities(results), labels):
         ax_auto.legend(loc="upper left", fontsize=8)
     for x, s in zip(xs, auto_scores, strict=False):
@@ -445,7 +444,7 @@ def plot_orthostatic_dual_score_evolution(
         ha="right",
         va="center",
         fontsize=8,
-        color=_GRAY,
+        color=GRAY,
         alpha=0.8,
     )
     ax_auto.text(
@@ -455,7 +454,7 @@ def plot_orthostatic_dual_score_evolution(
         ha="right",
         va="center",
         fontsize=8,
-        color=_GRAY,
+        color=GRAY,
         alpha=0.8,
     )
     ax_auto.text(
@@ -465,7 +464,7 @@ def plot_orthostatic_dual_score_evolution(
         ha="right",
         va="center",
         fontsize=8,
-        color=_GRAY,
+        color=GRAY,
         alpha=0.8,
     )
     ax_auto.text(
@@ -475,7 +474,7 @@ def plot_orthostatic_dual_score_evolution(
         ha="right",
         va="center",
         fontsize=8,
-        color=_GRAY,
+        color=GRAY,
         alpha=0.8,
     )
     ax_auto.text(
@@ -485,7 +484,7 @@ def plot_orthostatic_dual_score_evolution(
         ha="right",
         va="center",
         fontsize=8,
-        color=_GRAY,
+        color=GRAY,
         alpha=0.8,
     )
     ax_auto.set_ylim(0.0, 100.0)

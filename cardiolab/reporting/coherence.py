@@ -21,6 +21,7 @@ from cardiolab.reporting._core import (
     highlight_category,
     quality_grade,
     style_quality,
+    validate_list,
 )
 
 # Coherence thresholds (McCraty / HeartMath standard)
@@ -68,7 +69,7 @@ def table_coherence_history(
         ValueError: If ``results`` is empty or ``dates`` length mismatches.
 
     """
-    _validate_list(results, CoherenceResult, "results")
+    validate_list(results, CoherenceResult, "results")
     n = len(results)
     if dates is not None and len(dates) != n:
         raise ValueError(f"dates length ({len(dates)}) must match results length ({n})")
@@ -125,16 +126,3 @@ def table_coherence_history(
 
 
 # ── Validation helper ─────────────────────────────────────────────────────────
-
-
-def _validate_list(lst: list, expected_type: type, name: str) -> None:
-    if not isinstance(lst, list):
-        raise TypeError(f"{name} must be a list, got {type(lst).__name__}")
-    if len(lst) == 0:
-        raise ValueError(f"{name} must contain at least one element.")
-    for i, item in enumerate(lst):
-        if not isinstance(item, expected_type):
-            raise TypeError(
-                f"{name}[{i}] must be a {expected_type.__name__}, "
-                f"got {type(item).__name__}"
-            )

@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed — shared helpers (internal, no change for users)
+
+* `cardiolab.visualization._common`: the argument checks copied in the plotting modules
+  (`_validate_rr`, `_validate_result`, `_validate_results_list`, `_validate_features_list`,
+  2 to 4 copies each) become `check_type`, `check_list` and `check_rr`; `_default_labels`
+  (6 copies) becomes `default_labels`; the label helper `_t` (2 copies) becomes `text`; the
+  colours `_DARK` and `_GRAY`, redefined in 14 and 13 modules, become `DARK` and `GRAY`.
+  Error messages are unchanged.
+* `cardiolab.reporting._core.validate_list` replaces the 7 copies of `_validate_list` in
+  the table modules (the one in `reporting/orthostatic.py` was never called).
+* Tests: the 6 identical `_validate_list` test blocks become `tests/reporting/test_core.py`;
+  new `tests/visualization/test_common.py`.
+* About 150 lines less in the package and 50 in the tests; above all, one definition of each
+  check instead of up to seven.
+
 ## [0.10.0] - 2026-11-13
 
 ### Added — HRmax field test and HRmax observed in sessions

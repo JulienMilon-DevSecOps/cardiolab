@@ -8,6 +8,11 @@ from matplotlib.figure import Figure
 
 from cardiolab.labels import lbl
 from cardiolab.protocols.resting import HRVFeatures
+from cardiolab.visualization._common import (
+    GRAY,
+    check_list,
+    default_labels,
+)
 from cardiolab.visualization._quality import mark_poor_sessions, session_qualities
 
 # ── Colour palette ────────────────────────────────────────────────────────────
@@ -15,8 +20,6 @@ from cardiolab.visualization._quality import mark_poor_sessions, session_qualiti
 _RMSSD_COLOR = "#2980b9"
 _ROLLING_COLOR = "#e67e22"
 _SCORE_COLOR = "#27ae60"
-_DARK = "#2c3e50"
-_GRAY = "#95a5a6"
 
 # ── Readiness score threshold bands ──────────────────────────────────────────
 # Colours and bounds used consistently across all score visualisations.
@@ -79,7 +82,7 @@ def plot_resting_evolution(
         ValueError: If ``labels`` is provided with a mismatched length.
 
     """
-    _validate_features_list(features_list)
+    check_list(features_list, HRVFeatures, "features_list")
     if not isinstance(scores, list):
         raise TypeError(f"scores must be a list, got {type(scores).__name__}")
     if len(scores) != len(features_list):
@@ -94,7 +97,7 @@ def plot_resting_evolution(
         )
 
     n = len(features_list)
-    session_labels = session_labels or _default_labels(features_list)
+    session_labels = session_labels or default_labels(features_list)
     x = np.arange(n)
     rmssd = np.array([f.rmssd for f in features_list])
     scores_arr = np.array(scores, dtype=float)
@@ -114,7 +117,7 @@ def plot_resting_evolution(
     mean_rmssd = float(np.mean(rmssd))
     ax_rmssd.axhline(
         mean_rmssd,
-        color=_GRAY,
+        color=GRAY,
         linewidth=0.9,
         linestyle="--",
         alpha=0.8,
@@ -191,7 +194,7 @@ def plot_resting_evolution_rolling(
             length that differs from ``features_list``.
 
     """
-    _validate_features_list(features_list)
+    check_list(features_list, HRVFeatures, "features_list")
     for param_name, param_val in (("scores", scores), ("rolling_rmssd", rolling_rmssd)):
         if not isinstance(param_val, list):
             raise TypeError(
@@ -209,7 +212,7 @@ def plot_resting_evolution_rolling(
         )
 
     n = len(features_list)
-    session_labels = session_labels or _default_labels(features_list)
+    session_labels = session_labels or default_labels(features_list)
     x = np.arange(n)
     rmssd = np.array([f.rmssd for f in features_list])
     scores_arr = np.array(scores, dtype=float)
@@ -277,30 +280,6 @@ def plot_resting_evolution_rolling(
 # ── Private helpers ───────────────────────────────────────────────────────────
 
 
-def _validate_features_list(features_list: list[HRVFeatures]) -> None:
-    """Validate that ``features_list`` is a non-empty list of HRVFeatures."""
-    if not isinstance(features_list, list):
-        raise TypeError(
-            f"features_list must be a list, got {type(features_list).__name__}"
-        )
-    if len(features_list) == 0:
-        raise ValueError("features_list must contain at least one HRVFeatures.")
-    for idx, item in enumerate(features_list):
-        if not isinstance(item, HRVFeatures):
-            raise TypeError(
-                f"features_list[{idx}] must be an HRVFeatures, "
-                f"got {type(item).__name__}"
-            )
-
-
-def _default_labels(features_list: list[HRVFeatures]) -> list[str]:
-    """Return date strings from features or fallback ``'Session N'`` labels."""
-    return [
-        str(f.date) if f.date else f"Session {i + 1}"
-        for i, f in enumerate(features_list)
-    ]
-
-
 def _draw_score_bands(ax: plt.Axes, labels: dict | None = None) -> None:
     """Fill horizontal coloured bands on a readiness score axis."""
     for (low, high, color, default_label), zone_key in zip(
@@ -315,4 +294,4 @@ def _draw_score_bands(ax: plt.Axes, labels: dict | None = None) -> None:
             label=lbl(labels, zone_key, default_label),
         )
     for threshold in (40, 60, 80):
-        ax.axhline(threshold, color=_GRAY, linewidth=0.6, linestyle=":", alpha=0.7)
+        ax.axhline(threshold, color=GRAY, linewidth=0.6, linestyle=":", alpha=0.7)
