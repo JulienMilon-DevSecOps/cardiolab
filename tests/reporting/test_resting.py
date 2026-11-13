@@ -7,7 +7,6 @@ from pandas.io.formats.style import Styler
 
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.reporting.resting import (
-    _validate_list,
     table_resting_history,
     table_resting_session,
 )
@@ -57,32 +56,6 @@ def two_features() -> list[HRVFeatures]:
         _make_features(date="2024-01-01", rmssd=42.0, score=70.0),
         _make_features(date="2024-01-08", rmssd=55.0, score=85.0),
     ]
-
-
-# ── _validate_list ────────────────────────────────────────────────────────────
-
-
-def test_validate_list_not_a_list() -> None:
-    """Raise TypeError when argument is not a list."""
-    with pytest.raises(TypeError, match="must be a list"):
-        _validate_list("not a list", HRVFeatures, "features_list")
-
-
-def test_validate_list_empty() -> None:
-    """Raise ValueError when list is empty."""
-    with pytest.raises(ValueError, match="at least one element"):
-        _validate_list([], HRVFeatures, "features_list")
-
-
-def test_validate_list_wrong_type() -> None:
-    """Raise TypeError when an element has the wrong type."""
-    with pytest.raises(TypeError, match="features_list\\[0\\]"):
-        _validate_list(["not_an_hrv"], HRVFeatures, "features_list")
-
-
-def test_validate_list_ok(one_feature: HRVFeatures) -> None:
-    """Pass silently for a valid single-element list."""
-    _validate_list([one_feature], HRVFeatures, "features_list")
 
 
 # ── table_resting_history ─────────────────────────────────────────────────────

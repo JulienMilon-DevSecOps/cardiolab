@@ -14,24 +14,20 @@ from cardiolab.analytics.hr_max import (
     heart_rate_1hz,
     held_heart_rate,
 )
-from cardiolab.labels import LABELS_EN, lbl
+from cardiolab.labels import lbl
 from cardiolab.sports import get_sport
+from cardiolab.visualization._common import DARK, text
 
 _RAW = "#bdc3c7"
 _HELD = "#2c3e50"
 _PEAK = "#c0392b"
 _EFFORT = "#e67e22"
 _PROFILE = "#7f8c8d"
-_DARK = "#2c3e50"
 
 
 def sport_color(code: str) -> str:
     """Chart colour of a sport (reference list)."""
     return get_sport(code).color
-
-
-def _t(labels: dict[str, str] | None, key: str) -> str:
-    return lbl(labels, key, LABELS_EN[key])
 
 
 def plot_hr_max_test(
@@ -71,9 +67,9 @@ def plot_hr_max_test(
     held = held_heart_rate(grid, hr_1hz)
     minutes = t / 60.0
     fig, ax = plt.subplots(figsize=figsize)
-    ax.plot(minutes, hr, color=_RAW, linewidth=0.8, label=_t(labels, "hr_max_raw"))
+    ax.plot(minutes, hr, color=_RAW, linewidth=0.8, label=text(labels, "hr_max_raw"))
     ax.plot(
-        grid / 60.0, held, color=_HELD, linewidth=1.6, label=_t(labels, "hr_max_held")
+        grid / 60.0, held, color=_HELD, linewidth=1.6, label=text(labels, "hr_max_held")
     )
 
     peak_min = result.peak_time_sec / 60.0
@@ -84,7 +80,7 @@ def plot_hr_max_test(
             color=_EFFORT,
             alpha=0.15,
             linewidth=0,
-            label=_t(labels, "hr_max_final_effort"),
+            label=text(labels, "hr_max_final_effort"),
         )
     ax.scatter(
         [peak_min],
@@ -92,7 +88,7 @@ def plot_hr_max_test(
         s=70,
         color=_PEAK,
         zorder=5,
-        label=_t(labels, "hr_max_retained").format(hr=f"{result.hr_max:.0f}"),
+        label=text(labels, "hr_max_retained").format(hr=f"{result.hr_max:.0f}"),
     )
     ax.annotate(
         f"{result.hr_max:.0f} bpm",
@@ -112,7 +108,7 @@ def plot_hr_max_test(
             s=50,
             color=_PROFILE,
             zorder=5,
-            label=_t(labels, "hr_max_spike"),
+            label=text(labels, "hr_max_spike"),
         )
     if profile_hr_max:
         ax.axhline(
@@ -120,17 +116,17 @@ def plot_hr_max_test(
             color=_PROFILE,
             linestyle=":",
             linewidth=1.2,
-            label=_t(labels, "hr_max_profile").format(hr=f"{profile_hr_max:.0f}"),
+            label=text(labels, "hr_max_profile").format(hr=f"{profile_hr_max:.0f}"),
         )
-    ax.set_xlabel(_t(labels, "time_min"))
-    ax.set_ylabel(_t(labels, "hr_bpm"))
+    ax.set_xlabel(text(labels, "time_min"))
+    ax.set_ylabel(text(labels, "hr_bpm"))
     ax.grid(alpha=0.2, linestyle=":")
     ax.legend(loc="upper left", fontsize=8)
     fig.suptitle(
-        title or _t(labels, "hr_max_test_title"),
+        title or text(labels, "hr_max_test_title"),
         fontsize=12,
         fontweight="bold",
-        color=_DARK,
+        color=DARK,
     )
     plt.tight_layout()
     return fig
@@ -209,7 +205,7 @@ def plot_hr_max_history(
             facecolors="none",
             edgecolors=sport_color(o.sport),
             zorder=3,
-            label=_t(labels, "hr_max_observed") if k == 0 else None,
+            label=text(labels, "hr_max_observed") if k == 0 else None,
         )
     if profile_hr_max:
         ax.axhline(
@@ -217,18 +213,18 @@ def plot_hr_max_history(
             color=_PROFILE,
             linestyle=":",
             linewidth=1.2,
-            label=_t(labels, "hr_max_profile").format(hr=f"{profile_hr_max:.0f}"),
+            label=text(labels, "hr_max_profile").format(hr=f"{profile_hr_max:.0f}"),
         )
-    ax.set_ylabel(_t(labels, "hr_bpm"))
+    ax.set_ylabel(text(labels, "hr_bpm"))
     ax.grid(alpha=0.2, linestyle=":")
     ax.legend(loc="lower left", fontsize=8)
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%m/%Y"))
     fig.autofmt_xdate()
     fig.suptitle(
-        title or _t(labels, "hr_max_history_title"),
+        title or text(labels, "hr_max_history_title"),
         fontsize=12,
         fontweight="bold",
-        color=_DARK,
+        color=DARK,
     )
     plt.tight_layout()
     return fig

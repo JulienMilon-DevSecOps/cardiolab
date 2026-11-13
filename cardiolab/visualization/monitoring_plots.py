@@ -12,12 +12,12 @@ from matplotlib.figure import Figure
 
 from cardiolab.analytics.monitoring import as_monitoring_points
 from cardiolab.labels import lbl
+from cardiolab.visualization._common import DARK
 
 _DAILY_COLOR = "#95a5a6"
 _MEAN_COLOR = "#2980b9"
 _BAND_COLOR = "#27ae60"
 _CV_COLOR = "#e67e22"
-_DARK = "#2c3e50"
 
 STATE_COLORS: dict[str, str] = {
     "coping": "#27ae60",
@@ -132,6 +132,6 @@ def plot_ln_rmssd_monitoring(
     ax.legend(handles + cv_handles, names + cv_names, loc="upper left", fontsize=8)
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m"))
     fig.autofmt_xdate()
-    fig.suptitle(title, fontsize=12, fontweight="bold", color=_DARK)
+    fig.suptitle(title, fontsize=12, fontweight="bold", color=DARK)
     plt.tight_layout()
     return fig

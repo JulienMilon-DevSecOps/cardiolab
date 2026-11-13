@@ -18,6 +18,13 @@ from matplotlib.patches import Patch
 from cardiolab.labels import lbl
 from cardiolab.protocols.cardiac_drift import DriftResult
 from cardiolab.signals.rr import RRSeries
+from cardiolab.visualization._common import (
+    DARK,
+    GRAY,
+    check_list,
+    check_type,
+    default_labels,
+)
 
 # ── Clinical thresholds (bpm/min) ─────────────────────────────────────────────
 
@@ -59,9 +66,6 @@ _ZONE_BG: dict[str, str] = {
     "strong": "#fdf0ef",
 }
 
-_DARK = "#2c3e50"
-_GRAY = "#95a5a6"
-
 
 # ── Public functions ──────────────────────────────────────────────────────────
 
@@ -99,7 +103,7 @@ def plot_drift_curve(
 
     """
     _validate_rr(rr, window_sec)
-    _validate_result(result)
+    check_type(result, DriftResult, "result")
 
     win_times_min, win_hrs = _drift_windows(rr, window_sec)
 
@@ -108,7 +112,7 @@ def plot_drift_curve(
     # Background tinted by category
     ax.set_facecolor(_ZONE_BG.get(result.interpretation, "#f8f9fa"))
 
-    cat_color = _CATEGORY_COLORS.get(result.interpretation, _DARK)
+    cat_color = _CATEGORY_COLORS.get(result.interpretation, DARK)
 
     # Windowed HR scatter
     ax.scatter(
@@ -130,7 +134,7 @@ def plot_drift_curve(
     ax.plot(
         t_line,
         hr_line,
-        color=_DARK,
+        color=DARK,
         linewidth=1.8,
         linestyle="--",
         zorder=5,
@@ -140,7 +144,7 @@ def plot_drift_curve(
     # Initial / final HR horizontal references
     ax.axhline(
         result.initial_hr,
-        color=_GRAY,
+        color=GRAY,
         linewidth=0.7,
         linestyle=":",
         alpha=0.7,
@@ -224,14 +228,14 @@ def plot_drift_zones(
         ValueError: If ``results`` is empty or ``labels`` length mismatches.
 
     """
-    _validate_results_list(results)
+    check_list(results, DriftResult, "results")
     n = len(results)
 
     if session_labels is not None and len(session_labels) != n:
         raise ValueError(
             f"session_labels length ({len(session_labels)}) must match results length ({n})"
         )
-    session_labels = session_labels or _default_labels(results)
+    session_labels = session_labels or default_labels(results)
 
     drift_rates = [abs(r.drift_rate) for r in results]
     categories = [r.interpretation for r in results]
@@ -249,7 +253,7 @@ def plot_drift_zones(
     # Threshold boundary lines
     for threshold in (_DRIFT_NO_THRESHOLD, _DRIFT_MILD_THRESHOLD, _DRIFT_MOD_THRESHOLD):
         if threshold < y_max:
-            ax.axhline(threshold, color=_GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
+            ax.axhline(threshold, color=GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
 
     # Zone labels on the right margin
     x_label_pos = n - 0.5
@@ -271,14 +275,14 @@ def plot_drift_zones(
                 ha="right",
                 va="center",
                 fontsize=8,
-                color=_GRAY,
+                color=GRAY,
             )
 
     # Session points connected by a neutral line
     xs = list(range(n))
-    ax.plot(xs, drift_rates, color=_GRAY, linewidth=1.2, zorder=3, alpha=0.6)
+    ax.plot(xs, drift_rates, color=GRAY, linewidth=1.2, zorder=3, alpha=0.6)
     for x, rate, cat in zip(xs, drift_rates, categories, strict=False):
-        color = _CATEGORY_COLORS.get(cat, _DARK)
+        color = _CATEGORY_COLORS.get(cat, DARK)
         ax.scatter([x], [rate], s=70, color=color, zorder=5)
         ax.text(
             x,
@@ -335,8 +339,7 @@ def _drift_windows(
 
 def _validate_rr(rr: RRSeries, window_sec: float) -> None:
     """Raise TypeError or ValueError when rr is invalid for drift plotting."""
-    if not isinstance(rr, RRSeries):
-        raise TypeError(f"rr must be an RRSeries, got {type(rr).__name__}")
+    check_type(rr, RRSeries, "rr")
     rr_ms = np.array(rr.intervals, dtype=float)
     time_s = np.cumsum(rr_ms) / 1000.0
     duration = float(time_s[-1] - time_s[0])
@@ -347,29 +350,3 @@ def _validate_rr(rr: RRSeries, window_sec: float) -> None:
             f"{window_sec:.0f} s (found {n_windows}). "
             f"Record at least {_MIN_WINDOWS * window_sec:.0f} s."
         )
-
-
-def _validate_result(result: DriftResult) -> None:
-    """Raise TypeError when result is not a DriftResult."""
-    if not isinstance(result, DriftResult):
-        raise TypeError(f"result must be a DriftResult, got {type(result).__name__}")
-
-
-def _validate_results_list(results: list[DriftResult]) -> None:
-    """Raise TypeError or ValueError when results list is invalid."""
-    if not isinstance(results, list):
-        raise TypeError(f"results must be a list, got {type(results).__name__}")
-    if len(results) == 0:
-        raise ValueError("results must contain at least one DriftResult.")
-    for idx, res in enumerate(results):
-        if not isinstance(res, DriftResult):
-            raise TypeError(
-                f"results[{idx}] must be a DriftResult, got {type(res).__name__}"
-            )
-
-
-def _default_labels(results: list[DriftResult]) -> list[str]:
-    """Return date strings from results or fallback 'Session N' labels."""
-    return [
-        str(r.date) if r.date else f"Session {i + 1}" for i, r in enumerate(results)
-    ]

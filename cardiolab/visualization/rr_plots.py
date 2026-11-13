@@ -19,6 +19,7 @@ from matplotlib.figure import Figure
 from scipy.stats import gaussian_kde
 
 from cardiolab.signals.rr import RRSeries
+from cardiolab.visualization._common import DARK, GRAY
 
 # ── Colour palette ───────────────────────────────────────────────────────────
 
@@ -26,8 +27,6 @@ _BLUE = "#2980b9"
 _GREEN = "#27ae60"
 _RED = "#e74c3c"
 _ORANGE = "#f39c12"
-_GRAY = "#95a5a6"
-_DARK = "#2c3e50"
 
 _PALETTE = [
     "#2980b9",
@@ -84,8 +83,8 @@ def _hr_to_rr(hr_bpm: np.ndarray) -> np.ndarray:
 def _add_hr_axis(ax: Axes) -> None:
     """Add a secondary y-axis displaying heart rate (bpm)."""
     ax_hr = ax.secondary_yaxis("right", functions=(_rr_to_hr, _hr_to_rr))
-    ax_hr.set_ylabel("FC (bpm)", color=_GRAY, fontsize=9)
-    ax_hr.tick_params(axis="y", colors=_GRAY, labelsize=8)
+    ax_hr.set_ylabel("FC (bpm)", color=GRAY, fontsize=9)
+    ax_hr.tick_params(axis="y", colors=GRAY, labelsize=8)
     hr_ticks = [40, 50, 60, 70, 80, 90, 100, 120, 150, 200]
     ax_hr.yaxis.set_major_locator(mticker.FixedLocator(hr_ticks))
 
@@ -147,7 +146,7 @@ def plot_rr_tachogram(
     if show_mean:
         ax.axhline(
             mean_rr,
-            color=_DARK,
+            color=DARK,
             linewidth=1.3,
             linestyle="--",
             label=f"Moyenne  {mean_rr:.0f} ms  ({60_000.0 / mean_rr:.0f} bpm)",
@@ -223,15 +222,15 @@ def plot_rr_distribution(
     # Vertical markers
     ax.axvline(
         mean_rr,
-        color=_DARK,
+        color=DARK,
         linewidth=1.5,
         linestyle="--",
         label=f"Moyenne {mean_rr:.0f} ms",
     )
-    ax.axvline(mean_rr - std_rr, color=_GRAY, linewidth=1.0, linestyle=":", alpha=0.8)
+    ax.axvline(mean_rr - std_rr, color=GRAY, linewidth=1.0, linestyle=":", alpha=0.8)
     ax.axvline(
         mean_rr + std_rr,
-        color=_GRAY,
+        color=GRAY,
         linewidth=1.0,
         linestyle=":",
         alpha=0.8,
@@ -243,9 +242,9 @@ def plot_rr_distribution(
         ax2 = ax.twinx()
         x_kde = np.linspace(intervals.min() - 50, intervals.max() + 50, 400)
         kde = gaussian_kde(intervals, bw_method="scott")
-        ax2.plot(x_kde, kde(x_kde), color=_DARK, linewidth=2.0, label="Densité (KDE)")
-        ax2.set_ylabel("Densité de probabilité", fontsize=9, color=_DARK)
-        ax2.tick_params(axis="y", colors=_DARK, labelsize=8)
+        ax2.plot(x_kde, kde(x_kde), color=DARK, linewidth=2.0, label="Densité (KDE)")
+        ax2.set_ylabel("Densité de probabilité", fontsize=9, color=DARK)
+        ax2.tick_params(axis="y", colors=DARK, labelsize=8)
         ax2.set_ylim(bottom=0)
         ax2.legend(loc="upper left", fontsize=8)
 
@@ -273,7 +272,7 @@ def plot_rr_distribution(
                 "boxstyle": "round,pad=0.4",
                 "facecolor": "white",
                 "alpha": 0.8,
-                "edgecolor": _GRAY,
+                "edgecolor": GRAY,
             },
         )
 
@@ -340,7 +339,7 @@ def plot_rr_filtered(
 
     # ── Top panel: raw signal + highlighted artefacts ────────────────────────
     ax_top.plot(
-        t_raw, intervals_raw, color=_GRAY, linewidth=0.8, alpha=0.7, label="Brut"
+        t_raw, intervals_raw, color=GRAY, linewidth=0.8, alpha=0.7, label="Brut"
     )
     ax_top.scatter(
         t_raw[mask_ok],
@@ -376,7 +375,7 @@ def plot_rr_filtered(
     mean_filt = float(np.mean(intervals_filt))
     ax_bot.axhline(
         mean_filt,
-        color=_DARK,
+        color=DARK,
         linewidth=1.2,
         linestyle="--",
         label=f"Moyenne {mean_filt:.0f} ms ({60_000.0 / mean_filt:.0f} bpm)",
@@ -465,7 +464,7 @@ def plot_rr_comparison(
         ax.scatter(t, intervals, color=color, s=5, alpha=0.6, zorder=3)
         ax.axhline(
             mean_rr,
-            color=_DARK,
+            color=DARK,
             linewidth=1.1,
             linestyle="--",
             alpha=0.7,
@@ -532,7 +531,7 @@ def plot_rr_summary(
 
     ax_a.plot(t, intervals, color=_BLUE, linewidth=0.8, alpha=0.85)
     ax_a.scatter(t, intervals, color=_BLUE, s=4, alpha=0.6, zorder=3)
-    ax_a.axhline(mean_rr, color=_DARK, linewidth=1.2, linestyle="--", alpha=0.8)
+    ax_a.axhline(mean_rr, color=DARK, linewidth=1.2, linestyle="--", alpha=0.8)
     ax_a.axhspan(mean_rr - std_rr, mean_rr + std_rr, alpha=0.09, color=_BLUE)
     ax_a.set_xlabel("Temps (s)", fontsize=9)
     ax_a.set_ylabel("RR (ms)", fontsize=9)
@@ -546,17 +545,17 @@ def plot_rr_summary(
         intervals, bins=35, color=_BLUE, alpha=0.55, edgecolor="white", linewidth=0.4
     )
     ax_b.axvline(
-        mean_rr, color=_DARK, linewidth=1.4, linestyle="--", label=f"{mean_rr:.0f} ms"
+        mean_rr, color=DARK, linewidth=1.4, linestyle="--", label=f"{mean_rr:.0f} ms"
     )
-    ax_b.axvline(mean_rr - std_rr, color=_GRAY, linewidth=0.9, linestyle=":", alpha=0.8)
-    ax_b.axvline(mean_rr + std_rr, color=_GRAY, linewidth=0.9, linestyle=":", alpha=0.8)
+    ax_b.axvline(mean_rr - std_rr, color=GRAY, linewidth=0.9, linestyle=":", alpha=0.8)
+    ax_b.axvline(mean_rr + std_rr, color=GRAY, linewidth=0.9, linestyle=":", alpha=0.8)
     if len(intervals) >= 5:
         ax_b2 = ax_b.twinx()
         x_kde = np.linspace(intervals.min() - 30, intervals.max() + 30, 300)
         kde = gaussian_kde(intervals, bw_method="scott")
-        ax_b2.plot(x_kde, kde(x_kde), color=_DARK, linewidth=1.8)
-        ax_b2.set_ylabel("Densité", fontsize=8, color=_DARK)
-        ax_b2.tick_params(axis="y", colors=_DARK, labelsize=7)
+        ax_b2.plot(x_kde, kde(x_kde), color=DARK, linewidth=1.8)
+        ax_b2.set_ylabel("Densité", fontsize=8, color=DARK)
+        ax_b2.tick_params(axis="y", colors=DARK, labelsize=7)
         ax_b2.set_ylim(bottom=0)
     ax_b.set_xlabel("RR (ms)", fontsize=9)
     ax_b.set_ylabel("Fréquence", fontsize=9)
@@ -566,7 +565,7 @@ def plot_rr_summary(
 
     # ── Panel C: Filtré vs brut ──────────────────────────────────────────────
     ax_c = fig.add_subplot(gs[1, 0])
-    ax_c.plot(t, intervals, color=_GRAY, linewidth=0.7, alpha=0.5, label="Brut")
+    ax_c.plot(t, intervals, color=GRAY, linewidth=0.7, alpha=0.5, label="Brut")
     ax_c.scatter(
         t[mask_ok],
         intervals[mask_ok],
@@ -637,7 +636,7 @@ def plot_rr_summary(
         )
         for _c_idx, (text, x) in enumerate(zip(row, col_x, strict=False)):
             ha = "left"
-            color = _DARK if is_header else "black"
+            color = DARK if is_header else "black"
             ax_d.text(
                 x,
                 y - 0.01,

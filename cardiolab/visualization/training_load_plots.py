@@ -12,6 +12,7 @@ from matplotlib.patches import Patch
 
 from cardiolab.labels import lbl
 from cardiolab.sports import SPORTS, normalize_sport
+from cardiolab.visualization._common import DARK, GRAY
 
 if TYPE_CHECKING:
     from cardiolab.analytics.training_load import TrainingLoad
@@ -22,8 +23,6 @@ _ATL_COLOR = "#e74c3c"  # red — acute fatigue
 _CTL_COLOR = "#2980b9"  # blue — chronic fitness
 _TSB_COLOR = "#8e44ad"  # purple — form
 _TRIMP_COLOR = "#e67e22"  # orange — default TRIMP bar
-_GRAY = "#95a5a6"
-_DARK = "#2c3e50"
 
 # ── Form zone definitions ─────────────────────────────────────────────────────
 # (low, high, background_colour, label) — relative form = TSB in % of CTL,
@@ -117,7 +116,7 @@ def _note_no_form(ax: plt.Axes, form: np.ndarray, labels: dict | None) -> None:
     n_missing = len(form) if not finite.any() else int(np.argmax(finite))
     if n_missing == 0:
         return
-    ax.axvspan(-0.5, n_missing - 0.5, color=_GRAY, alpha=0.18, zorder=1, lw=0)
+    ax.axvspan(-0.5, n_missing - 0.5, color=GRAY, alpha=0.18, zorder=1, lw=0)
     text = (
         lbl(
             labels,
@@ -135,7 +134,7 @@ def _note_no_form(ax: plt.Axes, form: np.ndarray, labels: dict | None) -> None:
         ha="center",
         va="center",
         fontsize=8 if n_missing < len(form) else 9,
-        color=_DARK,
+        color=DARK,
         zorder=5,
     )
 
@@ -224,7 +223,7 @@ def plot_atl_ctl_tsb(
                 label=lbl(labels, zone_key, label),
             )
 
-    ax_bot.axhline(0, color=_GRAY, linewidth=0.9, linestyle="--", alpha=0.8)
+    ax_bot.axhline(0, color=GRAY, linewidth=0.9, linestyle="--", alpha=0.8)
     ax_bot.plot(
         x,
         form,
@@ -355,7 +354,7 @@ def plot_trimp_history(
         ax.plot(
             np.arange(6, len(trimp)),
             rolling,
-            color=_DARK,
+            color=DARK,
             linewidth=1.6,
             linestyle="--",
             label="7-day mean",
@@ -363,7 +362,7 @@ def plot_trimp_history(
         )
         if patches:
             patches.append(
-                Patch(facecolor=_DARK, label="7-day mean", linestyle="--", fill=False)
+                Patch(facecolor=DARK, label="7-day mean", linestyle="--", fill=False)
             )
 
     ax.set_ylabel(lbl(labels, "trimp", "TRIMP"), fontsize=10)
@@ -442,9 +441,9 @@ def plot_tsb_zones(
                 Patch(facecolor=color, alpha=0.55, label=lbl(labels, zone_key, label))
             )
 
-    ax.axhline(0, color=_GRAY, linewidth=1.0, linestyle="--", alpha=0.8)
+    ax.axhline(0, color=GRAY, linewidth=1.0, linestyle="--", alpha=0.8)
     for bound in (-50, -30, 5, 20):
-        ax.axhline(bound, color=_GRAY, linewidth=0.5, linestyle=":", alpha=0.6)
+        ax.axhline(bound, color=GRAY, linewidth=0.5, linestyle=":", alpha=0.6)
 
     ax.plot(x, tsb, color=_TSB_COLOR, linewidth=2.0, zorder=4)
     with np.errstate(invalid="ignore"):

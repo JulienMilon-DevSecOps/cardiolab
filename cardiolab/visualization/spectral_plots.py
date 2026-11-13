@@ -29,6 +29,7 @@ from cardiolab.features.frequency_domain import _welch_psd as _welch_psd_raw
 from cardiolab.labels import lbl
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.signals.rr import RRSeries
+from cardiolab.visualization._common import DARK, GRAY
 
 # ── Colour palette ───────────────────────────────────────────────────────────
 
@@ -36,8 +37,6 @@ _VLF_COLOR = "#8e44ad"
 _LF_COLOR = "#2980b9"
 _HF_COLOR = "#27ae60"
 _AR_COLOR = "#e74c3c"
-_DARK = "#2c3e50"
-_GRAY = "#95a5a6"
 
 _PALETTE = [
     "#2980b9",
@@ -127,7 +126,7 @@ def _fill_bands(
 def _draw_band_boundaries(ax: plt.Axes) -> None:
     """Draw dotted vertical lines at the VLF/LF/HF transition frequencies."""
     for x in (_VLF_BAND[1], _LF_BAND[1], _HF_BAND[1]):
-        ax.axvline(x, color=_GRAY, linewidth=0.8, linestyle=":", alpha=0.7)
+        ax.axvline(x, color=GRAY, linewidth=0.8, linestyle=":", alpha=0.7)
 
 
 def _annotate_powers(ax: plt.Axes, powers: dict[str, float]) -> None:
@@ -149,7 +148,7 @@ def _annotate_powers(ax: plt.Axes, powers: dict[str, float]) -> None:
             "boxstyle": "round,pad=0.4",
             "facecolor": "white",
             "alpha": 0.85,
-            "edgecolor": _GRAY,
+            "edgecolor": GRAY,
         },
     )
 
@@ -167,7 +166,7 @@ def _label_bands(ax: plt.Axes, y_top: float) -> None:
             label,
             fontsize=9,
             ha="center",
-            color=_DARK,
+            color=DARK,
             alpha=0.65,
             fontweight="bold",
         )
@@ -224,7 +223,7 @@ def plot_psd_welch(
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    ax.plot(freqs, psd, color=_DARK, linewidth=1.2, alpha=0.9, zorder=4)
+    ax.plot(freqs, psd, color=DARK, linewidth=1.2, alpha=0.9, zorder=4)
     powers = _fill_bands(ax, freqs, psd)
     _draw_band_boundaries(ax)
     _annotate_powers(ax, powers)
@@ -437,7 +436,7 @@ def plot_lf_hf_evolution(
         )
 
     ax.set_ylim(0, 1.15)
-    ax.axhline(0.5, color=_GRAY, linewidth=0.8, linestyle=":", alpha=0.6)
+    ax.axhline(0.5, color=GRAY, linewidth=0.8, linestyle=":", alpha=0.6)
     ax.set_xticks(x)
     ax.set_xticklabels(session_labels, rotation=40, ha="right", fontsize=9)
     ax.set_ylabel(lbl(labels, "lf_nu", "Normalised units (LF_nu / HF_nu)"), fontsize=10)
@@ -529,12 +528,12 @@ def plot_hrv_radar(
         ax.plot(
             angles,
             [level] * len(angles),
-            color=_GRAY,
+            color=GRAY,
             linewidth=0.5,
             linestyle=":",
             alpha=0.5,
         )
-    ax.fill(angles, [1.0] * len(angles), color=_GRAY, alpha=0.06)
+    ax.fill(angles, [1.0] * len(angles), color=GRAY, alpha=0.06)
 
     # Data polygon
     ax.plot(angles, norm_values_closed, color=_LF_COLOR, linewidth=2.0, zorder=4)
@@ -552,8 +551,8 @@ def plot_hrv_radar(
     )
     ax.set_ylim(0, 1.0)
     ax.set_yticks([0.25, 0.5, 0.75])
-    ax.set_yticklabels(["25 %", "50 %", "75 %"], fontsize=7, color=_GRAY)
-    ax.grid(color=_GRAY, linewidth=0.4, alpha=0.5)
+    ax.set_yticklabels(["25 %", "50 %", "75 %"], fontsize=7, color=GRAY)
+    ax.grid(color=GRAY, linewidth=0.4, alpha=0.5)
 
     suffix = " ⚠ NaN values set to 0" if has_nan else ""
     session_id = str(features.date) if features.date else ""
@@ -667,7 +666,7 @@ def plot_spectral_heatmap(
         for col in range(n_cols):
             val = data[row, col]
             cell_val = data_display[row, col]
-            text_color = "white" if cell_val < 0.25 or cell_val > 0.80 else _DARK
+            text_color = "white" if cell_val < 0.25 or cell_val > 0.80 else DARK
             fmt = f"{val:.0f}" if col < 3 else f"{val:.2f}"
             ax.text(
                 col,

@@ -20,6 +20,13 @@ from matplotlib.patches import Ellipse
 
 from cardiolab.protocols.resting import HRVFeatures
 from cardiolab.signals.rr import RRSeries
+from cardiolab.visualization._common import (
+    DARK,
+    GRAY,
+    check_list,
+    check_rr,
+    default_labels,
+)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -38,8 +45,6 @@ _STANDING_COLOR = "#e74c3c"
 _IDENTITY_COLOR = "#95a5a6"
 _SCATTER_COLOR = "#7f8c8d"
 _ELLIPSE_COLOR = "#2c3e50"
-_DARK = "#2c3e50"
-_GRAY = "#95a5a6"
 
 
 # ── Public functions ──────────────────────────────────────────────────────────
@@ -70,7 +75,7 @@ def plot_poincare(
         ValueError: If ``rr`` contains fewer than ``_MIN_INTERVALS_POINCARE`` intervals.
 
     """
-    _validate_rr(rr)
+    check_rr(rr, _MIN_INTERVALS_POINCARE)
 
     stats = _poincare_stats(rr)
     limits = _poincare_limits(rr)
@@ -134,8 +139,8 @@ def plot_poincare_comparison(
         ValueError: If either series has fewer than ``_MIN_INTERVALS_POINCARE`` intervals.
 
     """
-    _validate_rr(rr_supine)
-    _validate_rr(rr_standing)
+    check_rr(rr_supine, _MIN_INTERVALS_POINCARE)
+    check_rr(rr_standing, _MIN_INTERVALS_POINCARE)
 
     stats_supine = _poincare_stats(rr_supine)
     stats_standing = _poincare_stats(rr_standing)
@@ -219,7 +224,7 @@ def plot_sd1_sd2_evolution(
         ValueError: If ``session_labels`` length does not match ``features_list``.
 
     """
-    _validate_features_list(features_list)
+    check_list(features_list, HRVFeatures, "features_list")
     n = len(features_list)
 
     if session_labels is not None and len(session_labels) != n:
@@ -227,7 +232,7 @@ def plot_sd1_sd2_evolution(
             f"session_labels length ({len(session_labels)}) must match features_list length ({n})"
         )
 
-    session_labels = session_labels or _default_labels(features_list)
+    session_labels = session_labels or default_labels(features_list)
     x = np.arange(n)
 
     sd1_arr = np.array([f.sd1 for f in features_list], dtype=float)
@@ -393,7 +398,7 @@ def plot_dfa_fluctuation(
         ax.plot(
             n_ref,
             f_ref,
-            color=_GRAY,
+            color=GRAY,
             linewidth=0.9,
             linestyle=ref_ls,
             alpha=0.7,
@@ -404,7 +409,7 @@ def plot_dfa_fluctuation(
     ax.plot(
         log_n_line,
         log_f_line,
-        color=_DARK,
+        color=DARK,
         linewidth=1.8,
         label=f"Regression  α1 = {alpha:.3f}",
         zorder=4,
@@ -531,7 +536,7 @@ def _draw_poincare_on_ax(
     ax.add_patch(ellipse)
 
     # Centroid dot
-    ax.scatter([cx], [cy], s=40, color=_DARK, zorder=5)
+    ax.scatter([cx], [cy], s=40, color=DARK, zorder=5)
 
     if show_arrows:
         sqrt2 = float(np.sqrt(2))
@@ -627,38 +632,3 @@ def _dfa_data(
     log_f = np.log(np.array(fluct_list))
     alpha = float(np.polyfit(log_s, log_f, 1)[0])
     return np.array(scales_list, dtype=float), np.array(fluct_list), alpha
-
-
-def _validate_rr(rr: RRSeries) -> None:
-    """Raise TypeError or ValueError when rr is not a valid RRSeries."""
-    if not isinstance(rr, RRSeries):
-        raise TypeError(f"rr must be an RRSeries, got {type(rr).__name__}")
-    if len(rr.intervals) < _MIN_INTERVALS_POINCARE:
-        raise ValueError(
-            f"rr must have at least {_MIN_INTERVALS_POINCARE} intervals, "
-            f"got {len(rr.intervals)}"
-        )
-
-
-def _validate_features_list(features_list: list[HRVFeatures]) -> None:
-    """Raise TypeError or ValueError when features_list is not valid."""
-    if not isinstance(features_list, list):
-        raise TypeError(
-            f"features_list must be a list, got {type(features_list).__name__}"
-        )
-    if len(features_list) == 0:
-        raise ValueError("features_list must contain at least one HRVFeatures.")
-    for idx, item in enumerate(features_list):
-        if not isinstance(item, HRVFeatures):
-            raise TypeError(
-                f"features_list[{idx}] must be an HRVFeatures, "
-                f"got {type(item).__name__}"
-            )
-
-
-def _default_labels(features_list: list[HRVFeatures]) -> list[str]:
-    """Return date strings from features or fallback 'Session N' labels."""
-    return [
-        str(f.date) if f.date else f"Session {i + 1}"
-        for i, f in enumerate(features_list)
-    ]

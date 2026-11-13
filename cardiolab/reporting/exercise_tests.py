@@ -21,6 +21,7 @@ from cardiolab.reporting._core import (
     fmt_float,
     gradient_good,
     highlight_category,
+    validate_list,
 )
 
 _STATUS_COLORS: dict[str, str] = {
@@ -57,7 +58,7 @@ def table_dfa_thresholds_history(
         ValueError: If ``records`` is empty.
 
     """
-    _validate_list(records, ThresholdRecord, "records")
+    validate_list(records, ThresholdRecord, "records")
     rows = [
         {
             "date": r.date,
@@ -121,7 +122,7 @@ def table_lsct_history(
         ValueError: If ``results`` is empty.
 
     """
-    _validate_list(results, LSCTResult, "results")
+    validate_list(results, LSCTResult, "results")
     rows = []
     for i, r in enumerate(results):
         previous = results[max(0, i - reference_tests) : i]
@@ -164,17 +165,3 @@ def table_lsct_history(
 def _translate(labels: dict[str, str] | None, prefix: str):
     """Display formatter: a category code shown with its label (``prefix + code``)."""
     return lambda code: lbl(labels, prefix + code, code) if code else ""
-
-
-def _validate_list(lst: list, expected_type: type, name: str) -> None:
-    """Raise unless ``lst`` is a non-empty list of ``expected_type``."""
-    if not isinstance(lst, list):
-        raise TypeError(f"{name} must be a list, got {type(lst).__name__}")
-    if not lst:
-        raise ValueError(f"{name} must contain at least one element.")
-    for i, item in enumerate(lst):
-        if not isinstance(item, expected_type):
-            raise TypeError(
-                f"{name}[{i}] must be a {expected_type.__name__}, "
-                f"got {type(item).__name__}"
-            )

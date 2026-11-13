@@ -9,7 +9,6 @@ from pandas.io.formats.style import Styler
 
 from cardiolab.protocols.vo2max import VO2maxResult
 from cardiolab.reporting.vo2max import (
-    _validate_list,
     table_vo2max_history,
     table_vo2max_session,
 )
@@ -63,32 +62,6 @@ def two_results() -> list[VO2maxResult]:
         _make_result(vo2max_esco_flatt=38.0, fitness_category="fair"),
         _make_result(vo2max_esco_flatt=50.0, fitness_category="very_good"),
     ]
-
-
-# ── _validate_list ────────────────────────────────────────────────────────────
-
-
-def test_validate_list_not_a_list() -> None:
-    """Raise TypeError when argument is not a list."""
-    with pytest.raises(TypeError, match="must be a list"):
-        _validate_list("not a list", VO2maxResult, "results")
-
-
-def test_validate_list_empty() -> None:
-    """Raise ValueError when list is empty."""
-    with pytest.raises(ValueError, match="at least one element"):
-        _validate_list([], VO2maxResult, "results")
-
-
-def test_validate_list_wrong_type(one_result: VO2maxResult) -> None:
-    """Raise TypeError when element has wrong type."""
-    with pytest.raises(TypeError, match="results\\[1\\]"):
-        _validate_list([one_result, "bad"], VO2maxResult, "results")
-
-
-def test_validate_list_ok(one_result: VO2maxResult) -> None:
-    """Pass silently for a valid single-element list."""
-    _validate_list([one_result], VO2maxResult, "results")
 
 
 # ── table_vo2max_history ──────────────────────────────────────────────────────

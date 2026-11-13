@@ -16,13 +16,13 @@ from cardiolab.analytics.trends import (
     detect_sustained_decline,
     trend_line,
 )
-from cardiolab.labels import LABELS_EN, lbl
+from cardiolab.labels import lbl
+from cardiolab.visualization._common import DARK, text
 
 _DIST_COLOR = "#2c3e50"
 _THRESHOLD_COLOR = "#c0392b"
 _ANOMALY_COLOR = "#7c5cc4"
 _MUTED = "#95a5a6"
-_DARK = "#2c3e50"
 _Z_LIMIT = 4.0
 
 TREND_COLORS: dict[str, str] = {
@@ -37,11 +37,6 @@ _REQUIRED = ("date", "mahalanobis", "threshold", "is_anomaly", "status")
 
 def _day(value) -> date:
     return value if isinstance(value, date) else date.fromisoformat(str(value)[:10])
-
-
-def _t(labels: dict[str, str] | None, key: str) -> str:
-    """Label of *key*, English by default."""
-    return lbl(labels, key, LABELS_EN[key])
 
 
 def _p_text(p: float) -> str:
@@ -142,7 +137,7 @@ def plot_anomaly_timeline(
             color=_MUTED,
             alpha=0.15,
             linewidth=0,
-            label=_t(labels, "anomaly_building") if k == 0 else None,
+            label=text(labels, "anomaly_building") if k == 0 else None,
         )
 
     ok = np.isfinite(dist)
@@ -155,7 +150,7 @@ def plot_anomaly_timeline(
             s=14,
             color=_DIST_COLOR,
             zorder=3,
-            label=_t(labels, "anomaly_distance"),
+            label=text(labels, "anomaly_distance"),
         )
         t_ok = np.isfinite(thr)
         ax.step(
@@ -165,7 +160,7 @@ def plot_anomaly_timeline(
             color=_THRESHOLD_COLOR,
             linestyle="--",
             linewidth=1.3,
-            label=_t(labels, "anomaly_threshold"),
+            label=text(labels, "anomaly_threshold"),
         )
         both = ok & t_ok
         ax.fill_between(
@@ -188,7 +183,7 @@ def plot_anomaly_timeline(
             edgecolors="white",
             linewidths=0.8,
             zorder=5,
-            label=_t(labels, "anomaly_marker"),
+            label=text(labels, "anomaly_marker"),
         )
     unchecked = [s in ("missing_features", "no_variability") for s in status]
     if any(unchecked):
@@ -201,12 +196,12 @@ def plot_anomaly_timeline(
             edgecolors=_MUTED,
             zorder=4,
             clip_on=False,
-            label=_t(labels, "anomaly_not_checked"),
+            label=text(labels, "anomaly_not_checked"),
         )
 
     finite = np.concatenate([dist[ok], thr[np.isfinite(thr)]])
     ax.set_ylim(0, max(5.0, float(finite.max()) * 1.1) if finite.size else 5.0)
-    ax.set_ylabel(_t(labels, "anomaly_distance"))
+    ax.set_ylabel(text(labels, "anomaly_distance"))
     ax.grid(alpha=0.2, linestyle=":")
     ax.legend(loc="upper left", fontsize=8)
 
@@ -237,7 +232,7 @@ def plot_anomaly_timeline(
             cax = ax_z.inset_axes([1.01, 0.0, 0.012, 1.0])
             bar = fig.colorbar(scatter, cax=cax)
             bar.set_label(
-                _t(labels, "anomaly_zscore"),
+                text(labels, "anomaly_zscore"),
                 fontsize=7,
             )
             bar.ax.tick_params(labelsize=7)
@@ -248,10 +243,10 @@ def plot_anomaly_timeline(
     bottom.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m"))
     fig.autofmt_xdate()
     fig.suptitle(
-        title or _t(labels, "anomaly_timeline_title"),
+        title or text(labels, "anomaly_timeline_title"),
         fontsize=12,
         fontweight="bold",
-        color=_DARK,
+        color=DARK,
     )
     plt.tight_layout()
     return fig
@@ -346,22 +341,22 @@ def plot_trend_overlay(
         s=14,
         color=_MUTED,
         zorder=3,
-        label=_t(labels, "trend_values"),
+        label=text(labels, "trend_values"),
     )
 
     styles = ("-", "--", ":")
-    per_week = _t(labels, "trend_per_week")
-    band_label = _t(labels, "trend_band").format(level=f"{level * 100:g}")
+    per_week = text(labels, "trend_per_week")
+    band_label = text(labels, "trend_band").format(level=f"{level * 100:g}")
     band_shown = False
     for i, window in enumerate(windows):
         tl = trend_line(pairs, window, level=level)
         res = tl.result
         name = (
-            _t(labels, "trend_window_all")
+            text(labels, "trend_window_all")
             if window is None
-            else _t(labels, "trend_window_days").format(days=window)
+            else text(labels, "trend_window_days").format(days=window)
         )
-        state = _t(labels, f"trend_{res.label}")
+        state = text(labels, f"trend_{res.label}")
         if res.label == "insufficient_data" or tl.days is None:
             ax.plot(
                 [], [], color=_MUTED, linestyle=styles[i % 3], label=f"{name}: {state}"
@@ -401,7 +396,7 @@ def plot_trend_overlay(
                 edgecolors=TREND_COLORS["decreasing"],
                 linewidths=1.2,
                 zorder=5,
-                label=_t(labels, "trend_sustained_decline").format(
+                label=text(labels, "trend_sustained_decline").format(
                     n=decline.run_length
                 ),
             )
@@ -420,10 +415,10 @@ def plot_trend_overlay(
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m"))
     fig.autofmt_xdate()
     fig.suptitle(
-        title or _t(labels, "trend_overlay_title"),
+        title or text(labels, "trend_overlay_title"),
         fontsize=12,
         fontweight="bold",
-        color=_DARK,
+        color=DARK,
     )
     plt.tight_layout()
     return fig

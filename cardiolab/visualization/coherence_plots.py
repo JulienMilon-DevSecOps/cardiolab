@@ -19,6 +19,14 @@ from cardiolab.features.frequency_domain import _ar_psd, _interpolate
 from cardiolab.labels import lbl
 from cardiolab.protocols.cardiac_coherence import CoherenceResult
 from cardiolab.signals.rr import RRSeries
+from cardiolab.visualization._common import (
+    DARK,
+    GRAY,
+    check_list,
+    check_rr,
+    check_type,
+    default_labels,
+)
 from cardiolab.visualization._quality import mark_poor_sessions, session_qualities
 
 # ── Band and score constants ──────────────────────────────────────────────────
@@ -41,8 +49,6 @@ _RESONANCE_EDGE = "#27ae60"
 _PEAK_COLOR = "#e74c3c"
 _SINE_COLOR = "#e74c3c"
 _SCORE_LINE_COLOR = "#27ae60"
-_DARK = "#2c3e50"
-_GRAY = "#95a5a6"
 
 # ── Coherence score interpretation bands ─────────────────────────────────────
 
@@ -95,8 +101,8 @@ def plot_coherence_psd(
         ValueError: If ``rr`` has fewer than ``_MIN_INTERVALS_PSD`` intervals.
 
     """
-    _validate_rr(rr)
-    _validate_result(result)
+    check_rr(rr, _MIN_INTERVALS_PSD)
+    check_type(result, CoherenceResult, "result")
 
     _, interp_rr = _interpolate(rr, fs)
     try:
@@ -109,9 +115,7 @@ def plot_coherence_psd(
 
     # Full PSD curve (0–0.5 Hz)
     mask_display = freqs <= fs / 2
-    ax.plot(
-        freqs[mask_display], psd[mask_display], color=_DARK, linewidth=1.4, zorder=3
-    )
+    ax.plot(freqs[mask_display], psd[mask_display], color=DARK, linewidth=1.4, zorder=3)
 
     # Resonance band — filled
     mask_res = (freqs >= resonance_low) & (freqs <= resonance_high)
@@ -155,7 +159,7 @@ def plot_coherence_psd(
     # Target breathing frequency reference
     ax.axvline(
         _RESONANCE_TARGET,
-        color=_GRAY,
+        color=GRAY,
         linewidth=0.8,
         linestyle=":",
         alpha=0.6,
@@ -228,7 +232,7 @@ def plot_coherence_score_evolution(
         ValueError: If ``labels`` length does not match ``results`` length.
 
     """
-    _validate_results_list(results)
+    check_list(results, CoherenceResult, "results")
     n = len(results)
 
     if session_labels is not None and len(session_labels) != n:
@@ -236,7 +240,7 @@ def plot_coherence_score_evolution(
             f"session_labels length ({len(session_labels)}) must match results length ({n})"
         )
 
-    session_labels = session_labels or _default_labels(results)
+    session_labels = session_labels or default_labels(results)
     x = np.arange(n)
     scores = np.array([r.coherence_score for r in results], dtype=float)
 
@@ -246,7 +250,7 @@ def plot_coherence_score_evolution(
     for low, high, color, _ in _COHERENCE_ZONES:
         ax.axhspan(low, high, color=color, alpha=0.45, zorder=0)
     for threshold in (_SCORE_MODERATE, _SCORE_GOOD):
-        ax.axhline(threshold, color=_GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
+        ax.axhline(threshold, color=GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
 
     # Score line
     ax.plot(
@@ -268,7 +272,7 @@ def plot_coherence_score_evolution(
             textcoords="offset points",
             ha="center",
             fontsize=8,
-            color=_DARK,
+            color=DARK,
         )
 
     ax.set_ylim(0, 105)
@@ -327,8 +331,8 @@ def plot_coherence_tachogram(
         ValueError: If ``rr`` has fewer than ``_MIN_INTERVALS_PSD`` intervals.
 
     """
-    _validate_rr(rr)
-    _validate_result(result)
+    check_rr(rr, _MIN_INTERVALS_PSD)
+    check_type(result, CoherenceResult, "result")
 
     intervals = np.array(rr.intervals, dtype=float)
     beat_times = np.cumsum(intervals) / 1000.0  # seconds
@@ -350,7 +354,7 @@ def plot_coherence_tachogram(
     )
     ax.axhline(
         mean_rr,
-        color=_GRAY,
+        color=GRAY,
         linewidth=0.8,
         linestyle="--",
         alpha=0.7,
@@ -413,45 +417,6 @@ def plot_coherence_tachogram(
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────
-
-
-def _validate_rr(rr: RRSeries) -> None:
-    """Raise TypeError or ValueError when rr is not a valid RRSeries."""
-    if not isinstance(rr, RRSeries):
-        raise TypeError(f"rr must be an RRSeries, got {type(rr).__name__}")
-    if len(rr.intervals) < _MIN_INTERVALS_PSD:
-        raise ValueError(
-            f"rr must have at least {_MIN_INTERVALS_PSD} intervals, "
-            f"got {len(rr.intervals)}"
-        )
-
-
-def _validate_result(result: CoherenceResult) -> None:
-    """Raise TypeError when result is not a CoherenceResult."""
-    if not isinstance(result, CoherenceResult):
-        raise TypeError(
-            f"result must be a CoherenceResult, got {type(result).__name__}"
-        )
-
-
-def _validate_results_list(results: list[CoherenceResult]) -> None:
-    """Raise TypeError or ValueError when results is not a valid list."""
-    if not isinstance(results, list):
-        raise TypeError(f"results must be a list, got {type(results).__name__}")
-    if len(results) == 0:
-        raise ValueError("results must contain at least one CoherenceResult.")
-    for idx, item in enumerate(results):
-        if not isinstance(item, CoherenceResult):
-            raise TypeError(
-                f"results[{idx}] must be a CoherenceResult, got {type(item).__name__}"
-            )
-
-
-def _default_labels(results: list[CoherenceResult]) -> list[str]:
-    """Return date strings from results or fallback 'Session N' labels."""
-    return [
-        str(r.date) if r.date else f"Session {i + 1}" for i, r in enumerate(results)
-    ]
 
 
 def _score_label(score: float) -> str:

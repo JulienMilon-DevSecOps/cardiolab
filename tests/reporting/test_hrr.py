@@ -7,7 +7,6 @@ from pandas.io.formats.style import Styler
 
 from cardiolab.protocols.hrr import HRRResult
 from cardiolab.reporting.hrr import (
-    _validate_list,
     table_hrr_history,
 )
 
@@ -44,32 +43,6 @@ def two_results() -> list[HRRResult]:
         _make_result(hrr_60=25.0, hrr_60_category="good"),
         _make_result(hrr_60=10.0, hrr_60_category="impaired"),
     ]
-
-
-# ── _validate_list ────────────────────────────────────────────────────────────
-
-
-def test_validate_list_not_a_list() -> None:
-    """Raise TypeError when argument is not a list."""
-    with pytest.raises(TypeError, match="must be a list"):
-        _validate_list("not a list", HRRResult, "results")
-
-
-def test_validate_list_empty() -> None:
-    """Raise ValueError when list is empty."""
-    with pytest.raises(ValueError, match="at least one element"):
-        _validate_list([], HRRResult, "results")
-
-
-def test_validate_list_wrong_type(one_result: HRRResult) -> None:
-    """Raise TypeError when element has wrong type."""
-    with pytest.raises(TypeError, match="results\\[1\\]"):
-        _validate_list([one_result, "bad"], HRRResult, "results")
-
-
-def test_validate_list_ok(one_result: HRRResult) -> None:
-    """Pass silently for a valid single-element list."""
-    _validate_list([one_result], HRRResult, "results")
 
 
 # ── table_hrr_history ─────────────────────────────────────────────────────────

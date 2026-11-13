@@ -22,6 +22,13 @@ from matplotlib.patches import Wedge
 
 from cardiolab.labels import lbl
 from cardiolab.protocols.vo2max import VO2maxResult
+from cardiolab.visualization._common import (
+    DARK,
+    GRAY,
+    check_list,
+    check_type,
+    default_labels,
+)
 from cardiolab.visualization._quality import mark_poor_sessions, session_qualities
 
 # ── ACSM fitness thresholds (mL/kg/min) ──────────────────────────────────────
@@ -75,9 +82,6 @@ _GAUGE_R_LABEL: float = 1.22
 _GAUGE_R_TICK_IN: float = 0.54
 _GAUGE_R_TICK_OUT: float = 1.04
 
-_DARK = "#2c3e50"
-_GRAY = "#95a5a6"
-
 
 # ── Public functions ──────────────────────────────────────────────────────────
 
@@ -111,7 +115,7 @@ def plot_vo2max_comparison(
         TypeError: If ``result`` is not a :class:`~cardiolab.protocols.vo2max.VO2maxResult`.
 
     """
-    _validate_result(result)
+    check_type(result, VO2maxResult, "result")
 
     # Build the list of (label, value, color) — skip Uth when not available
     models: list[tuple[str, float]] = []
@@ -136,7 +140,7 @@ def plot_vo2max_comparison(
     x_label = len(models) - 0.4
     for threshold in (_VO2MAX_POOR, _VO2MAX_FAIR, _VO2MAX_GOOD, _VO2MAX_VERY_GOOD):
         if threshold < y_max:
-            ax.axhline(threshold, color=_GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
+            ax.axhline(threshold, color=GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
     for (low, high, _, zone_label), zone_key in zip(
         _VO2MAX_ZONES, _VO2MAX_ZONE_KEYS, strict=True
     ):
@@ -149,7 +153,7 @@ def plot_vo2max_comparison(
                 ha="right",
                 va="center",
                 fontsize=8,
-                color=_GRAY,
+                color=GRAY,
             )
 
     # Bars
@@ -171,7 +175,7 @@ def plot_vo2max_comparison(
 
     # Annotation box — category + inputs
     cat = result.fitness_category.replace("_", " ").title()
-    cat_color = _CATEGORY_COLORS.get(result.fitness_category, _DARK)
+    cat_color = _CATEGORY_COLORS.get(result.fitness_category, DARK)
     hr_max_str = f"{result.hr_max:.0f} bpm" if not math.isnan(result.hr_max) else "n/a"
     txt = (
         f"Category  : {cat}\n"
@@ -238,14 +242,14 @@ def plot_vo2max_evolution(
         ValueError: If ``results`` is empty or ``labels`` length mismatches.
 
     """
-    _validate_results_list(results)
+    check_list(results, VO2maxResult, "results")
     n = len(results)
 
     if session_labels is not None and len(session_labels) != n:
         raise ValueError(
             f"session_labels length ({len(session_labels)}) must match results length ({n})"
         )
-    session_labels = session_labels or _default_labels(results)
+    session_labels = session_labels or default_labels(results)
 
     best = np.array([_best_estimate(r) for r in results])
     categories = [r.fitness_category for r in results]
@@ -261,7 +265,7 @@ def plot_vo2max_evolution(
     # Threshold lines
     for threshold in (_VO2MAX_POOR, _VO2MAX_FAIR, _VO2MAX_GOOD, _VO2MAX_VERY_GOOD):
         if threshold < y_max:
-            ax.axhline(threshold, color=_GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
+            ax.axhline(threshold, color=GRAY, linewidth=0.7, linestyle=":", alpha=0.8)
 
     # ±10 % uncertainty band
     xs = list(range(n))
@@ -276,12 +280,12 @@ def plot_vo2max_evolution(
     )
 
     # Best estimate line
-    ax.plot(xs, best, color=_DARK, linewidth=1.8, zorder=3, label="Best estimate")
+    ax.plot(xs, best, color=DARK, linewidth=1.8, zorder=3, label="Best estimate")
     mark_poor_sessions(ax, xs, best, session_qualities(results), labels)
 
     # Session dots coloured by category
     for x, val, cat in zip(xs, best, categories, strict=False):
-        color = _CATEGORY_COLORS.get(cat, _DARK)
+        color = _CATEGORY_COLORS.get(cat, DARK)
         ax.scatter([x], [val], s=65, color=color, zorder=5)
         ax.text(
             x,
@@ -307,7 +311,7 @@ def plot_vo2max_evolution(
                 ha="right",
                 va="center",
                 fontsize=8,
-                color=_GRAY,
+                color=GRAY,
             )
 
     ax.set_xticks(xs)
@@ -349,7 +353,7 @@ def plot_vo2max_gauge(
         TypeError: If ``result`` is not a :class:`~cardiolab.protocols.vo2max.VO2maxResult`.
 
     """
-    _validate_result(result)
+    check_type(result, VO2maxResult, "result")
 
     best = _best_estimate(result)
     gauge_width = _GAUGE_R_OUTER - _GAUGE_R_INNER
@@ -385,7 +389,7 @@ def plot_vo2max_gauge(
             180.0,
             width=gauge_width,
             fill=False,
-            edgecolor=_DARK,
+            edgecolor=DARK,
             linewidth=0.8,
             zorder=3,
         )
@@ -407,10 +411,10 @@ def plot_vo2max_gauge(
         yi = _GAUGE_R_TICK_IN * math.sin(a_rad)
         xo = _GAUGE_R_TICK_OUT * math.cos(a_rad)
         yo = _GAUGE_R_TICK_OUT * math.sin(a_rad)
-        ax.plot([xi, xo], [yi, yo], color=_DARK, linewidth=0.8, zorder=4)
+        ax.plot([xi, xo], [yi, yo], color=DARK, linewidth=0.8, zorder=4)
         xl = _GAUGE_R_LABEL * math.cos(a_rad)
         yl = _GAUGE_R_LABEL * math.sin(a_rad)
-        ax.text(xl, yl, tick_label, ha="center", va="center", fontsize=7, color=_DARK)
+        ax.text(xl, yl, tick_label, ha="center", va="center", fontsize=7, color=DARK)
 
     # Zone labels inside sectors
     zone_r = (_GAUGE_R_OUTER + _GAUGE_R_INNER) / 2.0
@@ -429,7 +433,7 @@ def plot_vo2max_gauge(
             ha="center",
             va="center",
             fontsize=5,
-            color=_DARK,
+            color=DARK,
             alpha=0.8,
             rotation=_angle_from_vo2max(mid_val) - 90,
         )
@@ -442,16 +446,16 @@ def plot_vo2max_gauge(
     ax.plot(
         [0.0, nx],
         [0.0, ny],
-        color=_DARK,
+        color=DARK,
         linewidth=2.2,
         solid_capstyle="round",
         zorder=5,
     )
-    ax.add_patch(plt.Circle((0.0, 0.0), 0.06, color=_DARK, zorder=6))
+    ax.add_patch(plt.Circle((0.0, 0.0), 0.06, color=DARK, zorder=6))
 
     # Central text
     cat = result.fitness_category.replace("_", " ").title()
-    cat_color = _CATEGORY_COLORS.get(result.fitness_category, _DARK)
+    cat_color = _CATEGORY_COLORS.get(result.fitness_category, DARK)
     ax.text(
         0.0,
         -0.18,
@@ -462,7 +466,7 @@ def plot_vo2max_gauge(
         fontweight="bold",
         color=cat_color,
     )
-    ax.text(0.0, -0.38, "mL/kg/min", ha="center", va="center", fontsize=9, color=_GRAY)
+    ax.text(0.0, -0.38, "mL/kg/min", ha="center", va="center", fontsize=9, color=GRAY)
     ax.text(
         0.0,
         -0.54,
@@ -497,29 +501,3 @@ def _best_estimate(result: VO2maxResult) -> float:
     if not math.isnan(result.vo2max_uth):
         return result.vo2max_uth
     return result.vo2max_ln_rmssd
-
-
-def _validate_result(result: VO2maxResult) -> None:
-    """Raise TypeError when result is not a VO2maxResult."""
-    if not isinstance(result, VO2maxResult):
-        raise TypeError(f"result must be a VO2maxResult, got {type(result).__name__}")
-
-
-def _validate_results_list(results: list[VO2maxResult]) -> None:
-    """Raise TypeError or ValueError when results list is invalid."""
-    if not isinstance(results, list):
-        raise TypeError(f"results must be a list, got {type(results).__name__}")
-    if len(results) == 0:
-        raise ValueError("results must contain at least one VO2maxResult.")
-    for idx, res in enumerate(results):
-        if not isinstance(res, VO2maxResult):
-            raise TypeError(
-                f"results[{idx}] must be a VO2maxResult, got {type(res).__name__}"
-            )
-
-
-def _default_labels(results: list[VO2maxResult]) -> list[str]:
-    """Return date strings from results or fallback 'Session N' labels."""
-    return [
-        str(r.date) if r.date else f"Session {i + 1}" for i, r in enumerate(results)
-    ]
