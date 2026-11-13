@@ -47,6 +47,11 @@ from cardiolab.signals.quality import signal_quality
 signal_quality(rr, good_max=1.0, acceptable_max=3.0)
 ```
 
+**PPG intervals** (v0.9.0): intervals from a raw pulse wave
+([`PPGSignal`](../sensors/ppg.md)) are also `poor` when the pulse regularity is
+below 0.4 (`metadata["ppg_regularity"]`): a sensor off the skin produces peaks
+from noise, with few "artefacts".
+
 `signal_quality(rr)` reads the correction report that `correct_artifacts()`
 stores in `rr.metadata["artifact_correction"]`; on an uncorrected series it
 runs the artefact detection (Lipponen & Tarvainen 2019, without correcting).

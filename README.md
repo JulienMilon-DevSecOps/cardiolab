@@ -23,7 +23,9 @@ own — in a notebook, a script or your own application.
 ## Features
 
 * **Sensor imports** — Polar (`.txt`, `.csv`), HRV4Training (`.csv`), Garmin (`.fit` / `.csv`),
-  Apple Health (`export.xml`).
+  Apple Health (`export.xml`), and the raw pulse wave of optical sensors (PPG — phone camera,
+  optical sensor; at rest only): `parse_ppg_csv()`, `PPGSignal.to_rr()` →
+  [`docs/sensors/ppg.md`](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/sensors/ppg.md).
 * **Clean signal** — artefact correction that keeps the athlete's respiratory arrhythmia,
   and a signal quality grade for every recording.
 * **23 HRV indicators** — time domain (RMSSD, SDNN, pNN50…), frequency domain (LF, HF,
@@ -112,7 +114,7 @@ interpreted results. Each step is a sub-package that can be used on its own:
 
 | Step | What happens | Sub-package |
 |------|--------------|-------------|
-| 1. Import | Read a sensor export into an `RRSeries` — the intervals between heartbeats, in ms | `cardiolab.sensors_tools` |
+| 1. Import | Read a sensor export into an `RRSeries` — the intervals between heartbeats, in ms (from a chest strap, a watch, or a raw PPG pulse wave) | `cardiolab.sensors_tools`, `cardiolab.signals` (`ECGSignal`, `PPGSignal`) |
 | 2. Clean | Flag implausible intervals, correct artefacts (missed, extra or ectopic beats), grade the signal quality | `cardiolab.signals` |
 | 3. Measure | Compute the 23 HRV indicators | `cardiolab.features` |
 | 4. Protocol | Apply a test (resting, orthostatic…) and interpret it: categories, score | `cardiolab.protocols` |

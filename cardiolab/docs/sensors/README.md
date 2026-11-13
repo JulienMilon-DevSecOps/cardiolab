@@ -15,6 +15,7 @@
 | **Garmin** (FIT) | `.fit` | ✅ | ✅ | ✅ | ❌ | `parse_garmin_fit` | `cardiolab[garmin]` |
 | **Garmin** (CSV beat-to-beat) | `.csv` | ✅ | ✅ | ✅ | ❌ | `parse_garmin_csv` | — |
 | **Indoor apps** (MyWhoosh, Zwift…) — power, HR / puissance, FC | `.fit` | ❌ | ❌ | ❌ | ❌ | `parse_fit_records` | `cardiolab[garmin]` |
+| **Raw PPG** (phone camera, optical sensor with a logger) / **PPG brut** (caméra, capteur optique) | `.csv` | ⚠️ pulse intervals / intervalles de pouls | ✅ at rest / au repos | ✅ | ❌ | `parse_ppg_csv` → `PPGSignal.to_rr()` | — |
 
 > **Raw RR** = beat-to-beat intervals available (required for RMSSD, pNN50, DFA).  
 > **RMSSD / SDNN** = computable from this source.  
@@ -44,6 +45,7 @@ Each protocol page has an « Equipment » section; indoor set-ups:
 - [HRV4Training](hrv4training.md) — camera-based app, no extra hardware / app caméra, sans matériel
 - [Apple Health](apple_health.md) — Apple Watch export, SDNN only / export Apple Watch, SDNN uniquement
 - [Garmin](garmin.md) — FIT/CSV, requires chest strap for raw RR / FIT/CSV, ceinture requise pour RR bruts
+- [PPG — optical sensors / capteurs optiques](ppg.md) — raw pulse wave → pulse intervals, at rest only / onde du pouls → intervalles, au repos uniquement
 - [Indoor cycling / Home-trainer](indoor_cycling.md) — recording set-ups for power + HR + RR / branchements pour puissance + FC + RR
 
 ---
