@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-11-13
+
+### Added — Multivariate anomaly detection (robust Mahalanobis distance)
+
+* New module `cardiolab.analytics.multivariate`: a session is compared with the previous
+  90 days on several metrics at once — by default the readiness-score components
+  `ln_rmssd`, `mean_hr`, `dfa_alpha1`, `sd_ratio`.
+  * `is_multivariate_anomaly(current, baseline)` → `MultivariateAnomaly` (`status`
+    `normal` / `anomaly` / `insufficient_data` / `missing_features` / `no_variability`,
+    distance, threshold, z-score per metric, `main_driver`). At least 40 reference sessions.
+  * `anomaly_report(history)` → DataFrame `date | zscore | mahalanobis | threshold |
+    is_anomaly | status | main_driver | z_<metric>`, each session against the previous ones
+    only.
+  * `robust_covariance(data)` → `RobustEstimate`: FAST-MCD core (Rousseeuw & Van Driessen
+    1999), then the sessions beyond the 99.9 % χ² quantile are set aside and the classical
+    estimate of the others is used. Implemented with numpy/scipy, no new dependency;
+    fixed seed.
+  * `mahalanobis_distance(reference, point)`, `prediction_threshold(n, p)` (Hotelling T²
+    prediction law: 3.75 with 40 sessions and 4 metrics, 3.51 with 90),
+    `chi2_threshold(p)` (asymptotic, 3.34).
+* Calibrated by simulation: false alarms 4.3 % / 2.7 % / 2.6 % with 40 / 60 / 90 sessions
+  (nominal 2.5 %), unchanged with 15 % of outliers in the reference — where a classical
+  covariance stops detecting anything. The plain MCD + χ² threshold gave 46 % false alarms with
+  30 sessions, hence the screened estimate, the F threshold and the minimum of 40 (the issue
+  proposed 30 and a fixed threshold of 3.0, still available with `threshold=`).
+* `docs/analytics/anomaly.md`. 21 tests.
+
+### Added — Statistical plots
+
+* `trend_line(series, window_days)` → `TrendLine`: the fitted line of `linear_trend()` and
+  its confidence band (95 % by default), with the same autocorrelation correction as the
+  p-value (effective sample size).
+* New module `cardiolab.visualization.statistical_plots`:
+  * `plot_anomaly_timeline(report)` — distance of each session against its threshold,
+    unusual sessions (purple diamonds), period without enough reference, sessions not
+    checked; bottom panel with the deviation of each metric (SD).
+  * `plot_trend_overlay(series, windows=(30,))` — values, one trend line per window
+    coloured by its label, confidence band, slope per week and p-value in the legend,
+    sustained decline highlighted.
+* EN / FR labels (`anomaly_*`, `trend_*`). Docs: `analytics/anomaly.md` and
+  `analytics/trends.md`. 23 tests.
+
+### Changed
+
+* `linear_trend()`: the window selection moved to a shared helper (no change of results).
+
 ## [0.6.1] - 2026-11-12
 
 ### Added — Clock correction when merging two FIT files

@@ -154,6 +154,22 @@ def _xy(series) -> tuple[np.ndarray, np.ndarray, list[date] | None]:
     return np.arange(len(y), dtype=float), y, None
 
 
+def _window(
+    series, window_days: int | None, end
+) -> tuple[np.ndarray, np.ndarray, list[date] | None]:
+    """:func:`_xy` restricted to ``(end − window_days, end]``, x starting at 0."""
+    x, y, days = _xy(series)
+    if days and window_days is not None:
+        last = _to_day(end) if end is not None else days[-1]
+        first = last - timedelta(days=window_days)
+        keep = np.array([first < d <= last for d in days])
+        x, y = x[keep], y[keep]
+        days = [d for d, k in zip(days, keep, strict=True) if k]
+        if len(x):
+            x = x - x[0]
+    return x, y, days
+
+
 def linear_trend(
     series: Sequence,
     window_days: int | None = None,
@@ -184,14 +200,7 @@ def linear_trend(
         A :class:`TrendResult`.
 
     """
-    x, y, days = _xy(series)
-    if days and window_days is not None:
-        last = _to_day(end) if end is not None else days[-1]
-        first = last - timedelta(days=window_days)
-        keep = np.array([first < d <= last for d in days])
-        x, y = x[keep], y[keep]
-        if len(x):
-            x = x - x[0]
+    x, y, _ = _window(series, window_days, end)
     n = len(y)
     if n < min_points or np.ptp(x) == 0:
         return TrendResult(n=n, **_INSUFFICIENT)
@@ -228,6 +237,107 @@ def linear_trend(
 # ======================
 # SUSTAINED DECLINE
 # ======================
+
+
+@dataclass(frozen=True)
+class TrendLine:
+    """Fitted trend line and its confidence band — output of :func:`trend_line`.
+
+    Attributes:
+        days: Date of each value of the window (``None`` for a series without
+            dates).
+        x: Days since the first value of the window (session index without
+            dates).
+        values: The values of the window.
+        fitted: The fitted line at each ``x``.
+        lower: Lower bound of the confidence band of the line.
+        upper: Upper bound of the confidence band of the line.
+        level: Confidence level of the band (``0.95`` by default).
+        result: The :class:`TrendResult` of the same window.
+
+    """
+
+    days: list[date] | None
+    x: np.ndarray
+    values: np.ndarray
+    fitted: np.ndarray
+    lower: np.ndarray
+    upper: np.ndarray
+    level: float
+    result: TrendResult
+
+
+def trend_line(
+    series: Sequence,
+    window_days: int | None = None,
+    *,
+    end: str | date | None = None,
+    level: float = 0.95,
+    min_points: int = MIN_POINTS,
+    alpha: float = ALPHA,
+    min_change_pct: float = MIN_CHANGE_PCT,
+) -> TrendLine:
+    """Fit the trend line of a window and its confidence band.
+
+    Same window and fit as :func:`linear_trend`. The band is the confidence
+    interval of the **line** (where the mean of the series lies), not of the
+    individual values:
+    ``t × s × √(1/n + (x − x̄)² / Σ(x − x̄)²)``. It widens towards the edges of
+    the window.
+
+    The band uses the same autocorrelation correction as the p-value: with an
+    effective sample size ``n_eff < n``, the standard error is multiplied by
+    ``√((n − 2) / (n_eff − 2))`` and ``t`` has ``n_eff − 2`` degrees of
+    freedom, so the band is as cautious as the p-value of the slope.
+
+    Args:
+        series: As for :func:`linear_trend`.
+        window_days: Only use the days ``(end − window_days, end]``.
+        end: Last day of the window. Defaults to the last date of the series.
+        level: Confidence level of the band.
+        min_points: Minimum values, otherwise ``insufficient_data``.
+        alpha: Significance level of the slope (for ``result.label``).
+        min_change_pct: Minimum change for ``increasing`` / ``decreasing``.
+
+    Returns:
+        A :class:`TrendLine`. With ``insufficient_data``, ``fitted``,
+        ``lower`` and ``upper`` are ``nan``; with ``n_eff ≤ 2`` (nearly all
+        values redundant), only the band is ``nan``.
+
+    Raises:
+        ValueError: If ``level`` is not strictly between 0 and 1.
+
+    """
+    if not 0.0 < level < 1.0:
+        raise ValueError(f"level must be between 0 and 1, got {level}.")
+    result = linear_trend(
+        series,
+        window_days,
+        end=end,
+        min_points=min_points,
+        alpha=alpha,
+        min_change_pct=min_change_pct,
+    )
+    x, y, days = _window(series, window_days, end)
+    nan = np.full(len(x), math.nan)
+    if result.label == "insufficient_data":
+        return TrendLine(days, x, y, nan, nan, nan.copy(), level, result)
+
+    fitted = result.intercept + result.slope * x
+    n = len(y)
+    if n <= 2 or result.n_eff <= 2.0:
+        return TrendLine(days, x, y, fitted, nan, nan.copy(), level, result)
+    s = math.sqrt(float(np.sum((y - fitted) ** 2)) / (n - 2))
+    if result.n_eff < n:
+        s *= math.sqrt((n - 2) / (result.n_eff - 2))
+    dof = min(float(n), result.n_eff) - 2
+    sxx = float(np.sum((x - x.mean()) ** 2))
+    half = (
+        float(student_t.ppf(0.5 + level / 2, dof))
+        * s
+        * np.sqrt(1.0 / n + (x - x.mean()) ** 2 / sxx)
+    )
+    return TrendLine(days, x, y, fitted, fitted - half, fitted + half, level, result)
 
 
 @dataclass(frozen=True)

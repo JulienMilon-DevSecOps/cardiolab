@@ -429,6 +429,53 @@ LABELS_FR.update(
     }
 )
 
+# ── Statistical plots (v0.7.0) ────────────────────────────────────────────────
+
+LABELS_EN.update(
+    {
+        "anomaly_timeline_title": "Unusual sessions — Mahalanobis distance",
+        "anomaly_distance": "Distance to usual sessions",
+        "anomaly_threshold": "Alert threshold",
+        "anomaly_marker": "Unusual session",
+        "anomaly_not_checked": "Not checked (missing metric)",
+        "anomaly_building": "Reference building (too few sessions)",
+        "anomaly_zscore": "Deviation from the reference (SD)",
+        "trend_overlay_title": "Trend with confidence band",
+        "trend_values": "Sessions",
+        "trend_window_days": "{days}-day trend",
+        "trend_window_all": "Whole-period trend",
+        "trend_band": "{level} % confidence band of the line",
+        "trend_per_week": "/week",
+        "trend_increasing": "increasing",
+        "trend_decreasing": "decreasing",
+        "trend_stable": "no clear trend",
+        "trend_insufficient_data": "too few values",
+        "trend_sustained_decline": "Below the usual range for {n} sessions",
+    }
+)
+LABELS_FR.update(
+    {
+        "anomaly_timeline_title": "Mesures inhabituelles — distance de Mahalanobis",
+        "anomaly_distance": "Écart aux mesures habituelles",
+        "anomaly_threshold": "Seuil d'alerte",
+        "anomaly_marker": "Mesure inhabituelle",
+        "anomaly_not_checked": "Non vérifiée (indicateur manquant)",
+        "anomaly_building": "Référence en construction (trop peu de mesures)",
+        "anomaly_zscore": "Écart à la référence (ET)",
+        "trend_overlay_title": "Tendance et bande de confiance",
+        "trend_values": "Mesures",
+        "trend_window_days": "Tendance sur {days} jours",
+        "trend_window_all": "Tendance sur toute la période",
+        "trend_band": "Bande de confiance à {level} % de la droite",
+        "trend_per_week": "/semaine",
+        "trend_increasing": "hausse nette",
+        "trend_decreasing": "baisse nette",
+        "trend_stable": "pas de tendance nette",
+        "trend_insufficient_data": "trop peu de valeurs",
+        "trend_sustained_decline": "Sous la zone habituelle depuis {n} mesures",
+    }
+)
+
 # ── Public helper ─────────────────────────────────────────────────────────────
 
 

@@ -32,7 +32,7 @@ starts once the previous one is tagged. Each item maps to one GitLab issue
 | [v0.5.0](#v050--athlete-longitudinal-monitoring-p2) | P2 | 7-day lnRMSSD + CV + SWC, trend analysis, real trend component, effort-based load (session RPE), load method per athlete, calculation review — **ready 2026-10-19** | V006 | **Yes** (readiness trend) |
 | [v0.6.0](#v060--exercise-protocols-p2) | P2 | DFA α1 thresholds (VT1/VT2), submaximal test, merging two FIT files, zones from HRmax — **ready 2026-11-09** (DFA thresholds not yet validated on a real test) | V007 | No (new protocols) |
 | [v0.6.1](#v061--merging-fixes-p2) | P2 | Clock correction when merging two FIT files (MyWhoosh drift) — **ready 2026-11-12** | — | No |
-| [v0.7.0](#v070--statistical-intelligence-p3) | P3 | Multivariate anomaly, statistical plots | — | No |
+| [v0.7.0](#v070--statistical-intelligence-p3) | P3 | Multivariate anomaly, statistical plots — **ready 2026-11-13** (not yet tried on a real history) | — | No |
 | [v0.8.0](#v080--autonomic-function-tests-p3) | P3 | Ewing battery (E/I, Valsalva, 30:15) | V008 | No (new protocol) |
 | [v0.9.0](#v090--ppg--prv-p3) | P3 | PPG signals / pulse rate variability | — | No |
 | [v0.10.0](#v0100--hrmax-field-test-p3) | P3 | HRmax field test, observed HRmax — **last, after v0.9.0** | V009 | No (new protocol; HRmax-based values change only if the athlete adopts the measured HRmax) |
@@ -105,10 +105,12 @@ Ready 2026-11-12. No DB change, no change to computed values (new options only).
 
 ## v0.7.0 — Statistical intelligence (P3)
 
+Ready 2026-11-13. No DB change, no change to existing computed values (new functions only).
+
 Most useful with ~100+ sessions per user.
 
-* **Multivariate anomaly (Mahalanobis)**: `mahalanobis_distance`, `is_multivariate_anomaly`, `anomaly_report`; guard `n < 30 → insufficient_data`.
-* **Statistical plots**: `visualization/statistical_plots.py` — anomaly timeline, trend overlay with 95 % CI.
+* ✅ **Multivariate anomaly (Mahalanobis)** (ready 2026-11-13 — done: `mahalanobis_distance`, `robust_covariance` (MCD + screening), `prediction_threshold` (Hotelling T²), `is_multivariate_anomaly`, `anomaly_report`, doc `analytics/anomaly.md`; guard raised to 40 sessions after calibration; not yet tried on the author's real history): unusual days on lnRMSSD, resting HR, DFA α1 and SD1/SD2 together, with the metric that deviates most.
+* ✅ **Statistical plots** (ready 2026-11-13 — done: `plot_anomaly_timeline`, `plot_trend_overlay`, `trend_line` (confidence band corrected for autocorrelation), EN/FR labels, docs `analytics/anomaly.md` and `analytics/trends.md`): `visualization/statistical_plots.py` — anomaly timeline, trend overlay with 95 % CI.
 
 ## v0.8.0 — Autonomic function tests (P3)
 
