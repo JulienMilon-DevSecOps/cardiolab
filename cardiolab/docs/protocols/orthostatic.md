@@ -275,6 +275,10 @@ to a personal history:
 * **After a training block**: progressive improvement in HR response and
   normalisation of HF/FC change → cardiovascular adaptation.
 
+The same recording also gives the **30:15 ratio** of the Ewing battery (heart rate peak
+around the 15th beat after standing, slowing around the 30th):
+`ratio_30_15(result)` — see [autonomic_tests.md](autonomic_tests.md).
+
 ---
 
 ## Summary

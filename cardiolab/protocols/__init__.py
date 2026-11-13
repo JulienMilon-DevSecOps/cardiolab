@@ -1,5 +1,16 @@
 """Physiological protocols — resting, orthostatic, and advanced cardiac tests."""
 
+from cardiolab.protocols.autonomic_tests import (
+    AutonomicTestsResult,
+    BreathingCycle,
+    DeepBreathingResult,
+    Ratio3015Result,
+    ValsalvaResult,
+    deep_breathing_limits,
+    deep_breathing_test,
+    ratio_30_15,
+    valsalva_ratio,
+)
 from cardiolab.protocols.cardiac_coherence import CoherenceResult, cardiac_coherence
 from cardiolab.protocols.cardiac_drift import DriftResult, cardiac_drift
 from cardiolab.protocols.dfa_thresholds import (
@@ -65,4 +76,14 @@ __all__ = [
     "compare_lsct",
     "lsct",
     "lsct_from_records",
+    # Autonomic reflex tests (Ewing battery)
+    "AutonomicTestsResult",
+    "BreathingCycle",
+    "DeepBreathingResult",
+    "Ratio3015Result",
+    "ValsalvaResult",
+    "deep_breathing_limits",
+    "deep_breathing_test",
+    "ratio_30_15",
+    "valsalva_ratio",
 ]
