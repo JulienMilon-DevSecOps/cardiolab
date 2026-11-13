@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.10.0] - 2026-11-13
 
 ### Added — HRmax field test and HRmax observed in sessions
 
@@ -33,6 +33,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`save_user_profile(hr_max_source=)`, `update_user_profile`, validated).
 * Doc `docs/protocols/hr_max_test.md` (why, safety and ACSM screening, chest strap,
   procedure, computation, observed HRmax, proposal rules); migration guide, README.
+
+### Added — HRmax observed from the stored sessions
+
+* Migration **V010**: `hrv_training_sessions.hr_peak` (highest heart rate held 5 s) and
+  `hr_peak_optical`. `save_training_session(hr_peak=, hr_peak_optical=)`,
+  `update_training_session`, `load_training_sessions` return them.
+* `extract_training_session_garmin()` returns `hr_peak`.
+* `HRVRepository.observed_hr_max(user_id, sport=, include_optical=)` and
+  `analytics.observed_from_peaks(rows)`: the HRmax observed per sport without the original
+  files.
+* `heart_rate_1hz()`: the held-5-s rule now resamples the heart rate to 1 s first (gaps up
+  to 10 s interpolated) — files written with « smart recording » (a sample every few
+  seconds) found no complete 5-s window before.
+* Tried on the author's files (8 indoor cycling sessions, 2026-11): observed HRmax on the bike
+  170 bpm (LSCT of 2026-11-09), below the 180 bpm of the profile → nothing proposed, as
+  intended (an observed HRmax is a lower bound).
 
 ## [0.9.0] - 2026-11-13
 

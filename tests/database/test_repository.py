@@ -3016,3 +3016,105 @@ class TestHRMaxUnit:
         rebuilt = _hr_max_test_from_row(row)
         assert rebuilt.hr_max == row["hr_max"]
         assert rebuilt.can_update_profile
+
+
+class TestSessionPeakUnit:
+    """V010: per-session held peak stored, HRmax observed from the database."""
+
+    def test_save_passes_peak(self):
+        """hr_peak and hr_peak_optical are the last two values of the INSERT."""
+        repo = HRVRepository("h", "db", "u", "p")
+        cur = _mock_repo_conn(repo)
+        repo.save_training_session(
+            "u1", "2026-09-06", 45.0, "running", hr_peak=188.4, hr_peak_optical=False
+        )
+        _, row = cur.execute.call_args[0]
+        assert row[-2:] == (188.4, False)
+
+    def test_update_accepts_peak(self):
+        """hr_peak can be filled in later (re-import of the file)."""
+        repo = HRVRepository("h", "db", "u", "p")
+        cur = _mock_repo_conn(repo)
+        cur.rowcount = 1
+        assert repo.update_training_session("aid", hr_peak=170.0)
+
+    def test_observed_from_stored_sessions(self):
+        """Peaks read per sport; sessions without a peak skipped."""
+        repo = HRVRepository("h", "db", "u", "p")
+        sessions = [
+            {
+                "activity_id": "a",
+                "date": "2026-11-09",
+                "sport_type": "cycling",
+                "hr_peak": 170.0,
+            },
+            {
+                "activity_id": "b",
+                "date": "2026-11-12",
+                "sport_type": "cycling",
+                "hr_peak": 168.0,
+            },
+            {
+                "activity_id": "c",
+                "date": "2026-09-06",
+                "sport_type": "running",
+                "hr_peak": 188.0,
+                "hr_peak_optical": True,
+            },
+            {
+                "activity_id": "d",
+                "date": "2026-11-08",
+                "sport_type": "cycling",
+                "hr_peak": None,
+            },
+        ]
+        with patch.object(
+            HRVRepository, "load_training_sessions", return_value=sessions
+        ):
+            best = repo.observed_hr_max("u1")
+            strap_only = repo.observed_hr_max("u1", include_optical=False)
+        assert (best["cycling"].hr_max, best["cycling"].session_id) == (170.0, "a")
+        assert best["running"].optical
+        assert set(strap_only) == {"cycling"}
+
+
+@pytest.mark.integration
+class TestSessionPeakIntegration:
+    """V010 round trip: peak stored with the session, observed HRmax read back."""
+
+    _USER = "test-v010-user"
+    _TABLE = "_cardiolab_test_v010_training"
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        """Fresh table, test user removed afterwards."""
+        _test_table_drop(self._TABLE)
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            repo.create_training_sessions_table()
+        yield
+        _test_db_cleanup(self._TABLE, self._USER)
+
+    def test_round_trip(self):
+        """Two cycling sessions and one running: the highest per sport."""
+        with _repo_from_test_env(training_sessions_table_name=self._TABLE) as repo:
+            repo.save_training_session(
+                self._USER, "2099-11-09", 15.0, "cycling", hr_peak=170.0
+            )
+            repo.save_training_session(
+                self._USER, "2099-11-12", 15.0, "cycling", hr_peak=168.0
+            )
+            aid = repo.save_training_session(
+                self._USER,
+                "2099-09-06",
+                45.0,
+                "running",
+                hr_peak=188.0,
+                hr_peak_optical=True,
+            )
+            sessions = repo.load_training_sessions(self._USER)
+            best = repo.observed_hr_max(self._USER)
+        assert (
+            sessions[0]["hr_peak"] == 188.0 and sessions[0]["hr_peak_optical"] is True
+        )
+        assert best["cycling"].hr_max == 170.0 and best["cycling"].date == "2099-11-09"
+        assert best["running"].session_id == aid
