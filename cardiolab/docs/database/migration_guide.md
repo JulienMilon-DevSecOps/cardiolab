@@ -69,6 +69,7 @@ conn.close()
 | `V005__add_signal_quality.sql` | v0.4.0 | Adds `quality JSONB` to `hrv_features`, `hrv_orthostatic`, `hrv_coherence`, `hrv_vo2max` ([signal quality](../features/signal_quality.md)) |
 | `V006__training_load_and_ortho_readiness.sql` | v0.5.0 | Adds `rpe` (0–10) and `hr_mean` to `hrv_training_sessions` ([load methods](../training_load/atl_ctl_tsb.md)), `load_method` to `user_profiles`, `readiness_score` to `hrv_orthostatic` (score de forme of the supine phase) and `hr_max_source` to `hrv_vo2max` (`provided` / `tanaka`) |
 | `V007__exercise_tests.sql` | v0.6.0 | Adds `hrv_dfa_thresholds` (DFA α1 thresholds or thresholds entered by hand — `source` `dfa` / `manual`, sport, intensity) and `hrv_lsct` (Lamberts submaximal cycle test, per-stage power / heart rate / RPE, HRR60) |
+| `V008__autonomic_tests.sql` | v0.8.0 | Adds `hrv_autonomic_tests` (Ewing battery: deep breathing heart rate difference and E/I ratio, Valsalva ratio, 30:15 ratio, interpretations — one row per day, any test may be missing) |
 
 > **Development databases only** — the `hr_max_source` column was added to V006
 > before the v0.5.0 release. A database that applied an earlier V006 (from the

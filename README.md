@@ -28,9 +28,9 @@ own — in a notebook, a script or your own application.
   and a signal quality grade for every recording.
 * **23 HRV indicators** — time domain (RMSSD, SDNN, pNN50…), frequency domain (LF, HF,
   LF/HF…), non-linear (Poincaré SD1/SD2, DFA α1, entropies).
-* **8 protocols** — resting, orthostatic, cardiac coherence, heart rate recovery, cardiac
-  drift, VO2max estimation, DFA α1 thresholds, submaximal cycle test (LSCT); each returns a
-  typed result with its interpretation. Training zones from the thresholds.
+* **9 protocols** — resting, orthostatic, cardiac coherence, heart rate recovery, cardiac
+  drift, VO2max estimation, DFA α1 thresholds, submaximal cycle test (LSCT), autonomic
+  reflex tests (Ewing battery); each returns a typed result with its interpretation. Training zones from the thresholds.
 * **Follow-up over time** — readiness score against the athlete's own history, 7-day
   lnRMSSD monitoring, trends, training load (ATL / CTL / freshness) with three load methods.
 * **Outputs** — matplotlib charts and dashboards, pandas report tables (HTML / Excel),
@@ -136,6 +136,7 @@ Every step is deterministic and covered by tests; the metrics are documented in
 | [VO2max](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/protocols/vo2max.md) | Estimated aerobic capacity, percentile by age and sex | Resting recording + HRmax or age | `vo2max_from_hrv()` |
 | [DFA α1 thresholds](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/protocols/dfa_thresholds.md) | Aerobic and anaerobic thresholds (HRVT1, HRVT2) — heart rate, and power or speed | Incremental test to exhaustion, chest strap | `dfa_thresholds()` |
 | [Submaximal cycle test (LSCT)](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/protocols/lsct.md) | Fitness and fatigue week after week: power at a fixed heart rate | 17 min on the bike, heart rate + power | `lsct()` |
+| [Autonomic reflex tests](https://gitlab.com/project-jmilon-devsecops/cardioanalysis/core/cardiolab/-/blob/main/cardiolab/docs/protocols/autonomic_tests.md) | Check-up of the nervous control of the heart, against reference values by age: deep breathing, Valsalva, 30:15 | 1 min paced breathing · 15 s strain on a manometer · the orthostatic test; chest strap | `deep_breathing_test()`, `valsalva_ratio()`, `ratio_30_15()` |
 
 Each linked page describes how to record the test, how the result is computed and how to
 read it. What comes next: see the
@@ -239,7 +240,7 @@ How to read each chart:
 ## Storage — PostgreSQL
 
 With the `database` extra, `HRVRepository` stores every protocol, the raw intervals,
-training sessions and athlete profiles (9 tables, versioned SQL migrations):
+training sessions and athlete profiles (12 tables, versioned SQL migrations):
 
 ```python
 from cardiolab.database import HRVRepository

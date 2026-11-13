@@ -116,7 +116,7 @@ Most useful with ~100+ sessions per user.
 
 DB: migration V008.
 
-* **Ewing battery**: deep breathing (6 breaths/min, E/I ratio), Valsalva ratio, 30:15 ratio on standing (reuses orthostatic phase detection). Clinical reference values by age.
+* 🚧 **Ewing battery** (in progress — done 2026-11-13: `deep_breathing_test`, `valsalva_ratio`, `ratio_30_15`, Ewing 1985 cut-offs, age-corrected deep breathing limits (May 1999), migration V008 `hrv_autonomic_tests`, doc `protocols/autonomic_tests.md`; to do: age-specific values for Valsalva and 30:15 (Low 1997, Gelber 1997 tables not integrated), a real test of the author): deep breathing (6 breaths/min, E/I ratio), Valsalva ratio, 30:15 ratio on standing (reuses orthostatic phase detection).
 
 ## v0.9.0 — PPG / PRV (P3)
 

@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — Autonomic reflex tests (Ewing battery)
+
+* New module `cardiolab.protocols.autonomic_tests` — a check-up of the nervous control of
+  the heart, once or twice a year:
+  * `deep_breathing_test(rr, age=)` → `DeepBreathingResult`: breathing cycles found on the
+    heart rate filtered around 0.1 Hz; mean heart rate difference and E/I ratio over the
+    complete cycles, breathing rate; fewer than 3 cycles → `unreliable`.
+  * `valsalva_ratio(rr, strain_start_sec)` → `ValsalvaResult`: longest RR in the 30 s after
+    the strain / shortest RR during it; warnings for a weak strain (no heart rate rise) or a
+    recording that stops too early.
+  * `ratio_30_15(orthostatic_result or rr, stand_sec=)` → `Ratio3015Result`: longest RR of
+    beats 20–40 / shortest of beats 5–25 after standing; the moment of standing is estimated
+    from the heart rate rise when not given.
+  * `normal` / `borderline` / `abnormal` against the adult values of Ewing et al. (1985);
+    for deep breathing with `age=`, the age-corrected 5th percentile of May et al. (1999)
+    (`deep_breathing_limits`). No age-corrected values for Valsalva and 30:15 (adult values
+    at every age, documented). Reference values, not a diagnosis.
+  * `AutonomicTestsResult` groups the tests of one day.
+* Migration **V008**: table `hrv_autonomic_tests` (one row per day, any test may be
+  missing), `HRVRepository.create_autonomic_tests_table` / `save_autonomic_tests` /
+  `load_autonomic_tests`; listed in `USER_DATA_TABLE_ATTRS` (`delete_user_data`).
+* Doc `docs/protocols/autonomic_tests.md` (conditions, procedure of each test, Valsalva
+  contraindications and manometer, reference tables by age, limits); orthostatic doc points
+  to the 30:15 ratio. Tests on synthetic signals with known responses.
+
 ## [0.7.0] - 2026-11-13
 
 ### Added — Multivariate anomaly detection (robust Mahalanobis distance)
