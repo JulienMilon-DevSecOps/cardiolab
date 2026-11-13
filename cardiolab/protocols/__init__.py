@@ -20,6 +20,7 @@ from cardiolab.protocols.dfa_thresholds import (
     dfa_alpha1_series,
     dfa_thresholds,
 )
+from cardiolab.protocols.hr_max_test import HRMaxTestResult, hr_max_test
 from cardiolab.protocols.hrr import HRRResult, heart_rate_recovery
 from cardiolab.protocols.lsct import (
     LSCTComparison,
@@ -86,4 +87,7 @@ __all__ = [
     "deep_breathing_test",
     "ratio_30_15",
     "valsalva_ratio",
+    # HRmax field test (Olympiatoppen)
+    "HRMaxTestResult",
+    "hr_max_test",
 ]

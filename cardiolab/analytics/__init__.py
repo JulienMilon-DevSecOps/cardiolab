@@ -2,6 +2,15 @@
 
 from cardiolab.analytics.anomaly import detect_rmssd_anomaly
 from cardiolab.analytics.baseline import Baseline
+from cardiolab.analytics.hr_max import (
+    HR_MAX_SOURCES,
+    HRMaxProposal,
+    ObservedHRMax,
+    SustainedPeak,
+    observed_hr_max,
+    propose_hr_max_update,
+    sustained_peak,
+)
 from cardiolab.analytics.monitoring import (
     MonitoringPoint,
     SWCBand,
@@ -90,6 +99,13 @@ __all__ = [
     "is_multivariate_anomaly",
     "MultivariateAnomaly",
     "anomaly_report",
+    "HR_MAX_SOURCES",
+    "HRMaxProposal",
+    "ObservedHRMax",
+    "SustainedPeak",
+    "observed_hr_max",
+    "propose_hr_max_update",
+    "sustained_peak",
     "trend_rmssd",
     "linear_trend",
     "TrendResult",

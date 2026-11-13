@@ -28,6 +28,9 @@ dfa_threshold_plots
 hrr_plots
     Heart Rate Recovery: recovery curve with HRR1/HRR2 markers, multi-session
     comparison of HR-drop curves, and semi-circular HRR1 gauge.
+hr_max_plots
+    HRmax field test (heart rate, held 5 s, peak retained, final effort) and
+    HRmax over time per sport (tests, observed values, profile).
 lsct_plots
     Lamberts submaximal cycle test: one test (heart rate, power, stages,
     recovery) and power / HRR60 over time.
@@ -76,6 +79,10 @@ from cardiolab.visualization.dfa_threshold_plots import (
 from cardiolab.visualization.drift_plots import (
     plot_drift_curve,
     plot_drift_zones,
+)
+from cardiolab.visualization.hr_max_plots import (
+    plot_hr_max_history,
+    plot_hr_max_test,
 )
 from cardiolab.visualization.hrr_plots import (
     plot_hrr_comparison,
@@ -133,6 +140,9 @@ __all__ = [
     "plot_alpha1_vs_hr",
     "plot_training_zones",
     "plot_threshold_evolution",
+    # hr_max_plots
+    "plot_hr_max_test",
+    "plot_hr_max_history",
     # lsct_plots
     "plot_lsct_session",
     "plot_lsct_evolution",
