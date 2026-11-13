@@ -68,6 +68,11 @@ from typing import Any
 from psycopg2 import connect, sql
 from psycopg2.extras import Json
 
+from cardiolab.analytics.hr_max import (
+    ObservedHRMax,
+    observed_from_peaks,
+    validate_hr_max_source,
+)
 from cardiolab.analytics.training_load import validate_load_method, validate_rpe
 from cardiolab.protocols.autonomic_tests import (
     AutonomicTestsResult,
@@ -79,6 +84,7 @@ from cardiolab.protocols.autonomic_tests import (
 from cardiolab.protocols.cardiac_coherence import CoherenceResult
 from cardiolab.protocols.cardiac_drift import DriftResult
 from cardiolab.protocols.dfa_thresholds import ThresholdRecord
+from cardiolab.protocols.hr_max_test import HRMaxTestResult
 from cardiolab.protocols.hrr import HRRResult
 from cardiolab.protocols.lsct import STAGES as _LSCT_STAGES
 from cardiolab.protocols.lsct import LSCTResult, LSCTStage
@@ -371,6 +377,24 @@ _AUTONOMIC_COLUMNS: dict[str, str] = {
 
 
 # ======================
+# HRMAX FIELD TEST — COLUMN REGISTRY (V009)
+# ======================
+
+_HR_MAX_TEST_COLUMNS: dict[str, str] = {
+    "user_id": "TEXT NOT NULL",
+    "date": "DATE NOT NULL",
+    "sport": "TEXT",
+    "hr_max": "FLOAT",
+    "peak_time_sec": "FLOAT",
+    "raw_max": "FLOAT",
+    "final_effort_sec": "FLOAT",
+    "plateau_reached": "BOOLEAN",
+    "sensor": "TEXT",
+    "status": "TEXT",
+}
+
+
+# ======================
 # TRAINING SESSIONS — COLUMN REGISTRY
 # ======================
 
@@ -385,6 +409,9 @@ _TRAINING_SESSIONS_COLUMNS: dict[str, str] = {
     "rpe": "SMALLINT CHECK (rpe IS NULL OR rpe BETWEEN 0 AND 10)",
     # Mean heart rate of the session (v0.5.0) — Banister load
     "hr_mean": "FLOAT",
+    # Highest heart rate held 5 s (v0.10.0, V010) — HRmax observed in sessions
+    "hr_peak": "FLOAT",
+    "hr_peak_optical": "BOOLEAN",
 }
 
 # Columns writable by save_training_session() (excludes activity_id, user_id, date)
@@ -402,6 +429,8 @@ _TRAINING_SESSIONS_SELECT_COLUMNS: list[str] = [
     "notes",
     "rpe",
     "hr_mean",
+    "hr_peak",
+    "hr_peak_optical",
 ]
 
 
@@ -419,6 +448,9 @@ _USER_PROFILES_COLUMNS: dict[str, str] = {
     "weight_kg": "FLOAT",
     # Load method of every session (v0.5.0): hrv / banister / rpe
     "load_method": "TEXT NOT NULL DEFAULT 'hrv' CHECK (load_method IN ('hrv', 'banister', 'rpe'))",
+    # Where hr_max comes from (v0.10.0): provided / tanaka / field_test / observed
+    "hr_max_source": "TEXT CHECK (hr_max_source IS NULL OR hr_max_source IN "
+    "('provided', 'tanaka', 'field_test', 'observed'))",
 }
 
 # Fields that can be updated via update_user_profile() — excludes user_id and timestamps
@@ -924,6 +956,21 @@ def _autonomic_from_row(r: dict) -> AutonomicTestsResult:
     )
 
 
+def _hr_max_test_from_row(r: dict) -> HRMaxTestResult:
+    """Rebuild an HRmax test (warnings are not stored)."""
+    return HRMaxTestResult(
+        hr_max=_or(r["hr_max"], math.nan),
+        sport=_or(r["sport"], "other"),
+        date=str(r["date"]),
+        peak_time_sec=_or(r["peak_time_sec"], math.nan),
+        raw_max=_or(r["raw_max"], math.nan),
+        final_effort_sec=_or(r["final_effort_sec"], math.nan),
+        plateau_reached=bool(r["plateau_reached"]),
+        sensor=r["sensor"],
+        status=_or(r["status"], "valid"),
+    )
+
+
 class _Flat:
     """Attribute view of a dict, for :meth:`_ProtocolTable.values`."""
 
@@ -981,6 +1028,9 @@ _DFA_THRESHOLDS = _ProtocolTable(
     "dfa_thresholds_table_name", _DFA_THRESHOLDS_COLUMNS, _dfa_thresholds_from_row
 )
 _LSCT = _ProtocolTable("lsct_table_name", _LSCT_COLUMNS, _lsct_from_row)
+_HR_MAX_TEST = _ProtocolTable(
+    "hr_max_test_table_name", _HR_MAX_TEST_COLUMNS, _hr_max_test_from_row
+)
 _AUTONOMIC = _ProtocolTable(
     "autonomic_table_name", _AUTONOMIC_COLUMNS, _autonomic_from_row
 )
@@ -1101,6 +1151,7 @@ USER_DATA_TABLE_ATTRS: tuple[str, ...] = (
     "dfa_thresholds_table_name",
     "lsct_table_name",
     "autonomic_table_name",
+    "hr_max_test_table_name",
     "training_sessions_table_name",
     "raw_sessions_table_name",
     "user_profiles_table_name",
@@ -1166,6 +1217,7 @@ class HRVRepository:
         dfa_thresholds_table_name: str = "hrv_dfa_thresholds",
         lsct_table_name: str = "hrv_lsct",
         autonomic_table_name: str = "hrv_autonomic_tests",
+        hr_max_test_table_name: str = "hrv_hr_max_tests",
         port: int = 5432,
     ) -> None:
         """Store connection parameters and validate table names."""
@@ -1188,6 +1240,7 @@ class HRVRepository:
         self.dfa_thresholds_table_name = dfa_thresholds_table_name
         self.lsct_table_name = lsct_table_name
         self.autonomic_table_name = autonomic_table_name
+        self.hr_max_test_table_name = hr_max_test_table_name
         for name in self.user_data_tables():
             _validate_identifier(name)
         self._conn = None
@@ -1209,6 +1262,7 @@ class HRVRepository:
         dfa_thresholds_table_name: str = "hrv_dfa_thresholds",
         lsct_table_name: str = "hrv_lsct",
         autonomic_table_name: str = "hrv_autonomic_tests",
+        hr_max_test_table_name: str = "hrv_hr_max_tests",
     ) -> HRVRepository:
         """Build a repository from environment variables.
 
@@ -1245,6 +1299,8 @@ class HRVRepository:
             lsct_table_name: LSCT table name. Defaults to ``"hrv_lsct"``.
             autonomic_table_name: Autonomic tests table name. Defaults to
                 ``"hrv_autonomic_tests"``.
+            hr_max_test_table_name: HRmax field test table name. Defaults to
+                ``"hrv_hr_max_tests"``.
 
         Returns:
             A configured ``HRVRepository`` instance (not yet connected).
@@ -1271,6 +1327,7 @@ class HRVRepository:
             dfa_thresholds_table_name=dfa_thresholds_table_name,
             lsct_table_name=lsct_table_name,
             autonomic_table_name=autonomic_table_name,
+            hr_max_test_table_name=hr_max_test_table_name,
         )
 
     # ── Connection lifecycle ──────────────────────────────────────────────
@@ -1957,6 +2014,63 @@ class HRVRepository:
         """
         return self._select(_AUTONOMIC, user_id)
 
+    # ── HRmax field test (V009) ───────────────────────────────────────────
+
+    def create_hr_max_tests_table(self) -> None:
+        """Create the HRmax field test table if it does not exist (V009).
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the SQL statement is rejected.
+
+        """
+        self._create(_HR_MAX_TEST)
+
+    def save_hr_max_test(
+        self, result: HRMaxTestResult, user_id: str, date: str | None = None
+    ) -> None:
+        """Insert or update one HRmax field test.
+
+        Saving a test never changes the profile: offer the new value with
+        :func:`~cardiolab.analytics.hr_max.propose_hr_max_update`, then call
+        :meth:`update_user_profile` (``hr_max``, ``hr_max_source="field_test"``)
+        only if the athlete accepts.
+
+        Args:
+            result: Output of :func:`~cardiolab.protocols.hr_max_test.hr_max_test`.
+            user_id: User identifier.
+            date: ISO date; defaults to ``result.date``.
+
+        Raises:
+            ValueError: If neither ``date`` nor ``result.date`` is set.
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the insert fails.
+
+        """
+        date = date or result.date
+        if not date:
+            raise ValueError("date is required (result.date is not set)")
+        self._upsert(
+            _HR_MAX_TEST,
+            (user_id, date, *_HR_MAX_TEST.values(_Flat(result.to_dict()))),
+        )
+
+    def load_hr_max_tests(self, user_id: str) -> list[HRMaxTestResult]:
+        """Load all HRmax field tests of a user, by ascending date.
+
+        Args:
+            user_id: Identifier of the user.
+
+        Returns:
+            List of ``HRMaxTestResult`` (without warnings).
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        return self._select(_HR_MAX_TEST, user_id)
+
     # ── Raw sessions — schema ────────────────────────────────────────────
 
     def create_raw_sessions_table(self) -> None:
@@ -2241,6 +2355,8 @@ class HRVRepository:
         notes: str | None = None,
         rpe: int | None = None,
         hr_mean: float | None = None,
+        hr_peak: float | None = None,
+        hr_peak_optical: bool | None = None,
     ) -> str:
         """Insert a new training activity and return its ``activity_id``.
 
@@ -2266,6 +2382,11 @@ class HRVRepository:
                 (CR-10, Foster 2001). ``None`` = not entered. Added in 0.5.0.
             hr_mean: Mean heart rate of the session (bpm), for the Banister
                 load. ``None`` = unknown. Added in 0.5.0.
+            hr_peak: Highest heart rate held 5 s in the session (bpm) —
+                ``extract_training_session_garmin(...)["hr_peak"]``. Feeds
+                :meth:`observed_hr_max`. ``None`` = unknown. Added in 0.10.0.
+            hr_peak_optical: ``True`` when the session was recorded with an
+                optical (wrist) sensor — a less reliable peak. Added in 0.10.0.
 
         Returns:
             The ``activity_id`` (UUID string) of the newly created row.
@@ -2301,6 +2422,8 @@ class HRVRepository:
             notes,
             rpe,
             hr_mean,
+            hr_peak,
+            hr_peak_optical,
         )
         with self._conn_or_raise().cursor() as cur:
             cur.execute(query, row)
@@ -2312,7 +2435,7 @@ class HRVRepository:
         Args:
             activity_id: Identifier returned by :meth:`save_training_session`.
             **fields: Among ``duration_min``, ``sport_type``, ``trimp``,
-                ``notes``, ``rpe``, ``hr_mean``. ``sport_type`` and ``rpe`` are
+                ``notes``, ``rpe``, ``hr_mean``, ``hr_peak``, ``hr_peak_optical``. ``sport_type`` and ``rpe`` are
                 validated as in :meth:`save_training_session`.
 
         Returns:
@@ -2380,8 +2503,8 @@ class HRVRepository:
         Returns:
             List of dicts, one per activity, sorted ascending by date.
             Each dict has keys: ``activity_id``, ``date``, ``duration_min``,
-            ``sport_type``, ``trimp``, ``notes``, ``rpe``, ``hr_mean`` (``None`` if
-            not entered).
+            ``sport_type``, ``trimp``, ``notes``, ``rpe``, ``hr_mean``,
+            ``hr_peak``, ``hr_peak_optical`` (``None`` if not entered).
             Multiple activities on the same day appear as distinct rows.
 
         Raises:
@@ -2409,6 +2532,43 @@ class HRVRepository:
             | {"date": str(row[1])}
             for row in rows
         ]
+
+    def observed_hr_max(
+        self,
+        user_id: str,
+        *,
+        sport: str | None = None,
+        include_optical: bool = True,
+    ) -> dict[str, ObservedHRMax]:
+        """Return the HRmax observed in the stored sessions, per sport (V010).
+
+        Reads the ``hr_peak`` of each session (highest heart rate held 5 s,
+        stored at import); sessions without it are skipped. Same result as
+        :func:`~cardiolab.analytics.hr_max.observed_hr_max` on the original
+        files, without them.
+
+        Args:
+            user_id: User identifier.
+            sport: Only this sport (``None`` → every sport, separately).
+            include_optical: ``False`` to ignore sessions recorded with an
+                optical sensor.
+
+        Returns:
+            ``{sport: ObservedHRMax}`` (``session_id`` = ``activity_id``).
+            Propose an update with
+            :func:`~cardiolab.analytics.hr_max.propose_hr_max_update` — never
+            applied here.
+
+        Raises:
+            RuntimeError: If called outside a ``with`` block.
+            psycopg2.Error: If the query fails.
+
+        """
+        return observed_from_peaks(
+            self.load_training_sessions(user_id),
+            sport=sport,
+            include_optical=include_optical,
+        )
 
     def find_training_sessions(
         self,
@@ -2528,6 +2688,7 @@ class HRVRepository:
         hr_rest: int | None = None,
         weight_kg: float | None = None,
         load_method: str = "hrv",
+        hr_max_source: str | None = None,
     ) -> None:
         """Insert or update a user profile (upsert on ``user_id``).
 
@@ -2550,14 +2711,18 @@ class HRVRepository:
                 (score de forme of the day, default), ``"banister"`` (session
                 heart rate) or ``"rpe"`` (perceived effort). One method per
                 athlete keeps ATL / CTL / TSB on one scale. Added in 0.5.0.
+            hr_max_source: Where ``hr_max`` comes from — ``"provided"``,
+                ``"tanaka"``, ``"field_test"`` or ``"observed"`` (``None`` =
+                unknown). Added in 0.10.0.
 
         Raises:
-            ValueError: If ``load_method`` is unknown.
+            ValueError: If ``load_method`` or ``hr_max_source`` is unknown.
             RuntimeError: If called outside a ``with`` block.
             psycopg2.Error: If the upsert fails.
 
         """
         validate_load_method(load_method)
+        validate_hr_max_source(hr_max_source)
         cols = ["user_id", *_USER_PROFILES_COLUMNS.keys()]
         values = (
             user_id,
@@ -2569,6 +2734,7 @@ class HRVRepository:
             hr_rest,
             weight_kg,
             load_method,
+            hr_max_source,
         )
         placeholders = sql.SQL(", ").join(sql.Placeholder() * len(cols))
         col_ids = sql.SQL(", ").join(sql.Identifier(c) for c in cols)
@@ -2602,7 +2768,7 @@ class HRVRepository:
             **fields: Field names and their new values. Accepted keys:
                 ``primary_protocol``, ``sex``, ``birth_year``,
                 ``height_cm``, ``hr_max``, ``hr_rest``, ``weight_kg``,
-                ``load_method``.
+                ``load_method``, ``hr_max_source``.
 
         Returns:
             ``True`` if a profile with ``user_id`` existed and was updated,
@@ -2625,6 +2791,8 @@ class HRVRepository:
             )
         if "load_method" in fields:
             validate_load_method(fields["load_method"])
+        if "hr_max_source" in fields:
+            validate_hr_max_source(fields["hr_max_source"])
         set_clause = sql.SQL(", ").join(
             sql.SQL("{} = %s").format(sql.Identifier(k)) for k in fields
         )

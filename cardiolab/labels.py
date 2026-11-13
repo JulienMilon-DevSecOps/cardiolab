@@ -476,6 +476,37 @@ LABELS_FR.update(
     }
 )
 
+# ── HRmax (v0.10.0) ───────────────────────────────────────────────────────────
+
+LABELS_EN.update(
+    {
+        "hr_bpm": "Heart rate (bpm)",
+        "hr_max_test_title": "HRmax field test",
+        "hr_max_history_title": "HRmax over time",
+        "hr_max_raw": "Heart rate",
+        "hr_max_held": "Held 5 s",
+        "hr_max_final_effort": "Final effort (≥ 90 % of the peak)",
+        "hr_max_retained": "HRmax retained: {hr} bpm",
+        "hr_max_spike": "Spike set aside (artefact)",
+        "hr_max_profile": "Profile HRmax: {hr} bpm",
+        "hr_max_observed": "Observed in sessions",
+    }
+)
+LABELS_FR.update(
+    {
+        "hr_bpm": "Fréquence cardiaque (bpm)",
+        "hr_max_test_title": "Test de FC max",
+        "hr_max_history_title": "FC max dans le temps",
+        "hr_max_raw": "Fréquence cardiaque",
+        "hr_max_held": "Tenue 5 s",
+        "hr_max_final_effort": "Effort final (≥ 90 % du pic)",
+        "hr_max_retained": "FC max retenue : {hr} bpm",
+        "hr_max_spike": "Pic écarté (artefact)",
+        "hr_max_profile": "FC max du profil : {hr} bpm",
+        "hr_max_observed": "Observée en séance",
+    }
+)
+
 # ── Public helper ─────────────────────────────────────────────────────────────
 
 
