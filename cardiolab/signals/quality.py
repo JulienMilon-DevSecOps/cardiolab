@@ -27,6 +27,7 @@ from dataclasses import asdict, dataclass
 import numpy as np
 
 from cardiolab.signals.artifacts import WARNING_THRESHOLD_PCT, detect_artifacts
+from cardiolab.signals.ppg import MIN_REGULARITY
 
 GOOD_MAX_PCT = 2.0
 """Share of artefacts (%) below which a corrected recording is ``good``."""
@@ -182,7 +183,10 @@ def signal_quality(
     report in ``metadata["artifact_correction"]``), the share of corrected
     beats is used. Otherwise artefacts are detected (Lipponen & Tarvainen
     2019, without correcting them) and any artefact found makes the recording
-    ``poor``.
+    ``poor``. Intervals from a PPG without a regular pulse
+    (``metadata["ppg_regularity"]`` below
+    :data:`~cardiolab.signals.ppg.MIN_REGULARITY`, added in 0.9.0) are
+    ``poor`` too.
 
     Args:
         rr: An ``RRSeries``.
@@ -207,10 +211,17 @@ def signal_quality(
         n = len(rr.intervals)
         pct = 100.0 * len(artifact_indices(rr.intervals)) / n if n else 0.0
         corrected = False
+    grade = grade_quality(
+        pct, corrected, good_max=good_max, acceptable_max=acceptable_max
+    )
+    meta = rr.metadata or {}
+    if (
+        meta.get("signal_type") == "ppg"
+        and meta.get("ppg_regularity", 1.0) < MIN_REGULARITY
+    ):
+        grade = "poor"  # no regular pulse: the peaks are noise
     return SignalQuality(
-        grade=grade_quality(
-            pct, corrected, good_max=good_max, acceptable_max=acceptable_max
-        ),
+        grade=grade,
         artifact_pct=round(pct, 2),
         corrected=corrected,
         n_beats=len(rr.intervals),

@@ -34,7 +34,7 @@ starts once the previous one is tagged. Each item maps to one GitLab issue
 | [v0.6.1](#v061--merging-fixes-p2) | P2 | Clock correction when merging two FIT files (MyWhoosh drift) — **ready 2026-11-12** | — | No |
 | [v0.7.0](#v070--statistical-intelligence-p3) | P3 | Multivariate anomaly, statistical plots — **ready 2026-11-13** (not yet tried on a real history) | — | No |
 | [v0.8.0](#v080--autonomic-function-tests-p3) | P3 | Ewing battery (E/I, Valsalva, 30:15) — **ready 2026-11-13** (age-corrected values for deep breathing only; not yet tried on a real test) | V008 | No (new protocol) |
-| [v0.9.0](#v090--ppg--prv-p3) | P3 | PPG signals / pulse rate variability | — | No |
+| [v0.9.0](#v090--ppg--prv-p3) | P3 | PPG signals / pulse rate variability — **ready 2026-11-13** (checked on synthetic pulse waves; not yet compared with a chest strap) | — | No |
 | [v0.10.0](#v0100--hrmax-field-test-p3) | P3 | HRmax field test, observed HRmax — **last, after v0.9.0** | V009 | No (new protocol; HRmax-based values change only if the athlete adopts the measured HRmax) |
 
 ---
@@ -120,7 +120,9 @@ Ready 2026-11-13. DB: migration V008 (new table `hrv_autonomic_tests`, nothing c
 
 ## v0.9.0 — PPG / PRV (P3)
 
-* **PPG signals and pulse rate variability**: `PPGSignal` (filtering, systolic peak detection), conversion to an RR-like series, PRV vs HRV limits (documented), Lomb-Scargle by default.
+Ready 2026-11-13. No DB change, no change to computed values (new signal type; the quality grade only changes for PPG intervals).
+
+* ✅ **PPG signals and pulse rate variability** (ready 2026-11-13 — done: `PPGSignal` (band-pass, motion, Elgendi peaks with sub-sample timing, pulse regularity), `to_rr()`, `parse_ppg_csv`, `is_ppg`, PPG-aware signal quality, doc `sensors/ppg.md`; still to do: compare with a chest strap on a real recording — phone camera or optical sensor — before relying on it): `PPGSignal` (filtering, systolic peak detection), conversion to an RR-like series, PRV vs HRV limits (documented), Lomb-Scargle by default.
 
 ## v0.10.0 — HRmax field test (P3)
 
