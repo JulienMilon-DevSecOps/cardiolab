@@ -2334,6 +2334,9 @@ class TestV006Integration:
             (self._TABLES["training_sessions_table_name"], "hr_mean"),
             (self._TABLES["user_profiles_table_name"], "load_method"),
             (self._TABLES["vo2max_table_name"], "hr_max_source"),
+            # Not from V006: the profiles table is created from the current
+            # registry, which has user_profiles.hr_max_source since V009 (v0.10.0)
+            (self._TABLES["user_profiles_table_name"], "hr_max_source"),
         }
 
     def test_load_method_and_hr_mean(self):
@@ -2393,6 +2396,15 @@ def _autonomic_result():
     )
 
 
+def _hr_max_result():
+    """Return a valid synthetic HRmax field test (running, 188 bpm)."""
+    from cardiolab.protocols.hr_max_test import hr_max_test
+    from tests.protocols.test_hr_max_test import _test_session
+
+    t, hr = _test_session()
+    return hr_max_test(t, hr, sport="running", sensor="chest_strap", date="2099-12-08")
+
+
 _DEFAULT_USER_TABLES = [
     "hrv_features",
     "hrv_orthostatic",
@@ -2403,6 +2415,7 @@ _DEFAULT_USER_TABLES = [
     "hrv_dfa_thresholds",
     "hrv_lsct",
     "hrv_autonomic_tests",
+    "hrv_hr_max_tests",
     "hrv_training_sessions",
     "hrv_raw_sessions",
     "user_profiles",
@@ -2508,7 +2521,7 @@ class TestDeleteUserDataUnit:
         _erasure_cursor(repo)
         with caplog.at_level("INFO", logger="cardiolab.database.repository"):
             repo.delete_user_data("secret-user-42")
-        assert "24 rows in 12 tables" in caplog.text
+        assert "26 rows in 13 tables" in caplog.text
         assert "secret-user-42" not in caplog.text
 
 
@@ -2539,6 +2552,7 @@ class TestDeleteUserDataIntegration:
             repo.create_dfa_thresholds_table()
             repo.create_lsct_table()
             repo.create_autonomic_tests_table()
+            repo.create_hr_max_tests_table()
             repo.create_raw_sessions_table()
             repo.create_training_sessions_table()
             repo.create_user_profiles_table()
@@ -2583,6 +2597,7 @@ class TestDeleteUserDataIntegration:
         )
         repo.save_lsct(_lsct_result(), user, date="2099-12-01")
         repo.save_autonomic_tests(_autonomic_result(), user, date="2099-12-01")
+        repo.save_hr_max_test(_hr_max_result(), user, date="2099-12-01")
         repo.save_raw_session(rest, user_id=user, date="2099-12-01", protocol="resting")
         repo.save_training_session(user, "2099-12-01", 45, "running", rpe=3)
         repo.save_user_profile(user)
@@ -2909,3 +2924,95 @@ class TestAutonomicTestsUnit:
             None,
             None,
         )
+
+
+@pytest.mark.integration
+class TestHRMaxIntegration:
+    """V009: HRmax tests round trip, hr_max_source of the profile."""
+
+    _USER = "test-v009-user"
+    _TABLES = {
+        "hr_max_test_table_name": "_cardiolab_test_v009_hr_max",
+        "user_profiles_table_name": "_cardiolab_test_v009_profiles",
+    }
+
+    @pytest.fixture(autouse=True)
+    def _setup_teardown(self):
+        """Create both tables, remove the test user afterwards."""
+        for table in self._TABLES.values():
+            _test_table_drop(table)
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.create_hr_max_tests_table()
+            repo.create_user_profiles_table()
+        yield
+        for table in self._TABLES.values():
+            _test_db_cleanup(table, self._USER)
+
+    def test_round_trip(self):
+        """A test survives save / load."""
+        result = _hr_max_result()
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_hr_max_test(result, self._USER)
+            loaded = repo.load_hr_max_tests(self._USER)[0]
+        assert (loaded.date, loaded.sport, loaded.status) == (
+            "2099-12-08",
+            "running",
+            "valid",
+        )
+        assert loaded.hr_max == result.hr_max
+        assert loaded.plateau_reached is True
+
+    def test_profile_source(self):
+        """The athlete accepts: hr_max and its source updated together."""
+        with _repo_from_test_env(**self._TABLES) as repo:
+            repo.save_user_profile(self._USER, hr_max=185, hr_max_source="provided")
+            repo.update_user_profile(self._USER, hr_max=189, hr_max_source="field_test")
+            profile = repo.load_user_profile(self._USER)
+        assert (profile["hr_max"], profile["hr_max_source"]) == (189, "field_test")
+
+
+class TestHRMaxUnit:
+    """V009 methods with a mocked connection, profile source validation."""
+
+    def test_save_row(self):
+        """One row: user, date, then the 8 flat values."""
+        repo = HRVRepository("h", "db", "u", "p")
+        cur = _mock_repo_conn(repo)
+        repo.save_hr_max_test(_hr_max_result(), "uid")
+        row = cur.execute.call_args[0][1]
+        assert row[:2] == ("uid", "2099-12-08")
+        assert len(row) == 2 + 8
+
+    def test_save_requires_date(self):
+        """No date on the result nor in the call: ValueError."""
+        repo = HRVRepository("h", "db", "u", "p")
+        _mock_repo_conn(repo)
+        result = _hr_max_result()
+        result.date = None
+        with pytest.raises(ValueError, match="date is required"):
+            repo.save_hr_max_test(result, "uid")
+
+    def test_profile_source_validated(self):
+        """Unknown hr_max_source refused on save and on update."""
+        repo = HRVRepository("h", "db", "u", "p")
+        _mock_repo_conn(repo)
+        with pytest.raises(ValueError, match="hr_max_source"):
+            repo.save_user_profile("uid", hr_max=185, hr_max_source="guess")
+        with pytest.raises(ValueError, match="hr_max_source"):
+            repo.update_user_profile("uid", hr_max_source="guess")
+
+    def test_profile_source_stored(self):
+        """save_user_profile passes hr_max_source as the last value."""
+        repo = HRVRepository("h", "db", "u", "p")
+        cur = _mock_repo_conn(repo)
+        repo.save_user_profile("uid", hr_max=189, hr_max_source="field_test")
+        assert cur.execute.call_args[0][1][-1] == "field_test"
+
+    def test_from_row(self):
+        """A stored row gives back the result."""
+        from cardiolab.database.repository import _hr_max_test_from_row
+
+        row = _hr_max_result().to_dict()
+        rebuilt = _hr_max_test_from_row(row)
+        assert rebuilt.hr_max == row["hr_max"]
+        assert rebuilt.can_update_profile

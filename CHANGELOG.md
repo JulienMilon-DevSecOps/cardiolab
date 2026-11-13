@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — HRmax field test and HRmax observed in sessions
+
+* `cardiolab.analytics.hr_max`:
+  * `sustained_peak()` / `held_heart_rate()`: the highest heart rate **held 5 s** — values
+    outside 30–230 bpm and drop-out jumps removed, 3-sample median, then the minimum over
+    each 5-s window (a 1–4 s spike never passes; a raw spike > 5 bpm above is reported).
+  * `observed_hr_max(sessions, sport=)` → `{sport: ObservedHRMax}`: per sport, date and
+    session; optical sessions flagged or left out.
+  * `propose_hr_max_update(current, candidate, source=, current_source=, hr_rest=,
+    load_method=)` → `HRMaxProposal`: offered when the profile is empty or age-predicted,
+    or the value is higher — **never lowered, never applied**; lists the changes (zone 5
+    top, general zones, LSCT targets and comparability, Uth VO2max, loads to reprocess).
+  * `HR_MAX_SOURCES` (`provided` / `tanaka` / `field_test` / `observed`), `round_bpm()`
+    (half up: 166.5 → 167).
+* `cardiolab.protocols.hr_max_test.hr_max_test(time_sec, heart_rate | records=, sport=,
+  sensor=)` → `HRMaxTestResult` (Olympiatoppen protocol): final effort ≥ 60 s at ≥ 90 % of
+  the peak, plateau within 3 bpm for ≥ 20 s; status `valid` / `doubtful` / `invalid`
+  (optical sensor); sport and date read from a FIT file.
+* Charts `plot_hr_max_test` (heart rate, held 5 s, final effort, peak retained, spike set
+  aside, profile line) and `plot_hr_max_history` (tests and observed values per sport);
+  EN / FR labels.
+* Migration **V009**: table `hrv_hr_max_tests` (`save_hr_max_test` / `load_hr_max_tests`,
+  listed in `USER_DATA_TABLE_ATTRS`) and column `user_profiles.hr_max_source`
+  (`save_user_profile(hr_max_source=)`, `update_user_profile`, validated).
+* Doc `docs/protocols/hr_max_test.md` (why, safety and ACSM screening, chest strap,
+  procedure, computation, observed HRmax, proposal rules); migration guide, README.
+
 ## [0.9.0] - 2026-11-13
 
 ### Added — PPG signals and pulse rate variability (PRV)
