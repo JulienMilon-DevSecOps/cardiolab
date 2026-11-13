@@ -1,6 +1,6 @@
 # cardiolab — Roadmap
 
-Last updated: 2026-10-30 — released history is in [CHANGELOG.md](CHANGELOG.md).
+Last updated: 2026-11-13 — released history is in [CHANGELOG.md](CHANGELOG.md).
 
 Versions are ordered by **priority**: each one builds on the previous. A version only
 starts once the previous one is tagged. Each item maps to one GitLab issue
@@ -36,6 +36,7 @@ starts once the previous one is tagged. Each item maps to one GitLab issue
 | [v0.8.0](#v080--autonomic-function-tests-p3) | P3 | Ewing battery (E/I, Valsalva, 30:15) — **ready 2026-11-13** (age-corrected values for deep breathing only; not yet tried on a real test) | V008 | No (new protocol) |
 | [v0.9.0](#v090--ppg--prv-p3) | P3 | PPG signals / pulse rate variability — **ready 2026-11-13** (checked on synthetic pulse waves; not yet compared with a chest strap) | — | No |
 | [v0.10.0](#v0100--hrmax-field-test-p3) | P3 | HRmax field test, observed HRmax — **ready 2026-11-13** (checked on synthetic sessions; observed HRmax tried on the author's files; no real field test yet) | V009 | No (new protocol; HRmax-based values change only if the athlete adopts the measured HRmax) |
+| [v0.11.0](#v0110--code-maintenance-p2) | P2 | Code maintenance: shared helpers, single schema (migrations only), repository split — planned 2026-11-13 | — | No |
 
 ---
 
@@ -134,6 +135,16 @@ Ready 2026-11-13 (planned last, decided 2026-10-30). DB: migrations V009 (`hr_ma
 * **Safety**: maximal effort — documented pre-participation advice (medical opinion after 35–40 or with risk factors / symptoms, ACSM screening), stated on the site with the « not a medical tool » line.
 * **Reprocessing**: adopting a new HRmax changes « FC de séance » loads and VO2max → offered through `reprocess_sessions`.
 * Note: if the v0.6.0 incremental threshold test is run to exhaustion, its peak HR is also an HRmax measurement (`field_test`) — to wire once both exist.
+
+## v0.11.0 — Code maintenance (P2)
+
+Planned 2026-11-13, after a review of the whole package. No DB change, no change to computed values, no public API removed (deprecations only).
+
+* **Shared helpers**: the validation functions copied across `reporting/` (`_validate_list`, 7 copies) and `visualization/` (`_default_labels`, `_validate_rr`, `_validate_result`…, 2 to 6 copies) and the repeated colour constants move to `reporting/_core.py` and `visualization/_common.py`; error messages unchanged.
+* **Single schema**: the SQL migrations become the only description of the schema. The 13 `create_*_table` methods are deprecated (removal in 1.0.0), tests set up the database with `run_migrations()`, and an integration test checks that the column registries match the migrated tables.
+* **Repository split**: `database/repository.py` (≈ 3 000 lines) split into sub-modules (row conversion, table specifications, adapters, `HRVRepository` mixins); imports unchanged. After the single-schema item.
+
+Later, with the first cardioanalysis-api endpoints: chart data as JSON-ready series, separated from the matplotlib drawing (backlog).
 
 ---
 
