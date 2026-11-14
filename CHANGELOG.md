@@ -22,6 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * About 150 lines less in the package and 50 in the tests; above all, one definition of each
   check instead of up to seven.
 
+### Changed — migrations as the reference schema
+
+* The SQL migrations are the reference schema. The `create_*_table()` methods stay (they
+  are the only way to create tables under custom names, and the integration tests use
+  them), but are now **checked against the migrations**: the integration test
+  `TestSchemaConcordance` runs every migration and every `create_*_table()` in a temporary
+  schema and fails when a column or a type differs (checked: a column added to a registry
+  without a migration is reported with its table). Both agree today.
+* Docs: migration guide (reference schema, upgrading custom-named tables), training
+  sessions page (`run_migrations()` instead of `create_training_sessions_table()`).
+
 ## [0.10.0] - 2026-11-13
 
 ### Added — HRmax field test and HRmax observed in sessions

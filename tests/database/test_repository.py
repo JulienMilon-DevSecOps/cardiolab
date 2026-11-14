@@ -2733,6 +2733,92 @@ class TestUserTablesGuard:
 
 @_integration_skipif
 @pytest.mark.integration
+class TestSchemaConcordance:
+    """The migrations are the reference schema; ``create_*_table`` must match them.
+
+    ``create_*_table`` remain for custom table names (and the integration
+    tests), which the migrations cannot create. Both are built from separate
+    sources — SQL files and the column registries of ``repository.py`` — so a
+    column added to one and forgotten in the other fails here.
+    """
+
+    _PREFIX = "_cmp_"
+
+    def test_create_methods_match_migrations(self):
+        """Same columns, same types, table by table, in both directions."""
+        import psycopg2
+
+        from cardiolab.database.migrator import run_migrations
+
+        default = HRVRepository("h", "db", "u", "p")
+        names = {attr: getattr(default, attr) for attr in USER_DATA_TABLE_ATTRS}
+        copies = {attr: self._PREFIX + name for attr, name in names.items()}
+
+        conn = psycopg2.connect(
+            host=os.environ["DB_HOST_TEST"],
+            dbname=os.environ["DB_NAME_TEST"],
+            user=os.environ["DB_USER_TEST"],
+            password=os.environ["DB_PASSWORD_TEST"],
+            port=int(os.environ.get("DB_PORT_TEST", "5432")),
+        )
+        try:
+            with conn.cursor() as cur:
+                # Session's temporary schema only: nothing persists (see TestUserTablesGuard)
+                cur.execute("CREATE TEMP TABLE _cardiolab_schema_init (x int);")
+                cur.execute("SET search_path TO pg_temp;")
+            conn.commit()
+            run_migrations(conn)
+
+            repo = HRVRepository("h", "db", "u", "p", **copies)
+            repo._conn = conn  # reuse the open session (same temporary schema)
+            for method in (
+                "create_table",
+                "create_orthostatic_table",
+                "create_coherence_table",
+                "create_hrr_table",
+                "create_drift_table",
+                "create_vo2max_table",
+                "create_dfa_thresholds_table",
+                "create_lsct_table",
+                "create_autonomic_tests_table",
+                "create_hr_max_tests_table",
+                "create_raw_sessions_table",
+                "create_training_sessions_table",
+                "create_user_profiles_table",
+            ):
+                getattr(repo, method)()
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT table_name, column_name, data_type "
+                    "FROM information_schema.columns WHERE table_schema = "
+                    "(SELECT nspname FROM pg_namespace WHERE oid = pg_my_temp_schema());"
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.rollback()
+            conn.close()
+
+        def columns(table: str) -> set[tuple[str, str]]:
+            return {(col, typ) for tab, col, typ in rows if tab == table}
+
+        differences = {}
+        for attr, name in names.items():
+            migrated, created = columns(name), columns(copies[attr])
+            assert migrated, f"{name}: not created by the migrations"
+            if migrated != created:
+                differences[name] = {
+                    "only in migrations": sorted(migrated - created),
+                    "only in create_*_table": sorted(created - migrated),
+                }
+        assert not differences, (
+            "Registries of repository.py and SQL migrations differ "
+            f"(add the missing migration or registry column): {differences}"
+        )
+
+
+@_integration_skipif
+@pytest.mark.integration
 class TestExerciseTestsIntegration:
     """V007 tables: DFA α1 thresholds (test and manual) and LSCT round trips."""
 
