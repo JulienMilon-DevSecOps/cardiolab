@@ -67,10 +67,12 @@ All database interactions go through `HRVRepository`.
 
 ```python
 with HRVRepository.from_env() as repo:
-    repo.create_training_sessions_table()
+    repo.run_migrations()
 ```
 
-Idempotent — safe to call on every startup (`CREATE TABLE IF NOT EXISTS`).
+Creates or upgrades every table; safe to call on every startup (applied migrations are
+skipped). `create_training_sessions_table()` is only for a custom table name (see the
+[migration guide](../database/migration_guide.md#custom-table-names)).
 
 ### Save a session
 

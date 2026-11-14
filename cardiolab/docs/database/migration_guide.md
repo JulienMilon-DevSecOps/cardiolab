@@ -84,11 +84,25 @@ conn.close()
 
 ---
 
+## Reference schema and `create_*_table`
+
+The **migrations are the reference schema**: create and upgrade a database with
+`run_migrations()` only.
+
+The `create_*_table()` methods build each table from the column registries of
+`repository.py`, at the latest schema. They exist for **custom table names** (below)
+and for the integration tests. Since v0.11.0, the integration test
+`TestSchemaConcordance` creates every table both ways in a temporary schema and fails
+when a column or a type differs — a column added to a registry without its migration,
+or the other way round.
+
 ## Custom table names
 
 If you configured non-default table names when initialising `HRVRepository`,
 the SQL migration files use the default names (`hrv_features`, `hrv_orthostatic`,
-etc.). You will need to run the SQL manually against your custom table names, or
+etc.). `create_*_table()` creates a missing custom table at the latest schema, but
+does nothing on an existing one (`CREATE TABLE IF NOT EXISTS`): to upgrade it, run the
+`ALTER TABLE` statements of the new migrations manually against your table names, or
 subclass `HRVRepository` and override `run_migrations`.
 
 ---
@@ -136,7 +150,9 @@ Adding a protocol therefore takes five small steps:
    table with a `user_id` column is missing from the list.
 
 Then ship the matching `V00N__add_myproto.sql` migration (one schema change per
-version) and integration tests for the round trip.
+version), add `create_myproto_table` to the list of `TestSchemaConcordance`, and
+write integration tests for the round trip. The same applies to a new column: the
+registry and a new migration, never one without the other.
 
 ## Erasing a user (right to erasure)
 
